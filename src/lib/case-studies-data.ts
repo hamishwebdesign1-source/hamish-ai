@@ -32,6 +32,7 @@ export type CaseStudy = {
   industry: string;
   overview: string;
   demoUrl: string;
+  imageUrl: string;
   accentFrom: string;
   accentTo: string;
   challenge: string[];
@@ -51,6 +52,7 @@ export const caseStudies: CaseStudy[] = [
     overview:
       "A moody, photography-led redesign for a Leith seafood restaurant, built around a booking-first layout and an AI assistant that never lets a hungry customer go unanswered.",
     demoUrl: "/demo/the-gannet",
+    imageUrl: "/images/case-studies/the-gannet.jpg",
     accentFrom: "#f59e0b",
     accentTo: "#18181b",
     challenge: [
@@ -109,6 +111,7 @@ export const caseStudies: CaseStudy[] = [
     overview:
       "A trust-first rebuild for a local joinery business, with a before/after project gallery and an AI quote assistant that works from a job site, not just a desk.",
     demoUrl: "/demo/craigie-and-sons",
+    imageUrl: "/images/case-studies/craigie-and-sons.jpg",
     accentFrom: "#065f46",
     accentTo: "#ea580c",
     challenge: [
@@ -166,6 +169,7 @@ export const caseStudies: CaseStudy[] = [
     overview:
       "A direct-booking-first redesign for a Georgian townhouse hotel, built to win business back from OTA commission with a concierge-style AI assistant.",
     demoUrl: "/demo/assembly-rooms-hotel",
+    imageUrl: "/images/case-studies/assembly-rooms-hotel.jpg",
     accentFrom: "#5c1f2b",
     accentTo: "#8a7c66",
     challenge: [
@@ -224,6 +228,7 @@ export const caseStudies: CaseStudy[] = [
     overview:
       "A bold, high-contrast rebuild for a Bruntsfield fitness studio, with the class timetable front and centre and an AI assistant that keeps every class full.",
     demoUrl: "/demo/forge-fitness",
+    imageUrl: "/images/case-studies/forge-fitness.jpg",
     accentFrom: "#0a0a0a",
     accentTo: "#d4ff00",
     challenge: [
@@ -282,6 +287,7 @@ export const caseStudies: CaseStudy[] = [
     overview:
       "An understated, credibility-first rebuild for an Edinburgh accountancy practice, with an AI assistant that routes enquiries so billable time goes to the right clients.",
     demoUrl: "/demo/lomond-and-grey",
+    imageUrl: "/images/case-studies/lomond-and-grey.jpg",
     accentFrom: "#0f172a",
     accentTo: "#64748b",
     challenge: [

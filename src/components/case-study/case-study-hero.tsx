@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { ArrowRight } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -34,13 +35,23 @@ export function CaseStudyHero({ study }: { study: CaseStudy }) {
           </Button>
         </div>
 
-        {/* Featured abstract visual */}
-        <div
-          className="card-interactive mt-14 h-64 w-full rounded-xl border border-border md:h-80"
-          style={{
-            backgroundImage: `linear-gradient(135deg, ${study.accentFrom}, ${study.accentTo})`,
-          }}
-        />
+        {/* Featured image */}
+        <div className="card-interactive relative mt-14 h-64 w-full overflow-hidden rounded-xl border border-border md:h-96">
+          <Image
+            src={study.imageUrl}
+            alt={`${study.name} — featured image`}
+            fill
+            sizes="(min-width: 1024px) 1152px, 100vw"
+            className="object-cover"
+            priority
+          />
+          <div
+            className="absolute inset-0 mix-blend-multiply"
+            style={{
+              backgroundImage: `linear-gradient(135deg, ${study.accentFrom}55, ${study.accentTo}55)`,
+            }}
+          />
+        </div>
       </div>
     </section>
   );
