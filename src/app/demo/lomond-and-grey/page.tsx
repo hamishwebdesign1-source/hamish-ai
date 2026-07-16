@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 
 export const metadata: Metadata = {
   title: "Lomond & Grey Accountants | New Town, Edinburgh",
@@ -48,33 +49,45 @@ export default function LomondAndGreyDemo() {
       </header>
 
       {/* Hero */}
-      <section className="mx-auto max-w-5xl px-6 py-20 md:py-28">
-        <p className="text-sm font-medium tracking-wide text-slate-500 uppercase">
-          New Town · Edinburgh
-        </p>
-        <h1
-          className="mt-4 max-w-2xl text-4xl font-medium tracking-tight text-balance md:text-5xl"
-          style={{ fontFamily: "var(--font-fraunces)" }}
-        >
-          Straightforward accountancy, properly explained.
-        </h1>
-        <p className="mt-6 max-w-lg text-lg text-slate-600">
-          For sole traders, limited companies, and individuals who want a
-          straight answer, not a lecture.
-        </p>
-        <div className="mt-8 flex flex-wrap gap-4">
-          <a
-            href="#quote"
-            className="rounded-md bg-slate-900 px-6 py-3 text-sm font-medium text-white hover:bg-slate-800"
+      <section className="mx-auto grid max-w-5xl gap-10 px-6 py-20 md:grid-cols-2 md:items-center md:py-28">
+        <div>
+          <p className="text-sm font-medium tracking-wide text-slate-500 uppercase">
+            New Town · Edinburgh
+          </p>
+          <h1
+            className="mt-4 max-w-2xl text-4xl font-medium tracking-tight text-balance md:text-5xl"
+            style={{ fontFamily: "var(--font-fraunces)" }}
           >
-            Get in touch
-          </a>
-          <a
-            href="#services"
-            className="rounded-md border border-slate-300 px-6 py-3 text-sm font-medium text-slate-700 hover:border-slate-400"
-          >
-            See our services
-          </a>
+            Straightforward accountancy, properly explained.
+          </h1>
+          <p className="mt-6 max-w-lg text-lg text-slate-600">
+            For sole traders, limited companies, and individuals who want a
+            straight answer, not a lecture.
+          </p>
+          <div className="mt-8 flex flex-wrap gap-4">
+            <a
+              href="#quote"
+              className="rounded-md bg-slate-900 px-6 py-3 text-sm font-medium text-white hover:bg-slate-800"
+            >
+              Get in touch
+            </a>
+            <a
+              href="#services"
+              className="rounded-md border border-slate-300 px-6 py-3 text-sm font-medium text-slate-700 hover:border-slate-400"
+            >
+              See our services
+            </a>
+          </div>
+        </div>
+        <div className="relative h-64 overflow-hidden rounded-lg md:h-80">
+          <Image
+            src="/images/case-studies/lomond-and-grey.jpg"
+            alt=""
+            fill
+            priority
+            sizes="(min-width: 768px) 480px, 100vw"
+            className="object-cover"
+          />
         </div>
       </section>
 

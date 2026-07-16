@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 
 export const metadata: Metadata = {
   title: "The Gannet | Seafood, Leith",
@@ -38,11 +39,19 @@ export default function TheGannetDemo() {
 
       {/* Hero */}
       <section className="relative flex min-h-[80vh] items-end overflow-hidden">
+        <Image
+          src="/images/case-studies/the-gannet-hero-bg.jpg"
+          alt=""
+          fill
+          priority
+          sizes="100vw"
+          className="object-cover"
+        />
         <div
           className="absolute inset-0"
           style={{
             background:
-              "radial-gradient(circle at 30% 20%, rgba(217,119,6,0.25), transparent 55%), linear-gradient(180deg, #0a0a0a 0%, #18181b 100%)",
+              "radial-gradient(circle at 30% 20%, rgba(217,119,6,0.25), transparent 55%), linear-gradient(180deg, rgba(10,10,10,0.55) 0%, rgba(10,10,10,0.92) 100%)",
           }}
         />
         <div className="relative mx-auto max-w-5xl px-6 pb-20">

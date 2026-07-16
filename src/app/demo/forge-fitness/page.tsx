@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 
 export const metadata: Metadata = {
   title: "Forge Fitness Studio | Bruntsfield, Edinburgh",
@@ -36,32 +37,43 @@ export default function ForgeFitnessDemo() {
       </header>
 
       {/* Hero */}
-      <section className="mx-auto max-w-5xl px-6 py-20 md:py-28">
-        <p className="text-sm font-bold tracking-[0.3em] text-[#d4ff00] uppercase">
-          Bruntsfield · Edinburgh
-        </p>
-        <h1 className="mt-4 max-w-2xl text-5xl font-black tracking-tight text-balance uppercase md:text-7xl">
-          Train hard.
-          <br />
-          Book easy.
-        </h1>
-        <p className="mt-6 max-w-md text-lg text-white/60">
-          HIIT, strength, boxing, and spin classes in the heart of
-          Bruntsfield — book in seconds, never lose a spot.
-        </p>
-        <div className="mt-8 flex flex-wrap gap-4">
-          <a
-            href="#timetable"
-            className="rounded-full bg-[#d4ff00] px-6 py-3 text-sm font-bold text-black hover:bg-[#c2e900]"
-          >
-            See timetable
-          </a>
-          <a
-            href="#join"
-            className="rounded-full border border-white/20 px-6 py-3 text-sm font-bold text-white hover:border-white/40"
-          >
-            First class free
-          </a>
+      <section className="relative overflow-hidden">
+        <Image
+          src="/images/case-studies/forge-fitness.jpg"
+          alt=""
+          fill
+          priority
+          sizes="100vw"
+          className="object-cover"
+        />
+        <div className="absolute inset-0 bg-black/70" />
+        <div className="relative mx-auto max-w-5xl px-6 py-20 md:py-28">
+          <p className="text-sm font-bold tracking-[0.3em] text-[#d4ff00] uppercase">
+            Bruntsfield · Edinburgh
+          </p>
+          <h1 className="mt-4 max-w-2xl text-5xl font-black tracking-tight text-balance uppercase md:text-7xl">
+            Train hard.
+            <br />
+            Book easy.
+          </h1>
+          <p className="mt-6 max-w-md text-lg text-white/60">
+            HIIT, strength, boxing, and spin classes in the heart of
+            Bruntsfield — book in seconds, never lose a spot.
+          </p>
+          <div className="mt-8 flex flex-wrap gap-4">
+            <a
+              href="#timetable"
+              className="rounded-full bg-[#d4ff00] px-6 py-3 text-sm font-bold text-black hover:bg-[#c2e900]"
+            >
+              See timetable
+            </a>
+            <a
+              href="#join"
+              className="rounded-full border border-white/20 px-6 py-3 text-sm font-bold text-white hover:border-white/40"
+            >
+              First class free
+            </a>
+          </div>
         </div>
       </section>
 

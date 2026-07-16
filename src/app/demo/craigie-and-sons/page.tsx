@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 
 export const metadata: Metadata = {
   title: "Craigie & Sons Joinery | Portobello, Edinburgh",
@@ -100,19 +101,14 @@ export default function CraigieAndSonsDemo() {
         <h2 className="text-2xl font-bold tracking-tight md:text-3xl">Recent projects</h2>
         <div className="mt-8 grid gap-6 md:grid-cols-2">
           {[
-            { title: "Trinity kitchen refit", tag: "Kitchen fitting" },
-            { title: "Morningside staircase rebuild", tag: "Staircases" },
-            { title: "Corstorphine fitted wardrobes", tag: "Wardrobes" },
-            { title: "Joppa decking & garden store", tag: "Garden joinery" },
+            { title: "Trinity kitchen refit", tag: "Kitchen fitting", image: "/images/case-studies/craigie-kitchen.jpg" },
+            { title: "Morningside staircase rebuild", tag: "Staircases", image: "/images/case-studies/craigie-staircase.jpg" },
+            { title: "Corstorphine fitted wardrobes", tag: "Wardrobes", image: "/images/case-studies/craigie-wardrobe.jpg" },
+            { title: "Joppa decking & garden store", tag: "Garden joinery", image: "/images/case-studies/craigie-decking.jpg" },
           ].map((p) => (
             <div key={p.title} className="overflow-hidden rounded-lg border border-stone-200 bg-white">
-              <div
-                className="flex h-40 items-center justify-center text-xs font-semibold tracking-wide text-white uppercase"
-                style={{
-                  background: "linear-gradient(135deg, #065f46 0%, #292524 100%)",
-                }}
-              >
-                Before / After photos
+              <div className="relative h-40 w-full">
+                <Image src={p.image} alt={p.title} fill sizes="(min-width: 768px) 480px, 100vw" className="object-cover" />
               </div>
               <div className="p-4">
                 <p className="font-semibold">{p.title}</p>

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 
 export const metadata: Metadata = {
   title: "The Assembly Rooms | Boutique Hotel, New Town",
@@ -7,9 +8,9 @@ export const metadata: Metadata = {
 };
 
 const rooms = [
-  { name: "Classic Georgian", price: "£145", note: "Queen bed, sash windows, courtyard view" },
-  { name: "Deluxe Terrace", price: "£195", note: "King bed, private terrace" },
-  { name: "The Assembly Suite", price: "£265", note: "Separate lounge, New Town view" },
+  { name: "Classic Georgian", price: "£145", note: "Queen bed, sash windows, courtyard view", image: "/images/case-studies/assembly-classic-room.jpg" },
+  { name: "Deluxe Terrace", price: "£195", note: "King bed, private terrace", image: "/images/case-studies/assembly-deluxe-terrace.jpg" },
+  { name: "The Assembly Suite", price: "£265", note: "Separate lounge, New Town view", image: "/images/case-studies/assembly-suite.jpg" },
 ];
 
 export default function AssemblyRoomsDemo() {
@@ -87,11 +88,8 @@ export default function AssemblyRoomsDemo() {
         <div className="mt-10 grid gap-6 md:grid-cols-3">
           {rooms.map((r) => (
             <div key={r.name} className="overflow-hidden rounded-sm border border-[#e4dac7] bg-white">
-              <div
-                className="flex h-40 items-center justify-center text-xs tracking-widest text-[#faf6ef] uppercase"
-                style={{ background: "linear-gradient(135deg, #5c1f2b 0%, #2b241c 100%)" }}
-              >
-                Room photography
+              <div className="relative h-40 w-full">
+                <Image src={r.image} alt={r.name} fill sizes="(min-width: 768px) 400px, 100vw" className="object-cover" />
               </div>
               <div className="p-5">
                 <p className="text-lg" style={{ fontFamily: "var(--font-fraunces)" }}>{r.name}</p>
