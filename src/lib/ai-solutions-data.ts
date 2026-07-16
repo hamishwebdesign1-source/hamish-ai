@@ -11,11 +11,13 @@ export type AISolution = {
   features: string[];
   callout: string;
   demo: ChatMessage[];
+  image: string;
 };
 
 export const aiSolutions: AISolution[] = [
   {
     slug: "customer-assistant",
+    image: "/images/ai-solutions/customer-assistant.png",
     name: "AI Customer Assistant",
     audience: "Restaurants, cafés, retailers",
     description:
@@ -42,6 +44,7 @@ export const aiSolutions: AISolution[] = [
   },
   {
     slug: "receptionist",
+    image: "/images/ai-solutions/receptionist.png",
     name: "AI Receptionist",
     audience: "Hotels, salons, clinics, gyms",
     description:
@@ -63,6 +66,7 @@ export const aiSolutions: AISolution[] = [
   },
   {
     slug: "sales-assistant",
+    image: "/images/ai-solutions/sales-assistant.png",
     name: "AI Sales Assistant",
     audience: "Tradespeople, estate agents, professional services",
     description:
@@ -84,6 +88,7 @@ export const aiSolutions: AISolution[] = [
   },
   {
     slug: "knowledge-assistant",
+    image: "/images/ai-solutions/knowledge-assistant.png",
     name: "AI Business Knowledge Assistant",
     audience: "Any business with staff, policies, or procedures",
     description:
@@ -105,6 +110,7 @@ export const aiSolutions: AISolution[] = [
   },
   {
     slug: "content-automation",
+    image: "/images/ai-solutions/content-automation.png",
     name: "AI Content Automation",
     audience: "Any business that needs to market itself but has no time",
     description:
@@ -126,6 +132,7 @@ export const aiSolutions: AISolution[] = [
   },
   {
     slug: "analytics-assistant",
+    image: "/images/ai-solutions/analytics-assistant.png",
     name: "AI Analytics Assistant",
     audience: "Any business with sales or booking data",
     description:

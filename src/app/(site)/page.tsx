@@ -1,13 +1,5 @@
 import Link from "next/link";
-import {
-  UtensilsCrossed,
-  ConciergeBell,
-  Handshake,
-  BookOpen,
-  PenTool,
-  ChartColumn,
-  type LucideIcon,
-} from "lucide-react";
+import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Reveal } from "@/components/reveal";
@@ -52,15 +44,6 @@ const steps = [
     body: "You approve it, we build it properly, and keep optimising it as your business changes.",
   },
 ];
-
-const SOLUTION_ICONS: Record<string, LucideIcon> = {
-  "customer-assistant": UtensilsCrossed,
-  receptionist: ConciergeBell,
-  "sales-assistant": Handshake,
-  "knowledge-assistant": BookOpen,
-  "content-automation": PenTool,
-  "analytics-assistant": ChartColumn,
-};
 
 export default function HomePage() {
   return (
@@ -138,26 +121,31 @@ export default function HomePage() {
         </Reveal>
 
         <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {aiSolutions.map((s, i) => {
-            const Icon = SOLUTION_ICONS[s.slug] ?? Handshake;
-            return (
-              <Reveal key={s.slug} delay={i * 60}>
-                <Link
-                  href={`/ai-solutions#${s.slug}`}
-                  className="card-interactive block h-full rounded-lg border border-border bg-background p-5"
-                >
-                  <span className="flex size-9 items-center justify-center rounded-md bg-accent/15 text-accent">
-                    <Icon className="size-4.5" />
-                  </span>
-                  <p className="mt-3 text-xs font-medium tracking-wide text-accent uppercase">
+          {aiSolutions.map((s, i) => (
+            <Reveal key={s.slug} delay={i * 60}>
+              <Link
+                href={`/ai-solutions#${s.slug}`}
+                className="card-interactive block h-full overflow-hidden rounded-lg border border-border bg-background"
+              >
+                <div className="relative aspect-[16/10] w-full overflow-hidden bg-primary">
+                  <Image
+                    src={s.image}
+                    alt=""
+                    fill
+                    sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
+                    className="object-cover"
+                  />
+                </div>
+                <div className="p-5">
+                  <p className="text-xs font-medium tracking-wide text-accent uppercase">
                     {s.audience}
                   </p>
                   <h3 className="mt-1 font-heading text-lg font-medium">{s.name}</h3>
                   <p className="mt-2 text-sm text-muted-foreground">{s.callout}</p>
-                </Link>
-              </Reveal>
-            );
-          })}
+                </div>
+              </Link>
+            </Reveal>
+          ))}
         </div>
       </section>
 

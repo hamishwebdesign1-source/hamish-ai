@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import type { Metadata } from "next";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -74,7 +75,16 @@ export default function AISolutionsPage() {
                 </p>
               </div>
 
-              <div className={i % 2 === 1 ? "md:order-1" : ""}>
+              <div className={`flex flex-col gap-5 ${i % 2 === 1 ? "md:order-1" : ""}`}>
+                <div className="relative aspect-[16/10] w-full overflow-hidden rounded-xl border border-border bg-primary">
+                  <Image
+                    src={s.image}
+                    alt=""
+                    fill
+                    sizes="(min-width: 768px) 50vw, 100vw"
+                    className="object-cover"
+                  />
+                </div>
                 <ChatDemo messages={s.demo} />
               </div>
             </div>
