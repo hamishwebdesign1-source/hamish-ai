@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Logo } from "@/components/logo";
 import { siteConfig } from "@/lib/site-config";
 
 export function SiteFooter() {
@@ -6,8 +7,8 @@ export function SiteFooter() {
     <footer className="border-t border-border/60">
       <div className="mx-auto flex max-w-6xl flex-col gap-4 px-6 py-10 text-sm text-muted-foreground md:flex-row md:items-center md:justify-between">
         <div>
-          <p className="font-heading text-base text-foreground">{siteConfig.name}</p>
-          <p>{siteConfig.location}</p>
+          <Logo className="text-base" />
+          <p className="mt-1">{siteConfig.location}</p>
         </div>
 
         <nav className="flex flex-wrap gap-6">

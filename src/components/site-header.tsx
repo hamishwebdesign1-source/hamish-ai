@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { Menu, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Logo } from "@/components/logo";
 import { siteConfig } from "@/lib/site-config";
 
 export function SiteHeader() {
@@ -12,8 +13,8 @@ export function SiteHeader() {
   return (
     <header className="sticky top-0 z-50 border-b border-border/60 bg-background/90 backdrop-blur">
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-6">
-        <Link href="/" className="font-heading text-xl font-semibold tracking-tight">
-          {siteConfig.name}
+        <Link href="/" aria-label={siteConfig.name}>
+          <Logo />
         </Link>
 
         <nav className="hidden items-center gap-8 md:flex">

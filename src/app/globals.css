@@ -49,19 +49,21 @@
 }
 
 :root {
-  /* AI-tech gradient accents, used for hero washes, gradient text/buttons */
+  /* AI-tech gradient accents, used for hero washes, gradient text/buttons.
+     Matches the HamishAI brand identity: Signal Blue + Cyan do the work,
+     Violet is reserved as the single flourish on the Facet mark itself. */
   --gradient-violet: oklch(0.55 0.24 295);
-  --gradient-blue: oklch(0.62 0.2 250);
-  --gradient-copper: oklch(0.72 0.16 55);
+  --gradient-blue: oklch(0.58 0.21 258);
+  --gradient-cyan: oklch(0.78 0.13 200);
   --gradient-violet-soft: oklch(0.55 0.24 295 / 18%);
-  --gradient-blue-soft: oklch(0.62 0.2 250 / 16%);
-  --gradient-copper-soft: oklch(0.72 0.16 55 / 18%);
+  --gradient-blue-soft: oklch(0.58 0.21 258 / 16%);
+  --gradient-cyan-soft: oklch(0.78 0.13 200 / 20%);
   --gradient-violet-glow: oklch(0.55 0.24 295 / 30%);
-  --gradient-blue-line: oklch(0.62 0.2 250 / 45%);
+  --gradient-blue-line: oklch(0.58 0.21 258 / 45%);
 }
 
 :root {
-  /* Brand: deep Edinburgh-ink navy + warm sandstone/copper accent */
+  /* Brand: deep Edinburgh-ink navy + Signal Blue accent (HamishAI identity) */
   --background: oklch(0.985 0.004 90);
   --foreground: oklch(0.22 0.025 260);
   --card: oklch(1 0 0);
@@ -74,17 +76,17 @@
   --secondary-foreground: oklch(0.24 0.035 260);
   --muted: oklch(0.955 0.008 80);
   --muted-foreground: oklch(0.48 0.02 260);
-  --accent: oklch(0.72 0.14 60);
-  --accent-foreground: oklch(0.18 0.02 260);
+  --accent: oklch(0.58 0.21 258);
+  --accent-foreground: oklch(0.99 0.004 90);
   --destructive: oklch(0.577 0.245 27.325);
   --border: oklch(0.9 0.012 80);
   --input: oklch(0.9 0.012 80);
-  --ring: oklch(0.72 0.14 60);
+  --ring: oklch(0.58 0.21 258);
   --chart-1: oklch(0.24 0.035 260);
-  --chart-2: oklch(0.42 0.06 250);
+  --chart-2: oklch(0.58 0.21 258);
   --chart-3: oklch(0.6 0.1 150);
-  --chart-4: oklch(0.72 0.14 60);
-  --chart-5: oklch(0.8 0.12 80);
+  --chart-4: oklch(0.78 0.13 200);
+  --chart-5: oklch(0.55 0.24 295);
   --radius: 0.45rem;
   --sidebar: oklch(0.985 0.004 90);
   --sidebar-foreground: oklch(0.22 0.025 260);
@@ -93,7 +95,7 @@
   --sidebar-accent: oklch(0.955 0.008 80);
   --sidebar-accent-foreground: oklch(0.24 0.035 260);
   --sidebar-border: oklch(0.9 0.012 80);
-  --sidebar-ring: oklch(0.72 0.14 60);
+  --sidebar-ring: oklch(0.58 0.21 258);
 }
 
 .dark {
@@ -109,17 +111,17 @@
   --secondary-foreground: oklch(0.95 0.006 90);
   --muted: oklch(0.27 0.02 260);
   --muted-foreground: oklch(0.66 0.02 260);
-  --accent: oklch(0.74 0.14 60);
-  --accent-foreground: oklch(0.16 0.02 260);
+  --accent: oklch(0.66 0.19 258);
+  --accent-foreground: oklch(0.99 0.004 90);
   --destructive: oklch(0.704 0.191 22.216);
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.74 0.14 60);
+  --ring: oklch(0.66 0.19 258);
   --chart-1: oklch(0.93 0.012 90);
-  --chart-2: oklch(0.75 0.03 260);
+  --chart-2: oklch(0.66 0.19 258);
   --chart-3: oklch(0.65 0.1 150);
-  --chart-4: oklch(0.74 0.14 60);
-  --chart-5: oklch(0.8 0.12 80);
+  --chart-4: oklch(0.8 0.12 200);
+  --chart-5: oklch(0.6 0.22 295);
   --sidebar: oklch(0.21 0.02 260);
   --sidebar-foreground: oklch(0.95 0.006 90);
   --sidebar-primary: oklch(0.93 0.012 90);
@@ -127,7 +129,7 @@
   --sidebar-accent: oklch(0.27 0.02 260);
   --sidebar-accent-foreground: oklch(0.95 0.006 90);
   --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.74 0.14 60);
+  --sidebar-ring: oklch(0.66 0.19 258);
 }
 
 @layer base {
@@ -150,24 +152,14 @@
 
 @layer utilities {
   .gradient-text {
-    background-image: linear-gradient(
-      100deg,
-      var(--gradient-violet),
-      var(--gradient-blue) 55%,
-      var(--gradient-copper)
-    );
+    background-image: linear-gradient(100deg, var(--gradient-blue), var(--gradient-cyan));
     background-clip: text;
     -webkit-background-clip: text;
     color: transparent;
   }
 
   .gradient-button {
-    background-image: linear-gradient(
-      110deg,
-      var(--gradient-violet),
-      var(--gradient-blue) 60%,
-      var(--gradient-copper)
-    );
+    background-image: linear-gradient(110deg, var(--gradient-blue), var(--gradient-cyan));
     color: white;
     border: none;
   }
@@ -191,7 +183,7 @@
         transparent 45%
       ),
       radial-gradient(circle at 80% 10%, var(--gradient-blue-soft), transparent 50%),
-      radial-gradient(circle at 60% 70%, var(--gradient-copper-soft), transparent 55%);
+      radial-gradient(circle at 60% 70%, var(--gradient-cyan-soft), transparent 55%);
     animation: aurora-drift 20s ease-in-out infinite alternate;
   }
 
