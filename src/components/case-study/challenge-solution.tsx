@@ -1,0 +1,37 @@
+import { CircleCheckBig, X } from "lucide-react";
+import type { CaseStudy } from "@/lib/case-studies-data";
+
+export function ChallengeSolution({ study }: { study: CaseStudy }) {
+  return (
+    <section className="mx-auto max-w-6xl px-6 py-16 md:py-20">
+      <div className="grid gap-10 md:grid-cols-2">
+        <div>
+          <h2 className="font-heading text-2xl font-semibold md:text-3xl">The Challenge</h2>
+          <ul className="mt-6 space-y-4">
+            {study.challenge.map((c) => (
+              <li key={c} className="flex gap-3">
+                <span className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full bg-destructive/10 text-destructive">
+                  <X className="size-3.5" />
+                </span>
+                <span className="text-muted-foreground">{c}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+        <div>
+          <h2 className="font-heading text-2xl font-semibold md:text-3xl">The Solution</h2>
+          <ul className="mt-6 space-y-4">
+            {study.solution.map((s) => (
+              <li key={s} className="flex gap-3">
+                <span className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full bg-accent/15 text-accent">
+                  <CircleCheckBig className="size-3.5" />
+                </span>
+                <span className="text-muted-foreground">{s}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
+    </section>
+  );
+}
