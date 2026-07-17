@@ -174,6 +174,17 @@ export default function HomePage() {
             How it works
           </h2>
         </Reveal>
+        <Reveal delay={40}>
+          <div className="relative mt-8 hidden aspect-[1142/234] w-full overflow-hidden rounded-xl border border-border sm:block">
+            <Image
+              src="/images/homepage/how-it-works.png"
+              alt="Free AI consultation, then a free working prototype, then launch and keep improving"
+              fill
+              sizes="(min-width: 1152px) 1152px, 100vw"
+              className="object-cover"
+            />
+          </div>
+        </Reveal>
         <div className="mt-10 grid gap-8 md:grid-cols-3">
           {steps.map((s, i) => (
             <Reveal key={s.step} delay={i * 80}>
