@@ -293,6 +293,7 @@ export const caseStudies: CaseStudy[] = [
       "An understated, credibility-first rebuild for an Edinburgh accountancy practice, with an AI assistant that routes enquiries so billable time goes to the right clients.",
     demoUrl: "/demo/lomond-and-grey",
     imageUrl: "/images/case-studies/lomond-and-grey.jpg",
+    signatureImage: "/images/case-studies/lomond-and-grey-signature.png",
     accentFrom: "#0f172a",
     accentTo: "#64748b",
     challenge: [
