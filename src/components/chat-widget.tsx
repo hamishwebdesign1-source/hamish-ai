@@ -2,8 +2,9 @@
 
 import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
-import { Bot, MessageCircle, Send, Sparkles, X } from "lucide-react";
+import { Send, Sparkles, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { LogoMark } from "@/components/logo";
 import { getCaseStudy } from "@/lib/case-studies-data";
 
 type Message = { role: "user" | "assistant"; content: string };
@@ -98,7 +99,7 @@ export function ChatWidget() {
             <div className="flex items-center justify-between gap-3 border-b border-border bg-primary px-4 py-3 text-primary-foreground sm:rounded-t-xl">
               <div className="flex items-center gap-2">
                 <span className="flex size-8 items-center justify-center rounded-full bg-primary-foreground/15">
-                  <Bot className="size-4" />
+                  <LogoMark className="size-4" />
                 </span>
                 <div>
                   <p className="text-sm font-medium">AI Assistant</p>
@@ -202,7 +203,7 @@ export function ChatWidget() {
         aria-label={open ? "Close AI assistant chat" : "Open AI assistant chat"}
         onClick={() => setOpen((o) => !o)}
       >
-        {open ? <X className="size-5" /> : <MessageCircle className="size-5" />}
+        {open ? <X className="size-5" /> : <LogoMark className="size-6" />}
       </Button>
     </>
   );

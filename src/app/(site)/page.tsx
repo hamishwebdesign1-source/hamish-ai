@@ -3,6 +3,7 @@ import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Reveal } from "@/components/reveal";
+import { ChatDemo } from "@/components/chat-demo";
 import {
   Accordion,
   AccordionItem,
@@ -16,6 +17,14 @@ const trustPoints = [
   "Plain-English, no jargon",
   "Free consultation, no obligation",
   "See it working before you commit",
+];
+
+const heroDemo = [
+  { role: "user" as const, text: "Can you tell me your opening hours and if you take walk-ins?" },
+  {
+    role: "ai" as const,
+    text: "We're open Tuesday to Sunday, 9am–6pm, and yes — walk-ins are welcome, though booking ahead means less waiting. Want me to check today's availability for you?",
+  },
 ];
 
 const offerStats = [
@@ -89,37 +98,54 @@ const steps = [
 export default function HomePage() {
   return (
     <>
-      <section className="aurora-bg mx-auto max-w-6xl px-6 pt-20 pb-16 md:pt-28 md:pb-24">
-        <Badge variant="secondary" className="mb-6">
-          Edinburgh, Scotland
-        </Badge>
-        <h1 className="max-w-3xl font-heading text-4xl font-semibold tracking-tight text-balance md:text-6xl">
-          Transform your business with{" "}
-          <span className="gradient-text">AI-powered</span> digital
-          solutions.
-        </h1>
-        <p className="mt-6 max-w-xl text-lg text-muted-foreground text-balance">
-          We help Edinburgh businesses automate tasks, improve customer
-          experiences, and unlock new growth opportunities using practical
-          AI solutions. We don&apos;t just build websites — we make
-          businesses smarter with AI.
-        </p>
-        <div className="mt-8 flex flex-wrap gap-3">
-          <Button size="lg" variant="gradient" render={<Link href="/contact" />}>
-            Book a free AI consultation
-          </Button>
-          <Button size="lg" variant="outline" render={<Link href="/ai-solutions" />}>
-            See AI solutions in action
-          </Button>
-        </div>
+      <section className="mx-auto max-w-6xl px-6 pt-20 pb-16 md:pt-28 md:pb-24">
+        <div className="grid gap-12 lg:grid-cols-[1.1fr_1fr] lg:items-center lg:gap-16">
+          <div>
+            <Badge variant="secondary" className="mb-6">
+              Edinburgh, Scotland
+            </Badge>
+            <h1 className="max-w-xl font-heading text-4xl font-semibold tracking-tight text-balance md:text-6xl">
+              Transform your business with AI-powered digital solutions.
+            </h1>
+            <p className="mt-6 max-w-xl text-lg text-muted-foreground text-balance">
+              We help Edinburgh businesses automate tasks, improve customer
+              experiences, and unlock new growth opportunities using
+              practical AI solutions. We don&apos;t just build websites —
+              we make businesses smarter with AI.
+            </p>
+            <div className="mt-8 flex flex-wrap gap-3">
+              <Button size="lg" variant="gradient" render={<Link href="/contact" />}>
+                Book a free AI consultation
+              </Button>
+              <Button size="lg" variant="outline" render={<Link href="/ai-solutions" />}>
+                See AI solutions in action
+              </Button>
+            </div>
 
-        <div className="mt-10 flex flex-wrap gap-x-6 gap-y-2 text-sm text-muted-foreground">
-          {trustPoints.map((t) => (
-            <span key={t} className="flex items-center gap-1.5">
-              <span className="text-accent">✓</span>
-              {t}
-            </span>
-          ))}
+            <div className="mt-10 flex flex-wrap gap-x-6 gap-y-2 text-sm text-muted-foreground">
+              {trustPoints.map((t) => (
+                <span key={t} className="flex items-center gap-1.5">
+                  <span className="text-accent">✓</span>
+                  {t}
+                </span>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="relative flex size-2">
+                <span className="absolute inline-flex size-full animate-ping rounded-full bg-accent opacity-75" />
+                <span className="relative inline-flex size-2 rounded-full bg-accent" />
+              </span>
+              <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+                A real example — this is what an AI assistant can do
+              </p>
+            </div>
+            <div className="mt-4">
+              <ChatDemo messages={heroDemo} />
+            </div>
+          </div>
         </div>
       </section>
 
