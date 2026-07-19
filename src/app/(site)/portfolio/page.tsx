@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import type { Metadata } from "next";
 import { ArrowRight } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -36,11 +37,21 @@ export default function PortfolioPage() {
               className="card-interactive group overflow-hidden rounded-xl border border-border bg-background"
             >
               <div
-                className="h-40 w-full"
+                className="relative h-40 w-full overflow-hidden"
                 style={{
                   backgroundImage: `linear-gradient(135deg, ${study.accentFrom}, ${study.accentTo})`,
                 }}
-              />
+              >
+                {study.signatureImage && (
+                  <Image
+                    src={study.signatureImage}
+                    alt=""
+                    fill
+                    sizes="(min-width: 640px) 50vw, 100vw"
+                    className="object-cover"
+                  />
+                )}
+              </div>
               <div className="p-6">
                 <Badge variant="outline" className="mb-3 w-fit">
                   {study.industry}

@@ -1,9 +1,16 @@
 import Link from "next/link";
 import type { Metadata } from "next";
+import { Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import {
+  Accordion,
+  AccordionItem,
+  AccordionTrigger,
+  AccordionContent,
+} from "@/components/ui/accordion";
 import { packages, foundingOfferNote } from "@/lib/site-config";
 
 export const metadata: Metadata = {
@@ -11,6 +18,24 @@ export const metadata: Metadata = {
   description:
     "Founding client pricing on three AI transformation packages for Edinburgh businesses — website, automation, and ongoing growth.",
 };
+
+const pricingFaqs = [
+  {
+    question: "What happens once the 5 founding spots are gone?",
+    answer:
+      "Pricing moves to the standard rate shown struck through on each package. Anyone who signs up while a founding spot is available keeps that price for the project regardless of when it's delivered.",
+  },
+  {
+    question: "Can I start with one package and add another later?",
+    answer:
+      "Yes — most clients start with the AI Website Transformation and add automation once they can see the site working. Nothing here requires committing to everything upfront.",
+  },
+  {
+    question: "Is the Growth Partnership a contract?",
+    answer:
+      "No — it's ongoing and you can cancel anytime, as noted on the package itself.",
+  },
+];
 
 export default function ServicesPage() {
   return (
@@ -28,7 +53,7 @@ export default function ServicesPage() {
           you&apos;re getting.
         </p>
         <div className="mt-6 inline-flex max-w-xl items-start gap-2 rounded-lg border border-accent/40 bg-accent/10 px-4 py-3 text-sm">
-          <span className="text-accent">🎉</span>
+          <Sparkles className="mt-0.5 size-4 shrink-0 text-accent" />
           <span className="text-foreground">{foundingOfferNote}</span>
         </div>
       </section>
@@ -82,6 +107,26 @@ export default function ServicesPage() {
               </CardContent>
             </Card>
           ))}
+        </div>
+      </section>
+
+      <section className="border-t border-border/60">
+        <div className="mx-auto max-w-3xl px-6 py-16 md:py-20">
+          <h2 className="font-heading text-2xl font-semibold md:text-3xl">
+            Pricing questions
+          </h2>
+          <Accordion className="mt-8">
+            {pricingFaqs.map((faq) => (
+              <AccordionItem key={faq.question} value={faq.question}>
+                <AccordionTrigger className="font-heading text-base">
+                  {faq.question}
+                </AccordionTrigger>
+                <AccordionContent className="text-muted-foreground">
+                  {faq.answer}
+                </AccordionContent>
+              </AccordionItem>
+            ))}
+          </Accordion>
         </div>
       </section>
 
