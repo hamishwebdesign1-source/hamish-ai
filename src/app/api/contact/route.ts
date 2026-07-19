@@ -1,14 +1,36 @@
 import { NextResponse } from "next/server";
 import { Resend } from "resend";
 import { siteConfig } from "@/lib/site-config";
+import { isRateLimited, getClientKey } from "@/lib/chat-rate-limit";
+
+const MAX_FIELD_LENGTH = 200;
+const MAX_MESSAGE_LENGTH = 5000;
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+// Strip characters that could inject extra headers into an email
+// subject/reply-to built from user-supplied strings.
+function sanitizeHeaderValue(value: string) {
+  return value.replace(/[\r\n]+/g, " ").trim();
+}
 
 export async function POST(request: Request) {
-  const body = await request.json();
-  const { name, business, email, message } = body ?? {};
-
-  if (!name || !email || !message) {
+  if (isRateLimited(getClientKey(request))) {
     return NextResponse.json(
-      { error: "Name, email, and message are required." },
+      { error: "Too many requests — please try again in a few minutes." },
+      { status: 429 }
+    );
+  }
+
+  const body = await request.json().catch(() => null);
+  const name = typeof body?.name === "string" ? sanitizeHeaderValue(body.name).slice(0, MAX_FIELD_LENGTH) : "";
+  const business =
+    typeof body?.business === "string" ? sanitizeHeaderValue(body.business).slice(0, MAX_FIELD_LENGTH) : "";
+  const email = typeof body?.email === "string" ? sanitizeHeaderValue(body.email).slice(0, MAX_FIELD_LENGTH) : "";
+  const message = typeof body?.message === "string" ? body.message.slice(0, MAX_MESSAGE_LENGTH) : "";
+
+  if (!name || !email || !message || !EMAIL_PATTERN.test(email)) {
+    return NextResponse.json(
+      { error: "A valid name, email, and message are required." },
       { status: 400 }
     );
   }

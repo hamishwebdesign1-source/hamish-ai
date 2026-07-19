@@ -18,17 +18,14 @@ const SUGGESTED_PROMPTS = [
   "Show me an example",
 ];
 
-function getProjectFromPathname(pathname: string) {
+function getProjectSlugFromPathname(pathname: string) {
   const match = pathname.match(/^\/portfolio\/([^/]+)$/);
-  if (!match) return null;
-  const study = getCaseStudy(match[1]);
-  if (!study) return null;
-  return {
-    name: study.name,
-    industry: study.industry,
-    overview: study.overview,
-    aiFeatures: study.aiFeatures.map((f) => ({ title: f.title, description: f.description })),
-  };
+  return match ? match[1] : null;
+}
+
+function getProjectFromPathname(pathname: string) {
+  const slug = getProjectSlugFromPathname(pathname);
+  return slug ? getCaseStudy(slug) ?? null : null;
 }
 
 export function ChatWidget() {
@@ -71,7 +68,7 @@ export function ChatWidget() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           messages: nextMessages,
-          project: getProjectFromPathname(pathname),
+          projectSlug: getProjectSlugFromPathname(pathname),
         }),
       });
 

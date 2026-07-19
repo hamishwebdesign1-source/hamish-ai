@@ -13,6 +13,15 @@ export function isRateLimited(key: string): boolean {
   const recent = (hits.get(key) ?? []).filter((t) => now - t < WINDOW_MS);
   recent.push(now);
   hits.set(key, recent);
+
+  // Occasionally sweep stale keys so the map doesn't grow forever across
+  // many distinct IPs over a long-running process.
+  if (hits.size > 500) {
+    for (const [k, timestamps] of hits) {
+      if (timestamps.every((t) => now - t >= WINDOW_MS)) hits.delete(k);
+    }
+  }
+
   return recent.length > MAX_REQUESTS;
 }
 

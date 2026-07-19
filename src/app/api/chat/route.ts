@@ -4,20 +4,28 @@ import { CHAT_SYSTEM_PROMPT } from "@/lib/chat-system-prompt";
 import { getFallbackReply } from "@/lib/chat-fallback";
 import { saveLead } from "@/lib/save-lead";
 import { isRateLimited, getClientKey } from "@/lib/chat-rate-limit";
+import { getCaseStudy } from "@/lib/case-studies-data";
 
 const MAX_MESSAGE_LENGTH = 2000;
 const MAX_HISTORY = 20;
 
-type IncomingMessage = { role: "user" | "assistant"; content: string };
+type IncomingMessage = { role: unknown; content: unknown };
 
-type ProjectContext = {
-  name: string;
-  industry: string;
-  overview: string;
-  aiFeatures: { title: string; description: string }[];
-};
+function sanitizeMessages(messages: IncomingMessage[]) {
+  return messages
+    .filter(
+      (m): m is { role: "user" | "assistant"; content: string } =>
+        (m?.role === "user" || m?.role === "assistant") && typeof m.content === "string"
+    )
+    .slice(-MAX_HISTORY)
+    .map((m) => ({ ...m, content: m.content.slice(0, MAX_MESSAGE_LENGTH) }));
+}
 
-function buildSystemPrompt(project: ProjectContext | null | undefined) {
+// Project context is looked up server-side from a slug, never trusted
+// as free-form client input — accepting arbitrary project details would
+// let a caller inject anything directly into the system prompt.
+function buildSystemPrompt(projectSlug: unknown) {
+  const project = typeof projectSlug === "string" ? getCaseStudy(projectSlug) : undefined;
   if (!project) return CHAT_SYSTEM_PROMPT;
 
   const featuresList = project.aiFeatures
@@ -60,16 +68,17 @@ export async function POST(request: Request) {
   }
 
   const body = await request.json().catch(() => null);
-  const messages: IncomingMessage[] | undefined = body?.messages;
-  const project: ProjectContext | null | undefined = body?.project;
+  const rawMessages: unknown = body?.messages;
 
-  if (!Array.isArray(messages) || messages.length === 0) {
+  if (!Array.isArray(rawMessages) || rawMessages.length === 0) {
     return NextResponse.json({ error: "messages is required." }, { status: 400 });
   }
 
-  const trimmed = messages
-    .slice(-MAX_HISTORY)
-    .map((m) => ({ ...m, content: (m.content ?? "").slice(0, MAX_MESSAGE_LENGTH) }));
+  const trimmed = sanitizeMessages(rawMessages);
+
+  if (trimmed.length === 0) {
+    return NextResponse.json({ error: "messages is required." }, { status: 400 });
+  }
 
   const lastUserMessage = [...trimmed].reverse().find((m) => m.role === "user");
 
@@ -94,7 +103,7 @@ export async function POST(request: Request) {
       const response = await anthropic.messages.create({
         model,
         max_tokens: 400,
-        system: buildSystemPrompt(project),
+        system: buildSystemPrompt(body?.projectSlug),
         tools: [SAVE_LEAD_TOOL],
         messages: conversation,
       });
