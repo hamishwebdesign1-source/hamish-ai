@@ -3,6 +3,12 @@ import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Reveal } from "@/components/reveal";
+import {
+  Accordion,
+  AccordionItem,
+  AccordionTrigger,
+  AccordionContent,
+} from "@/components/ui/accordion";
 import { aiSolutions } from "@/lib/ai-solutions-data";
 
 const trustPoints = [
@@ -10,6 +16,41 @@ const trustPoints = [
   "Plain-English, no jargon",
   "Free consultation, no obligation",
   "See it working before you commit",
+];
+
+const offerStats = [
+  { value: "£0", label: "To see a working prototype" },
+  { value: "1–2 weeks", label: "Typical turnaround for a website build" },
+  { value: "5", label: "Founding client spots at this pricing" },
+  { value: "24/7", label: "Your AI assistant is on duty" },
+];
+
+const faqs = [
+  {
+    question: "How much does this actually cost?",
+    answer:
+      "Founding client pricing starts from £595 for a website transformation, or from £1,200 for automation work — see the Services page for full package details. Whatever the scope, the free consultation and prototype come first, so you know the real number before committing to anything.",
+  },
+  {
+    question: "What if I don't like the free prototype?",
+    answer:
+      "Then you walk away and it's cost you nothing. The prototype is built specifically so you can judge it before paying, not to pressure you into a yes.",
+  },
+  {
+    question: "I don't know anything about AI — is that a problem?",
+    answer:
+      "No. The free consultation exists to translate what AI could do into plain terms for your specific business, not to test how technical you are.",
+  },
+  {
+    question: "Is my business data safe?",
+    answer:
+      "Any AI assistant we build only answers from the information and documents you approve — nothing is shared beyond what's needed to run it, and it's covered in detail during the consultation.",
+  },
+  {
+    question: "How long until it's actually live?",
+    answer:
+      "A website transformation typically takes 1–2 weeks once you approve the prototype; automation projects usually take 2–4 weeks depending on scope.",
+  },
 ];
 
 const problems = [
@@ -78,6 +119,21 @@ export default function HomePage() {
               <span className="text-accent">✓</span>
               {t}
             </span>
+          ))}
+        </div>
+      </section>
+
+      <section className="border-t border-border/60">
+        <div className="mx-auto grid max-w-6xl grid-cols-2 gap-6 px-6 py-10 md:grid-cols-4 md:py-12">
+          {offerStats.map((s, i) => (
+            <Reveal key={s.label} delay={i * 60}>
+              <div>
+                <p className="gradient-text font-heading text-3xl font-semibold md:text-4xl">
+                  {s.value}
+                </p>
+                <p className="mt-1 text-sm text-muted-foreground">{s.label}</p>
+              </div>
+            </Reveal>
           ))}
         </div>
       </section>
@@ -197,6 +253,30 @@ export default function HomePage() {
               </div>
             </Reveal>
           ))}
+        </div>
+      </section>
+
+      <section className="border-t border-border/60">
+        <div className="mx-auto max-w-3xl px-6 py-16 md:py-20">
+          <Reveal>
+            <h2 className="font-heading text-2xl font-semibold md:text-3xl">
+              Common questions
+            </h2>
+          </Reveal>
+          <Reveal delay={40}>
+            <Accordion className="mt-8">
+              {faqs.map((faq) => (
+                <AccordionItem key={faq.question} value={faq.question}>
+                  <AccordionTrigger className="font-heading text-base">
+                    {faq.question}
+                  </AccordionTrigger>
+                  <AccordionContent className="text-muted-foreground">
+                    {faq.answer}
+                  </AccordionContent>
+                </AccordionItem>
+              ))}
+            </Accordion>
+          </Reveal>
         </div>
       </section>
 
