@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { siteConfig } from "@/lib/site-config";
 
 export function ContactForm() {
   const [status, setStatus] = useState<"idle" | "sending" | "sent" | "error">(
@@ -48,24 +49,28 @@ export function ContactForm() {
     <form onSubmit={handleSubmit} className="space-y-5">
       <div className="grid gap-5 sm:grid-cols-2">
         <div className="space-y-2">
-          <Label htmlFor="name">Your name</Label>
-          <Input id="name" name="name" required />
+          <Label htmlFor="name">
+            Your name <span className="text-accent">*</span>
+          </Label>
+          <Input id="name" name="name" autoComplete="name" required />
         </div>
         <div className="space-y-2">
           <Label htmlFor="business">Business name</Label>
-          <Input id="business" name="business" />
+          <Input id="business" name="business" autoComplete="organization" />
         </div>
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="email">Email</Label>
-        <Input id="email" name="email" type="email" required />
+        <Label htmlFor="email">
+          Email <span className="text-accent">*</span>
+        </Label>
+        <Input id="email" name="email" type="email" autoComplete="email" required />
       </div>
 
       <div className="space-y-2">
         <Label htmlFor="message">
           What would you like AI to help with? (or paste your current
-          website link)
+          website link) <span className="text-accent">*</span>
         </Label>
         <Textarea id="message" name="message" rows={5} required />
       </div>
@@ -76,7 +81,12 @@ export function ContactForm() {
 
       {status === "error" && (
         <p className="text-sm text-destructive">
-          Something went wrong — please email us directly instead.
+          Something went wrong sending that — please try again, or email us
+          directly at{" "}
+          <a href={`mailto:${siteConfig.email}`} className="underline">
+            {siteConfig.email}
+          </a>
+          .
         </p>
       )}
     </form>

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
-import { Bot, MessageCircle, Send, X } from "lucide-react";
+import { Bot, MessageCircle, Send, Sparkles, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { getCaseStudy } from "@/lib/case-studies-data";
 
@@ -10,6 +10,12 @@ type Message = { role: "user" | "assistant"; content: string };
 
 const DEFAULT_GREETING =
   "Hi, I'm the AI assistant. I can show you how AI could help your business. What type of business do you run — restaurant, hotel, trades, salon, gym, professional service, or retail?";
+
+const SUGGESTED_PROMPTS = [
+  "What could AI do for my business?",
+  "How much does this cost?",
+  "Show me an example",
+];
 
 function getProjectFromPathname(pathname: string) {
   const match = pathname.match(/^\/portfolio\/([^/]+)$/);
@@ -41,14 +47,15 @@ export function ChatWidget() {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [leadSaved, setLeadSaved] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages, loading, open]);
 
-  async function sendMessage() {
-    const text = input.trim();
+  async function sendMessage(overrideText?: string) {
+    const text = (overrideText ?? input).trim();
     if (!text || loading) return;
 
     const nextMessages: Message[] = [...messages, { role: "user", content: text }];
@@ -75,6 +82,7 @@ export function ChatWidget() {
       }
 
       setMessages([...nextMessages, { role: "assistant", content: data.reply }]);
+      if (data.leadSaved) setLeadSaved(true);
     } catch {
       setError("Couldn't reach the AI assistant — check your connection and try again.");
     } finally {
@@ -122,15 +130,38 @@ export function ChatWidget() {
                 </div>
               ))}
               {loading && (
-                <div className="mr-auto flex max-w-[85%] items-center gap-1 rounded-2xl rounded-bl-sm bg-secondary px-3 py-2.5">
-                  <span className="size-1.5 animate-bounce rounded-full bg-muted-foreground [animation-delay:-0.3s]" />
-                  <span className="size-1.5 animate-bounce rounded-full bg-muted-foreground [animation-delay:-0.15s]" />
-                  <span className="size-1.5 animate-bounce rounded-full bg-muted-foreground" />
+                <div className="mr-auto flex max-w-[85%] items-center gap-2 rounded-2xl rounded-bl-sm bg-secondary px-3 py-2.5">
+                  <span className="flex gap-1">
+                    <span className="size-1.5 animate-bounce rounded-full bg-muted-foreground [animation-delay:-0.3s]" />
+                    <span className="size-1.5 animate-bounce rounded-full bg-muted-foreground [animation-delay:-0.15s]" />
+                    <span className="size-1.5 animate-bounce rounded-full bg-muted-foreground" />
+                  </span>
+                  <span className="text-xs text-muted-foreground">AI is typing…</span>
+                </div>
+              )}
+              {leadSaved && !loading && (
+                <div className="mx-auto flex max-w-[95%] items-center gap-2 rounded-full border border-accent/30 bg-accent/10 px-3 py-1.5 text-xs text-accent">
+                  <Sparkles className="size-3.5 shrink-0" />
+                  Your details are saved — a real person will follow up soon.
                 </div>
               )}
               {error && (
                 <div className="mr-auto max-w-[85%] rounded-2xl rounded-bl-sm bg-destructive/10 px-3 py-2 text-sm text-destructive">
                   {error}
+                </div>
+              )}
+              {messages.length === 1 && !loading && (
+                <div className="flex flex-wrap gap-2 pt-1">
+                  {SUGGESTED_PROMPTS.map((prompt) => (
+                    <button
+                      key={prompt}
+                      type="button"
+                      onClick={() => sendMessage(prompt)}
+                      className="rounded-full border border-border px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:border-accent hover:text-foreground"
+                    >
+                      {prompt}
+                    </button>
+                  ))}
                 </div>
               )}
             </div>

@@ -23,9 +23,6 @@ export function SiteFooter() {
           <a href={`mailto:${siteConfig.email}`} className="hover:text-foreground">
             {siteConfig.email}
           </a>
-          <a href={`tel:${siteConfig.phone}`} className="hover:text-foreground">
-            {siteConfig.phone}
-          </a>
         </div>
       </div>
 
