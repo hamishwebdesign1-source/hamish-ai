@@ -141,9 +141,26 @@ export default function ForgeFitnessDemo() {
               No contract, no pressure — just come train.
             </p>
           </div>
-          <span className="rounded-full bg-black px-6 py-3 text-sm font-bold text-[#d4ff00]">
-            Booking widget goes here
-          </span>
+          <div className="w-full max-w-xs rounded-lg border border-white/10 bg-black/40 p-4 text-left">
+            <div className="grid grid-cols-2 gap-2 text-xs">
+              <div className="rounded-md border border-white/20 px-3 py-2 text-white/70">
+                Strength · Mon 12:15pm
+              </div>
+              <div className="rounded-md border border-white/20 px-3 py-2 text-white/70">
+                First class free
+              </div>
+            </div>
+            <div className="mt-3 flex items-center gap-2 rounded-md bg-[#d4ff00]/10 px-3 py-2 text-xs text-[#d4ff00]">
+              <span>✓</span>
+              <span>Spot reserved — see you Monday.</span>
+            </div>
+            <button
+              type="button"
+              className="mt-3 w-full rounded-full bg-[#d4ff00] px-6 py-2.5 text-sm font-bold text-black hover:bg-[#c2eb00]"
+            >
+              Reserve my spot
+            </button>
+          </div>
         </div>
       </section>
 

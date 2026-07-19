@@ -164,9 +164,26 @@ export default function TheGannetDemo() {
               Booking online takes 30 seconds — no phone call needed.
             </p>
           </div>
-          <span className="rounded-full bg-zinc-950 px-6 py-3 text-sm font-medium text-amber-50">
-            Booking widget goes here
-          </span>
+          <div className="w-full max-w-xs rounded-lg border border-zinc-800 bg-zinc-900 p-4 text-left">
+            <div className="grid grid-cols-2 gap-2 text-xs">
+              <div className="rounded-md border border-zinc-700 bg-zinc-950 px-3 py-2 text-zinc-300">
+                Tonight, 7:30pm
+              </div>
+              <div className="rounded-md border border-zinc-700 bg-zinc-950 px-3 py-2 text-zinc-300">
+                2 guests
+              </div>
+            </div>
+            <div className="mt-3 flex items-center gap-2 rounded-md bg-amber-400/10 px-3 py-2 text-xs text-amber-300">
+              <span>✓</span>
+              <span>Table held — confirmation sent instantly.</span>
+            </div>
+            <button
+              type="button"
+              className="mt-3 w-full rounded-full bg-amber-400 px-6 py-2.5 text-sm font-medium text-zinc-950 hover:bg-amber-300"
+            >
+              Confirm booking
+            </button>
+          </div>
         </div>
       </section>
 
