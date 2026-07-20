@@ -1,10 +1,8 @@
 import Link from "next/link";
 import type { Metadata } from "next";
-import { Sparkles } from "lucide-react";
+import { Sparkles, Check, Minus } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
 import {
   Accordion,
   AccordionItem,
@@ -12,6 +10,21 @@ import {
   AccordionContent,
 } from "@/components/ui/accordion";
 import { packages, foundingOfferNote } from "@/lib/site-config";
+
+// Derived directly from each package's real feature list below — nothing
+// here is invented, it's the same facts read as a comparable matrix
+// instead of three separate bullet lists.
+type Cell = "yes" | "upgraded" | "no";
+const comparisonRows: { label: string; values: [Cell, Cell, Cell] }[] = [
+  { label: "Full website redesign, mobile-first", values: ["yes", "yes", "no"] },
+  { label: "AI assistant for your business", values: ["yes", "upgraded", "upgraded"] },
+  { label: "SEO + Google Business Profile", values: ["yes", "yes", "no"] },
+  { label: "Performance reporting", values: ["yes", "yes", "upgraded"] },
+  { label: "Booking & lead-qualification automation", values: ["no", "yes", "no"] },
+  { label: "CRM / calendar integration", values: ["no", "yes", "no"] },
+  { label: "Content automation — social, email, blog", values: ["no", "no", "yes"] },
+  { label: "Priority support", values: ["no", "no", "yes"] },
+];
 
 export const metadata: Metadata = {
   title: "Services & Pricing | Hamish AI",
@@ -59,54 +72,65 @@ export default function ServicesPage() {
       </section>
 
       <section className="mx-auto max-w-6xl px-6 py-12 md:py-16">
-        <div className="grid gap-6 md:grid-cols-3">
-          {packages.map((pkg) => (
-            <Card
-              key={pkg.name}
-              className={
-                pkg.highlighted
-                  ? "card-interactive flex flex-col border-accent shadow-md"
-                  : "card-interactive flex flex-col"
-              }
-            >
-              <CardHeader>
-                {pkg.highlighted && (
-                  <Badge className="mb-2 w-fit bg-accent text-accent-foreground">
-                    Most popular
-                  </Badge>
-                )}
-                <CardTitle className="font-heading text-2xl">{pkg.name}</CardTitle>
-                <p className="text-sm text-muted-foreground">{pkg.tagline}</p>
-              </CardHeader>
-              <CardContent className="flex flex-1 flex-col">
-                <p className="gradient-text font-heading text-3xl font-semibold">
-                  {pkg.foundingPrice}
-                </p>
-                <p className="mt-1 text-xs text-muted-foreground line-through">
-                  {pkg.standardPrice}
-                </p>
-                <p className="mt-2 text-xs text-muted-foreground">
-                  Typical timeline: {pkg.timeline}
-                </p>
-                <Separator className="my-6" />
-                <ul className="flex-1 space-y-3 text-sm">
-                  {pkg.features.map((f) => (
-                    <li key={f} className="flex gap-2">
-                      <span className="text-accent">✓</span>
-                      <span className="text-muted-foreground">{f}</span>
-                    </li>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[640px] border-collapse">
+            <thead>
+              <tr>
+                <th className="w-1/4 pb-6 text-left align-bottom"></th>
+                {packages.map((pkg) => (
+                  <th key={pkg.name} className="px-4 pb-6 text-left align-bottom">
+                    {pkg.highlighted && (
+                      <Badge className="mb-3 w-fit bg-accent text-accent-foreground">
+                        Most popular
+                      </Badge>
+                    )}
+                    <p className="font-heading text-xl font-semibold">{pkg.name}</p>
+                    <p className="mt-1 text-sm font-normal text-muted-foreground">
+                      {pkg.tagline}
+                    </p>
+                    <p className="mt-4 gradient-text font-heading text-2xl font-semibold">
+                      {pkg.foundingPrice}
+                    </p>
+                    <p className="mt-1 font-mono text-xs text-muted-foreground line-through">
+                      {pkg.standardPrice}
+                    </p>
+                    <p className="mt-1 font-mono text-xs text-muted-foreground">
+                      {pkg.timeline}
+                    </p>
+                    <Button
+                      className="mt-5 w-full"
+                      size="sm"
+                      variant={pkg.highlighted ? "gradient" : "outline"}
+                      render={<Link href="/contact" />}
+                    >
+                      Enquire
+                    </Button>
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {comparisonRows.map((row, i) => (
+                <tr key={row.label} className={i % 2 === 0 ? "bg-secondary/40" : ""}>
+                  <td className="px-4 py-3.5 text-sm text-muted-foreground">{row.label}</td>
+                  {row.values.map((cell, ci) => (
+                    <td key={ci} className="px-4 py-3.5">
+                      {cell === "yes" && <Check className="size-4 text-accent" />}
+                      {cell === "upgraded" && (
+                        <div className="flex items-center gap-1.5">
+                          <Check className="size-4 text-accent" />
+                          <span className="font-mono text-[10px] tracking-wide text-muted-foreground uppercase">
+                            upgraded
+                          </span>
+                        </div>
+                      )}
+                      {cell === "no" && <Minus className="size-4 text-muted-foreground/40" />}
+                    </td>
                   ))}
-                </ul>
-                <Button
-                  className="mt-8"
-                  variant={pkg.highlighted ? "gradient" : "outline"}
-                  render={<Link href="/contact" />}
-                >
-                  Enquire about {pkg.name}
-                </Button>
-              </CardContent>
-            </Card>
-          ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       </section>
 
