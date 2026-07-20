@@ -41,14 +41,22 @@ export default function AssemblyRoomsDemo() {
 
       {/* Hero */}
       <section className="relative overflow-hidden">
+        <Image
+          src="/images/case-studies/assembly-deluxe-terrace.jpg"
+          alt=""
+          fill
+          priority
+          sizes="100vw"
+          className="object-cover"
+        />
         <div
           className="absolute inset-0"
           style={{
             background:
-              "radial-gradient(circle at 80% 0%, rgba(92,31,43,0.08), transparent 60%)",
+              "linear-gradient(180deg, rgba(250,246,239,0.35) 0%, rgba(250,246,239,0.92) 78%, #faf6ef 100%), radial-gradient(circle at 80% 0%, rgba(92,31,43,0.12), transparent 60%)",
           }}
         />
-        <div className="relative mx-auto max-w-5xl px-6 py-24 text-center md:py-32">
+        <div className="relative mx-auto max-w-5xl px-6 pt-40 pb-24 text-center md:pt-56 md:pb-32">
           <p className="text-sm tracking-[0.3em] text-[#5c1f2b] uppercase">
             New Town, Edinburgh
           </p>

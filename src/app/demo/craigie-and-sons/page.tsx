@@ -47,29 +47,44 @@ export default function CraigieAndSonsDemo() {
 
       {/* Hero */}
       <section className="mx-auto max-w-5xl px-6 py-20 md:py-28">
-        <p className="text-sm font-semibold tracking-wide text-orange-600 uppercase">
-          Portobello · Edinburgh &amp; the Lothians
-        </p>
-        <h1 className="mt-4 max-w-2xl text-4xl font-bold tracking-tight text-balance md:text-6xl">
-          Joinery done properly, first time.
-        </h1>
-        <p className="mt-6 max-w-lg text-lg text-stone-600">
-          Kitchens, staircases, and fitted joinery for Edinburgh homes — built
-          by tradesmen who answer the phone.
-        </p>
-        <div className="mt-8 flex flex-wrap gap-4">
-          <a
-            href="#quote"
-            className="rounded-md bg-emerald-800 px-6 py-3 text-sm font-semibold text-white hover:bg-emerald-700"
-          >
-            Get a free quote
-          </a>
-          <a
-            href="#work"
-            className="rounded-md border border-stone-300 px-6 py-3 text-sm font-semibold text-stone-800 hover:border-stone-400"
-          >
-            See our work
-          </a>
+        <div className="grid gap-12 md:grid-cols-2 md:items-center md:gap-10">
+          <div>
+            <p className="text-sm font-semibold tracking-wide text-orange-600 uppercase">
+              Portobello · Edinburgh &amp; the Lothians
+            </p>
+            <h1 className="mt-4 text-4xl font-bold tracking-tight text-balance md:text-6xl">
+              Joinery done properly, first time.
+            </h1>
+            <p className="mt-6 max-w-lg text-lg text-stone-600">
+              Kitchens, staircases, and fitted joinery for Edinburgh homes —
+              built by tradesmen who answer the phone.
+            </p>
+            <div className="mt-8 flex flex-wrap gap-4">
+              <a
+                href="#quote"
+                className="rounded-md bg-emerald-800 px-6 py-3 text-sm font-semibold text-white hover:bg-emerald-700"
+              >
+                Get a free quote
+              </a>
+              <a
+                href="#work"
+                className="rounded-md border border-stone-300 px-6 py-3 text-sm font-semibold text-stone-800 hover:border-stone-400"
+              >
+                See our work
+              </a>
+            </div>
+          </div>
+
+          <div className="relative h-72 w-full overflow-hidden rounded-lg border border-stone-200 shadow-sm md:h-96">
+            <Image
+              src="/images/case-studies/craigie-kitchen.jpg"
+              alt="A recently fitted kitchen by Craigie & Sons Joinery"
+              fill
+              priority
+              sizes="(min-width: 768px) 480px, 100vw"
+              className="object-cover"
+            />
+          </div>
         </div>
 
         <div className="mt-14 grid grid-cols-3 gap-6 border-t border-stone-200 pt-8">
