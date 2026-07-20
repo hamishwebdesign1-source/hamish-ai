@@ -182,7 +182,7 @@ export function ChatWidget() {
               <Button
                 type="submit"
                 size="icon"
-                variant="gradient"
+                variant="ai"
                 aria-label="Send message"
                 disabled={loading || !input.trim()}
               >
@@ -195,7 +195,7 @@ export function ChatWidget() {
 
       <Button
         size="icon-lg"
-        variant="gradient"
+        variant="ai"
         className="fixed right-6 bottom-6 z-50 size-14 rounded-full shadow-lg"
         aria-label={open ? "Close AI assistant chat" : "Open AI assistant chat"}
         onClick={() => setOpen((o) => !o)}

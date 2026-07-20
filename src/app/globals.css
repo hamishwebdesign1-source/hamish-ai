@@ -8,7 +8,7 @@
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-dm-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-mono: var(--font-plex-mono);
   --font-heading: var(--font-fraunces);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
@@ -63,24 +63,29 @@
 }
 
 :root {
-  /* Brand: deep Edinburgh-ink navy + Signal Blue accent (HamishAI identity) */
-  --background: oklch(0.985 0.004 90);
-  --foreground: oklch(0.22 0.025 260);
+  /* Brand: deep Edinburgh-ink navy + Signal Blue accent (HamishAI identity).
+     Paper/neutrals are a considered cool grey-blue rather than a warm
+     cream — warmth is carried deliberately by --clay, not the base
+     palette, so it stays a choice rather than the site's default cast. */
+  --background: oklch(0.975 0.006 250);
+  --foreground: oklch(0.2 0.03 260);
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.22 0.025 260);
+  --card-foreground: oklch(0.2 0.03 260);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.22 0.025 260);
-  --primary: oklch(0.24 0.035 260);
-  --primary-foreground: oklch(0.985 0.004 90);
-  --secondary: oklch(0.95 0.012 80);
-  --secondary-foreground: oklch(0.24 0.035 260);
-  --muted: oklch(0.955 0.008 80);
-  --muted-foreground: oklch(0.48 0.02 260);
+  --popover-foreground: oklch(0.2 0.03 260);
+  --primary: oklch(0.22 0.035 260);
+  --primary-foreground: oklch(0.98 0.004 250);
+  --secondary: oklch(0.94 0.01 250);
+  --secondary-foreground: oklch(0.22 0.035 260);
+  --muted: oklch(0.945 0.008 250);
+  --muted-foreground: oklch(0.46 0.02 260);
   --accent: oklch(0.58 0.21 258);
-  --accent-foreground: oklch(0.99 0.004 90);
+  --accent-foreground: oklch(0.99 0.004 250);
+  --clay: oklch(0.62 0.08 55);
+  --clay-soft: oklch(0.62 0.08 55 / 14%);
   --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.9 0.012 80);
-  --input: oklch(0.9 0.012 80);
+  --border: oklch(0.89 0.01 250);
+  --input: oklch(0.89 0.01 250);
   --ring: oklch(0.58 0.21 258);
   --chart-1: oklch(0.24 0.035 260);
   --chart-2: oklch(0.58 0.21 258);
@@ -88,13 +93,13 @@
   --chart-4: oklch(0.78 0.13 200);
   --chart-5: oklch(0.55 0.24 295);
   --radius: 0.45rem;
-  --sidebar: oklch(0.985 0.004 90);
-  --sidebar-foreground: oklch(0.22 0.025 260);
-  --sidebar-primary: oklch(0.24 0.035 260);
-  --sidebar-primary-foreground: oklch(0.985 0.004 90);
-  --sidebar-accent: oklch(0.955 0.008 80);
-  --sidebar-accent-foreground: oklch(0.24 0.035 260);
-  --sidebar-border: oklch(0.9 0.012 80);
+  --sidebar: oklch(0.975 0.006 250);
+  --sidebar-foreground: oklch(0.2 0.03 260);
+  --sidebar-primary: oklch(0.22 0.035 260);
+  --sidebar-primary-foreground: oklch(0.98 0.004 250);
+  --sidebar-accent: oklch(0.945 0.008 250);
+  --sidebar-accent-foreground: oklch(0.22 0.035 260);
+  --sidebar-border: oklch(0.89 0.01 250);
   --sidebar-ring: oklch(0.58 0.21 258);
 }
 
@@ -113,6 +118,8 @@
   --muted-foreground: oklch(0.66 0.02 260);
   --accent: oklch(0.66 0.19 258);
   --accent-foreground: oklch(0.99 0.004 90);
+  --clay: oklch(0.68 0.08 55);
+  --clay-soft: oklch(0.68 0.08 55 / 16%);
   --destructive: oklch(0.704 0.191 22.216);
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);

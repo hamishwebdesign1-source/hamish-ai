@@ -20,6 +20,10 @@ const buttonVariants = cva(
         link: "text-primary underline-offset-4 hover:underline",
         gradient:
           "gradient-button shadow-sm shadow-black/10 hover:shadow-md hover:shadow-black/15",
+        // Reserved for actions the AI itself is taking (send a chat message,
+        // start the assessment) — not a general-purpose accent button, so
+        // this colour stays a learned signal rather than decoration.
+        ai: "bg-[var(--gradient-violet)] text-white hover:brightness-110",
       },
       size: {
         default:

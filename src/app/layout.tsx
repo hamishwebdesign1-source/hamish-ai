@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { DM_Sans, Geist_Mono, Fraunces } from "next/font/google";
+import { DM_Sans, IBM_Plex_Mono, Fraunces } from "next/font/google";
 import "./globals.css";
 
 const dmSans = DM_Sans({
@@ -7,9 +7,10 @@ const dmSans = DM_Sans({
   subsets: ["latin"],
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+const plexMono = IBM_Plex_Mono({
+  variable: "--font-plex-mono",
   subsets: ["latin"],
+  weight: ["400", "500"],
 });
 
 const fraunces = Fraunces({
@@ -32,7 +33,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${dmSans.variable} ${geistMono.variable} ${fraunces.variable} h-full antialiased`}
+      className={`${dmSans.variable} ${plexMono.variable} ${fraunces.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">{children}</body>
     </html>

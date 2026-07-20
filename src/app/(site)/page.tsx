@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Reveal } from "@/components/reveal";
 import { ChatDemo } from "@/components/chat-demo";
+import { ProcessTimeline } from "@/components/process-timeline";
 import {
   Accordion,
   AccordionItem,
@@ -255,31 +256,13 @@ export default function HomePage() {
           <h2 className="font-heading text-2xl font-semibold md:text-3xl">
             How it works
           </h2>
+          <p className="mt-2 max-w-lg text-muted-foreground">
+            Step through it — click a stage to see what actually happens.
+          </p>
         </Reveal>
         <Reveal delay={40}>
-          <div className="relative mt-8 hidden aspect-[1142/234] w-full overflow-hidden rounded-xl border border-border sm:block">
-            <Image
-              src="/images/homepage/how-it-works.png"
-              alt="Free AI consultation, then a free working prototype, then launch and keep improving"
-              fill
-              sizes="(min-width: 1152px) 1152px, 100vw"
-              className="object-cover"
-            />
-          </div>
+          <ProcessTimeline steps={steps} />
         </Reveal>
-        <div className="mt-10 grid gap-8 md:grid-cols-3">
-          {steps.map((s, i) => (
-            <Reveal key={s.step} delay={i * 80}>
-              <div>
-                <span className="gradient-text font-heading text-3xl font-semibold">
-                  {s.step}
-                </span>
-                <h3 className="mt-2 font-heading text-lg font-medium">{s.title}</h3>
-                <p className="mt-2 text-muted-foreground">{s.body}</p>
-              </div>
-            </Reveal>
-          ))}
-        </div>
       </section>
 
       <section className="border-t border-border/60">
