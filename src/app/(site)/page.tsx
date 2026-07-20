@@ -220,7 +220,7 @@ export default function HomePage() {
                   />
                 </div>
                 <div className="p-5">
-                  <p className="text-xs font-medium tracking-wide text-accent uppercase">
+                  <p className="font-mono text-xs font-medium tracking-wide text-accent uppercase">
                     {s.audience}
                   </p>
                   <h3 className="mt-1 font-heading text-lg font-medium">{s.name}</h3>

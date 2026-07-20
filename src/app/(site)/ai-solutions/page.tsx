@@ -51,7 +51,7 @@ export default function AISolutionsPage() {
               className="scroll-mt-24 grid gap-8 md:grid-cols-2 md:items-start"
             >
               <div className={i % 2 === 1 ? "md:order-2" : ""}>
-                <p className="text-xs font-medium tracking-wide text-accent uppercase">
+                <p className="font-mono text-xs font-medium tracking-wide text-accent uppercase">
                   {s.audience}
                 </p>
                 <h2 className="mt-2 font-heading text-2xl font-semibold md:text-3xl">

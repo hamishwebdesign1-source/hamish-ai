@@ -64,7 +64,7 @@ export function WebsiteShowcase({ study }: { study: CaseStudy }) {
         </div>
 
         <div className="mt-10">
-          <p className="text-xs font-medium tracking-wide text-foreground uppercase">
+          <p className="font-mono text-xs font-medium tracking-wide text-foreground uppercase">
             Key pages in this project
           </p>
           <div className="mt-3 flex flex-wrap gap-2">

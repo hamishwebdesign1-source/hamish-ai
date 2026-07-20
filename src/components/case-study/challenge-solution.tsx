@@ -6,7 +6,7 @@ export function ChallengeSolution({ study }: { study: CaseStudy }) {
     <section className="mx-auto max-w-6xl px-6 py-16 md:py-20">
       <div className="grid overflow-hidden rounded-2xl border border-border md:grid-cols-2">
         <div className="bg-secondary/60 p-8 md:p-10">
-          <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+          <p className="font-mono text-xs font-medium tracking-wide text-muted-foreground uppercase">
             Before
           </p>
           <h2 className="mt-1 font-heading text-2xl font-semibold md:text-3xl">
@@ -24,7 +24,7 @@ export function ChallengeSolution({ study }: { study: CaseStudy }) {
           </ul>
         </div>
         <div className="bg-accent/10 p-8 md:p-10">
-          <p className="text-xs font-medium tracking-wide text-accent uppercase">After</p>
+          <p className="font-mono text-xs font-medium tracking-wide text-accent uppercase">After</p>
           <h2 className="mt-1 font-heading text-2xl font-semibold md:text-3xl">
             The Solution
           </h2>

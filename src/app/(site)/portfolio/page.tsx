@@ -53,7 +53,7 @@ export default function PortfolioPage() {
                 )}
               </div>
               <div className="p-6">
-                <Badge variant="outline" className="mb-3 w-fit">
+                <Badge variant="outline" className="mb-3 w-fit font-mono text-[10px] tracking-wide uppercase">
                   {study.industry}
                 </Badge>
                 <h2 className="font-heading text-2xl font-medium">{study.name}</h2>

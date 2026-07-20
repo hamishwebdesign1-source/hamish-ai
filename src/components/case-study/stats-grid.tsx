@@ -10,7 +10,7 @@ export function StatsGrid({ study }: { study: CaseStudy }) {
             <span className="absolute inline-flex size-full animate-ping rounded-full bg-accent opacity-75" />
             <span className="relative inline-flex size-2 rounded-full bg-accent" />
           </span>
-          <p className="text-xs font-medium tracking-wide text-primary-foreground/70 uppercase">
+          <p className="font-mono text-xs font-medium tracking-wide text-primary-foreground/70 uppercase">
             Results dashboard
           </p>
         </div>
