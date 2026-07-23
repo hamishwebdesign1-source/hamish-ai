@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { Sparkles, Check, Minus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { PageHero } from "@/components/page-hero";
 import {
   Accordion,
   AccordionItem,
@@ -53,23 +54,16 @@ const pricingFaqs = [
 export default function ServicesPage() {
   return (
     <>
-      <section className="mx-auto max-w-6xl px-6 pt-16 pb-4 md:pt-24">
-        <Badge variant="secondary" className="mb-6">
-          Services & pricing
-        </Badge>
-        <h1 className="max-w-2xl font-heading text-4xl font-semibold tracking-tight text-balance md:text-5xl">
-          AI transformation, at founding client prices.
-        </h1>
-        <p className="mt-6 max-w-xl text-lg text-muted-foreground">
-          Every project starts with a free AI consultation and a free
-          working prototype — you only pay once you can see exactly what
-          you&apos;re getting.
-        </p>
+      <PageHero
+        eyebrow="Services & pricing"
+        title="AI transformation, at founding client prices."
+        description="Every project starts with a free AI consultation and a free working prototype — you only pay once you can see exactly what you're getting."
+      >
         <div className="mt-6 inline-flex max-w-xl items-start gap-2 rounded-lg border border-accent/40 bg-accent/10 px-4 py-3 text-sm">
           <Sparkles className="mt-0.5 size-4 shrink-0 text-accent" />
           <span className="text-foreground">{foundingOfferNote}</span>
         </div>
-      </section>
+      </PageHero>
 
       <section className="mx-auto max-w-6xl px-6 py-12 md:py-16">
         <div className="overflow-x-auto">
@@ -135,37 +129,43 @@ export default function ServicesPage() {
       </section>
 
       <section className="border-t border-border/60">
-        <div className="mx-auto max-w-3xl px-6 py-16 md:py-20">
-          <h2 className="font-heading text-2xl font-semibold md:text-3xl">
-            Pricing questions
-          </h2>
-          <Accordion className="mt-8">
-            {pricingFaqs.map((faq) => (
-              <AccordionItem key={faq.question} value={faq.question}>
-                <AccordionTrigger className="font-heading text-base">
-                  {faq.question}
-                </AccordionTrigger>
-                <AccordionContent className="text-muted-foreground">
-                  {faq.answer}
-                </AccordionContent>
-              </AccordionItem>
-            ))}
-          </Accordion>
+        <div className="mx-auto max-w-6xl px-6 py-16 md:py-20">
+          <div className="max-w-3xl">
+            <h2 className="font-heading text-2xl font-semibold md:text-3xl">
+              Pricing questions
+            </h2>
+            <Accordion className="mt-8">
+              {pricingFaqs.map((faq) => (
+                <AccordionItem key={faq.question} value={faq.question}>
+                  <AccordionTrigger className="font-heading text-base">
+                    {faq.question}
+                  </AccordionTrigger>
+                  <AccordionContent className="text-muted-foreground">
+                    {faq.answer}
+                  </AccordionContent>
+                </AccordionItem>
+              ))}
+            </Accordion>
+          </div>
         </div>
       </section>
 
-      <section className="mx-auto max-w-6xl px-6 py-16 md:py-20">
-        <h2 className="font-heading text-2xl font-semibold md:text-3xl">
-          Not sure which package fits?
-        </h2>
-        <p className="mt-3 max-w-xl text-muted-foreground">
-          Start with a free AI consultation — we&apos;ll tell you honestly
-          what your business actually needs, not just what we&apos;d like to
-          sell you.
-        </p>
-        <Button size="lg" variant="gradient" className="mt-6" render={<Link href="/contact" />}>
-          Book a free AI consultation
-        </Button>
+      <section className="border-t border-border/60 bg-primary text-primary-foreground">
+        <div className="mx-auto flex max-w-6xl flex-col items-start gap-6 px-6 py-16 md:flex-row md:items-center md:justify-between md:py-20">
+          <div>
+            <h2 className="font-heading text-2xl font-semibold md:text-3xl">
+              Not sure which package fits?
+            </h2>
+            <p className="mt-2 max-w-lg text-primary-foreground/70">
+              Start with a free AI consultation — we&apos;ll tell you honestly
+              what your business actually needs, not just what we&apos;d like
+              to sell you.
+            </p>
+          </div>
+          <Button size="lg" variant="gradient" render={<Link href="/book" />}>
+            Book a free AI consultation
+          </Button>
+        </div>
       </section>
     </>
   );

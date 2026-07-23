@@ -1,9 +1,11 @@
 import Link from "next/link";
 import Image from "next/image";
+import { ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Reveal } from "@/components/reveal";
-import { ChatDemo } from "@/components/chat-demo";
+import { Eyebrow } from "@/components/eyebrow";
+import { ConstellationBackdrop } from "@/components/constellation-backdrop";
 import { ProcessTimeline } from "@/components/process-timeline";
 import {
   Accordion,
@@ -18,14 +20,6 @@ const trustPoints = [
   "Plain-English, no jargon",
   "Free consultation, no obligation",
   "See it working before you commit",
-];
-
-const heroDemo = [
-  { role: "user" as const, text: "Can you tell me your opening hours and if you take walk-ins?" },
-  {
-    role: "ai" as const,
-    text: "We're open Tuesday to Sunday, 9am–6pm, and yes — walk-ins are welcome, though booking ahead means less waiting. Want me to check today's availability for you?",
-  },
 ];
 
 const offerStats = [
@@ -99,52 +93,70 @@ const steps = [
 export default function HomePage() {
   return (
     <>
-      <section className="mx-auto max-w-6xl px-6 pt-20 pb-16 md:pt-28 md:pb-24">
-        <div className="grid gap-12 lg:grid-cols-[1.1fr_1fr] lg:items-center lg:gap-16">
-          <div>
-            <Badge variant="secondary" className="mb-6">
-              Edinburgh, Scotland
-            </Badge>
-            <h1 className="max-w-xl font-heading text-4xl font-semibold tracking-tight text-balance md:text-6xl">
-              Transform your business with AI-powered digital solutions.
-            </h1>
-            <p className="mt-6 max-w-xl text-lg text-muted-foreground text-balance">
-              We help Edinburgh businesses automate tasks, improve customer
-              experiences, and unlock new growth opportunities using
-              practical AI solutions. We don&apos;t just build websites —
-              we make businesses smarter with AI.
-            </p>
-            <div className="mt-8 flex flex-wrap gap-3">
-              <Button size="lg" variant="gradient" render={<Link href="/contact" />}>
-                Book a free AI consultation
-              </Button>
-              <Button size="lg" variant="outline" render={<Link href="/ai-solutions" />}>
-                See AI solutions in action
-              </Button>
-            </div>
+      <section className="relative overflow-hidden">
+        <div
+          className="pointer-events-none absolute inset-y-0 right-0 hidden w-full max-w-2xl opacity-70 lg:block"
+          style={{
+            maskImage: "linear-gradient(to left, black 30%, transparent 85%)",
+            WebkitMaskImage: "linear-gradient(to left, black 30%, transparent 85%)",
+          }}
+        >
+          <ConstellationBackdrop className="h-full w-full" />
+        </div>
 
-            <div className="mt-10 flex flex-wrap gap-x-6 gap-y-2 text-sm text-muted-foreground">
-              {trustPoints.map((t) => (
-                <span key={t} className="flex items-center gap-1.5">
-                  <span className="text-accent">✓</span>
-                  {t}
-                </span>
-              ))}
-            </div>
-          </div>
-
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="relative flex size-2">
-                <span className="absolute inline-flex size-full animate-ping rounded-full bg-accent opacity-75" />
-                <span className="relative inline-flex size-2 rounded-full bg-accent" />
-              </span>
-              <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
-                A real example — this is what an AI assistant can do
+        <div className="relative mx-auto max-w-6xl px-6 pt-20 pb-16 md:pt-28 md:pb-24">
+          <div className="grid gap-12 lg:grid-cols-[1.1fr_1fr] lg:items-center lg:gap-16">
+            <div>
+              <Badge variant="secondary" className="mb-6">
+                Edinburgh, Scotland
+              </Badge>
+              <h1 className="max-w-xl font-heading text-4xl font-semibold tracking-tight text-balance md:text-6xl">
+                Transform your business with AI-powered digital solutions.
+              </h1>
+              <p className="mt-6 max-w-xl text-lg text-muted-foreground text-balance">
+                We help Edinburgh businesses automate tasks, improve customer
+                experiences, and unlock new growth opportunities using
+                practical AI solutions. We don&apos;t just build websites —
+                we make businesses smarter with AI.
               </p>
+              <div className="mt-8 flex flex-wrap gap-3">
+                <Button size="lg" variant="gradient" render={<Link href="/contact" />}>
+                  Book a free AI consultation
+                  <ArrowRight className="size-4 transition-transform group-hover/button:translate-x-0.5" />
+                </Button>
+                <Button size="lg" variant="outline" render={<Link href="/ai-solutions" />}>
+                  See AI solutions in action
+                </Button>
+              </div>
+
+              <div className="mt-10 flex flex-wrap gap-x-6 gap-y-2 text-sm text-muted-foreground">
+                {trustPoints.map((t) => (
+                  <span key={t} className="flex items-center gap-1.5">
+                    <span className="text-accent">✓</span>
+                    {t}
+                  </span>
+                ))}
+              </div>
             </div>
-            <div className="mt-4">
-              <ChatDemo messages={heroDemo} />
+
+            <div>
+              <Eyebrow pulse>A real example — this is what an AI assistant can do</Eyebrow>
+              <div className="mt-4 max-w-sm overflow-hidden rounded-xl border border-border shadow-2xl shadow-accent/10">
+                <div className="flex items-center gap-1.5 border-b border-border bg-secondary/60 px-3 py-2">
+                  <span className="size-2.5 rounded-full bg-destructive/50" />
+                  <span className="size-2.5 rounded-full bg-accent/50" />
+                  <span className="size-2.5 rounded-full bg-emerald-500/50" />
+                </div>
+                <Image
+                  src="/hero-chat-demo.gif"
+                  alt="A real conversation with the Hamish AI chat assistant, answering a customer's question about walk-ins"
+                  width={376}
+                  height={562}
+                  unoptimized
+                  priority
+                  className="w-full"
+                />
+              </div>
             </div>
           </div>
         </div>
@@ -266,26 +278,28 @@ export default function HomePage() {
       </section>
 
       <section className="border-t border-border/60">
-        <div className="mx-auto max-w-3xl px-6 py-16 md:py-20">
-          <Reveal>
-            <h2 className="font-heading text-2xl font-semibold md:text-3xl">
-              Common questions
-            </h2>
-          </Reveal>
-          <Reveal delay={40}>
-            <Accordion className="mt-8">
-              {faqs.map((faq) => (
-                <AccordionItem key={faq.question} value={faq.question}>
-                  <AccordionTrigger className="font-heading text-base">
-                    {faq.question}
-                  </AccordionTrigger>
-                  <AccordionContent className="text-muted-foreground">
-                    {faq.answer}
-                  </AccordionContent>
-                </AccordionItem>
-              ))}
-            </Accordion>
-          </Reveal>
+        <div className="mx-auto max-w-6xl px-6 py-16 md:py-20">
+          <div className="max-w-3xl">
+            <Reveal>
+              <h2 className="font-heading text-2xl font-semibold md:text-3xl">
+                Common questions
+              </h2>
+            </Reveal>
+            <Reveal delay={40}>
+              <Accordion className="mt-8">
+                {faqs.map((faq) => (
+                  <AccordionItem key={faq.question} value={faq.question}>
+                    <AccordionTrigger className="font-heading text-base">
+                      {faq.question}
+                    </AccordionTrigger>
+                    <AccordionContent className="text-muted-foreground">
+                      {faq.answer}
+                    </AccordionContent>
+                  </AccordionItem>
+                ))}
+              </Accordion>
+            </Reveal>
+          </div>
         </div>
       </section>
 

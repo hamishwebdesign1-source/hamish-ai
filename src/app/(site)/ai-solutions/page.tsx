@@ -1,10 +1,10 @@
 import Link from "next/link";
 import Image from "next/image";
 import type { Metadata } from "next";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { ChatDemo } from "@/components/chat-demo";
+import { PageHero } from "@/components/page-hero";
 import { aiSolutions } from "@/lib/ai-solutions-data";
 
 export const metadata: Metadata = {
@@ -16,19 +16,11 @@ export const metadata: Metadata = {
 export default function AISolutionsPage() {
   return (
     <>
-      <section className="mx-auto max-w-6xl px-6 pt-16 pb-4 md:pt-24">
-        <Badge variant="secondary" className="mb-6">
-          AI Solutions
-        </Badge>
-        <h1 className="max-w-2xl font-heading text-4xl font-semibold tracking-tight text-balance md:text-5xl">
-          Practical AI, not hype.
-        </h1>
-        <p className="mt-6 max-w-xl text-lg text-muted-foreground">
-          Six things AI can genuinely do for a small business today — with a
-          real example of each conversation, so you can picture it running
-          in yours.
-        </p>
-      </section>
+      <PageHero
+        eyebrow="AI Solutions"
+        title="Practical AI, not hype."
+        description="Six things AI can genuinely do for a small business today — with a real example of each conversation, so you can picture it running in yours."
+      />
 
       <section className="mx-auto max-w-6xl px-6 py-12 md:py-16">
         <div className="flex flex-wrap gap-2">
@@ -103,7 +95,7 @@ export default function AISolutionsPage() {
               biggest difference for your business, free.
             </p>
           </div>
-          <Button size="lg" variant="secondary" render={<Link href="/contact" />}>
+          <Button size="lg" variant="secondary" render={<Link href="/book" />}>
             Book a free AI consultation
           </Button>
         </div>

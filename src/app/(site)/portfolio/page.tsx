@@ -3,6 +3,7 @@ import Image from "next/image";
 import type { Metadata } from "next";
 import { ArrowRight } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { PageHero } from "@/components/page-hero";
 import { caseStudies } from "@/lib/case-studies-data";
 
 export const metadata: Metadata = {
@@ -14,19 +15,11 @@ export const metadata: Metadata = {
 export default function PortfolioPage() {
   return (
     <>
-      <section className="mx-auto max-w-6xl px-6 pt-16 pb-4 md:pt-24">
-        <Badge variant="secondary" className="mb-6">
-          Portfolio
-        </Badge>
-        <h1 className="max-w-2xl font-heading text-4xl font-semibold tracking-tight text-balance md:text-5xl">
-          Case studies, not just concepts.
-        </h1>
-        <p className="mt-6 max-w-xl text-lg text-muted-foreground">
-          Illustrative projects built to demonstrate the range of redesigns
-          and AI features on offer — not real clients yet. Each one links to
-          a fully working live site, not a static mock-up.
-        </p>
-      </section>
+      <PageHero
+        eyebrow="Portfolio"
+        title="Case studies, not just concepts."
+        description="Illustrative projects built to demonstrate the range of redesigns and AI features on offer — not real clients yet. Each one links to a fully working live site, not a static mock-up."
+      />
 
       <section className="mx-auto max-w-6xl px-6 py-12 md:py-16">
         <div className="grid gap-6 sm:grid-cols-2">
