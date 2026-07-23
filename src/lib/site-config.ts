@@ -9,6 +9,7 @@ export const siteConfig = {
     { label: "AI Solutions", href: "/ai-solutions" },
     { label: "Services", href: "/services" },
     { label: "Portfolio", href: "/portfolio" },
+    { label: "About", href: "/about" },
     { label: "Contact", href: "/contact" },
   ],
 };
