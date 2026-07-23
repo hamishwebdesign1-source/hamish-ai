@@ -20,6 +20,7 @@ const fraunces = Fraunces({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://hamishai.org"),
   title: "Hamish AI | Edinburgh's AI Transformation Partner for Small Businesses",
   description:
     "We help Edinburgh businesses automate tasks, improve customer experiences, and unlock new growth opportunities using practical AI solutions. We don't just build websites — we make businesses smarter with AI.",
