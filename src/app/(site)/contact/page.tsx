@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { ContactForm } from "@/components/contact-form";
 import { siteConfig } from "@/lib/site-config";
@@ -6,7 +7,7 @@ import { siteConfig } from "@/lib/site-config";
 export const metadata: Metadata = {
   title: "Contact | Hamish AI",
   description:
-    "Book a free AI consultation — no charge, no obligation.",
+    "Tell us about your business and get a free, honest breakdown of where AI could help — no charge, no obligation.",
 };
 
 const trustPoints = [
@@ -74,11 +75,19 @@ export default function ContactPage() {
             ))}
           </div>
 
-          <div className="mt-10 text-sm text-muted-foreground">
-            <p>Prefer email?</p>
-            <a href={`mailto:${siteConfig.email}`} className="text-foreground hover:underline">
-              {siteConfig.email}
-            </a>
+          <div className="mt-10 space-y-4 text-sm text-muted-foreground">
+            <div>
+              <p>Prefer email?</p>
+              <a href={`mailto:${siteConfig.email}`} className="text-foreground hover:underline">
+                {siteConfig.email}
+              </a>
+            </div>
+            <div>
+              <p>Know you want a call already?</p>
+              <Link href="/book" className="text-foreground hover:underline">
+                Skip to the calendar
+              </Link>
+            </div>
           </div>
         </div>
 

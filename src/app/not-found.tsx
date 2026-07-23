@@ -22,9 +22,9 @@ const destinations = [
     body: "Real examples of AI-powered redesigns for Edinburgh businesses.",
   },
   {
-    href: "/contact",
-    title: "Contact",
-    body: "Book a free AI consultation — no charge, no obligation.",
+    href: "/book",
+    title: "Book a consultation",
+    body: "Pick a time straight off the calendar — no charge, no obligation.",
   },
 ];
 
