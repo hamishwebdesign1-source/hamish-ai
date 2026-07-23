@@ -104,14 +104,16 @@ export default function HomePage() {
           <ConstellationBackdrop className="h-full w-full" />
         </div>
 
-        <div className="relative mx-auto max-w-6xl px-6 pt-20 pb-16 md:pt-28 md:pb-24">
+        <div className="relative mx-auto max-w-6xl px-6 pt-10 pb-16 md:pt-14 md:pb-24">
           <div className="grid gap-12 lg:grid-cols-[1.1fr_1fr] lg:items-center lg:gap-16">
             <div>
               <Badge variant="secondary" className="mb-6">
                 Edinburgh, Scotland
               </Badge>
               <h1 className="max-w-xl font-heading text-4xl font-semibold tracking-tight text-balance md:text-6xl">
-                Transform your business with AI-powered digital solutions.
+                Transform your business with{" "}
+                <span className="text-accent">AI-powered</span> digital
+                solutions.
               </h1>
               <p className="mt-6 max-w-xl text-lg text-muted-foreground text-balance">
                 We help Edinburgh businesses automate tasks, improve customer
