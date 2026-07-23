@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Reveal } from "@/components/reveal";
 import { Eyebrow } from "@/components/eyebrow";
 import { ConstellationBackdrop } from "@/components/constellation-backdrop";
+import { ParallaxLayer } from "@/components/parallax-layer";
 import { ProcessTimeline } from "@/components/process-timeline";
 import {
   Accordion,
@@ -116,7 +117,9 @@ export default function HomePage() {
             WebkitMaskImage: "linear-gradient(to left, black 30%, transparent 85%)",
           }}
         >
-          <ConstellationBackdrop className="h-full w-full" />
+          <ParallaxLayer speed={0.08} className="h-full w-full">
+            <ConstellationBackdrop className="h-full w-full" />
+          </ParallaxLayer>
         </div>
 
         <div className="relative mx-auto max-w-6xl px-6 pt-10 pb-16 md:pt-14 md:pb-24">

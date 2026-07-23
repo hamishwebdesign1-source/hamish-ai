@@ -1,5 +1,6 @@
 import { Eyebrow } from "@/components/eyebrow";
 import { ConstellationBackdrop } from "@/components/constellation-backdrop";
+import { ParallaxLayer } from "@/components/parallax-layer";
 
 export function PageHero({
   eyebrow,
@@ -21,7 +22,9 @@ export function PageHero({
           WebkitMaskImage: "linear-gradient(to left, black 35%, transparent 88%)",
         }}
       >
-        <ConstellationBackdrop className="h-full w-full" />
+        <ParallaxLayer speed={0.08} className="h-full w-full">
+          <ConstellationBackdrop className="h-full w-full" />
+        </ParallaxLayer>
       </div>
 
       <div className="relative mx-auto max-w-6xl px-6 pt-20 pb-16 md:pt-28 md:pb-20">
