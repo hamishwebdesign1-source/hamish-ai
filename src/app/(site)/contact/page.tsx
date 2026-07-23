@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Badge } from "@/components/ui/badge";
 import { ContactForm } from "@/components/contact-form";
+import { Eyebrow } from "@/components/eyebrow";
+import { Reveal } from "@/components/reveal";
 import { siteConfig } from "@/lib/site-config";
 
 export const metadata: Metadata = {
@@ -40,9 +41,7 @@ export default function ContactPage() {
     <section className="mx-auto max-w-5xl px-6 pt-16 pb-24 md:pt-24">
       <div className="grid gap-12 lg:grid-cols-[1.1fr_1fr] lg:gap-16">
         <div>
-          <Badge variant="secondary" className="mb-6">
-            Free AI consultation
-          </Badge>
+          <Eyebrow className="mb-6">Free AI consultation</Eyebrow>
           <h1 className="font-heading text-4xl font-semibold tracking-tight text-balance md:text-5xl">
             Let&apos;s see what AI could do for your business.
           </h1>
@@ -62,16 +61,18 @@ export default function ContactPage() {
           </div>
 
           <div className="mt-10 space-y-6">
-            {steps.map((s) => (
-              <div key={s.step} className="flex gap-4">
-                <span className="gradient-text font-heading text-2xl font-semibold">
-                  {s.step}
-                </span>
-                <div>
-                  <h2 className="font-heading text-base font-medium">{s.title}</h2>
-                  <p className="mt-1 text-sm text-muted-foreground">{s.body}</p>
+            {steps.map((s, i) => (
+              <Reveal key={s.step} delay={i * 80}>
+                <div className="flex gap-4">
+                  <span className="gradient-text font-heading text-2xl font-semibold">
+                    {s.step}
+                  </span>
+                  <div>
+                    <h2 className="font-heading text-base font-medium">{s.title}</h2>
+                    <p className="mt-1 text-sm text-muted-foreground">{s.body}</p>
+                  </div>
                 </div>
-              </div>
+              </Reveal>
             ))}
           </div>
 

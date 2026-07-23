@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import Script from "next/script";
-import { Badge } from "@/components/ui/badge";
+import { Eyebrow } from "@/components/eyebrow";
 import { siteConfig } from "@/lib/site-config";
 
 export const metadata: Metadata = {
@@ -23,9 +23,7 @@ export default function BookPage() {
     <section className="mx-auto max-w-5xl px-6 pt-16 pb-24 md:pt-24">
       <div className="grid gap-12 lg:grid-cols-[1fr_1.15fr] lg:gap-16">
         <div>
-          <Badge variant="secondary" className="mb-6">
-            Free consultation
-          </Badge>
+          <Eyebrow className="mb-6">Free consultation</Eyebrow>
           <h1 className="font-heading text-4xl font-semibold tracking-tight text-balance md:text-5xl">
             Pick a time. We&apos;ll take it from there.
           </h1>
