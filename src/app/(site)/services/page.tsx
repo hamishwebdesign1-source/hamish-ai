@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { Metadata } from "next";
-import { Sparkles, Check, Minus } from "lucide-react";
+import { Sparkles, Check, Minus, Globe, Workflow, TrendingUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { PageHero } from "@/components/page-hero";
@@ -32,6 +32,8 @@ export const metadata: Metadata = {
   description:
     "Founding client pricing on three AI transformation packages for Edinburgh businesses — website, automation, and ongoing growth.",
 };
+
+const packageIcons = [Globe, Workflow, TrendingUp];
 
 const pricingFaqs = [
   {
@@ -66,39 +68,68 @@ export default function ServicesPage() {
       </PageHero>
 
       <section className="mx-auto max-w-6xl px-6 py-12 md:py-16">
-        <div className="overflow-x-auto">
+        <div className="grid gap-6 md:grid-cols-3">
+          {packages.map((pkg, i) => {
+            const Icon = packageIcons[i];
+            return (
+              <div
+                key={pkg.name}
+                className={`card-interactive relative flex flex-col rounded-2xl border p-6 ${
+                  pkg.highlighted
+                    ? "border-accent/50 shadow-lg shadow-accent/10"
+                    : "border-border"
+                }`}
+              >
+                {pkg.highlighted && (
+                  <Badge className="absolute -top-3 left-6 bg-accent text-accent-foreground">
+                    Most popular
+                  </Badge>
+                )}
+                <span className="flex size-11 items-center justify-center rounded-xl bg-accent/10 text-accent">
+                  <Icon className="size-5" />
+                </span>
+                <p className="mt-4 font-heading text-lg font-semibold">{pkg.name}</p>
+                <p className="mt-1 text-sm text-muted-foreground">{pkg.tagline}</p>
+                <p className="mt-4 gradient-text font-heading text-2xl font-semibold">
+                  {pkg.foundingPrice}
+                </p>
+                <p className="mt-1 font-mono text-xs text-muted-foreground line-through">
+                  {pkg.standardPrice}
+                </p>
+                <p className="mt-1 font-mono text-xs text-muted-foreground">{pkg.timeline}</p>
+                <ul className="mt-5 flex-1 space-y-2 text-sm">
+                  {pkg.features.slice(0, 3).map((f) => (
+                    <li key={f} className="flex gap-2">
+                      <Check className="mt-0.5 size-3.5 shrink-0 text-accent" />
+                      <span className="text-muted-foreground">{f}</span>
+                    </li>
+                  ))}
+                </ul>
+                <Button
+                  className="mt-6 w-full"
+                  variant={pkg.highlighted ? "gradient" : "outline"}
+                  render={<Link href="/contact" />}
+                >
+                  Enquire
+                </Button>
+              </div>
+            );
+          })}
+        </div>
+      </section>
+
+      <section className="mx-auto max-w-6xl px-6 pb-12 md:pb-16">
+        <h2 className="font-heading text-xl font-semibold md:text-2xl">
+          Compare every feature in detail
+        </h2>
+        <div className="mt-6 overflow-x-auto">
           <table className="w-full min-w-[640px] border-collapse">
             <thead>
-              <tr>
-                <th className="w-1/4 pb-6 text-left align-bottom"></th>
+              <tr className="border-b border-border">
+                <th className="w-1/4 pb-4 text-left align-bottom"></th>
                 {packages.map((pkg) => (
-                  <th key={pkg.name} className="px-4 pb-6 text-left align-bottom">
-                    {pkg.highlighted && (
-                      <Badge className="mb-3 w-fit bg-accent text-accent-foreground">
-                        Most popular
-                      </Badge>
-                    )}
-                    <p className="font-heading text-xl font-semibold">{pkg.name}</p>
-                    <p className="mt-1 text-sm font-normal text-muted-foreground">
-                      {pkg.tagline}
-                    </p>
-                    <p className="mt-4 gradient-text font-heading text-2xl font-semibold">
-                      {pkg.foundingPrice}
-                    </p>
-                    <p className="mt-1 font-mono text-xs text-muted-foreground line-through">
-                      {pkg.standardPrice}
-                    </p>
-                    <p className="mt-1 font-mono text-xs text-muted-foreground">
-                      {pkg.timeline}
-                    </p>
-                    <Button
-                      className="mt-5 w-full"
-                      size="sm"
-                      variant={pkg.highlighted ? "gradient" : "outline"}
-                      render={<Link href="/contact" />}
-                    >
-                      Enquire
-                    </Button>
+                  <th key={pkg.name} className="px-4 pb-4 text-left align-bottom">
+                    <p className="font-heading text-base font-semibold">{pkg.name}</p>
                   </th>
                 ))}
               </tr>

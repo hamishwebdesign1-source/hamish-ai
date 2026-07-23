@@ -27,7 +27,7 @@ export default function PortfolioPage() {
             <Link
               key={study.slug}
               href={`/portfolio/${study.slug}`}
-              className="card-interactive group overflow-hidden rounded-xl border border-border bg-background"
+              className="card-interactive group overflow-hidden rounded-xl border border-border bg-background hover:shadow-xl"
             >
               <div
                 className="relative h-40 w-full overflow-hidden"
@@ -41,8 +41,14 @@ export default function PortfolioPage() {
                     alt=""
                     fill
                     sizes="(min-width: 640px) 50vw, 100vw"
-                    className="object-cover"
+                    className="object-cover transition-transform duration-500 ease-out group-hover:scale-[1.06]"
                   />
+                )}
+                {study.stats[0] && (
+                  <div className="absolute right-3 bottom-3 rounded-full bg-background/90 px-3 py-1 text-xs font-medium text-foreground backdrop-blur-sm">
+                    {study.stats[0].value}{" "}
+                    <span className="text-muted-foreground">{study.stats[0].label}</span>
+                  </div>
                 )}
               </div>
               <div className="p-6">
@@ -53,6 +59,16 @@ export default function PortfolioPage() {
                 <p className="mt-2 line-clamp-2 text-sm text-muted-foreground">
                   {study.overview}
                 </p>
+                <div className="mt-4 flex flex-wrap gap-1.5">
+                  {study.aiFeatures.slice(0, 2).map((f) => (
+                    <span
+                      key={f.title}
+                      className="rounded-full bg-secondary/70 px-2.5 py-1 text-xs text-muted-foreground"
+                    >
+                      {f.title}
+                    </span>
+                  ))}
+                </div>
                 <span className="mt-5 inline-flex items-center gap-1 text-sm font-medium text-accent">
                   View case study
                   <ArrowRight className="size-4 transition-transform group-hover:translate-x-0.5" />

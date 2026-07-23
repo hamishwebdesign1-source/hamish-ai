@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Menu, X } from "lucide-react";
@@ -10,10 +10,24 @@ import { siteConfig } from "@/lib/site-config";
 
 export function SiteHeader() {
   const [open, setOpen] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
   const pathname = usePathname();
 
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 8);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
   return (
-    <header className="sticky top-0 z-50 border-b border-border/60 bg-background/90 backdrop-blur">
+    <header
+      className={`sticky top-0 z-50 backdrop-blur transition-all duration-300 ${
+        scrolled
+          ? "border-b border-border/60 bg-background/90 shadow-sm shadow-black/[0.02]"
+          : "border-b border-transparent bg-background/40"
+      }`}
+    >
       <div className="mx-auto flex h-[72px] max-w-6xl items-center justify-between px-6">
         <Link href="/" aria-label={siteConfig.name} className="shrink-0">
           <Logo />

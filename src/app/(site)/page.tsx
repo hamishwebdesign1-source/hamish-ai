@@ -1,6 +1,13 @@
 import Link from "next/link";
 import Image from "next/image";
-import { ArrowRight } from "lucide-react";
+import {
+  ArrowRight,
+  UtensilsCrossed,
+  Hammer,
+  ConciergeBell,
+  Dumbbell,
+  Briefcase,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Reveal } from "@/components/reveal";
@@ -14,6 +21,14 @@ import {
   AccordionContent,
 } from "@/components/ui/accordion";
 import { aiSolutions } from "@/lib/ai-solutions-data";
+
+const industries = [
+  { icon: UtensilsCrossed, name: "Restaurants & cafés", href: "/portfolio/the-gannet" },
+  { icon: Hammer, name: "Trades", href: "/portfolio/craigie-and-sons" },
+  { icon: ConciergeBell, name: "Hotels & hospitality", href: "/portfolio/assembly-rooms-hotel" },
+  { icon: Dumbbell, name: "Gyms & fitness studios", href: "/portfolio/forge-fitness" },
+  { icon: Briefcase, name: "Professional services", href: "/portfolio/lomond-and-grey" },
+];
 
 const trustPoints = [
   "Edinburgh-based",
@@ -240,6 +255,34 @@ export default function HomePage() {
                   <h3 className="mt-1 font-heading text-lg font-medium">{s.name}</h3>
                   <p className="mt-2 text-sm text-muted-foreground">{s.callout}</p>
                 </div>
+              </Link>
+            </Reveal>
+          ))}
+        </div>
+      </section>
+
+      <section className="mx-auto max-w-6xl px-6 py-16 md:py-20">
+        <Reveal>
+          <Eyebrow className="mb-3">Industries we&apos;ve worked with</Eyebrow>
+          <h2 className="font-heading text-2xl font-semibold md:text-3xl">
+            Built for real Edinburgh businesses, not a generic template.
+          </h2>
+        </Reveal>
+        <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+          {industries.map((ind, i) => (
+            <Reveal key={ind.name} delay={i * 60}>
+              <Link
+                href={ind.href}
+                className="card-interactive group flex h-full flex-col items-start gap-3 rounded-xl border border-border bg-background p-5"
+              >
+                <span className="flex size-10 items-center justify-center rounded-lg bg-accent/10 text-accent">
+                  <ind.icon className="size-5" />
+                </span>
+                <span className="font-heading text-base font-medium">{ind.name}</span>
+                <span className="inline-flex items-center gap-1 text-xs font-medium text-accent opacity-0 transition-opacity group-hover:opacity-100">
+                  See case study
+                  <ArrowRight className="size-3" />
+                </span>
               </Link>
             </Reveal>
           ))}
