@@ -4,6 +4,7 @@ import { Sparkles, Check, Minus, Globe, Workflow, TrendingUp } from "lucide-reac
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { PageHero } from "@/components/page-hero";
+import { Reveal } from "@/components/reveal";
 import {
   Accordion,
   AccordionItem,
@@ -72,47 +73,48 @@ export default function ServicesPage() {
           {packages.map((pkg, i) => {
             const Icon = packageIcons[i];
             return (
-              <div
-                key={pkg.name}
-                className={`card-interactive relative flex flex-col rounded-2xl border p-6 ${
-                  pkg.highlighted
-                    ? "border-accent/50 shadow-lg shadow-accent/10"
-                    : "border-border"
-                }`}
-              >
-                {pkg.highlighted && (
-                  <Badge className="absolute -top-3 left-6 bg-accent text-accent-foreground">
-                    Most popular
-                  </Badge>
-                )}
-                <span className="flex size-11 items-center justify-center rounded-xl bg-accent/10 text-accent">
-                  <Icon className="size-5" />
-                </span>
-                <p className="mt-4 font-heading text-lg font-semibold">{pkg.name}</p>
-                <p className="mt-1 text-sm text-muted-foreground">{pkg.tagline}</p>
-                <p className="mt-4 gradient-text font-heading text-2xl font-semibold">
-                  {pkg.foundingPrice}
-                </p>
-                <p className="mt-1 font-mono text-xs text-muted-foreground line-through">
-                  {pkg.standardPrice}
-                </p>
-                <p className="mt-1 font-mono text-xs text-muted-foreground">{pkg.timeline}</p>
-                <ul className="mt-5 flex-1 space-y-2 text-sm">
-                  {pkg.features.slice(0, 3).map((f) => (
-                    <li key={f} className="flex gap-2">
-                      <Check className="mt-0.5 size-3.5 shrink-0 text-accent" />
-                      <span className="text-muted-foreground">{f}</span>
-                    </li>
-                  ))}
-                </ul>
-                <Button
-                  className="mt-6 w-full"
-                  variant={pkg.highlighted ? "gradient" : "outline"}
-                  render={<Link href="/contact" />}
+              <Reveal key={pkg.name} delay={i * 80} className="h-full">
+                <div
+                  className={`card-interactive relative flex h-full flex-col rounded-2xl border p-6 ${
+                    pkg.highlighted
+                      ? "border-accent/50 shadow-lg shadow-accent/10"
+                      : "border-border"
+                  }`}
                 >
-                  Enquire
-                </Button>
-              </div>
+                  {pkg.highlighted && (
+                    <Badge className="absolute -top-3 left-6 bg-accent text-accent-foreground">
+                      Most popular
+                    </Badge>
+                  )}
+                  <span className="flex size-11 items-center justify-center rounded-xl bg-accent/10 text-accent">
+                    <Icon className="size-5" />
+                  </span>
+                  <p className="mt-4 font-heading text-lg font-semibold">{pkg.name}</p>
+                  <p className="mt-1 text-sm text-muted-foreground">{pkg.tagline}</p>
+                  <p className="mt-4 gradient-text font-heading text-2xl font-semibold">
+                    {pkg.foundingPrice}
+                  </p>
+                  <p className="mt-1 font-mono text-xs text-muted-foreground line-through">
+                    {pkg.standardPrice}
+                  </p>
+                  <p className="mt-1 font-mono text-xs text-muted-foreground">{pkg.timeline}</p>
+                  <ul className="mt-5 flex-1 space-y-2 text-sm">
+                    {pkg.features.slice(0, 3).map((f) => (
+                      <li key={f} className="flex gap-2">
+                        <Check className="mt-0.5 size-3.5 shrink-0 text-accent" />
+                        <span className="text-muted-foreground">{f}</span>
+                      </li>
+                    ))}
+                  </ul>
+                  <Button
+                    className="mt-6 w-full"
+                    variant={pkg.highlighted ? "gradient" : "outline"}
+                    render={<Link href="/contact" />}
+                  >
+                    Enquire
+                  </Button>
+                </div>
+              </Reveal>
             );
           })}
         </div>

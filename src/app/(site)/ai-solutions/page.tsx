@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { ChatDemo } from "@/components/chat-demo";
 import { PageHero } from "@/components/page-hero";
+import { Reveal } from "@/components/reveal";
 import { aiSolutions } from "@/lib/ai-solutions-data";
 
 export const metadata: Metadata = {
@@ -37,8 +38,8 @@ export default function AISolutionsPage() {
 
         <div className="mt-10 flex flex-col">
           {aiSolutions.map((s, i) => (
+            <Reveal key={s.slug}>
             <div
-              key={s.slug}
               id={s.slug}
               className={`scroll-mt-24 grid gap-8 md:grid-cols-2 md:items-start ${
                 i === 0 ? "" : "mt-16 border-t border-border/60 pt-16"
@@ -82,6 +83,7 @@ export default function AISolutionsPage() {
                 <ChatDemo messages={s.demo} />
               </div>
             </div>
+            </Reveal>
           ))}
         </div>
       </section>
