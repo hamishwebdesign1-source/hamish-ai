@@ -20,6 +20,39 @@ export default function PortfolioPage() {
         eyebrow="Portfolio"
         title="Case studies, not just concepts."
         description="Illustrative projects built to demonstrate the range of redesigns and AI features on offer — not real clients yet. Each one links to a fully working live site, not a static mock-up."
+        visual={
+          <div className="relative mx-auto h-64 w-full max-w-sm">
+            {[caseStudies[0], caseStudies[2], caseStudies[3]].map((study, i) => (
+              <div
+                key={study.slug}
+                className={`absolute w-44 overflow-hidden rounded-lg border border-border shadow-xl ${
+                  i === 0
+                    ? "top-10 left-0 -rotate-6"
+                    : i === 1
+                      ? "top-0 right-0 rotate-3"
+                      : "bottom-0 left-20 -rotate-2"
+                }`}
+              >
+                <div
+                  className="relative aspect-[3/2] w-full"
+                  style={{
+                    backgroundImage: `linear-gradient(135deg, ${study.accentFrom}, ${study.accentTo})`,
+                  }}
+                >
+                  {study.signatureImage && (
+                    <Image
+                      src={study.signatureImage}
+                      alt=""
+                      fill
+                      sizes="180px"
+                      className="object-cover"
+                    />
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        }
       />
 
       <section className="mx-auto max-w-6xl px-6 py-12 md:py-16">

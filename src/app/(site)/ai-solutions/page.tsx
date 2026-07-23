@@ -21,6 +21,21 @@ export default function AISolutionsPage() {
         eyebrow="AI Solutions"
         title="Practical AI, not hype."
         description="Six things AI can genuinely do for a small business today — with a real example of each conversation, so you can picture it running in yours."
+        visual={
+          <div className="mx-auto max-w-sm overflow-hidden rounded-xl border border-border shadow-2xl shadow-accent/10">
+            <div className="flex items-center gap-1.5 border-b border-border bg-secondary/60 px-3 py-2">
+              <span className="size-2.5 rounded-full bg-destructive/50" />
+              <span className="size-2.5 rounded-full bg-accent/50" />
+              <span className="size-2.5 rounded-full bg-emerald-500/50" />
+            </div>
+            <div className="bg-background p-4">
+              <p className="mb-3 font-mono text-[10px] tracking-wide text-accent uppercase">
+                {aiSolutions[0].name}
+              </p>
+              <ChatDemo messages={aiSolutions[0].demo} />
+            </div>
+          </div>
+        }
       />
 
       <section className="mx-auto max-w-6xl px-6 py-12 md:py-16">

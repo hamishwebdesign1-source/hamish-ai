@@ -61,6 +61,32 @@ export default function ServicesPage() {
         eyebrow="Services & pricing"
         title="AI transformation, at founding client prices."
         description="Every project starts with a free AI consultation and a free working prototype — you only pay once you can see exactly what you're getting."
+        visual={
+          <div className="mx-auto max-w-sm rounded-2xl border border-accent/50 bg-background p-6 shadow-2xl shadow-accent/10">
+            <Badge className="mb-4 w-fit bg-accent text-accent-foreground">
+              Most popular
+            </Badge>
+            <span className="flex size-11 items-center justify-center rounded-xl bg-accent/10 text-accent">
+              <Workflow className="size-5" />
+            </span>
+            <p className="mt-4 font-heading text-lg font-semibold">{packages[1].name}</p>
+            <p className="mt-1 text-sm text-muted-foreground">{packages[1].tagline}</p>
+            <p className="mt-4 gradient-text font-heading text-3xl font-semibold">
+              {packages[1].foundingPrice}
+            </p>
+            <p className="mt-1 font-mono text-xs text-muted-foreground line-through">
+              {packages[1].standardPrice}
+            </p>
+            <ul className="mt-5 space-y-2 text-sm">
+              {packages[1].features.slice(0, 3).map((f) => (
+                <li key={f} className="flex gap-2">
+                  <Check className="mt-0.5 size-3.5 shrink-0 text-accent" />
+                  <span className="text-muted-foreground">{f}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        }
       >
         <div className="mt-6 inline-flex max-w-xl items-start gap-2 rounded-lg border border-accent/40 bg-accent/10 px-4 py-3 text-sm">
           <Sparkles className="mt-0.5 size-4 shrink-0 text-accent" />

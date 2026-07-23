@@ -42,6 +42,23 @@ export default function AboutPage() {
         eyebrow="About"
         title="An analyst who ships, not just advises."
         description="I'm Hamish McFarlane — 11 years as a business analyst in financial services, now bringing the same AI-powered delivery to small Edinburgh businesses."
+        visual={
+          <div className="mx-auto max-w-xs rounded-2xl border border-border bg-background p-6 shadow-2xl shadow-accent/10">
+            <p className="font-mono text-xs tracking-wide text-accent uppercase">
+              Real project, real scale
+            </p>
+            <p className="mt-3 font-heading text-4xl font-semibold">10,600+</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Engineers using the analytics platform I built at NatWest
+            </p>
+            <div className="mt-5 border-t border-border pt-5">
+              <p className="font-heading text-2xl font-semibold">6,000+</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Untapped employees identified for onboarding
+              </p>
+            </div>
+          </div>
+        }
       />
 
       <section className="mx-auto max-w-6xl px-6 py-16 md:py-20">
