@@ -35,12 +35,14 @@ export default function AISolutionsPage() {
           ))}
         </div>
 
-        <div className="mt-10 flex flex-col gap-16">
+        <div className="mt-10 flex flex-col">
           {aiSolutions.map((s, i) => (
             <div
               key={s.slug}
               id={s.slug}
-              className="scroll-mt-24 grid gap-8 md:grid-cols-2 md:items-start"
+              className={`scroll-mt-24 grid gap-8 md:grid-cols-2 md:items-start ${
+                i === 0 ? "" : "mt-16 border-t border-border/60 pt-16"
+              }`}
             >
               <div className={i % 2 === 1 ? "md:order-2" : ""}>
                 <p className="font-mono text-xs font-medium tracking-wide text-accent uppercase">
