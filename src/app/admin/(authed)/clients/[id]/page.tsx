@@ -83,6 +83,15 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
         <span className="rounded-full border border-border px-3 py-1">{client.package || "No package"}</span>
         <span className="rounded-full border border-border px-3 py-1">{client.maintenance_plan} plan</span>
       </div>
+      {client.email && (
+        <p className="mt-3 text-xs text-muted-foreground">
+          Portal access: they can sign in at{" "}
+          <Link href="/portal/login" className="text-accent hover:underline">
+            /portal/login
+          </Link>{" "}
+          with <span className="font-medium text-foreground">{client.email}</span>.
+        </p>
+      )}
 
       <div className="mt-8 grid gap-6 lg:grid-cols-2">
         <ProgressReportButton clientId={id} />
