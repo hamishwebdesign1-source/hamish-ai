@@ -22,19 +22,22 @@ const defaultSteps: { icon: LucideIcon; label: string }[] = [
 
 export function HowItWorksFlow({
   steps = defaultSteps,
+  title = "How it actually works",
+  description = "From the moment a customer types a question, to the business getting notified — end to end, automatically.",
 }: {
   steps?: { icon: LucideIcon; label: string }[];
+  title?: string;
+  description?: string;
 }) {
   return (
     <section className="border-t border-border/60">
       <div className="mx-auto max-w-6xl px-6 py-16 md:py-20">
         <div className="max-w-2xl">
           <h2 className="font-heading text-2xl font-semibold md:text-3xl">
-            How it actually works
+            {title}
           </h2>
           <p className="mt-2 text-muted-foreground">
-            From the moment a customer types a question, to the business
-            getting notified — end to end, automatically.
+            {description}
           </p>
         </div>
 

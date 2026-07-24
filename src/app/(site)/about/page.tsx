@@ -33,6 +33,10 @@ const background = [
   "Requirements Engineering",
   "Agile",
   "Prompt Engineering",
+  "Power BI",
+  "Digital Transformation",
+  "Process Design",
+  "Product Design",
 ];
 
 export default function AboutPage() {
@@ -98,6 +102,13 @@ export default function AboutPage() {
                 don&apos;t have an internal engineering department to do that
                 for them — Hamish AI exists to bring that same capability to
                 them.
+              </p>
+              <p>
+                It&apos;s also why AI Business Analytics is a natural next
+                step rather than a bolt-on: as a Technology Business Analyst,
+                every project I&apos;ve worked on started with understanding
+                the business, its processes, and its data before recommending
+                any technology — dashboards and reporting included.
               </p>
             </div>
           </Reveal>

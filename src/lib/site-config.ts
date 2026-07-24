@@ -7,6 +7,7 @@ export const siteConfig = {
   email: "HamishWebDesign1@gmail.com",
   nav: [
     { label: "AI Solutions", href: "/ai-solutions" },
+    { label: "Analytics", href: "/analytics" },
     { label: "Services", href: "/services" },
     { label: "Portfolio", href: "/portfolio" },
     { label: "About", href: "/about" },
@@ -69,3 +70,21 @@ export const packages: Package[] = [
     ],
   },
 ];
+
+// A fourth pillar, kept deliberately separate from `packages` above rather
+// than a 4th array entry — the 3-package grid and comparison table on the
+// Services page map over `packages` directly, and both are hardcoded to 3
+// columns. Adding a 4th entry there would silently reflow/break both.
+export const analyticsPackage: Package = {
+  name: "AI Business Analytics",
+  foundingPrice: "From £995",
+  standardPrice: "£2,000 – £4,500 standard price",
+  tagline: "Turn your business data into decisions, automatically.",
+  timeline: "2–4 weeks",
+  features: [
+    "Executive dashboards built around your real KPIs",
+    "Automated AI reports — no spreadsheet required",
+    "Customer, sales, and marketing analytics",
+    "Process review from a Technology Business Analyst background",
+  ],
+};

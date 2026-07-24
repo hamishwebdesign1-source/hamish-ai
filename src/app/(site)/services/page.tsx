@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { Metadata } from "next";
-import { Sparkles, Check, Minus, Globe, Workflow, TrendingUp } from "lucide-react";
+import { Sparkles, Check, Minus, Globe, Workflow, TrendingUp, BarChart3, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { PageHero } from "@/components/page-hero";
@@ -11,7 +11,7 @@ import {
   AccordionTrigger,
   AccordionContent,
 } from "@/components/ui/accordion";
-import { packages, foundingOfferNote } from "@/lib/site-config";
+import { packages, foundingOfferNote, analyticsPackage } from "@/lib/site-config";
 
 // Derived directly from each package's real feature list below — nothing
 // here is invented, it's the same facts read as a comparable matrix
@@ -184,6 +184,65 @@ export default function ServicesPage() {
               ))}
             </tbody>
           </table>
+        </div>
+      </section>
+
+      <section className="border-t border-border/60 bg-secondary/40">
+        <div className="mx-auto max-w-6xl px-6 py-16 md:py-20">
+          <Reveal>
+            <Badge variant="secondary" className="mb-4">
+              A fourth pillar
+            </Badge>
+            <h2 className="font-heading text-2xl font-semibold md:text-3xl">
+              {analyticsPackage.name}
+            </h2>
+            <p className="mt-2 max-w-lg text-muted-foreground">
+              For businesses ready to go beyond the website and chatbot —
+              understand what your data is actually telling you.
+            </p>
+          </Reveal>
+          <Reveal delay={60}>
+            <div className="mt-8 grid gap-8 rounded-2xl border border-accent/50 bg-background p-6 shadow-lg shadow-accent/10 md:grid-cols-[auto_1fr] md:items-center md:p-8">
+              <div>
+                <span className="flex size-11 items-center justify-center rounded-xl bg-accent/10 text-accent">
+                  <BarChart3 className="size-5" />
+                </span>
+                <p className="mt-4 text-sm text-muted-foreground">{analyticsPackage.tagline}</p>
+                <p className="mt-4 gradient-text font-heading text-3xl font-semibold">
+                  {analyticsPackage.foundingPrice}
+                </p>
+                <p className="mt-1 font-mono text-xs text-muted-foreground line-through">
+                  {analyticsPackage.standardPrice}
+                </p>
+                <p className="mt-1 font-mono text-xs text-muted-foreground">
+                  {analyticsPackage.timeline}
+                </p>
+                <Button
+                  className="mt-6 w-full md:w-auto"
+                  variant="gradient"
+                  render={<Link href="/contact" />}
+                >
+                  Enquire
+                </Button>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                {analyticsPackage.features.map((f) => (
+                  <div key={f} className="flex gap-2 rounded-lg bg-secondary/50 p-3 text-sm">
+                    <Check className="mt-0.5 size-3.5 shrink-0 text-accent" />
+                    <span className="text-muted-foreground">{f}</span>
+                  </div>
+                ))}
+                <Button
+                  variant="link"
+                  className="col-span-full mt-1 justify-self-start px-0"
+                  render={<Link href="/analytics" />}
+                >
+                  See AI Business Analytics in detail
+                  <ArrowRight className="size-4" />
+                </Button>
+              </div>
+            </div>
+          </Reveal>
         </div>
       </section>
 

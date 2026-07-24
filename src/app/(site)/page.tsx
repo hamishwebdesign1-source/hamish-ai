@@ -22,6 +22,8 @@ import {
   AccordionContent,
 } from "@/components/ui/accordion";
 import { aiSolutions } from "@/lib/ai-solutions-data";
+import { dashboardKpis, aiInsights } from "@/lib/analytics-data";
+import { KpiCard } from "@/components/analytics/kpi-card";
 
 const industries = [
   { icon: UtensilsCrossed, name: "Restaurants & cafés", href: "/portfolio/the-gannet" },
@@ -30,6 +32,9 @@ const industries = [
   { icon: Dumbbell, name: "Gyms & fitness studios", href: "/portfolio/forge-fitness" },
   { icon: Briefcase, name: "Professional services", href: "/portfolio/lomond-and-grey" },
 ];
+
+const teaserKpiIds = ["revenue", "leads", "conversion", "response-time"];
+const homepageTeaserKpis = dashboardKpis.filter((k) => teaserKpiIds.includes(k.id));
 
 const trustPoints = [
   "Edinburgh-based",
@@ -264,31 +269,70 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section className="mx-auto max-w-6xl px-6 py-16 md:py-20">
-        <Reveal>
-          <Eyebrow className="mb-3">Industries we&apos;ve worked with</Eyebrow>
-          <h2 className="font-heading text-2xl font-semibold md:text-3xl">
-            Built for real Edinburgh businesses, not a generic template.
-          </h2>
-        </Reveal>
-        <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-          {industries.map((ind, i) => (
-            <Reveal key={ind.name} delay={i * 60}>
-              <Link
-                href={ind.href}
-                className="card-interactive group flex h-full flex-col items-start gap-3 rounded-xl border border-border bg-background p-5"
+      <section className="border-t border-border/60 bg-secondary/40">
+        <div className="mx-auto max-w-6xl px-6 py-16 md:py-20">
+          <div className="grid gap-12 lg:grid-cols-[1fr_1.1fr] lg:items-center">
+            <Reveal>
+              <Eyebrow className="mb-3">AI Business Analytics</Eyebrow>
+              <h2 className="font-heading text-2xl font-semibold md:text-3xl">
+                Turn your data into decisions.
+              </h2>
+              <p className="mt-3 max-w-md text-muted-foreground">
+                Most businesses collect data — bookings, enquiries, website
+                visits — but never turn it into anything actionable. We build
+                the executive dashboards and automated AI reports that close
+                that gap.
+              </p>
+              <div className="mt-5 rounded-lg border border-accent/30 bg-accent/10 px-4 py-3 text-sm text-foreground">
+                &ldquo;{aiInsights[0].text}&rdquo;
+              </div>
+              <Button
+                variant="link"
+                className="mt-5 px-0"
+                render={<Link href="/analytics" />}
               >
-                <span className="flex size-10 items-center justify-center rounded-lg bg-accent/10 text-accent">
-                  <ind.icon className="size-5" />
-                </span>
-                <span className="font-heading text-base font-medium">{ind.name}</span>
-                <span className="inline-flex items-center gap-1 text-xs font-medium text-accent opacity-0 transition-opacity group-hover:opacity-100">
-                  See case study
-                  <ArrowRight className="size-3" />
-                </span>
-              </Link>
+                Explore AI Business Analytics
+                <ArrowRight className="size-4" />
+              </Button>
             </Reveal>
-          ))}
+            <Reveal delay={60}>
+              <div className="grid grid-cols-2 gap-4">
+                {homepageTeaserKpis.map((kpi) => (
+                  <KpiCard key={kpi.id} kpi={kpi} compact />
+                ))}
+              </div>
+            </Reveal>
+          </div>
+        </div>
+      </section>
+
+      <section className="border-t border-border/60">
+        <div className="mx-auto max-w-6xl px-6 py-16 md:py-20">
+          <Reveal>
+            <Eyebrow className="mb-3">Industries we&apos;ve worked with</Eyebrow>
+            <h2 className="font-heading text-2xl font-semibold md:text-3xl">
+              Built for real Edinburgh businesses, not a generic template.
+            </h2>
+          </Reveal>
+          <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+            {industries.map((ind, i) => (
+              <Reveal key={ind.name} delay={i * 60}>
+                <Link
+                  href={ind.href}
+                  className="card-interactive group flex h-full flex-col items-start gap-3 rounded-xl border border-border bg-background p-5"
+                >
+                  <span className="flex size-10 items-center justify-center rounded-lg bg-accent/10 text-accent">
+                    <ind.icon className="size-5" />
+                  </span>
+                  <span className="font-heading text-base font-medium">{ind.name}</span>
+                  <span className="inline-flex items-center gap-1 text-xs font-medium text-accent opacity-0 transition-opacity group-hover:opacity-100">
+                    See case study
+                    <ArrowRight className="size-3" />
+                  </span>
+                </Link>
+              </Reveal>
+            ))}
+          </div>
         </div>
       </section>
 
