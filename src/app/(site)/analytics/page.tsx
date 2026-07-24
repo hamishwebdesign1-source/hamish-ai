@@ -18,7 +18,7 @@ import { Reveal } from "@/components/reveal";
 import { Eyebrow } from "@/components/eyebrow";
 import { HowItWorksFlow } from "@/components/case-study/how-it-works-flow";
 import { KpiCard } from "@/components/analytics/kpi-card";
-import { DashboardDemo } from "@/components/analytics/dashboard-demo";
+import { CommandCentre } from "@/components/analytics/command-centre";
 import {
   Accordion,
   AccordionItem,
@@ -131,18 +131,18 @@ export default function AnalyticsPage() {
           <Reveal>
             <div className="max-w-2xl">
               <h2 className="font-heading text-2xl font-semibold md:text-3xl">
-                See it in action
+                Meet your AI Command Centre
               </h2>
               <p className="mt-2 text-muted-foreground">
-                A live, working preview of the kind of executive dashboard we
-                build — click regenerate to see a different set of AI
-                insights.
+                A live, working preview of what we build — click through the
+                tabs, ask the AI Copilot a real question, or try the what-if
+                simulator.
               </p>
             </div>
           </Reveal>
           <Reveal delay={40}>
             <div className="mt-10">
-              <DashboardDemo />
+              <CommandCentre />
             </div>
           </Reveal>
         </div>
