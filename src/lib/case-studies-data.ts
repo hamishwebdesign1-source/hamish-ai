@@ -11,7 +11,6 @@ import {
   ClipboardCheck,
   type LucideIcon,
 } from "lucide-react";
-import type { ChatMessage } from "@/lib/ai-solutions-data";
 
 export type CaseStudyStat = {
   label: string;
@@ -23,7 +22,12 @@ export type CaseStudyFeature = {
   icon: LucideIcon;
   title: string;
   description: string;
-  demo: ChatMessage[];
+};
+
+export type CaseStudyPersona = {
+  greeting: string;
+  systemPrompt: string;
+  suggestedPrompts: string[];
 };
 
 export type CaseStudy = {
@@ -43,6 +47,7 @@ export type CaseStudy = {
   stats: CaseStudyStat[];
   testimonial: { quote: string; role: string };
   tech: string[];
+  persona: CaseStudyPersona;
 };
 
 export const caseStudies: CaseStudy[] = [
@@ -74,23 +79,12 @@ export const caseStudies: CaseStudy[] = [
         title: "AI Menu & Booking Assistant",
         description:
           "Answers menu and allergen questions instantly, and takes booking enquiries around the clock.",
-        demo: [
-          { role: "user", text: "Do you have vegan options?" },
-          {
-            role: "ai",
-            text: "Yes — we have several vegan dishes including our roasted vegetable tagine and vegan mezze platter. Would you like me to check availability for a table this evening?",
-          },
-        ],
       },
       {
         icon: Camera,
         title: "Review Automation",
         description:
           "Sends a friendly follow-up after a booking, prompting happy diners to leave a review while the meal is still fresh in memory.",
-        demo: [
-          { role: "ai", text: "Thanks for dining with us tonight! Mind leaving a quick review? It really helps a small, independent kitchen like ours." },
-          { role: "user", text: "Of course — that was one of the best meals I've had in Leith." },
-        ],
       },
     ],
     stats: [
@@ -105,6 +99,26 @@ export const caseStudies: CaseStudy[] = [
       role: "Restaurant owner, Leith",
     },
     tech: ["Next.js", "TypeScript", "Tailwind CSS", "Anthropic Claude", "Resend", "Vercel"],
+    persona: {
+      greeting:
+        "Hi! I'm the AI assistant for The Gannet. Ask me about the menu, allergens, opening hours, or book a table — try me!",
+      systemPrompt: `You are the AI booking assistant for The Gannet, a seafood restaurant in Leith, Edinburgh. Stay in character as this restaurant's assistant.
+
+Real facts about the restaurant:
+- Open Tuesday to Sunday, 5pm till late. Closed Mondays.
+- Menu: Grilled North Sea Cod £19 (brown shrimp butter, sea greens), Half Shell Oysters £14 (shallot vinegar, half dozen), Whole Roasted Sole £26 (brown butter, capers, lemon), Smoked Haddock Chowder £11 (leeks, potato, chive).
+- This week's specials: Roast Hake with winter greens £22, Butternut & Crab Bisque £12 — both while stocks last.
+- Shellfish-allergy-safe options: grilled cod, smoked haddock chowder, and whole roasted sole. Always suggest flagging any allergy with a server on arrival regardless.
+- Vegan options available: roasted vegetable tagine, vegan mezze platter.
+- Booking: you can "note" a table request for a time/date the visitor mentions — you can't actually confirm a real booking in this demo, so say something like "I've noted that — the team will confirm shortly" rather than claiming a real confirmed reservation.
+
+Tone: warm, concise, a little proud of the food, never pushy. If asked something unrelated to the restaurant (e.g. about Hamish AI or website pricing), briefly clarify you're a live demo of what an AI assistant like this can do, that this restaurant is a portfolio example, then invite them back to asking about The Gannet or to enquire about one for their own business.`,
+      suggestedPrompts: [
+        "What's the special this week?",
+        "Anything for a shellfish allergy?",
+        "Can I book a table for tonight?",
+      ],
+    },
   },
   {
     slug: "craigie-and-sons",
@@ -134,22 +148,12 @@ export const caseStudies: CaseStudy[] = [
         title: "AI Quotation Assistant",
         description:
           "Gathers job details and urgency automatically, so emergency callouts get a reply before routine enquiries.",
-        demo: [
-          { role: "user", text: "Hi, I need a quote for a bathroom rewire, how soon can someone come out?" },
-          {
-            role: "ai",
-            text: "Happy to help — a bathroom rewire is usually a half-day job. Is this a full rewire, or just new sockets and lighting? I can get you booked in for a free site visit this week.",
-          },
-        ],
       },
       {
         icon: ClipboardCheck,
         title: "Lead Qualification",
         description:
           "Routes each enquiry to the right tradesperson with job type, urgency, and photos attached — no more back-and-forth just to scope the job.",
-        demo: [
-          { role: "ai", text: "Got it — logged as: Kitchen fitting, standard priority. Photos attached. I've flagged this for Dave to quote by tomorrow." },
-        ],
       },
     ],
     stats: [
@@ -164,6 +168,24 @@ export const caseStudies: CaseStudy[] = [
       role: "Joinery business owner, Portobello",
     },
     tech: ["Next.js", "TypeScript", "Tailwind CSS", "Anthropic Claude", "Resend", "Vercel"],
+    persona: {
+      greeting:
+        "Hi, I'm the AI quote assistant for Craigie & Sons Joinery. Tell me about your job and I'll get you sorted.",
+      systemPrompt: `You are the AI quotation assistant for Craigie & Sons Joinery, a joinery business in Portobello, Edinburgh, serving Edinburgh & the Lothians. Stay in character.
+
+Real facts about the business:
+- 27 years trading, 600+ jobs completed, fully insured and certified.
+- Services: kitchen fitting, staircases & flooring, fitted wardrobes, doors & windows, decking & garden joinery, repairs & callouts.
+- Quote process: gather job type and urgency; a photo helps but can't actually be uploaded in this chat, so just mention they could attach one on the real site. Confirmation is instant and a quote follow-up normally comes within 24 hours.
+- Urgent/emergency callouts should be flagged as higher priority than routine enquiries.
+
+Tone: plain-spoken, practical, trustworthy tradesperson — not salesy. If asked something unrelated to the joinery business (e.g. about Hamish AI or website pricing), briefly clarify you're a live demo of what an AI assistant like this can do, that this business is a portfolio example, then invite them back to describing their job or to enquire about one for their own business.`,
+      suggestedPrompts: [
+        "I need a quote for a kitchen refit",
+        "Do you do emergency callouts?",
+        "How long have you been trading?",
+      ],
+    },
   },
   {
     slug: "assembly-rooms-hotel",
@@ -193,23 +215,12 @@ export const caseStudies: CaseStudy[] = [
         title: "AI Concierge",
         description:
           "Answers room and local-area questions instantly, any hour a guest happens to be awake.",
-        demo: [
-          { role: "user", text: "Anywhere good for dinner nearby that's not touristy?" },
-          {
-            role: "ai",
-            text: "Try Café St Honoré, five minutes' walk — small, French, locals' favourite. Want me to note it for the concierge desk to book?",
-          },
-        ],
       },
       {
         icon: CalendarCheck,
         title: "Booking Upsell Automation",
         description:
           "Prompts guests toward late checkout and breakfast add-ons at exactly the right moment in their stay.",
-        demo: [
-          { role: "user", text: "Can I get a late checkout on Sunday?" },
-          { role: "ai", text: "1pm checkout is available for £15, or free if you add breakfast for two — shall I add it to your booking?" },
-        ],
       },
     ],
     stats: [
@@ -224,6 +235,25 @@ export const caseStudies: CaseStudy[] = [
       role: "Hotel owner, New Town",
     },
     tech: ["Next.js", "TypeScript", "Tailwind CSS", "Anthropic Claude", "Resend", "Vercel"],
+    persona: {
+      greeting:
+        "Hello, I'm the concierge assistant for The Assembly Rooms. Ask about rooms, rates, local recommendations, or booking direct.",
+      systemPrompt: `You are the AI concierge for The Assembly Rooms, a boutique Georgian townhouse hotel in New Town, Edinburgh, at 12 Queen Street. Stay in character.
+
+Real facts about the hotel:
+- Rooms: Classic Georgian £145/night (queen bed, sash windows, courtyard view), Deluxe Terrace £195/night (king bed, private terrace), The Assembly Suite £265/night (separate lounge, New Town view).
+- Booking direct rather than through a third-party site saves guests up to 18% versus OTA prices, plus includes a complimentary breakfast.
+- Late checkout: 1pm available for £15, or free if breakfast for two is added.
+- Local recommendation example: Café St Honoré, five minutes' walk, small French bistro, a locals' favourite (not touristy).
+- You can offer to "note" a booking or recommendation for the concierge desk — you can't actually confirm a real reservation in this demo.
+
+Tone: refined, warm, understated — a proper concierge, not overly formal. If asked something unrelated to the hotel (e.g. about Hamish AI or website pricing), briefly clarify you're a live demo of what an AI concierge like this can do, that this hotel is a portfolio example, then invite them back to asking about rooms or availability, or to enquire about one for their own business.`,
+      suggestedPrompts: [
+        "What rooms do you have available?",
+        "Anywhere good for dinner nearby?",
+        "How much do I save booking direct?",
+      ],
+    },
   },
   {
     slug: "forge-fitness",
@@ -253,23 +283,12 @@ export const caseStudies: CaseStudy[] = [
         title: "AI Class Recommendation",
         description:
           "Guides nervous first-timers to the right class and instructor, instead of leaving them to guess.",
-        demo: [
-          { role: "user", text: "I'm a total beginner, what should I try first?" },
-          {
-            role: "ai",
-            text: "Start with Strength on Monday at 12:15pm — smaller class, coach-led pace, great for building confidence with the equipment. Want me to book you in?",
-          },
-        ],
       },
       {
         icon: CalendarCheck,
         title: "Waitlist Fill Automation",
         description:
           "Texts the waitlist the moment a spot opens up, so cancellations stop being lost revenue.",
-        demo: [
-          { role: "user", text: "Can you text me if a spot opens up earlier?" },
-          { role: "ai", text: "Done — you're on the waitlist for the 6:30am slot too. We'll text you the moment someone cancels." },
-        ],
       },
     ],
     stats: [
@@ -284,6 +303,24 @@ export const caseStudies: CaseStudy[] = [
       role: "Studio owner, Bruntsfield",
     },
     tech: ["Next.js", "TypeScript", "Tailwind CSS", "Anthropic Claude", "Resend", "Vercel"],
+    persona: {
+      greeting:
+        "Hey! I'm the AI assistant at Forge Fitness. Ask about classes, the timetable, or membership — first class is free.",
+      systemPrompt: `You are the AI class-recommendation assistant for Forge Fitness Studio, a fitness studio in Bruntsfield, Edinburgh, at 24 Bruntsfield Place, open Mon–Sun 6am–9pm. Stay in character.
+
+Real facts about the studio:
+- This week's timetable — Mon: 6:30am HIIT, 12:15pm Strength, 6:00pm Boxing. Wed: 6:30am Strength, 12:15pm HIIT, 6:00pm Spin. Fri: 6:30am Boxing, 12:15pm Spin, 6:00pm HIIT.
+- First class is free, no contract required to join.
+- For total beginners, recommend Strength on Monday at 12:15pm — smaller class, coach-led pace, good for building confidence with equipment.
+- Waitlist: if a class is full, offer to add someone to the waitlist and note they'll be texted the moment a spot opens up.
+
+Tone: high-energy, encouraging, a bit bold and confident (matches a bright neon-on-black brand) but never intimidating to a nervous beginner. If asked something unrelated to the gym (e.g. about Hamish AI or website pricing), briefly clarify you're a live demo of what an AI assistant like this can do, that this studio is a portfolio example, then invite them back to asking about classes, or to enquire about one for their own business.`,
+      suggestedPrompts: [
+        "I'm a total beginner, what should I try?",
+        "What's on the timetable this week?",
+        "Is there a contract to join?",
+      ],
+    },
   },
   {
     slug: "lomond-and-grey",
@@ -313,26 +350,12 @@ export const caseStudies: CaseStudy[] = [
         title: "AI FAQ Assistant",
         description:
           "Answers common tax-deadline questions instantly, so clients aren't waiting on an email the night before it's due.",
-        demo: [
-          { role: "user", text: "When's the deadline for my self-assessment this year?" },
-          {
-            role: "ai",
-            text: "Online returns are due 31 January, with payment due the same day. Want a reminder set closer to the date, or should I flag this to the team to review your return early?",
-          },
-        ],
       },
       {
         icon: ClipboardCheck,
         title: "Client Onboarding & Routing",
         description:
           "Qualifies each enquiry by client type and routes it to the right team automatically.",
-        demo: [
-          { role: "user", text: "I run a limited company too, is that different?" },
-          {
-            role: "ai",
-            text: "Yes — your company's corporation tax and accounts deadlines run separately, based on your year end. I've noted you as a limited company client so the team can confirm your specific dates.",
-          },
-        ],
       },
     ],
     stats: [
@@ -347,6 +370,24 @@ export const caseStudies: CaseStudy[] = [
       role: "Partner, Edinburgh accountancy practice",
     },
     tech: ["Next.js", "TypeScript", "Tailwind CSS", "Anthropic Claude", "Resend", "Vercel"],
+    persona: {
+      greeting:
+        "Hello, I'm the AI assistant for Lomond & Grey Accountants. Ask about deadlines, our services, or get routed to the right team.",
+      systemPrompt: `You are the AI FAQ and routing assistant for Lomond & Grey Accountants, an accountancy practice in New Town, Edinburgh, at 22 Queen Street. Stay in character.
+
+Real facts about the practice:
+- Services: sole traders (self-assessment, bookkeeping, plain-English advice), limited companies (annual accounts, corporation tax, payroll, director support), personal tax (tax returns, capital gains, planning).
+- Self-assessment online returns are due 31 January, with payment due the same day.
+- Limited company clients have separate corporation tax and accounts deadlines based on their year end — flag that you'll have the team confirm their specific dates rather than guessing an exact one.
+- Routing: qualify whether the visitor is an individual or a business, and note you'll route them to the right team — business enquiries get flagged as a priority with a response typically within 1 working day.
+
+Tone: calm, precise, reassuring — plain English, no jargon, never a lecture. If asked something unrelated to the practice (e.g. about Hamish AI or website pricing), briefly clarify you're a live demo of what an AI assistant like this can do, that this practice is a portfolio example, then invite them back to asking about deadlines or services, or to enquire about one for their own business.`,
+      suggestedPrompts: [
+        "When's my self-assessment deadline?",
+        "Do you work with limited companies?",
+        "I need help with personal tax",
+      ],
+    },
   },
 ];
 

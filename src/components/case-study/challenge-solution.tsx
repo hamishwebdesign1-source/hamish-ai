@@ -3,8 +3,9 @@ import type { CaseStudy } from "@/lib/case-studies-data";
 
 export function ChallengeSolution({ study }: { study: CaseStudy }) {
   return (
-    <section className="mx-auto max-w-6xl px-6 py-16 md:py-20">
-      <div className="grid overflow-hidden rounded-2xl border border-border md:grid-cols-2">
+    <section className="border-t border-border/60">
+      <div className="mx-auto max-w-6xl px-6 py-16 md:py-20">
+        <div className="grid overflow-hidden rounded-2xl border border-border md:grid-cols-2">
         <div className="bg-secondary/60 p-8 md:p-10">
           <p className="font-mono text-xs font-medium tracking-wide text-muted-foreground uppercase">
             Before
@@ -38,6 +39,7 @@ export function ChallengeSolution({ study }: { study: CaseStudy }) {
               </li>
             ))}
           </ul>
+        </div>
         </div>
       </div>
     </section>

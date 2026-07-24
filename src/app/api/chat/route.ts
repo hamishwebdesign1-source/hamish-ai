@@ -42,6 +42,20 @@ ${featuresList}
 If they ask about "this project," "this case study," or similar, answer using the details above rather than generic examples.`;
 }
 
+// A completely different mode from buildSystemPrompt above: instead of the
+// Hamish AI sales assistant *talking about* a case study, this makes the
+// assistant *role-play as* that fictional business's own AI, so a visitor
+// can try the actual product rather than read a description of it. Looked
+// up server-side from a slug for the same injection-safety reason.
+function buildDemoSystemPrompt(demoSlug: unknown) {
+  const project = typeof demoSlug === "string" ? getCaseStudy(demoSlug) : undefined;
+  if (!project) return null;
+
+  return `${project.persona.systemPrompt}
+
+Formatting: replies render as plain text in a chat bubble, not markdown. Never use **asterisks**, #headings, or markdown bullet syntax — write plain sentences, and use a simple dash and line break for lists.`;
+}
+
 const SAVE_LEAD_TOOL: Anthropic.Tool = {
   name: "save_lead",
   description:
@@ -90,6 +104,34 @@ export async function POST(request: Request) {
 
   const anthropic = new Anthropic({ apiKey });
   const model = process.env.ANTHROPIC_MODEL || "claude-haiku-4-5-20251001";
+
+  // Interactive case-study demo mode: the assistant role-plays as a
+  // fictional portfolio business, not Hamish AI. No lead-capture tool here
+  // — a fictional business "saving a lead" would write fake data into the
+  // real leads table alongside genuine enquiries, which is a correctness
+  // bug, not just an unnecessary feature.
+  const demoSystemPrompt = buildDemoSystemPrompt(body?.demoSlug);
+  if (demoSystemPrompt) {
+    try {
+      const response = await anthropic.messages.create({
+        model,
+        max_tokens: 400,
+        system: demoSystemPrompt,
+        messages: trimmed.map((m) => ({ role: m.role, content: m.content })),
+      });
+      const text = response.content
+        .filter((block): block is Anthropic.TextBlock => block.type === "text")
+        .map((block) => block.text)
+        .join("\n");
+      return NextResponse.json({ reply: text });
+    } catch (error) {
+      console.error("Anthropic demo chat request failed:", error);
+      return NextResponse.json(
+        { error: "The demo assistant is temporarily unavailable — please try again shortly." },
+        { status: 502 }
+      );
+    }
+  }
 
   try {
     let conversation: Anthropic.MessageParam[] = trimmed.map((m) => ({

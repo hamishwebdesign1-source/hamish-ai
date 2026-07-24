@@ -5,7 +5,9 @@ import { Button } from "@/components/ui/button";
 import { CaseStudyHero } from "@/components/case-study/case-study-hero";
 import { ChallengeSolution } from "@/components/case-study/challenge-solution";
 import { WebsiteShowcase } from "@/components/case-study/website-showcase";
+import { InteractiveDemoSection } from "@/components/case-study/interactive-demo";
 import { AIFeatureShowcase } from "@/components/case-study/ai-feature-showcase";
+import { HowItWorksFlow } from "@/components/case-study/how-it-works-flow";
 import { StatsGrid } from "@/components/case-study/stats-grid";
 import { Testimonial } from "@/components/case-study/testimonial";
 import { TechStack } from "@/components/case-study/tech-stack";
@@ -42,10 +44,14 @@ export default async function CaseStudyPage({
   return (
     <>
       <CaseStudyHero study={study} />
+      <StatsGrid study={study} />
       <ChallengeSolution study={study} />
       <WebsiteShowcase study={study} />
+      <InteractiveDemoSection
+        study={{ slug: study.slug, name: study.name, persona: study.persona }}
+      />
       <AIFeatureShowcase study={study} />
-      <StatsGrid study={study} />
+      <HowItWorksFlow />
       <Testimonial study={study} />
       <TechStack study={study} />
 

@@ -14,6 +14,13 @@ const menu = [
   { name: "Smoked Haddock Chowder", price: "£11", note: "leeks, potato, chive" },
 ];
 
+// Updated weekly by the client via email — plain array, no CMS needed for
+// a two-item list that changes this infrequently.
+const specials = [
+  { name: "Roast Hake, Winter Greens", price: "£22", note: "brown shrimp, charred leek, Jerusalem artichoke" },
+  { name: "Butternut & Crab Bisque", price: "£12", note: "toasted sourdough, chive oil" },
+];
+
 export default function TheGannetDemo() {
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100">
@@ -98,8 +105,31 @@ export default function TheGannetDemo() {
       {/* Menu */}
       <section id="menu" className="border-t border-zinc-800 bg-zinc-900/40">
         <div className="mx-auto max-w-3xl px-6 py-20">
+          <div className="flex items-center gap-3">
+            <h2
+              className="text-2xl font-medium tracking-tight"
+              style={{ fontFamily: "var(--font-fraunces)" }}
+            >
+              This week&apos;s specials
+            </h2>
+            <span className="rounded-full border border-amber-400/40 px-2.5 py-0.5 text-xs font-medium text-amber-400 uppercase tracking-wide">
+              Changes weekly
+            </span>
+          </div>
+          <div className="mt-6 divide-y divide-zinc-800">
+            {specials.map((item) => (
+              <div key={item.name} className="flex items-baseline justify-between gap-6 py-4">
+                <div>
+                  <p className="font-medium text-amber-50">{item.name}</p>
+                  <p className="text-sm text-zinc-500">{item.note}</p>
+                </div>
+                <span className="whitespace-nowrap text-amber-400">{item.price}</span>
+              </div>
+            ))}
+          </div>
+
           <h2
-            className="text-3xl font-medium tracking-tight"
+            className="mt-16 text-3xl font-medium tracking-tight"
             style={{ fontFamily: "var(--font-fraunces)" }}
           >
             Tonight&apos;s menu
@@ -134,6 +164,14 @@ export default function TheGannetDemo() {
 
         <div className="mt-8 max-w-sm rounded-2xl border border-zinc-800 bg-zinc-900 p-4">
           <div className="flex flex-col gap-3 text-sm">
+            <div className="ml-auto max-w-[85%] rounded-2xl rounded-br-sm bg-amber-400 px-4 py-2 text-zinc-950">
+              What&apos;s the special this week?
+            </div>
+            <div className="mr-auto max-w-[85%] rounded-2xl rounded-bl-sm bg-zinc-800 px-4 py-2 text-zinc-100">
+              This week we&apos;ve got roast hake with winter greens, and a
+              butternut &amp; crab bisque — both while stocks last. Want me
+              to hold you a table to try them?
+            </div>
             <div className="ml-auto max-w-[85%] rounded-2xl rounded-br-sm bg-amber-400 px-4 py-2 text-zinc-950">
               Do you have anything for someone with a shellfish allergy?
             </div>
