@@ -1,10 +1,12 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { stripMarkdownEmphasis } from "@/lib/strip-markdown-emphasis";
+import { sendClientEmail } from "@/lib/send-client-email";
 
 type Client = {
   id: string;
   business_name: string;
+  email: string | null;
   package: string | null;
   maintenance_plan: string;
   tech_stack: string | null;
@@ -87,7 +89,7 @@ export async function triageRequest(clientId: string, rawText: string) {
 
   const { data: client, error: clientError } = await supabase
     .from("clients")
-    .select("id, business_name, package, maintenance_plan, tech_stack, brand_notes")
+    .select("id, business_name, email, package, maintenance_plan, tech_stack, brand_notes")
     .eq("id", clientId)
     .single();
 
@@ -157,6 +159,18 @@ export async function triageRequest(clientId: string, rawText: string) {
       acceptance_criteria: triage.suggested_task.acceptance_criteria,
     });
     if (taskError) console.error("Failed to save suggested task:", taskError);
+  }
+
+  // Only the "we need something from you" transition gets an email — a
+  // freshly-triaged request doesn't, since nothing is expected of the client
+  // yet, and pinging them for every internal status change would just be noise.
+  if (status === "awaiting_info" && client.email) {
+    const questions = triage.missing_info.map((q) => `- ${q}`).join("\n");
+    await sendClientEmail(
+      client.email,
+      `A quick question about your request — ${client.business_name}`,
+      `Hi,\n\nThanks for the note — before we can get started we need a bit more detail:\n\n${questions}\n\nJust reply to this email or log into your portal to add the details.\n\n— Hamish AI`
+    );
   }
 
   return { request: savedRequest };
