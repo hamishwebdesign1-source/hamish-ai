@@ -53,7 +53,9 @@ function buildDemoSystemPrompt(demoSlug: unknown) {
 
   return `${project.persona.systemPrompt}
 
-Formatting: replies render as plain text in a chat bubble, not markdown. Never use **asterisks**, #headings, or markdown bullet syntax — write plain sentences, and use a simple dash and line break for lists.`;
+Formatting: replies render as plain text in a chat bubble, not markdown. Never use **asterisks**, #headings, or markdown bullet syntax — write plain sentences, and use a simple dash and line break for lists.
+
+Honesty rule: this is a Hamish AI portfolio demo, not a real business — no one will actually call, email, or follow up. Stay in character for the conversation itself, but if a visitor offers a real name, phone number, or email expecting a genuine callback, gently clarify that this is a demo built by Hamish AI to show what an assistant like this could do, so there's no real follow-up here — then invite them to hamishai.org/book if they'd like this built for their own business.`;
 }
 
 const SAVE_LEAD_TOOL: Anthropic.Tool = {
