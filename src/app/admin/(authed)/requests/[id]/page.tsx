@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getSupabaseAdmin } from "@/lib/supabase";
+import { updateTaskStatus, updateDraftResponse } from "@/app/admin/actions";
 
 const priorityStyles: Record<string, string> = {
   urgent: "bg-destructive/10 text-destructive",
@@ -8,6 +9,8 @@ const priorityStyles: Record<string, string> = {
   medium: "bg-accent/10 text-accent",
   low: "bg-secondary text-secondary-foreground",
 };
+
+const TASK_STATUSES = ["todo", "in_progress", "done"] as const;
 
 export default async function RequestDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -89,11 +92,20 @@ export default async function RequestDetailPage({ params }: { params: Promise<{ 
         <p className="font-mono text-xs font-medium tracking-wide text-accent uppercase">
           Draft response to send
         </p>
-        <textarea
-          defaultValue={req.draft_response}
-          rows={6}
-          className="mt-2 w-full rounded-lg border border-border bg-background px-4 py-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-        />
+        <form action={updateDraftResponse.bind(null, req.id)} className="mt-2">
+          <textarea
+            name="draft_response"
+            defaultValue={req.draft_response}
+            rows={6}
+            className="w-full rounded-lg border border-border bg-background px-4 py-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+          />
+          <button
+            type="submit"
+            className="mt-2 rounded-lg border border-border px-3 py-1.5 text-xs font-medium hover:bg-secondary"
+          >
+            Save draft
+          </button>
+        </form>
       </div>
 
       {tasks && tasks.length > 0 && (
@@ -111,6 +123,22 @@ export default async function RequestDetailPage({ params }: { params: Promise<{ 
                   {t.acceptance_criteria}
                 </p>
               )}
+              <div className="mt-3 flex gap-1.5">
+                {TASK_STATUSES.map((status) => (
+                  <form key={status} action={updateTaskStatus.bind(null, t.id, status, `/admin/requests/${req.id}`)}>
+                    <button
+                      type="submit"
+                      className={`rounded-full px-2.5 py-1 text-[11px] font-medium capitalize transition-colors ${
+                        t.status === status
+                          ? "bg-primary text-primary-foreground"
+                          : "border border-border text-muted-foreground hover:text-foreground"
+                      }`}
+                    >
+                      {status.replace("_", " ")}
+                    </button>
+                  </form>
+                ))}
+              </div>
             </div>
           ))}
         </div>

@@ -16,6 +16,7 @@ async function addClient(formData: FormData) {
     email: String(formData.get("email") || "") || null,
     package: String(formData.get("package") || "") || null,
     maintenance_plan: String(formData.get("maintenance_plan") || "none"),
+    website_url: String(formData.get("website_url") || "") || null,
     tech_stack: String(formData.get("tech_stack") || "") || null,
     brand_notes: String(formData.get("brand_notes") || "") || null,
   });
@@ -81,6 +82,12 @@ export default async function ClientsPage() {
               <option value="basic">Basic maintenance</option>
               <option value="growth">Growth Partnership</option>
             </select>
+            <input
+              name="website_url"
+              type="url"
+              placeholder="Website URL (optional, e.g. https://example.com)"
+              className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+            />
             <input
               name="tech_stack"
               placeholder="Tech stack (optional)"
