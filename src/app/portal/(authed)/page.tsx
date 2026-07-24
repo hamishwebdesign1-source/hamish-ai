@@ -3,6 +3,7 @@ import { revalidatePath } from "next/cache";
 import { createServerSupabaseClient } from "@/lib/supabase-server-auth";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { triageRequest } from "@/lib/triage-request";
+import { AskSupportAgent } from "@/components/portal/ask-support-agent";
 
 const statusLabels: Record<string, string> = {
   new: "Received",
@@ -70,6 +71,10 @@ export default async function PortalHomePage() {
           <p className="mt-2 text-sm">{latestCheck.ai_summary}</p>
         </div>
       )}
+
+      <div className="mt-8">
+        <AskSupportAgent clientId={client.id} />
+      </div>
 
       <div className="mt-8 rounded-xl border border-border p-5">
         <h2 className="font-heading text-lg font-medium">Submit a new request</h2>

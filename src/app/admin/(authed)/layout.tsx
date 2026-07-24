@@ -25,6 +25,9 @@ export default function AdminAuthedLayout({ children }: { children: React.ReactN
             <Link href="/admin/clients" className="text-sm text-muted-foreground hover:text-foreground">
               Clients
             </Link>
+            <Link href="/admin/knowledge" className="text-sm text-muted-foreground hover:text-foreground">
+              Knowledge
+            </Link>
             <form action={signOut}>
               <button type="submit" className="text-sm text-muted-foreground hover:text-foreground">
                 Sign out

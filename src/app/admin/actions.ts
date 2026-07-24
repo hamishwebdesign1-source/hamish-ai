@@ -61,3 +61,13 @@ export async function updateDraftResponse(requestId: string, formData: FormData)
 
   revalidatePath(`/admin/requests/${requestId}`);
 }
+
+export async function deleteKnowledgeEntry(entryId: string) {
+  const supabase = getSupabaseAdmin();
+  if (!supabase) return;
+
+  const { error } = await supabase.from("knowledge_base").delete().eq("id", entryId);
+  if (error) console.error("Failed to delete knowledge entry:", error);
+
+  revalidatePath("/admin/knowledge");
+}
