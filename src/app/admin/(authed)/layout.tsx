@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { Users, BookOpen, Plug, LogOut } from "lucide-react";
+import { Users, BookOpen, Plug, Search, LogOut } from "lucide-react";
 import { ADMIN_COOKIE_NAME } from "@/lib/admin-auth";
 import { AdminNavLink } from "@/components/admin/nav-link";
 import { Button } from "@/components/ui/button";
@@ -28,6 +28,10 @@ export default function AdminAuthedLayout({ children }: { children: React.ReactN
             <AdminNavLink href="/admin/clients">
               <Users className="size-4" />
               Clients
+            </AdminNavLink>
+            <AdminNavLink href="/admin/leads">
+              <Search className="size-4" />
+              Leads
             </AdminNavLink>
             <AdminNavLink href="/admin/knowledge">
               <BookOpen className="size-4" />

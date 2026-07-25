@@ -71,3 +71,23 @@ export async function deleteKnowledgeEntry(entryId: string) {
 
   revalidatePath("/admin/knowledge");
 }
+
+export async function updateLeadStatus(leadId: string, status: string) {
+  const supabase = getSupabaseAdmin();
+  if (!supabase) return;
+
+  const { error } = await supabase.from("prospects").update({ status }).eq("id", leadId);
+  if (error) console.error("Failed to update lead status:", error);
+
+  revalidatePath("/admin/leads");
+}
+
+export async function deleteLead(leadId: string) {
+  const supabase = getSupabaseAdmin();
+  if (!supabase) return;
+
+  const { error } = await supabase.from("prospects").delete().eq("id", leadId);
+  if (error) console.error("Failed to delete lead:", error);
+
+  revalidatePath("/admin/leads");
+}
