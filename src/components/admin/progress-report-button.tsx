@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { Sparkles } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 
 export function ProgressReportButton({ clientId }: { clientId: string }) {
   const [loading, setLoading] = useState(false);
@@ -31,26 +33,23 @@ export function ProgressReportButton({ clientId }: { clientId: string }) {
   }
 
   return (
-    <div className="rounded-xl border border-border p-5">
-      <div className="flex items-center justify-between gap-3">
-        <h2 className="font-heading text-lg font-medium">Progress report</h2>
-        <button
-          type="button"
-          onClick={generate}
-          disabled={loading}
-          className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium hover:bg-secondary disabled:opacity-50"
-        >
+    <Card>
+      <CardHeader className="flex items-center justify-between gap-3 space-y-0">
+        <CardTitle>Progress report</CardTitle>
+        <Button type="button" onClick={generate} disabled={loading} variant="outline" size="sm">
           <Sparkles className="size-3.5" />
-          {loading ? "Generating…" : "Generate progress report"}
-        </button>
-      </div>
-      {error && <p className="mt-3 text-sm text-destructive">{error}</p>}
-      {report && <p className="mt-3 whitespace-pre-line text-sm text-foreground">{report}</p>}
-      {!report && !error && !loading && (
-        <p className="mt-3 text-sm text-muted-foreground">
-          Generate an AI-written summary of what&apos;s been done, what&apos;s outstanding, and any risks.
-        </p>
-      )}
-    </div>
+          {loading ? "Generating…" : "Generate"}
+        </Button>
+      </CardHeader>
+      <CardContent>
+        {error && <p className="text-sm text-destructive">{error}</p>}
+        {report && <p className="whitespace-pre-line text-sm text-foreground">{report}</p>}
+        {!report && !error && !loading && (
+          <p className="text-sm text-muted-foreground">
+            Generate an AI-written summary of what&apos;s been done, what&apos;s outstanding, and any risks.
+          </p>
+        )}
+      </CardContent>
+    </Card>
   );
 }

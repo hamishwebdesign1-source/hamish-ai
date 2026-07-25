@@ -1,6 +1,11 @@
 import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
 import { ADMIN_COOKIE_NAME, hashAdminPassword } from "@/lib/admin-auth";
+import { Eyebrow } from "@/components/eyebrow";
+import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
 
 async function login(formData: FormData) {
   "use server";
@@ -31,32 +36,38 @@ export default async function AdminLoginPage({
   const { error } = await searchParams;
 
   return (
-    <div className="flex min-h-screen items-center justify-center px-6">
-      <form action={login} className="w-full max-w-sm">
-        <p className="font-mono text-xs font-medium tracking-[0.15em] text-accent uppercase">
-          HamishAI Internal
-        </p>
-        <h1 className="mt-2 font-heading text-2xl font-semibold">Sign in</h1>
-        {error && (
-          <p className="mt-3 rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
-            Incorrect password.
-          </p>
-        )}
-        <input
-          type="password"
-          name="password"
-          placeholder="Password"
-          autoFocus
-          required
-          className="mt-4 h-10 w-full rounded-md border border-input bg-background px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-        />
-        <button
-          type="submit"
-          className="mt-3 h-10 w-full rounded-lg bg-primary text-sm font-medium text-primary-foreground hover:bg-primary/80"
-        >
-          Sign in
-        </button>
-      </form>
+    <div className="flex min-h-screen items-center justify-center bg-secondary/30 px-6">
+      <Card className="w-full max-w-sm p-2">
+        <CardContent>
+          <Eyebrow>HamishAI Internal</Eyebrow>
+          <h1 className="mt-3 font-heading text-2xl font-semibold">Sign in</h1>
+          <p className="mt-1 text-sm text-muted-foreground">Password-gated internal operations console.</p>
+
+          {error && (
+            <p className="mt-4 rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
+              Incorrect password.
+            </p>
+          )}
+
+          <form action={login} className="mt-6 space-y-4">
+            <div className="space-y-1.5">
+              <Label htmlFor="password">Password</Label>
+              <Input
+                id="password"
+                type="password"
+                name="password"
+                placeholder="••••••••"
+                autoFocus
+                required
+                className="h-10"
+              />
+            </div>
+            <Button type="submit" className="h-10 w-full">
+              Sign in
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
     </div>
   );
 }

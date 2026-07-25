@@ -1,9 +1,19 @@
 import Link from "next/link";
 import { revalidatePath } from "next/cache";
+import { Users } from "lucide-react";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { packages, analyticsPackage } from "@/lib/site-config";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 
 const packageOptions = [...packages.map((p) => p.name), analyticsPackage.name];
+
+const selectClasses =
+  "h-8 w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30";
 
 async function addClient(formData: FormData) {
   "use server";
@@ -26,6 +36,28 @@ async function addClient(formData: FormData) {
   revalidatePath("/admin/clients");
 }
 
+function initials(name: string) {
+  return name
+    .split(" ")
+    .map((w) => w[0])
+    .filter(Boolean)
+    .slice(0, 2)
+    .join("")
+    .toUpperCase();
+}
+
+const planVariant = {
+  none: "secondary",
+  basic: "accent",
+  growth: "warning",
+} as const;
+
+const planLabel: Record<string, string> = {
+  none: "No maintenance plan",
+  basic: "Basic maintenance",
+  growth: "Growth partnership",
+};
+
 export default async function ClientsPage() {
   const supabase = getSupabaseAdmin();
   const { data: clients, error: clientsError } = supabase
@@ -40,93 +72,92 @@ export default async function ClientsPage() {
         Add a client, then log requests against them to run the AI triage pipeline.
       </p>
 
-      <div className="mt-8 grid gap-8 lg:grid-cols-[1fr_1.2fr]">
-        <div className="rounded-xl border border-border p-5">
-          <h2 className="font-heading text-lg font-medium">Add a client</h2>
-          <form action={addClient} className="mt-4 space-y-3">
-            <input
-              name="name"
-              placeholder="Contact name"
-              required
-              className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-            />
-            <input
-              name="business_name"
-              placeholder="Business name"
-              required
-              className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-            />
-            <input
-              name="email"
-              type="email"
-              placeholder="Email"
-              className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-            />
-            <select
-              name="package"
-              className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-            >
-              <option value="">No package set</option>
-              {packageOptions.map((p) => (
-                <option key={p} value={p}>
-                  {p}
-                </option>
-              ))}
-            </select>
-            <select
-              name="maintenance_plan"
-              defaultValue="none"
-              className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-            >
-              <option value="none">No maintenance plan</option>
-              <option value="basic">Basic maintenance</option>
-              <option value="growth">Growth Partnership</option>
-            </select>
-            <input
-              name="website_url"
-              type="url"
-              placeholder="Website URL (optional, e.g. https://example.com)"
-              className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-            />
-            <input
-              name="tech_stack"
-              placeholder="Tech stack (optional)"
-              className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-            />
-            <textarea
-              name="brand_notes"
-              placeholder="Brand / tone notes (optional)"
-              rows={3}
-              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-            />
-            <button
-              type="submit"
-              className="h-9 w-full rounded-lg bg-primary text-sm font-medium text-primary-foreground hover:bg-primary/80"
-            >
-              Add client
-            </button>
-          </form>
-        </div>
+      <div className="mt-8 grid gap-6 lg:grid-cols-[1fr_1.2fr]">
+        <Card className="h-fit">
+          <CardHeader>
+            <CardTitle>Add a client</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <form action={addClient} className="mt-2 space-y-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="name">Contact name</Label>
+                <Input id="name" name="name" placeholder="Chris Munro" required />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="business_name">Business name</Label>
+                <Input id="business_name" name="business_name" placeholder="Craigie & Sons Joinery" required />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="email">Email</Label>
+                <Input id="email" name="email" type="email" placeholder="chris@example.com" />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="package">Package</Label>
+                <select id="package" name="package" className={selectClasses}>
+                  <option value="">No package set</option>
+                  {packageOptions.map((p) => (
+                    <option key={p} value={p}>
+                      {p}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="maintenance_plan">Maintenance plan</Label>
+                <select id="maintenance_plan" name="maintenance_plan" defaultValue="none" className={selectClasses}>
+                  <option value="none">No maintenance plan</option>
+                  <option value="basic">Basic maintenance</option>
+                  <option value="growth">Growth Partnership</option>
+                </select>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="website_url">Website URL</Label>
+                <Input id="website_url" name="website_url" type="url" placeholder="https://example.com" />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="tech_stack">Tech stack</Label>
+                <Input id="tech_stack" name="tech_stack" placeholder="Squarespace, WordPress, custom…" />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="brand_notes">Brand / tone notes</Label>
+                <Textarea id="brand_notes" name="brand_notes" placeholder="Optional context for the AI triage agent." rows={3} />
+              </div>
+              <Button type="submit" className="w-full">
+                Add client
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
 
         <div>
           <h2 className="font-heading text-lg font-medium">All clients</h2>
           {!clients?.length && (
-            <p className="mt-3 text-sm text-muted-foreground">No clients yet — add your first one.</p>
+            <Card className="mt-3">
+              <CardContent className="flex flex-col items-center gap-2 py-8 text-center text-sm text-muted-foreground">
+                <Users className="size-6 text-muted-foreground/60" />
+                No clients yet — add your first one.
+              </CardContent>
+            </Card>
           )}
           <ul className="mt-4 space-y-2">
             {clients?.map((c) => (
               <li key={c.id}>
                 <Link
                   href={`/admin/clients/${c.id}`}
-                  className="card-interactive flex items-center justify-between rounded-lg border border-border bg-background px-4 py-3"
+                  className="card-interactive flex items-center gap-4 rounded-xl border border-border bg-card px-4 py-3.5"
                 >
-                  <div>
-                    <p className="font-medium">{c.business_name}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {c.package || "No package"} · {c.maintenance_plan} plan
-                    </p>
+                  <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-accent/10 font-heading text-sm font-semibold text-accent">
+                    {initials(c.business_name)}
                   </div>
-                  <span className="text-xs text-accent">View →</span>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate font-medium">{c.business_name}</p>
+                    <CardDescription className="mt-0.5 truncate">
+                      {c.package || "No package"}
+                    </CardDescription>
+                  </div>
+                  <Badge variant={planVariant[c.maintenance_plan as keyof typeof planVariant] ?? "secondary"}>
+                    {planLabel[c.maintenance_plan] ?? c.maintenance_plan}
+                  </Badge>
                 </Link>
               </li>
             ))}

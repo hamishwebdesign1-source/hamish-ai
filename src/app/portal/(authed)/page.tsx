@@ -1,15 +1,14 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
+import { HeartPulse } from "lucide-react";
 import { createServerSupabaseClient } from "@/lib/supabase-server-auth";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { triageRequest } from "@/lib/triage-request";
 import { AskSupportAgent } from "@/components/portal/ask-support-agent";
-
-const statusLabels: Record<string, string> = {
-  new: "Received",
-  awaiting_info: "We need a bit more info from you",
-  triaged: "In progress",
-};
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Textarea } from "@/components/ui/textarea";
+import { Button } from "@/components/ui/button";
+import { RequestStatusBadge, TaskStatusBadge } from "@/components/status-badges";
 
 async function submitRequest(clientId: string, formData: FormData) {
   "use server";
@@ -66,37 +65,37 @@ export default async function PortalHomePage() {
       <p className="mt-1 text-sm text-muted-foreground">{client.business_name}</p>
 
       {latestCheck?.ai_summary && (
-        <div className="mt-6 rounded-xl border border-border bg-secondary/40 p-5">
-          <p className="font-mono text-xs font-medium tracking-wide text-accent uppercase">Website health</p>
-          <p className="mt-2 text-sm">{latestCheck.ai_summary}</p>
-        </div>
+        <Card className="mt-6 bg-secondary/40">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-1.5 font-mono text-xs font-medium tracking-wide text-accent uppercase">
+              <HeartPulse className="size-3.5" />
+              Website health
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm">{latestCheck.ai_summary}</p>
+          </CardContent>
+        </Card>
       )}
 
       <div className="mt-8">
         <AskSupportAgent clientId={client.id} />
       </div>
 
-      <div className="mt-8 rounded-xl border border-border p-5">
-        <h2 className="font-heading text-lg font-medium">Submit a new request</h2>
-        <p className="mt-1 text-xs text-muted-foreground">
-          Tell us what you need — a change, a question, anything.
-        </p>
-        <form action={submitRequestWithId} className="mt-4 space-y-3">
-          <textarea
-            name="raw_text"
-            required
-            rows={5}
-            placeholder="What can we help with?"
-            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-          />
-          <button
-            type="submit"
-            className="h-9 w-full rounded-lg bg-primary text-sm font-medium text-primary-foreground hover:bg-primary/80"
-          >
-            Send
-          </button>
-        </form>
-      </div>
+      <Card className="mt-8">
+        <CardHeader>
+          <CardTitle>Submit a new request</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-xs text-muted-foreground">Tell us what you need — a change, a question, anything.</p>
+          <form action={submitRequestWithId} className="mt-4 space-y-3">
+            <Textarea name="raw_text" required rows={5} placeholder="What can we help with?" />
+            <Button type="submit" className="w-full">
+              Send
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
 
       <div className="mt-8">
         <h2 className="font-heading text-lg font-medium">Your requests</h2>
@@ -107,9 +106,11 @@ export default async function PortalHomePage() {
           {requests?.map((r) => {
             const linkedTasks = tasks?.filter((t) => t.request_id === r.id) ?? [];
             return (
-              <li key={r.id} className="rounded-lg border border-border bg-background p-4">
+              <li key={r.id} className="rounded-lg border border-border bg-card p-4">
                 <p className="text-sm font-medium">{r.raw_text}</p>
-                <p className="mt-1 text-xs font-medium text-accent">{statusLabels[r.status] || r.status}</p>
+                <div className="mt-1.5">
+                  <RequestStatusBadge status={r.status} />
+                </div>
                 {r.missing_info?.length > 0 && (
                   <ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-muted-foreground">
                     {r.missing_info.map((q: string, i: number) => (
@@ -118,14 +119,12 @@ export default async function PortalHomePage() {
                   </ul>
                 )}
                 {linkedTasks.length > 0 && (
-                  <div className="mt-2 flex flex-wrap gap-1.5">
+                  <div className="mt-2 flex flex-wrap items-center gap-1.5">
                     {linkedTasks.map((t) => (
-                      <span
-                        key={t.id}
-                        className="rounded-full border border-border px-2 py-0.5 text-[10px] text-muted-foreground uppercase"
-                      >
-                        {t.title}: {t.status.replace("_", " ")}
-                      </span>
+                      <div key={t.id} className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                        {t.title}
+                        <TaskStatusBadge status={t.status} />
+                      </div>
                     ))}
                   </div>
                 )}

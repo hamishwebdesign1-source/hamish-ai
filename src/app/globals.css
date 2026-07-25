@@ -27,6 +27,10 @@
   --color-input: var(--input);
   --color-border: var(--border);
   --color-destructive: var(--destructive);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
   --color-accent-foreground: var(--accent-foreground);
   --color-accent: var(--accent);
   --color-muted-foreground: var(--muted-foreground);
@@ -84,6 +88,13 @@
   --clay: oklch(0.62 0.08 55);
   --clay-soft: oklch(0.62 0.08 55 / 14%);
   --destructive: oklch(0.577 0.245 27.325);
+  /* Internal-tool status colors: success mirrors chart-3's green, warning
+     reuses --clay so "needs attention" states stay visually consistent
+     with the terracotta accent already used elsewhere on the site. */
+  --success: oklch(0.6 0.1 150);
+  --success-foreground: oklch(0.98 0.01 150);
+  --warning: oklch(0.62 0.08 55);
+  --warning-foreground: oklch(0.22 0.035 260);
   --border: oklch(0.89 0.01 250);
   --input: oklch(0.89 0.01 250);
   --ring: oklch(0.58 0.21 258);
@@ -121,6 +132,10 @@
   --clay: oklch(0.68 0.08 55);
   --clay-soft: oklch(0.68 0.08 55 / 16%);
   --destructive: oklch(0.704 0.191 22.216);
+  --success: oklch(0.65 0.1 150);
+  --success-foreground: oklch(0.18 0.02 260);
+  --warning: oklch(0.68 0.08 55);
+  --warning-foreground: oklch(0.95 0.006 90);
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
   --ring: oklch(0.66 0.19 258);

@@ -1,6 +1,9 @@
 import { redirect } from "next/navigation";
+import { LogOut } from "lucide-react";
 import { createServerSupabaseClient } from "@/lib/supabase-server-auth";
 import { getSupabaseAdmin } from "@/lib/supabase";
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 
 export default async function PortalAuthedLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createServerSupabaseClient();
@@ -19,29 +22,32 @@ export default async function PortalAuthedLayout({ children }: { children: React
 
   if (!client) {
     return (
-      <div className="flex min-h-screen items-center justify-center px-6 text-center">
-        <div>
-          <h1 className="font-heading text-xl font-semibold">No portal access found</h1>
-          <p className="mt-2 max-w-sm text-sm text-muted-foreground">
-            We couldn&apos;t find a project registered under {user.email}. Contact Hamish AI if you think this is a
-            mistake.
-          </p>
-        </div>
+      <div className="flex min-h-screen items-center justify-center bg-secondary/30 px-6 text-center">
+        <Card className="max-w-sm p-2">
+          <CardContent>
+            <h1 className="font-heading text-xl font-semibold">No portal access found</h1>
+            <p className="mt-2 text-sm text-muted-foreground">
+              We couldn&apos;t find a project registered under {user.email}. Contact Hamish AI if you think this is
+              a mistake.
+            </p>
+          </CardContent>
+        </Card>
       </div>
     );
   }
 
   return (
-    <div>
-      <header className="border-b border-border/60">
+    <div className="min-h-screen bg-secondary/20">
+      <header className="border-b border-border/60 bg-background">
         <div className="mx-auto flex max-w-3xl items-center justify-between px-6 py-4">
           <p className="font-heading text-lg font-semibold">
             Hamish<span className="text-accent">AI</span>
           </p>
           <form action="/api/portal/logout" method="post">
-            <button type="submit" className="text-sm text-muted-foreground hover:text-foreground">
+            <Button type="submit" variant="ghost" size="sm" className="text-muted-foreground">
+              <LogOut className="size-4" />
               Sign out
-            </button>
+            </Button>
           </form>
         </div>
       </header>

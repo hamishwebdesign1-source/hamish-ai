@@ -1,7 +1,10 @@
 import Link from "next/link";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { Users, BookOpen, LogOut } from "lucide-react";
 import { ADMIN_COOKIE_NAME } from "@/lib/admin-auth";
+import { AdminNavLink } from "@/components/admin/nav-link";
+import { Button } from "@/components/ui/button";
 
 async function signOut() {
   "use server";
@@ -12,8 +15,8 @@ async function signOut() {
 
 export default function AdminAuthedLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div>
-      <header className="border-b border-border/60">
+    <div className="min-h-screen bg-secondary/20">
+      <header className="border-b border-border/60 bg-background">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-4">
           <Link href="/admin/clients" className="font-heading text-lg font-semibold">
             Hamish<span className="text-accent">AI</span>{" "}
@@ -21,17 +24,20 @@ export default function AdminAuthedLayout({ children }: { children: React.ReactN
               Internal
             </span>
           </Link>
-          <nav className="flex items-center gap-4">
-            <Link href="/admin/clients" className="text-sm text-muted-foreground hover:text-foreground">
+          <nav className="flex items-center gap-1">
+            <AdminNavLink href="/admin/clients">
+              <Users className="size-4" />
               Clients
-            </Link>
-            <Link href="/admin/knowledge" className="text-sm text-muted-foreground hover:text-foreground">
+            </AdminNavLink>
+            <AdminNavLink href="/admin/knowledge">
+              <BookOpen className="size-4" />
               Knowledge
-            </Link>
+            </AdminNavLink>
             <form action={signOut}>
-              <button type="submit" className="text-sm text-muted-foreground hover:text-foreground">
+              <Button type="submit" variant="ghost" size="sm" className="ml-2 text-muted-foreground">
+                <LogOut className="size-4" />
                 Sign out
-              </button>
+              </Button>
             </form>
           </nav>
         </div>
