@@ -1,16 +1,45 @@
 import Link from "next/link";
+import { revalidatePath } from "next/cache";
 import { notFound, redirect } from "next/navigation";
-import { AlertTriangle, ArrowLeft, CalendarCheck, Globe, Zap } from "lucide-react";
+import { AlertTriangle, ArrowLeft, CalendarCheck, ExternalLink, Globe, Receipt, Zap } from "lucide-react";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { triageRequest } from "@/lib/triage-request";
+import { createInvoice } from "@/lib/create-invoice";
 import { updateTaskStatus } from "@/app/admin/actions";
 import { ProgressReportButton } from "@/components/admin/progress-report-button";
 import { SiteCheckButton } from "@/components/admin/site-check-button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { PriorityBadge } from "@/components/status-badges";
+
+const invoiceStatusMeta: Record<string, { label: string; variant: "secondary" | "warning" | "success" | "destructive" }> = {
+  draft: { label: "Draft", variant: "secondary" },
+  open: { label: "Awaiting payment", variant: "warning" },
+  paid: { label: "Paid", variant: "success" },
+  void: { label: "Void", variant: "secondary" },
+  uncollectible: { label: "Uncollectible", variant: "destructive" },
+};
+
+async function createInvoiceForClient(clientId: string, formData: FormData) {
+  "use server";
+  const amountPounds = parseFloat(String(formData.get("amount") || "0"));
+  const description = String(formData.get("description") || "").trim();
+  if (!amountPounds || amountPounds <= 0 || !description) return;
+
+  const result = await createInvoice({
+    clientId,
+    amountPence: Math.round(amountPounds * 100),
+    description,
+  });
+
+  if ("error" in result) console.error("Failed to create invoice:", result.error);
+
+  revalidatePath(`/admin/clients/${clientId}`);
+}
 
 async function logRequest(clientId: string, formData: FormData) {
   "use server";
@@ -62,6 +91,12 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
     .order("checked_at", { ascending: false })
     .limit(1);
   const latestCheck = siteChecks?.[0] ?? null;
+
+  const { data: invoices } = await supabase
+    .from("invoices")
+    .select("*")
+    .eq("client_id", id)
+    .order("created_at", { ascending: false });
 
   const logRequestWithId = logRequest.bind(null, id);
   const revalidatePath = `/admin/clients/${id}`;
@@ -214,6 +249,61 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
             );
           })}
         </ul>
+      </div>
+
+      <div className="mt-8 grid gap-6 lg:grid-cols-[1fr_1.2fr]">
+        <Card className="h-fit">
+          <CardHeader>
+            <CardTitle>Create invoice</CardTitle>
+            <CardDescription>Sent via Stripe — the client pays online, status syncs back automatically.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form action={createInvoiceForClient.bind(null, id)} className="mt-2 space-y-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="amount">Amount (£)</Label>
+                <Input id="amount" name="amount" type="number" step="0.01" min="0.01" placeholder="150.00" required />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="description">Description</Label>
+                <Textarea id="description" name="description" placeholder="What's this invoice for?" rows={3} required />
+              </div>
+              <Button type="submit" className="w-full">
+                Create &amp; send invoice
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+
+        <div>
+          <h2 className="font-heading text-lg font-medium">Invoices</h2>
+          {!invoices?.length && <p className="mt-3 text-sm text-muted-foreground">No invoices yet.</p>}
+          <ul className="mt-4 space-y-2">
+            {invoices?.map((inv) => {
+              const meta = invoiceStatusMeta[inv.status] ?? invoiceStatusMeta.draft;
+              return (
+                <li key={inv.id} className="rounded-lg border border-border bg-card px-4 py-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-sm font-medium">£{(inv.amount_pence / 100).toFixed(2)}</p>
+                    <Badge variant={meta.variant}>{meta.label}</Badge>
+                  </div>
+                  <p className="mt-1 text-xs text-muted-foreground">{inv.description}</p>
+                  {inv.stripe_hosted_invoice_url && (
+                    <a
+                      href={inv.stripe_hosted_invoice_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="mt-2 inline-flex items-center gap-1 text-xs text-accent hover:underline"
+                    >
+                      <Receipt className="size-3" />
+                      View invoice
+                      <ExternalLink className="size-3" />
+                    </a>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        </div>
       </div>
     </div>
   );
