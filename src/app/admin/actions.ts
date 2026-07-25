@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { sendClientEmail } from "@/lib/send-client-email";
 import { draftLeadEmail } from "@/lib/draft-lead-email";
+import { sendInvoiceReminder } from "@/lib/send-invoice-reminder";
 
 export async function updateTaskStatus(taskId: string, status: string, revalidate: string) {
   const supabase = getSupabaseAdmin();
@@ -111,6 +112,13 @@ export async function updateLeadEmail(leadId: string, formData: FormData) {
   if (error) console.error("Failed to update lead email:", error);
 
   revalidatePath("/admin/leads");
+}
+
+export async function sendInvoiceReminderAction(invoiceId: string, revalidate: string) {
+  const result = await sendInvoiceReminder(invoiceId);
+  if ("error" in result) console.error("Failed to send invoice reminder:", result.error);
+
+  revalidatePath(revalidate);
 }
 
 export type DraftEmailState = { subject?: string; body?: string; email?: string | null; error?: string };

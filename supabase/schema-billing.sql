@@ -23,3 +23,4 @@ create table if not exists invoices (
 );
 
 alter table invoices enable row level security;
+alter table invoices add column if not exists reminder_sent_at timestamptz;

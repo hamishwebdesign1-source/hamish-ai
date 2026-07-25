@@ -5,7 +5,8 @@ import { AlertTriangle, ArrowLeft, CalendarCheck, ExternalLink, Globe, Receipt, 
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { triageRequest } from "@/lib/triage-request";
 import { createInvoice } from "@/lib/create-invoice";
-import { updateTaskStatus } from "@/app/admin/actions";
+import { updateTaskStatus, sendInvoiceReminderAction } from "@/app/admin/actions";
+import { timeAgo } from "@/lib/time-ago";
 import { ProgressReportButton } from "@/components/admin/progress-report-button";
 import { SiteCheckButton } from "@/components/admin/site-check-button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -279,7 +280,11 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
           {!invoices?.length && <p className="mt-3 text-sm text-muted-foreground">No invoices yet.</p>}
           <ul className="mt-4 space-y-2">
             {invoices?.map((inv) => {
-              const meta = invoiceStatusMeta[inv.status] ?? invoiceStatusMeta.draft;
+              const isOverdue =
+                inv.status === "open" && !!inv.due_date && inv.due_date < new Date().toISOString().slice(0, 10);
+              const meta = isOverdue
+                ? { label: "Overdue", variant: "destructive" as const }
+                : invoiceStatusMeta[inv.status] ?? invoiceStatusMeta.draft;
               return (
                 <li key={inv.id} className="rounded-lg border border-border bg-card px-4 py-3">
                   <div className="flex items-center justify-between gap-2">
@@ -287,17 +292,31 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
                     <Badge variant={meta.variant}>{meta.label}</Badge>
                   </div>
                   <p className="mt-1 text-xs text-muted-foreground">{inv.description}</p>
-                  {inv.stripe_hosted_invoice_url && (
-                    <a
-                      href={inv.stripe_hosted_invoice_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="mt-2 inline-flex items-center gap-1 text-xs text-accent hover:underline"
-                    >
-                      <Receipt className="size-3" />
-                      View invoice
-                      <ExternalLink className="size-3" />
-                    </a>
+                  <div className="mt-2 flex flex-wrap items-center gap-3">
+                    {inv.stripe_hosted_invoice_url && (
+                      <a
+                        href={inv.stripe_hosted_invoice_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-xs text-accent hover:underline"
+                      >
+                        <Receipt className="size-3" />
+                        View invoice
+                        <ExternalLink className="size-3" />
+                      </a>
+                    )}
+                    {isOverdue && (
+                      <form action={sendInvoiceReminderAction.bind(null, inv.id, revalidatePath)}>
+                        <Button type="submit" size="xs" variant="outline">
+                          Send reminder
+                        </Button>
+                      </form>
+                    )}
+                  </div>
+                  {inv.reminder_sent_at && (
+                    <p className="mt-1.5 text-[11px] text-muted-foreground">
+                      Reminder sent {timeAgo(inv.reminder_sent_at)}
+                    </p>
                   )}
                 </li>
               );

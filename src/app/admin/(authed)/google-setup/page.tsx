@@ -4,25 +4,12 @@ import { CheckCircle2, ExternalLink, Mail, CalendarClock } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { getSupabaseAdmin } from "@/lib/supabase";
+import { timeAgo } from "@/lib/time-ago";
 
 const SCOPES = [
   "https://www.googleapis.com/auth/gmail.modify",
   "https://www.googleapis.com/auth/calendar.events",
 ];
-
-function timeAgo(iso: string) {
-  const seconds = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000);
-  const units: [string, number][] = [
-    ["day", 86400],
-    ["hour", 3600],
-    ["minute", 60],
-  ];
-  for (const [label, secs] of units) {
-    const value = Math.floor(seconds / secs);
-    if (value >= 1) return `${value} ${label}${value === 1 ? "" : "s"} ago`;
-  }
-  return "just now";
-}
 
 export default async function GoogleSetupPage() {
   const isConnected = Boolean(process.env.GOOGLE_REFRESH_TOKEN);
