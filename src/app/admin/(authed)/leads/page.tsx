@@ -72,7 +72,7 @@ export default async function LeadsPage({
     <div>
       <h1 className="font-heading text-2xl font-semibold">Leads</h1>
       <p className="mt-1 text-sm text-muted-foreground">
-        Edinburgh business prospects — researched weekly and worked through to outreach from here.
+        Central Belt of Scotland business prospects — researched weekly and worked through to outreach from here.
       </p>
 
       <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
