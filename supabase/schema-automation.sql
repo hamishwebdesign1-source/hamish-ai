@@ -18,3 +18,4 @@ create table if not exists processed_emails (
 );
 
 alter table processed_emails enable row level security;
+alter table processed_emails add column if not exists subject text;

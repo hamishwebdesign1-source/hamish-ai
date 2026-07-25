@@ -1,13 +1,28 @@
 import { headers } from "next/headers";
 import { google } from "googleapis";
-import { CheckCircle2, ExternalLink } from "lucide-react";
+import { CheckCircle2, ExternalLink, Mail, CalendarClock } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { getSupabaseAdmin } from "@/lib/supabase";
 
 const SCOPES = [
   "https://www.googleapis.com/auth/gmail.modify",
   "https://www.googleapis.com/auth/calendar.events",
 ];
+
+function timeAgo(iso: string) {
+  const seconds = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000);
+  const units: [string, number][] = [
+    ["day", 86400],
+    ["hour", 3600],
+    ["minute", 60],
+  ];
+  for (const [label, secs] of units) {
+    const value = Math.floor(seconds / secs);
+    if (value >= 1) return `${value} ${label}${value === 1 ? "" : "s"} ago`;
+  }
+  return "just now";
+}
 
 export default async function GoogleSetupPage() {
   const isConnected = Boolean(process.env.GOOGLE_REFRESH_TOKEN);
@@ -27,6 +42,25 @@ export default async function GoogleSetupPage() {
       scope: SCOPES,
     });
   }
+
+  const supabase = getSupabaseAdmin();
+
+  const { data: processedEmails } = supabase
+    ? await supabase
+        .from("processed_emails")
+        .select("message_id, subject, processed_at, clients(business_name)")
+        .order("processed_at", { ascending: false })
+        .limit(8)
+    : { data: [] };
+
+  const { data: calendarTasks } = supabase
+    ? await supabase
+        .from("tasks")
+        .select("id, title, created_at, requests(clients(business_name))")
+        .not("calendar_event_id", "is", null)
+        .order("created_at", { ascending: false })
+        .limit(8)
+    : { data: [] };
 
   return (
     <div>
@@ -79,6 +113,67 @@ export default async function GoogleSetupPage() {
           )}
         </CardContent>
       </Card>
+
+      {isConnected && (
+        <div className="mt-6 grid gap-6 lg:grid-cols-2">
+          <Card className="h-fit">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Mail className="size-4 text-muted-foreground" />
+                Recent emails processed
+              </CardTitle>
+              <CardDescription>Client emails the inbox cron picked up and turned into requests.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {!processedEmails?.length ? (
+                <p className="text-sm text-muted-foreground">Nothing processed yet.</p>
+              ) : (
+                <ul className="space-y-2">
+                  {processedEmails.map((e) => (
+                    <li key={e.message_id} className="rounded-lg border border-border bg-card px-3 py-2">
+                      <p className="line-clamp-1 text-sm font-medium">{e.subject || "(no subject)"}</p>
+                      <p className="mt-0.5 text-xs text-muted-foreground">
+                        {(e.clients as unknown as { business_name: string } | null)?.business_name ?? "Unknown client"}
+                        {" · "}
+                        {timeAgo(e.processed_at)}
+                      </p>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card className="h-fit">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <CalendarClock className="size-4 text-muted-foreground" />
+                Recent calendar events
+              </CardTitle>
+              <CardDescription>Follow-up tasks automatically added to your calendar after triage.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {!calendarTasks?.length ? (
+                <p className="text-sm text-muted-foreground">No calendar events created yet.</p>
+              ) : (
+                <ul className="space-y-2">
+                  {calendarTasks.map((t) => (
+                    <li key={t.id} className="rounded-lg border border-border bg-card px-3 py-2">
+                      <p className="line-clamp-1 text-sm font-medium">{t.title}</p>
+                      <p className="mt-0.5 text-xs text-muted-foreground">
+                        {(t.requests as unknown as { clients: { business_name: string } | null } | null)?.clients
+                          ?.business_name ?? "Unknown client"}
+                        {" · "}
+                        {timeAgo(t.created_at)}
+                      </p>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
     </div>
   );
 }

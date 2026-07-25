@@ -75,7 +75,7 @@ export async function checkEmailInbox() {
       }
 
       await gmail.users.messages.modify({ userId: "me", id: msg.id, requestBody: { addLabelIds: [labelId] } });
-      await supabase.from("processed_emails").insert({ message_id: msg.id, client_id: client.id });
+      await supabase.from("processed_emails").insert({ message_id: msg.id, client_id: client.id, subject });
 
       processed.push({ client: client.business_name, subject });
     }
