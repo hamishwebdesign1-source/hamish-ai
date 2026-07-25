@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, CircleHelp, Sparkles } from "lucide-react";
+import { ArrowLeft, CalendarCheck, CircleHelp, Sparkles, Zap } from "lucide-react";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { updateTaskStatus, updateDraftResponse } from "@/app/admin/actions";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -37,6 +37,12 @@ export default async function RequestDetailPage({ params }: { params: Promise<{ 
       )}
 
       <div className="mt-3 flex flex-wrap items-center gap-2">
+        {req.auto_sent && (
+          <Badge variant="success" className="gap-1">
+            <Zap className="size-3" />
+            Auto-sent to client
+          </Badge>
+        )}
         {req.priority && <PriorityBadge priority={req.priority} />}
         {req.category && <Badge variant="outline">{req.category}</Badge>}
         {req.complexity && <Badge variant="outline">{req.complexity}</Badge>}
@@ -119,7 +125,15 @@ export default async function RequestDetailPage({ params }: { params: Promise<{ 
           <CardContent>
             {tasks.map((t) => (
               <div key={t.id} className="mt-2 first:mt-0">
-                <p className="font-heading text-base font-medium">{t.title}</p>
+                <div className="flex items-center justify-between gap-2">
+                  <p className="font-heading text-base font-medium">{t.title}</p>
+                  {t.calendar_event_id && (
+                    <span className="flex shrink-0 items-center gap-1 text-[11px] text-muted-foreground">
+                      <CalendarCheck className="size-3" />
+                      On calendar
+                    </span>
+                  )}
+                </div>
                 <p className="mt-1 text-sm text-muted-foreground">{t.description}</p>
                 {t.acceptance_criteria && (
                   <p className="mt-2 text-xs text-muted-foreground">

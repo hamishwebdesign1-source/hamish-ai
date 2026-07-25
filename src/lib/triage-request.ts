@@ -2,6 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { stripMarkdownEmphasis } from "@/lib/strip-markdown-emphasis";
 import { sendClientEmail } from "@/lib/send-client-email";
+import { createTaskCalendarEvent } from "@/lib/calendar-sync";
 
 type Client = {
   id: string;
@@ -152,13 +153,32 @@ export async function triageRequest(clientId: string, rawText: string) {
   }
 
   if (triage.suggested_task) {
-    const { error: taskError } = await supabase.from("tasks").insert({
-      request_id: savedRequest.id,
-      title: triage.suggested_task.title,
-      description: triage.suggested_task.description,
-      acceptance_criteria: triage.suggested_task.acceptance_criteria,
-    });
+    const { data: savedTask, error: taskError } = await supabase
+      .from("tasks")
+      .insert({
+        request_id: savedRequest.id,
+        title: triage.suggested_task.title,
+        description: triage.suggested_task.description,
+        acceptance_criteria: triage.suggested_task.acceptance_criteria,
+      })
+      .select()
+      .single();
+
     if (taskError) console.error("Failed to save suggested task:", taskError);
+
+    if (savedTask) {
+      const calendarResult = await createTaskCalendarEvent({
+        taskId: savedTask.id,
+        title: savedTask.title,
+        description: savedTask.description ?? "",
+        priority: triage.priority,
+        businessName: client.business_name,
+        requestId: savedRequest.id,
+      });
+      if ("eventId" in calendarResult && calendarResult.eventId) {
+        await supabase.from("tasks").update({ calendar_event_id: calendarResult.eventId }).eq("id", savedTask.id);
+      }
+    }
   }
 
   // Only the "we need something from you" transition gets an email — a
@@ -171,6 +191,38 @@ export async function triageRequest(clientId: string, rawText: string) {
       `A quick question about your request — ${client.business_name}`,
       `Hi,\n\nThanks for the note — before we can get started we need a bit more detail:\n\n${questions}\n\nJust reply to this email or log into your portal to add the details.\n\n— Hamish AI`
     );
+  }
+
+  // Autonomous auto-send: only for requests confident enough to skip human
+  // review — already covered by the client's plan, small enough scope
+  // (XS/S), and not urgent (urgent always gets a human's eyes first).
+  // Hamish gets a copy of everything sent this way so nothing goes out
+  // silently, even when he isn't the one reviewing it.
+  const isAutoSendEligible =
+    status === "triaged" &&
+    triage.covered_by_maintenance &&
+    (triage.complexity === "XS" || triage.complexity === "S") &&
+    triage.priority !== "urgent";
+
+  if (isAutoSendEligible && client.email) {
+    await sendClientEmail(
+      client.email,
+      `Re: your request — ${client.business_name}`,
+      `${triage.draft_response}\n\n— Hamish AI`
+    );
+    await supabase
+      .from("requests")
+      .update({ auto_sent: true, responded_at: new Date().toISOString() })
+      .eq("id", savedRequest.id);
+
+    const internalTo = process.env.CONTACT_TO_EMAIL;
+    if (internalTo) {
+      await sendClientEmail(
+        internalTo,
+        `Auto-sent reply — ${client.business_name}`,
+        `This reply was sent automatically (covered by plan, small scope, not urgent) — no action needed unless something looks off.\n\nClient request:\n${rawText}\n\nWhat was sent:\n${triage.draft_response}`
+      );
+    }
   }
 
   return { request: savedRequest };

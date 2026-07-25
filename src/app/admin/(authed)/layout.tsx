@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { Users, BookOpen, LogOut } from "lucide-react";
+import { Users, BookOpen, Plug, LogOut } from "lucide-react";
 import { ADMIN_COOKIE_NAME } from "@/lib/admin-auth";
 import { AdminNavLink } from "@/components/admin/nav-link";
 import { Button } from "@/components/ui/button";
@@ -32,6 +32,10 @@ export default function AdminAuthedLayout({ children }: { children: React.ReactN
             <AdminNavLink href="/admin/knowledge">
               <BookOpen className="size-4" />
               Knowledge
+            </AdminNavLink>
+            <AdminNavLink href="/admin/google-setup">
+              <Plug className="size-4" />
+              Google
             </AdminNavLink>
             <form action={signOut}>
               <Button type="submit" variant="ghost" size="sm" className="ml-2 text-muted-foreground">

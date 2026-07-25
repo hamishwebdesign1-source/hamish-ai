@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { AlertTriangle, ArrowLeft, Globe } from "lucide-react";
+import { AlertTriangle, ArrowLeft, CalendarCheck, Globe, Zap } from "lucide-react";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { triageRequest } from "@/lib/triage-request";
 import { updateTaskStatus } from "@/app/admin/actions";
@@ -150,7 +150,15 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
                 >
                   <div className="flex items-center justify-between gap-2">
                     <p className="line-clamp-1 text-sm font-medium">{r.raw_text}</p>
-                    {r.priority && <PriorityBadge priority={r.priority} />}
+                    <div className="flex shrink-0 items-center gap-1.5">
+                      {r.auto_sent && (
+                        <Badge variant="success" className="gap-1">
+                          <Zap className="size-3" />
+                          Auto-sent
+                        </Badge>
+                      )}
+                      {r.priority && <PriorityBadge priority={r.priority} />}
+                    </div>
                   </div>
                   <p className="mt-1 text-xs text-muted-foreground">
                     {r.status} {r.category ? `· ${r.category}` : ""} {r.complexity ? `· ${r.complexity}` : ""}
@@ -172,12 +180,20 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
               <li key={t.id} className="rounded-lg border border-border bg-card px-4 py-3">
                 <div className="flex items-center justify-between gap-2">
                   <p className="text-sm font-medium">{t.title}</p>
-                  {isBlocked && (
-                    <Badge variant="warning" className="gap-1">
-                      <AlertTriangle className="size-3" />
-                      Needs attention
-                    </Badge>
-                  )}
+                  <div className="flex shrink-0 items-center gap-1.5">
+                    {t.calendar_event_id && (
+                      <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                        <CalendarCheck className="size-3" />
+                        On calendar
+                      </span>
+                    )}
+                    {isBlocked && (
+                      <Badge variant="warning" className="gap-1">
+                        <AlertTriangle className="size-3" />
+                        Needs attention
+                      </Badge>
+                    )}
+                  </div>
                 </div>
                 {t.description && <p className="mt-1 text-xs text-muted-foreground">{t.description}</p>}
                 <div className="mt-3 flex gap-1.5">
