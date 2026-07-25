@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { LogOut } from "lucide-react";
 import { createServerSupabaseClient } from "@/lib/supabase-server-auth";
@@ -40,9 +41,19 @@ export default async function PortalAuthedLayout({ children }: { children: React
     <div className="min-h-screen bg-secondary/20">
       <header className="border-b border-border/60 bg-background">
         <div className="mx-auto flex max-w-3xl items-center justify-between px-6 py-4">
-          <p className="font-heading text-lg font-semibold">
-            Hamish<span className="text-accent">AI</span>
-          </p>
+          <div className="flex items-center gap-6">
+            <p className="font-heading text-lg font-semibold">
+              Hamish<span className="text-accent">AI</span>
+            </p>
+            <nav className="flex items-center gap-4 text-sm text-muted-foreground">
+              <Link href="/portal" className="hover:text-foreground">
+                Home
+              </Link>
+              <Link href="/portal/billing" className="hover:text-foreground">
+                Billing
+              </Link>
+            </nav>
+          </div>
           <form action="/api/portal/logout" method="post">
             <Button type="submit" variant="ghost" size="sm" className="text-muted-foreground">
               <LogOut className="size-4" />

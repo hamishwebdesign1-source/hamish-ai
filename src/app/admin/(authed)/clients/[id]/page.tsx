@@ -7,6 +7,7 @@ import { triageRequest } from "@/lib/triage-request";
 import { createInvoice } from "@/lib/create-invoice";
 import { updateTaskStatus, sendInvoiceReminderAction } from "@/app/admin/actions";
 import { timeAgo } from "@/lib/time-ago";
+import { getInvoiceDisplay, isInvoiceOverdue } from "@/lib/invoice-status";
 import { ProgressReportButton } from "@/components/admin/progress-report-button";
 import { SiteCheckButton } from "@/components/admin/site-check-button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -16,14 +17,6 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { PriorityBadge } from "@/components/status-badges";
-
-const invoiceStatusMeta: Record<string, { label: string; variant: "secondary" | "warning" | "success" | "destructive" }> = {
-  draft: { label: "Draft", variant: "secondary" },
-  open: { label: "Awaiting payment", variant: "warning" },
-  paid: { label: "Paid", variant: "success" },
-  void: { label: "Void", variant: "secondary" },
-  uncollectible: { label: "Uncollectible", variant: "destructive" },
-};
 
 async function createInvoiceForClient(clientId: string, formData: FormData) {
   "use server";
@@ -280,11 +273,8 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
           {!invoices?.length && <p className="mt-3 text-sm text-muted-foreground">No invoices yet.</p>}
           <ul className="mt-4 space-y-2">
             {invoices?.map((inv) => {
-              const isOverdue =
-                inv.status === "open" && !!inv.due_date && inv.due_date < new Date().toISOString().slice(0, 10);
-              const meta = isOverdue
-                ? { label: "Overdue", variant: "destructive" as const }
-                : invoiceStatusMeta[inv.status] ?? invoiceStatusMeta.draft;
+              const isOverdue = isInvoiceOverdue(inv);
+              const meta = getInvoiceDisplay(inv);
               return (
                 <li key={inv.id} className="rounded-lg border border-border bg-card px-4 py-3">
                   <div className="flex items-center justify-between gap-2">
