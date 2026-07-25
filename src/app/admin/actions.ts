@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { sendClientEmail } from "@/lib/send-client-email";
+import { draftLeadEmail } from "@/lib/draft-lead-email";
 
 export async function updateTaskStatus(taskId: string, status: string, revalidate: string) {
   const supabase = getSupabaseAdmin();
@@ -90,4 +91,30 @@ export async function deleteLead(leadId: string) {
   if (error) console.error("Failed to delete lead:", error);
 
   revalidatePath("/admin/leads");
+}
+
+export async function updateLeadEmail(leadId: string, formData: FormData) {
+  const supabase = getSupabaseAdmin();
+  if (!supabase) return;
+
+  const email = String(formData.get("email") || "").trim();
+  const { error } = await supabase
+    .from("prospects")
+    .update({ email: email || null })
+    .eq("id", leadId);
+  if (error) console.error("Failed to update lead email:", error);
+
+  revalidatePath("/admin/leads");
+}
+
+export type DraftEmailState = { subject?: string; body?: string; email?: string | null; error?: string };
+
+export async function generateLeadEmailDraft(
+  leadId: string,
+  _prevState: DraftEmailState,
+  _formData: FormData
+): Promise<DraftEmailState> {
+  const result = await draftLeadEmail(leadId);
+  if ("error" in result) return { error: result.error };
+  return { subject: result.subject, body: result.body, email: result.email };
 }

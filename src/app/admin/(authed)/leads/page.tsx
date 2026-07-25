@@ -2,13 +2,14 @@ import { revalidatePath } from "next/cache";
 import Link from "next/link";
 import { ExternalLink, Search, X } from "lucide-react";
 import { getSupabaseAdmin } from "@/lib/supabase";
-import { updateLeadStatus, deleteLead } from "@/app/admin/actions";
+import { updateLeadStatus, deleteLead, updateLeadEmail } from "@/app/admin/actions";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { EmailLeadButton } from "@/components/admin/email-lead-button";
 import { cn } from "@/lib/utils";
 
 const selectClasses =
@@ -33,6 +34,7 @@ async function addLead(formData: FormData) {
     category: String(formData.get("category") || "") || null,
     neighbourhood: String(formData.get("neighbourhood") || "") || null,
     website: String(formData.get("website") || "") || null,
+    email: String(formData.get("email") || "") || null,
     score: formData.get("score") ? Number(formData.get("score")) : null,
     signal: String(formData.get("signal") || "") || null,
     outreach_note: String(formData.get("outreach_note") || "") || null,
@@ -123,6 +125,10 @@ export default async function LeadsPage({
                 <Input id="website" name="website" placeholder="example.co.uk" />
               </div>
               <div className="space-y-1.5">
+                <Label htmlFor="email">Contact email</Label>
+                <Input id="email" name="email" type="email" placeholder="hello@example.co.uk" />
+              </div>
+              <div className="space-y-1.5">
                 <Label htmlFor="score">Score (0–5)</Label>
                 <select id="score" name="score" defaultValue="" className={selectClasses}>
                   <option value="">Not scored</option>
@@ -205,6 +211,7 @@ export default async function LeadsPage({
                         ))}
                       </div>
                     )}
+                    <EmailLeadButton leadId={lead.id} email={lead.email} />
                     <form action={deleteLead.bind(null, lead.id)}>
                       <Button type="submit" variant="ghost" size="icon-xs" className="text-muted-foreground hover:text-destructive">
                         <X className="size-3.5" />
@@ -212,6 +219,19 @@ export default async function LeadsPage({
                     </form>
                   </div>
                 </div>
+
+                <form action={updateLeadEmail.bind(null, lead.id)} className="mt-2 flex items-center gap-1.5">
+                  <Input
+                    name="email"
+                    type="email"
+                    defaultValue={lead.email ?? ""}
+                    placeholder="Add contact email…"
+                    className="h-7 max-w-64 text-xs"
+                  />
+                  <Button type="submit" variant="ghost" size="xs">
+                    Save
+                  </Button>
+                </form>
 
                 {lead.signal && <p className="mt-2 text-sm">{lead.signal}</p>}
                 {lead.outreach_note && (

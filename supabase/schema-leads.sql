@@ -25,3 +25,7 @@ create table if not exists prospects (
 );
 
 alter table prospects enable row level security;
+
+-- Added later: contact email, so the admin UI can draft and open a
+-- personalised outreach email directly in Gmail per lead.
+alter table prospects add column if not exists email text;
