@@ -32,6 +32,9 @@ export async function POST(request: Request) {
   const supabase = getSupabaseAdmin();
   if (!supabase) return NextResponse.json({ error: "Supabase is not configured." }, { status: 500 });
 
+  // Only `.id` is read from the event payload below — that's present in
+  // both "thin" (reference-only) and full-snapshot payload styles, so
+  // this works regardless of which one the webhook endpoint is set to.
   const invoice = event.data.object as Stripe.Invoice;
 
   const statusByEvent: Record<string, string> = {

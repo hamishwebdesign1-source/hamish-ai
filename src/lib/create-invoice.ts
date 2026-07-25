@@ -1,10 +1,17 @@
 import { getStripe } from "@/lib/stripe";
 import { getSupabaseAdmin } from "@/lib/supabase";
+import { sendClientEmail } from "@/lib/send-client-email";
 
-// Creates a real Stripe invoice and has Stripe email the client a hosted
-// payment link — collection_method "send_invoice" rather than charging a
-// saved card automatically, since new clients won't have one on file and
-// this needs a human decision (Hamish) to trigger, not an auto-charge.
+// Creates a real Stripe invoice and emails the client a link to pay it —
+// collection_method "send_invoice" rather than charging a saved card
+// automatically, since new clients won't have one on file and this needs
+// a human decision (Hamish) to trigger, not an auto-charge.
+//
+// The email itself goes via our own Resend-based sendClientEmail rather
+// than Stripe's built-in invoice email (stripe.invoices.sendInvoice):
+// Stripe's Sandbox test environment rejects that call outright ("cannot
+// be sent right now"), and sending it ourselves means the email matches
+// Hamish's voice instead of Stripe's generic template anyway.
 export async function createInvoice(params: {
   clientId: string;
   amountPence: number;
@@ -50,11 +57,10 @@ export async function createInvoice(params: {
       customer: stripeCustomerId,
       collection_method: "send_invoice",
       days_until_due: 14,
-      auto_advance: true,
+      auto_advance: false,
     });
 
     const finalized = await stripe.invoices.finalizeInvoice(invoice.id);
-    await stripe.invoices.sendInvoice(invoice.id);
 
     const { error: insertError } = await supabase.from("invoices").insert({
       client_id: params.clientId,
@@ -68,6 +74,15 @@ export async function createInvoice(params: {
     });
 
     if (insertError) console.error("Failed to save invoice record:", insertError);
+
+    if (finalized.hosted_invoice_url) {
+      const amountPounds = (params.amountPence / 100).toFixed(2);
+      await sendClientEmail(
+        client.email,
+        `Invoice from Hamish AI — £${amountPounds}`,
+        `Hi,\n\nHere's an invoice for £${amountPounds}: ${params.description}\n\nYou can view and pay it securely here:\n${finalized.hosted_invoice_url}\n\nDue within 14 days. Let me know if you have any questions.\n\n— Hamish AI`
+      );
+    }
 
     return { invoiceUrl: finalized.hosted_invoice_url as string | null };
   } catch (error) {
