@@ -49,11 +49,23 @@ function buildSystemPrompt(
     signal: string | null;
     outreach_note: string | null;
   },
-  matchedCaseStudy?: { name: string; industry: string; demoUrl: string }
+  matchedCaseStudy?: { name: string; industry: string; demoUrl: string },
+  isFollowUp = false
 ) {
   const proofPointInstruction = matchedCaseStudy
     ? `\n\nOne concrete proof point, required: Hamish has built a similar real site for another ${matchedCaseStudy.industry} business, ${matchedCaseStudy.name}. You MUST include the literal URL https://www.hamishai.org${matchedCaseStudy.demoUrl} spelled out in full in the email body itself (not just the business name on its own) so they can click through and see actual work in their own industry, not just a claim. Weave it in naturally, "here's an example" style, not a sales pitch — but the URL text itself must appear.`
     : "";
+
+  if (isFollowUp) {
+    return `You are ghostwriting a short, low-pressure follow-up email as Hamish, who runs Hamish AI — a small Edinburgh-based AI/web consultancy. He emailed this business a few days ago about a specific issue and hasn't heard back.
+
+Business: ${lead.business_name} (${lead.category || "unknown category"}, ${lead.neighbourhood || "unknown location"})
+What the original email was about: ${lead.signal || "not recorded"}
+
+Write a very short follow-up (2-3 sentences) in Hamish's voice: plain English, warm, no pressure, no guilt-tripping about the non-reply. Briefly remind them what the original note was about (in passing, not repeating it in full) and ask if they had a chance to see it — genuinely fine either way, not pushy. Do not repeat the full pitch or re-explain everything from scratch. Sign off as "Hamish" only. Do not use markdown formatting.
+
+Also write a short, specific subject line that makes clear this is a follow-up (e.g. "Following up on..." style), referencing the actual topic.`;
+  }
 
   return `You are ghostwriting a short cold-outreach email as Hamish, who runs Hamish AI — a small Edinburgh-based AI/web consultancy that fixes exactly the kind of concrete issue below for small businesses.
 
@@ -66,7 +78,7 @@ Write a short email (4-6 sentences) in Hamish's voice: plain English, warm, dire
 Also write a short, specific, non-clickbait subject line that references the actual finding.`;
 }
 
-export async function draftLeadEmail(leadId: string) {
+export async function draftLeadEmail(leadId: string, isFollowUp = false) {
   const supabase = getSupabaseAdmin();
   if (!supabase) return { error: "Supabase is not configured." as const };
 
@@ -84,13 +96,13 @@ export async function draftLeadEmail(leadId: string) {
   const anthropic = new Anthropic({ apiKey });
   const model = process.env.ANTHROPIC_MODEL || "claude-haiku-4-5-20251001";
 
-  const matched = matchCaseStudy(lead.category);
+  const matched = isFollowUp ? undefined : matchCaseStudy(lead.category);
 
   try {
     const response = await anthropic.messages.create({
       model,
       max_tokens: 500,
-      system: buildSystemPrompt(lead, matched),
+      system: buildSystemPrompt(lead, matched, isFollowUp),
       tools: [DRAFT_EMAIL_TOOL],
       tool_choice: { type: "tool", name: "submit_draft_email" },
       messages: [{ role: "user", content: "Draft the email." }],

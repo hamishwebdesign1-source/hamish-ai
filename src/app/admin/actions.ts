@@ -77,7 +77,13 @@ export async function updateLeadStatus(leadId: string, status: string) {
   const supabase = getSupabaseAdmin();
   if (!supabase) return;
 
-  const { error } = await supabase.from("prospects").update({ status }).eq("id", leadId);
+  // contacted_at tracks the most recent contact touch — set every time
+  // status moves to "contacted" (including re-clicking it after a
+  // follow-up), since that's what the stale-outreach check is measured from.
+  const update: { status: string; contacted_at?: string } = { status };
+  if (status === "contacted") update.contacted_at = new Date().toISOString();
+
+  const { error } = await supabase.from("prospects").update(update).eq("id", leadId);
   if (error) console.error("Failed to update lead status:", error);
 
   revalidatePath("/admin/leads");
@@ -111,10 +117,11 @@ export type DraftEmailState = { subject?: string; body?: string; email?: string 
 
 export async function generateLeadEmailDraft(
   leadId: string,
+  isFollowUp: boolean,
   _prevState: DraftEmailState,
   _formData: FormData
 ): Promise<DraftEmailState> {
-  const result = await draftLeadEmail(leadId);
+  const result = await draftLeadEmail(leadId, isFollowUp);
   if ("error" in result) return { error: result.error };
   return { subject: result.subject, body: result.body, email: result.email };
 }

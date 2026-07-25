@@ -1,6 +1,6 @@
 import { revalidatePath } from "next/cache";
 import Link from "next/link";
-import { ExternalLink, Search, X } from "lucide-react";
+import { ExternalLink, Search, X, Clock } from "lucide-react";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { updateLeadStatus, deleteLead, updateLeadEmail } from "@/app/admin/actions";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -16,6 +16,13 @@ const selectClasses =
   "h-8 w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30";
 
 const STATUSES = ["needs_verification", "ready", "contacted", "not_fit"] as const;
+const FOLLOW_UP_DAYS = 5;
+
+function needsFollowUp(lead: { status: string; contacted_at: string | null }) {
+  if (lead.status !== "contacted" || !lead.contacted_at) return false;
+  const daysSince = (Date.now() - new Date(lead.contacted_at).getTime()) / (1000 * 60 * 60 * 24);
+  return daysSince >= FOLLOW_UP_DAYS;
+}
 
 const statusMeta: Record<(typeof STATUSES)[number], { label: string; variant: "warning" | "success" | "accent" | "secondary" }> = {
   needs_verification: { label: "Needs verification", variant: "warning" },
@@ -67,8 +74,14 @@ export default async function LeadsPage({
     (acc, s) => ({ ...acc, [s]: allLeads?.filter((l) => l.status === s).length ?? 0 }),
     {} as Record<string, number>
   );
+  const followUpCount = allLeads?.filter(needsFollowUp).length ?? 0;
 
-  const leads = statusFilter ? allLeads?.filter((l) => l.status === statusFilter) : allLeads;
+  const leads =
+    statusFilter === "needs_followup"
+      ? allLeads?.filter(needsFollowUp)
+      : statusFilter
+        ? allLeads?.filter((l) => l.status === statusFilter)
+        : allLeads;
 
   return (
     <div>
@@ -77,7 +90,7 @@ export default async function LeadsPage({
         Central Belt of Scotland business prospects — researched weekly and worked through to outreach from here.
       </p>
 
-      <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-5">
         <Card className="p-4">
           <p className="font-heading text-2xl font-semibold">{allLeads?.length ?? 0}</p>
           <p className="text-xs text-muted-foreground">Total checked</p>
@@ -88,6 +101,10 @@ export default async function LeadsPage({
             <p className="text-xs text-muted-foreground">{statusMeta[s].label}</p>
           </Card>
         ))}
+        <Card className="p-4">
+          <p className="font-heading text-2xl font-semibold">{followUpCount}</p>
+          <p className="text-xs text-muted-foreground">Needs follow-up</p>
+        </Card>
       </div>
 
       <div className="mt-6 flex flex-wrap gap-2">
@@ -99,6 +116,12 @@ export default async function LeadsPage({
             <Badge variant={statusFilter === s ? "default" : "outline"}>{statusMeta[s].label}</Badge>
           </Link>
         ))}
+        <Link href="/admin/leads?status=needs_followup">
+          <Badge variant={statusFilter === "needs_followup" ? "default" : "outline"} className="gap-1">
+            <Clock className="size-3" />
+            Needs follow-up
+          </Badge>
+        </Link>
       </div>
 
       <div className="mt-8 grid gap-6 lg:grid-cols-[1fr_1.4fr]">
@@ -198,6 +221,12 @@ export default async function LeadsPage({
                     </p>
                   </div>
                   <div className="flex shrink-0 items-center gap-2">
+                    {needsFollowUp(lead) && (
+                      <Badge variant="warning" className="gap-1">
+                        <Clock className="size-3" />
+                        Needs follow-up
+                      </Badge>
+                    )}
                     {lead.score != null && (
                       <div className="flex items-center gap-0.5">
                         {[1, 2, 3, 4, 5].map((n) => (
@@ -211,7 +240,7 @@ export default async function LeadsPage({
                         ))}
                       </div>
                     )}
-                    <EmailLeadButton leadId={lead.id} email={lead.email} />
+                    <EmailLeadButton leadId={lead.id} email={lead.email} isFollowUp={lead.status === "contacted"} />
                     <form action={deleteLead.bind(null, lead.id)}>
                       <Button type="submit" variant="ghost" size="icon-xs" className="text-muted-foreground hover:text-destructive">
                         <X className="size-3.5" />
