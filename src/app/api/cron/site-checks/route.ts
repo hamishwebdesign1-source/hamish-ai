@@ -26,6 +26,7 @@ export async function GET(request: Request) {
   const { data: clients, error } = await supabase
     .from("clients")
     .select("id, business_name, website_url")
+    .eq("status", "active")
     .not("website_url", "is", null);
 
   if (error) {

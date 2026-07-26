@@ -46,6 +46,7 @@ export async function checkEmailInbox() {
   const { data: clients } = await supabase
     .from("clients")
     .select("id, email, business_name")
+    .eq("status", "active")
     .not("email", "is", null);
 
   const processed: { client: string; subject: string }[] = [];

@@ -29,3 +29,10 @@ alter table invoices add column if not exists reminder_sent_at timestamptz;
 -- fixed price per plan tier), set individually when a client is onboarded
 -- or renegotiated. Null/0 means no recurring invoice is generated for them.
 alter table clients add column if not exists maintenance_monthly_pence integer;
+
+-- Offboarding lifecycle status. Paused/churned both suspend recurring
+-- invoicing and site monitoring (see recurring-invoices.ts and the
+-- site-checks cron); churned additionally revokes portal access, since
+-- that client relationship has ended rather than just being on hold.
+-- Existing rows backfill to 'active' via the default below.
+alter table clients add column if not exists status text not null default 'active';

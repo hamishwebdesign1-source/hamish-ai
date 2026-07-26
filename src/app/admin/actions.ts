@@ -114,6 +114,17 @@ export async function updateLeadEmail(leadId: string, formData: FormData) {
   revalidatePath("/admin/leads");
 }
 
+export async function updateClientStatus(clientId: string, status: string, revalidate: string) {
+  const supabase = getSupabaseAdmin();
+  if (!supabase) return;
+
+  const { error } = await supabase.from("clients").update({ status }).eq("id", clientId);
+  if (error) console.error("Failed to update client status:", error);
+
+  revalidatePath(revalidate);
+  revalidatePath("/admin/clients");
+}
+
 export async function updateMaintenanceRate(clientId: string, revalidate: string, formData: FormData) {
   const supabase = getSupabaseAdmin();
   if (!supabase) return;

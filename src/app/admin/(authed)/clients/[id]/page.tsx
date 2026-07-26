@@ -5,7 +5,7 @@ import { AlertTriangle, ArrowLeft, CalendarCheck, ExternalLink, Globe, Receipt, 
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { triageRequest } from "@/lib/triage-request";
 import { createInvoice } from "@/lib/create-invoice";
-import { updateTaskStatus, sendInvoiceReminderAction, updateMaintenanceRate } from "@/app/admin/actions";
+import { updateTaskStatus, sendInvoiceReminderAction, updateMaintenanceRate, updateClientStatus } from "@/app/admin/actions";
 import { timeAgo } from "@/lib/time-ago";
 import { getInvoiceDisplay, isInvoiceOverdue } from "@/lib/invoice-status";
 import { ProgressReportButton } from "@/components/admin/progress-report-button";
@@ -53,6 +53,13 @@ const planLabel: Record<string, string> = {
   none: "No maintenance plan",
   basic: "Basic maintenance",
   growth: "Growth partnership",
+};
+
+const CLIENT_STATUSES = ["active", "paused", "churned"] as const;
+const clientStatusVariant: Record<string, "success" | "warning" | "secondary"> = {
+  active: "success",
+  paused: "warning",
+  churned: "secondary",
 };
 
 export default async function ClientDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -124,11 +131,30 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
           )}
         </div>
         <div className="flex flex-wrap gap-2">
+          <Badge variant={clientStatusVariant[client.status] ?? "secondary"} className="capitalize">
+            {client.status ?? "active"}
+          </Badge>
           <Badge variant="outline">{client.package || "No package"}</Badge>
           <Badge variant={client.maintenance_plan === "growth" ? "warning" : client.maintenance_plan === "basic" ? "accent" : "secondary"}>
             {planLabel[client.maintenance_plan] ?? client.maintenance_plan}
           </Badge>
         </div>
+      </div>
+
+      <div className="mt-3 flex items-center gap-1.5">
+        <span className="text-xs text-muted-foreground">Status:</span>
+        {CLIENT_STATUSES.map((s) => (
+          <form key={s} action={updateClientStatus.bind(null, id, s, revalidatePath)}>
+            <Button type="submit" size="xs" variant={client.status === s ? "default" : "outline"} className="capitalize">
+              {s}
+            </Button>
+          </form>
+        ))}
+        {client.status !== "active" && (
+          <span className="text-[11px] text-muted-foreground">
+            Recurring invoicing and site monitoring are paused while not active.
+          </span>
+        )}
       </div>
 
       {client.email && (

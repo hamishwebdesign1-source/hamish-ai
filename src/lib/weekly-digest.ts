@@ -12,6 +12,7 @@ export async function sendWeeklyDigests() {
   const { data: clients, error: clientsError } = await supabase
     .from("clients")
     .select("id, business_name, email")
+    .eq("status", "active")
     .not("email", "is", null);
 
   if (clientsError) return { error: "Failed to fetch clients." as const };

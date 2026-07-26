@@ -58,12 +58,28 @@ const planLabel: Record<string, string> = {
   growth: "Growth partnership",
 };
 
-export default async function ClientsPage() {
+const clientStatusVariant: Record<string, "success" | "warning" | "secondary"> = {
+  active: "success",
+  paused: "warning",
+  churned: "secondary",
+};
+
+export default async function ClientsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ status?: string }>;
+}) {
+  const { status: statusFilter } = await searchParams;
   const supabase = getSupabaseAdmin();
-  const { data: clients, error: clientsError } = supabase
+  const { data: allClients, error: clientsError } = supabase
     ? await supabase.from("clients").select("*").order("created_at", { ascending: false })
     : { data: [], error: null };
   if (clientsError) console.error("Failed to fetch clients:", clientsError);
+
+  const clients = statusFilter ? allClients?.filter((c) => (c.status ?? "active") === statusFilter) : allClients;
+  const activeCount = allClients?.filter((c) => (c.status ?? "active") === "active").length ?? 0;
+  const pausedCount = allClients?.filter((c) => c.status === "paused").length ?? 0;
+  const churnedCount = allClients?.filter((c) => c.status === "churned").length ?? 0;
 
   return (
     <div>
@@ -131,6 +147,20 @@ export default async function ClientsPage() {
 
         <div>
           <h2 className="font-heading text-lg font-medium">All clients</h2>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Link href="/admin/clients">
+              <Badge variant={!statusFilter ? "default" : "outline"}>All ({allClients?.length ?? 0})</Badge>
+            </Link>
+            <Link href="/admin/clients?status=active">
+              <Badge variant={statusFilter === "active" ? "default" : "outline"}>Active ({activeCount})</Badge>
+            </Link>
+            <Link href="/admin/clients?status=paused">
+              <Badge variant={statusFilter === "paused" ? "default" : "outline"}>Paused ({pausedCount})</Badge>
+            </Link>
+            <Link href="/admin/clients?status=churned">
+              <Badge variant={statusFilter === "churned" ? "default" : "outline"}>Churned ({churnedCount})</Badge>
+            </Link>
+          </div>
           {!clients?.length && (
             <Card className="mt-3">
               <CardContent className="flex flex-col items-center gap-2 py-8 text-center text-sm text-muted-foreground">
@@ -155,9 +185,16 @@ export default async function ClientsPage() {
                       {c.package || "No package"}
                     </CardDescription>
                   </div>
-                  <Badge variant={planVariant[c.maintenance_plan as keyof typeof planVariant] ?? "secondary"}>
-                    {planLabel[c.maintenance_plan] ?? c.maintenance_plan}
-                  </Badge>
+                  <div className="flex shrink-0 items-center gap-1.5">
+                    {c.status && c.status !== "active" && (
+                      <Badge variant={clientStatusVariant[c.status] ?? "secondary"} className="capitalize">
+                        {c.status}
+                      </Badge>
+                    )}
+                    <Badge variant={planVariant[c.maintenance_plan as keyof typeof planVariant] ?? "secondary"}>
+                      {planLabel[c.maintenance_plan] ?? c.maintenance_plan}
+                    </Badge>
+                  </div>
                 </Link>
               </li>
             ))}

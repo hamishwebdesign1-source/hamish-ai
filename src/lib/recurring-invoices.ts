@@ -16,6 +16,7 @@ export async function generateMonthlyInvoices() {
   const { data: clients, error } = await supabase
     .from("clients")
     .select("id, business_name, maintenance_monthly_pence")
+    .eq("status", "active")
     .not("maintenance_monthly_pence", "is", null)
     .gt("maintenance_monthly_pence", 0);
 

@@ -18,10 +18,10 @@ export default async function PortalAuthedLayout({ children }: { children: React
 
   const admin = getSupabaseAdmin();
   const { data: client } = admin
-    ? await admin.from("clients").select("id, business_name").eq("email", user.email).single()
+    ? await admin.from("clients").select("id, business_name, status").eq("email", user.email).single()
     : { data: null };
 
-  if (!client) {
+  if (!client || client.status === "churned") {
     return (
       <div className="flex min-h-screen items-center justify-center bg-secondary/30 px-6 text-center">
         <Card className="max-w-sm p-2">
