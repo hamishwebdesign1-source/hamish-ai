@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { BookOpenText, FileDown } from "lucide-react";
+import { BookOpenText, FileDown, ClipboardCheck } from "lucide-react";
 import { ProcessDiagram } from "@/components/admin/process-diagram";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -38,6 +38,22 @@ export default function AdminProcessPage() {
               Download PDF
             </Button>
           </div>
+        </CardContent>
+      </Card>
+
+      <Card className="mt-8">
+        <CardHeader>
+          <CardTitle>What we'd need from a client</CardTitle>
+          <CardDescription>
+            For every offering on the site to be reality rather than a demo — grouped by how hard that ask actually
+            is, so the sales conversation sets the right expectation up front.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Button render={<Link href="/admin/process/client-requirements" />}>
+            <ClipboardCheck className="size-4" />
+            View requirements by offering
+          </Button>
         </CardContent>
       </Card>
     </div>
