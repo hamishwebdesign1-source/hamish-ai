@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { ADMIN_COOKIE_NAME, getExpectedAdminCookieValue } from "@/lib/admin-auth";
 
 export async function middleware(request: NextRequest) {
-  if (request.nextUrl.pathname === "/admin/login") {
+  if (request.nextUrl.pathname === "/admin/login" || request.nextUrl.pathname === "/api/internal/admin-callback") {
     return NextResponse.next();
   }
 
