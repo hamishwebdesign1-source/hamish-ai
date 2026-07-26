@@ -1,4 +1,10 @@
+import { FileText, FileDown } from "lucide-react";
 import { ProcessDiagram } from "@/components/admin/process-diagram";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+
+const DOCX_HREF = "/docs/HamishAI-Business-Analysis-Documentation-Pack.docx";
+const PDF_HREF = "/docs/HamishAI-Business-Analysis-Documentation-Pack.pdf";
 
 export default function AdminProcessPage() {
   return (
@@ -12,6 +18,28 @@ export default function AdminProcessPage() {
       <div className="mt-8">
         <ProcessDiagram />
       </div>
+
+      <Card className="mt-8">
+        <CardHeader>
+          <CardTitle>Documentation pack</CardTitle>
+          <CardDescription>
+            The full Business Analysis pack behind this model — stakeholder register, requirements, use cases, RAID
+            log, RACI, traceability matrix and more.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-wrap gap-2">
+            <Button render={<a href={PDF_HREF} download />}>
+              <FileDown className="size-4" />
+              Download PDF
+            </Button>
+            <Button variant="outline" render={<a href={DOCX_HREF} download />}>
+              <FileText className="size-4" />
+              Download Word (.docx)
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }
