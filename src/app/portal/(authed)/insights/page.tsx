@@ -2,8 +2,8 @@ import { redirect } from "next/navigation";
 import { MessagesSquare, Wallet, HeartPulse } from "lucide-react";
 import { createServerSupabaseClient } from "@/lib/supabase-server-auth";
 import { getSupabaseAdmin } from "@/lib/supabase";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { VerticalBarChart, UptimeBar } from "@/components/portal/insight-charts";
+import { HealthRing } from "@/components/analytics/health-ring";
+import { VerticalBarChart, UptimeBar, uptimePercent } from "@/components/portal/insight-charts";
 
 function lastNMonths(n: number) {
   const months: { key: string; label: string }[] = [];
@@ -68,62 +68,96 @@ export default async function PortalInsightsPage() {
 
   const totalRequests = requests?.length ?? 0;
   const totalPaid = (invoices ?? []).reduce((sum, inv) => sum + inv.amount_pence, 0) / 100;
+  const uptimePct = client.website_url ? uptimePercent(siteChecks ?? []) : null;
 
   return (
     <div>
       <h1 className="font-heading text-2xl font-semibold">Insights</h1>
       <p className="mt-1 max-w-xl text-sm text-muted-foreground">
-        What we actually know about your account — request activity, site health, and spend. This isn&apos;t a
-        business-performance dashboard (we don&apos;t have access to your revenue or bookings data), just an honest
-        picture of the work we&apos;re doing together.
+        What we actually know about your account — request activity, site health, and spend.
       </p>
 
-      <div className="mt-8 grid gap-6 lg:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-1.5">
-              <MessagesSquare className="size-4 text-accent" />
-              Requests over time
-            </CardTitle>
-            <CardDescription>{totalRequests} total since we started working together</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <VerticalBarChart data={requestsByMonth} />
-          </CardContent>
-        </Card>
+      <div className="mt-6 overflow-hidden rounded-2xl border border-white/10 bg-primary text-primary-foreground shadow-2xl shadow-accent/20">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 px-5 py-4">
+          <div className="flex items-center gap-2">
+            <span className="relative flex size-2">
+              <span className="absolute inline-flex size-full animate-ping rounded-full bg-accent opacity-75" />
+              <span className="relative inline-flex size-2 rounded-full bg-accent" />
+            </span>
+            <p className="font-mono text-xs font-medium tracking-[0.15em] text-primary-foreground/70 uppercase">
+              {client.business_name}
+            </p>
+          </div>
+          <span className="font-mono text-[11px] tracking-wide text-primary-foreground/40 uppercase">
+            Real account data — not illustrative
+          </span>
+        </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-1.5">
-              <Wallet className="size-4 text-accent" />
-              Spend over time
-            </CardTitle>
-            <CardDescription>£{totalPaid.toFixed(2)} paid in total</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <VerticalBarChart data={spendByMonth} formatValue={(v) => `£${v.toFixed(0)}`} />
-          </CardContent>
-        </Card>
+        <div className="p-5 md:p-6">
+          <p className="max-w-xl text-sm text-primary-foreground/70">
+            This isn&apos;t a business-performance dashboard — we don&apos;t have access to your revenue or bookings
+            data, only what runs through us. Just an honest picture of the work we&apos;re doing together.
+          </p>
+
+          <div className="mt-6 grid gap-4 lg:grid-cols-2">
+            <div className="rounded-xl border border-white/10 bg-primary-foreground/5 p-5">
+              <div className="flex items-center gap-1.5">
+                <MessagesSquare className="size-4 text-accent" />
+                <p className="font-mono text-xs font-medium tracking-wide text-primary-foreground/50 uppercase">
+                  Requests over time
+                </p>
+              </div>
+              <p className="mt-1 text-xs text-primary-foreground/50">
+                {totalRequests} total since we started working together
+              </p>
+              <div className="mt-5">
+                <VerticalBarChart data={requestsByMonth} />
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-white/10 bg-primary-foreground/5 p-5">
+              <div className="flex items-center gap-1.5">
+                <Wallet className="size-4 text-accent" />
+                <p className="font-mono text-xs font-medium tracking-wide text-primary-foreground/50 uppercase">
+                  Spend over time
+                </p>
+              </div>
+              <p className="mt-1 text-xs text-primary-foreground/50">£{totalPaid.toFixed(2)} paid in total</p>
+              <div className="mt-5">
+                <VerticalBarChart data={spendByMonth} formatValue={(v) => `£${v.toFixed(0)}`} />
+              </div>
+            </div>
+          </div>
+
+          {client.website_url && (
+            <div className="mt-4 rounded-xl border border-white/10 bg-primary-foreground/5 p-5">
+              <div className="flex flex-wrap items-center justify-between gap-4">
+                <div>
+                  <div className="flex items-center gap-1.5">
+                    <HeartPulse className="size-4 text-accent" />
+                    <p className="font-mono text-xs font-medium tracking-wide text-primary-foreground/50 uppercase">
+                      Site health
+                    </p>
+                  </div>
+                  <p className="mt-1 text-xs text-primary-foreground/50">Automated checks against {client.website_url}</p>
+                </div>
+                {uptimePct !== null && (
+                  <HealthRing score={uptimePct} size={72} strokeWidth={7} centerLabel={`${uptimePct}%`} centerSublabel="uptime" />
+                )}
+              </div>
+              <div className="mt-5">
+                {siteChecks?.length ? (
+                  <UptimeBar checks={siteChecks} />
+                ) : (
+                  <p className="text-sm text-primary-foreground/60">
+                    No checks recorded yet — the first one runs within 24 hours.
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
       </div>
-
-      {client.website_url && (
-        <Card className="mt-6">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-1.5">
-              <HeartPulse className="size-4 text-accent" />
-              Site health
-            </CardTitle>
-            <CardDescription>Automated checks against {client.website_url}</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {siteChecks?.length ? (
-              <UptimeBar checks={siteChecks} />
-            ) : (
-              <p className="text-sm text-muted-foreground">No checks recorded yet — the first one runs within 24 hours.</p>
-            )}
-          </CardContent>
-        </Card>
-      )}
     </div>
   );
 }
