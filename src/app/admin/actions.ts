@@ -114,6 +114,32 @@ export async function updateLeadEmail(leadId: string, formData: FormData) {
   revalidatePath("/admin/leads");
 }
 
+export async function updateMaintenanceRate(clientId: string, revalidate: string, formData: FormData) {
+  const supabase = getSupabaseAdmin();
+  if (!supabase) return;
+
+  const pounds = parseFloat(String(formData.get("maintenance_monthly") || ""));
+  const pence = Number.isFinite(pounds) && pounds > 0 ? Math.round(pounds * 100) : null;
+
+  const { error } = await supabase.from("clients").update({ maintenance_monthly_pence: pence }).eq("id", clientId);
+  if (error) console.error("Failed to update maintenance rate:", error);
+
+  revalidatePath(revalidate);
+}
+
+export async function reviewAutoSend(requestId: string, accurate: boolean, revalidate: string) {
+  const supabase = getSupabaseAdmin();
+  if (!supabase) return;
+
+  const { error } = await supabase
+    .from("requests")
+    .update({ auto_send_reviewed: true, auto_send_accurate: accurate })
+    .eq("id", requestId);
+  if (error) console.error("Failed to record auto-send review:", error);
+
+  revalidatePath(revalidate);
+}
+
 export async function sendInvoiceReminderAction(invoiceId: string, revalidate: string) {
   const result = await sendInvoiceReminder(invoiceId);
   if ("error" in result) console.error("Failed to send invoice reminder:", result.error);

@@ -19,3 +19,9 @@ create table if not exists processed_emails (
 
 alter table processed_emails enable row level security;
 alter table processed_emails add column if not exists subject text;
+
+-- Periodic accuracy audit for auto-sent replies (Phase 2 roadmap item) —
+-- accurate is deliberately nullable: null means "not yet reviewed", not
+-- "unknown/inaccurate", so the accuracy rate only ever counts reviewed items.
+alter table requests add column if not exists auto_send_reviewed boolean not null default false;
+alter table requests add column if not exists auto_send_accurate boolean;

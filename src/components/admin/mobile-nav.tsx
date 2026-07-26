@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Menu, X, LayoutDashboard, Users, Search, BookOpen, Plug, Workflow, LogOut } from "lucide-react";
+import { Menu, X, LayoutDashboard, Users, Search, BookOpen, Plug, Workflow, ShieldCheck, LogOut } from "lucide-react";
 import { AdminNavLink } from "@/components/admin/nav-link";
 import { Button } from "@/components/ui/button";
 
@@ -12,6 +12,7 @@ const NAV_ITEMS = [
   { href: "/admin/knowledge", label: "Knowledge", icon: BookOpen },
   { href: "/admin/google-setup", label: "Google", icon: Plug },
   { href: "/admin/process", label: "Process", icon: Workflow },
+  { href: "/admin/audit", label: "Audit", icon: ShieldCheck },
 ];
 
 export function AdminMobileNav({ signOutAction }: { signOutAction: () => void }) {

@@ -5,7 +5,7 @@ import { AlertTriangle, ArrowLeft, CalendarCheck, ExternalLink, Globe, Receipt, 
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { triageRequest } from "@/lib/triage-request";
 import { createInvoice } from "@/lib/create-invoice";
-import { updateTaskStatus, sendInvoiceReminderAction } from "@/app/admin/actions";
+import { updateTaskStatus, sendInvoiceReminderAction, updateMaintenanceRate } from "@/app/admin/actions";
 import { timeAgo } from "@/lib/time-ago";
 import { getInvoiceDisplay, isInvoiceOverdue } from "@/lib/invoice-status";
 import { ProgressReportButton } from "@/components/admin/progress-report-button";
@@ -140,6 +140,33 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
           with <span className="font-medium text-foreground">{client.email}</span>.
         </p>
       )}
+
+      <form
+        action={updateMaintenanceRate.bind(null, id, revalidatePath)}
+        className="mt-3 flex items-center gap-1.5"
+      >
+        <Label htmlFor="maintenance_monthly" className="text-xs text-muted-foreground">
+          Recurring monthly rate (£)
+        </Label>
+        <Input
+          id="maintenance_monthly"
+          name="maintenance_monthly"
+          type="number"
+          step="0.01"
+          min="0"
+          defaultValue={client.maintenance_monthly_pence ? (client.maintenance_monthly_pence / 100).toFixed(2) : ""}
+          placeholder="e.g. 75.00"
+          className="h-7 max-w-32 text-xs"
+        />
+        <Button type="submit" variant="ghost" size="xs">
+          Save
+        </Button>
+        {client.maintenance_monthly_pence ? (
+          <span className="text-[11px] text-muted-foreground">
+            Auto-invoiced on the 1st of each month
+          </span>
+        ) : null}
+      </form>
 
       <div className="mt-8 grid gap-6 lg:grid-cols-2">
         <ProgressReportButton clientId={id} />

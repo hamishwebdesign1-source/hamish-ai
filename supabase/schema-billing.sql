@@ -24,3 +24,8 @@ create table if not exists invoices (
 
 alter table invoices enable row level security;
 alter table invoices add column if not exists reminder_sent_at timestamptz;
+
+-- Recurring maintenance invoicing: a per-client custom monthly rate (not a
+-- fixed price per plan tier), set individually when a client is onboarded
+-- or renegotiated. Null/0 means no recurring invoice is generated for them.
+alter table clients add column if not exists maintenance_monthly_pence integer;

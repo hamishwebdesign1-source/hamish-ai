@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { LayoutDashboard, Users, BookOpen, Plug, Search, Workflow, LogOut } from "lucide-react";
+import { LayoutDashboard, Users, BookOpen, Plug, Search, Workflow, ShieldCheck, LogOut } from "lucide-react";
 import { ADMIN_COOKIE_NAME } from "@/lib/admin-auth";
 import { AdminNavLink } from "@/components/admin/nav-link";
 import { AdminMobileNav } from "@/components/admin/mobile-nav";
@@ -49,6 +49,10 @@ export default function AdminAuthedLayout({ children }: { children: React.ReactN
             <AdminNavLink href="/admin/process">
               <Workflow className="size-4" />
               Process
+            </AdminNavLink>
+            <AdminNavLink href="/admin/audit">
+              <ShieldCheck className="size-4" />
+              Audit
             </AdminNavLink>
             <form action={signOut}>
               <Button type="submit" variant="ghost" size="sm" className="ml-2 text-muted-foreground">
