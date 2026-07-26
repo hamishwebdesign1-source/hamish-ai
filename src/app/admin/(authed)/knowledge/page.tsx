@@ -1,7 +1,10 @@
 import { revalidatePath } from "next/cache";
-import { BookOpen, X } from "lucide-react";
+import { redirect } from "next/navigation";
+import { BookOpen, X, TriangleAlert, CircleCheck } from "lucide-react";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { deleteKnowledgeEntry } from "@/app/admin/actions";
+import { extractTextFromFile } from "@/lib/document-text";
+import { extractKnowledgeEntries } from "@/lib/extract-knowledge-entries";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -28,7 +31,52 @@ async function addKnowledgeEntry(formData: FormData) {
   revalidatePath("/admin/knowledge");
 }
 
-export default async function KnowledgePage() {
+async function importKnowledgeFromDocument(formData: FormData) {
+  "use server";
+  const supabase = getSupabaseAdmin();
+  if (!supabase) redirect("/admin/knowledge?importError=" + encodeURIComponent("Supabase is not configured."));
+
+  const clientId = String(formData.get("client_id") || "") || null;
+  const file = formData.get("document") as File | null;
+  if (!file || file.size === 0) {
+    redirect("/admin/knowledge?importError=" + encodeURIComponent("Choose a file first."));
+  }
+
+  const buffer = Buffer.from(await file.arrayBuffer());
+  const text = await extractTextFromFile(buffer, file.name);
+  if (!text.trim()) {
+    redirect("/admin/knowledge?importError=" + encodeURIComponent("Couldn't read any text from that file."));
+  }
+
+  const result = await extractKnowledgeEntries(text);
+  if ("error" in result) redirect("/admin/knowledge?importError=" + encodeURIComponent(result.error));
+
+  if (!result.entries.length) {
+    redirect(
+      "/admin/knowledge?importError=" +
+        encodeURIComponent("No usable business facts found in that document — nothing was added.")
+    );
+  }
+
+  const { error } = await supabase
+    .from("knowledge_base")
+    .insert(result.entries.map((e) => ({ client_id: clientId, title: e.title, content: e.content })));
+
+  if (error) {
+    console.error("Failed to insert extracted knowledge entries:", error);
+    redirect("/admin/knowledge?importError=" + encodeURIComponent("Failed to save the extracted entries."));
+  }
+
+  revalidatePath("/admin/knowledge");
+  redirect(`/admin/knowledge?imported=${result.entries.length}`);
+}
+
+export default async function KnowledgePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ imported?: string; importError?: string }>;
+}) {
+  const { imported, importError } = await searchParams;
   const supabase = getSupabaseAdmin();
 
   const { data: clients } = supabase
@@ -51,38 +99,85 @@ export default async function KnowledgePage() {
         answers that apply to everyone.
       </p>
 
+      {imported && (
+        <div className="mt-4 flex items-center gap-2 rounded-lg border border-success/30 bg-success/10 px-4 py-2.5 text-sm text-success">
+          <CircleCheck className="size-4 shrink-0" />
+          Added {imported} {Number(imported) === 1 ? "entry" : "entries"} from that document.
+        </div>
+      )}
+      {importError && (
+        <div className="mt-4 flex items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-2.5 text-sm text-destructive">
+          <TriangleAlert className="size-4 shrink-0" />
+          {importError}
+        </div>
+      )}
+
       <div className="mt-8 grid gap-6 lg:grid-cols-[1fr_1.2fr]">
-        <Card className="h-fit">
-          <CardHeader>
-            <CardTitle>Add an entry</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <form action={addKnowledgeEntry} className="mt-2 space-y-3">
-              <div className="space-y-1.5">
-                <Label htmlFor="client_id">Scope</Label>
-                <select id="client_id" name="client_id" defaultValue="" className={selectClasses}>
-                  <option value="">All clients (general)</option>
-                  {clients?.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.business_name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="title">Title</Label>
-                <Input id="title" name="title" placeholder="e.g. How to request a change" required />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="content">Answer</Label>
-                <Textarea id="content" name="content" placeholder="The answer, in plain English." required rows={5} />
-              </div>
-              <Button type="submit" className="w-full">
-                Add entry
-              </Button>
-            </form>
-          </CardContent>
-        </Card>
+        <div className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Add an entry</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <form action={addKnowledgeEntry} className="mt-2 space-y-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="client_id">Scope</Label>
+                  <select id="client_id" name="client_id" defaultValue="" className={selectClasses}>
+                    <option value="">All clients (general)</option>
+                    {clients?.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.business_name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="title">Title</Label>
+                  <Input id="title" name="title" placeholder="e.g. How to request a change" required />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="content">Answer</Label>
+                  <Textarea id="content" name="content" placeholder="The answer, in plain English." required rows={5} />
+                </div>
+                <Button type="submit" className="w-full">
+                  Add entry
+                </Button>
+              </form>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Import from a document</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <form action={importKnowledgeFromDocument} className="mt-2 space-y-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="import_client_id">Scope</Label>
+                  <select id="import_client_id" name="client_id" defaultValue="" className={selectClasses}>
+                    <option value="">All clients (general)</option>
+                    {clients?.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.business_name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="document">Document (.pdf, .docx, .txt)</Label>
+                  <Input id="document" name="document" type="file" accept=".pdf,.docx,.txt,.md" required />
+                </div>
+                <p className="rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-xs text-warning">
+                  Business facts only — hours, pricing, policies, FAQs. Don&apos;t upload anything containing a
+                  named customer&apos;s personal details.
+                </p>
+                <Button type="submit" variant="outline" className="w-full">
+                  Extract entries
+                </Button>
+              </form>
+            </CardContent>
+          </Card>
+        </div>
 
         <div>
           <h2 className="font-heading text-lg font-medium">All entries</h2>
