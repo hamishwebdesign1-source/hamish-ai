@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { forecast, whatIfLevers, whatIfBaseline, demandHeatmap } from "@/lib/analytics-data";
+import { forecast, whatIfLevers, whatIfBaseline, demandHeatmap, benchmarks } from "@/lib/analytics-data";
+
+const NEUTRAL = "oklch(0.7 0.01 260 / 40%)";
 
 function useAnimatedNumber(target: number) {
   const [value, setValue] = useState(target);
@@ -154,6 +156,76 @@ function WhatIfSimulator() {
   );
 }
 
+// Emphasis, not categorical: "You" is the point, "Industry avg" is context —
+// so You gets the accent hue and the average gets a neutral grey, never a
+// second competing hue. Each metric is its own local 0–max scale (seconds,
+// percent, stars are incompatible units — a shared axis across them would
+// invent a false comparison the same way a dual-axis chart would).
+function BenchmarkChart() {
+  return (
+    <div className="rounded-xl border border-white/10 bg-primary-foreground/5 p-5">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <p className="font-mono text-xs font-medium tracking-wide text-primary-foreground/50 uppercase">
+          You vs. similar Edinburgh businesses
+        </p>
+        <ul className="flex items-center gap-3 text-[11px] text-primary-foreground/60">
+          <li className="flex items-center gap-1.5">
+            <span className="h-2 w-3 rounded-sm" style={{ background: "var(--chart-2)" }} />
+            You
+          </li>
+          <li className="flex items-center gap-1.5">
+            <span className="h-2 w-3 rounded-sm" style={{ background: NEUTRAL }} />
+            Industry avg
+          </li>
+        </ul>
+      </div>
+
+      <div className="mt-4 space-y-4">
+        {benchmarks.map((b) => {
+          const max = Math.max(b.you, b.industryAvg) * 1.15;
+          const ahead = b.higherIsBetter ? b.you >= b.industryAvg : b.you <= b.industryAvg;
+          return (
+            <div key={b.metric}>
+              <div className="flex items-baseline justify-between text-xs">
+                <span className="font-medium text-primary-foreground/80">{b.metric}</span>
+                <span className={`text-[10px] font-medium ${ahead ? "text-emerald-400" : "text-amber-400"}`}>
+                  {ahead ? "Ahead of average" : "Below average"}
+                </span>
+              </div>
+              <div className="mt-1.5 space-y-1">
+                <div className="flex items-center gap-2">
+                  <div className="h-2.5 flex-1 rounded-sm bg-primary-foreground/10">
+                    <div
+                      className="h-full"
+                      style={{ width: `${(b.you / max) * 100}%`, background: "var(--chart-2)", borderRadius: "0 4px 4px 0" }}
+                    />
+                  </div>
+                  <span className="w-12 shrink-0 font-mono text-[11px] tabular-nums text-primary-foreground/70">
+                    {b.you}
+                    {b.unit}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="h-2.5 flex-1 rounded-sm bg-primary-foreground/10">
+                    <div
+                      className="h-full"
+                      style={{ width: `${(b.industryAvg / max) * 100}%`, background: NEUTRAL, borderRadius: "0 4px 4px 0" }}
+                    />
+                  </div>
+                  <span className="w-12 shrink-0 font-mono text-[11px] tabular-nums text-primary-foreground/50">
+                    {b.industryAvg}
+                    {b.unit}
+                  </span>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function DemandHeatmap() {
   const allValues = demandHeatmap.data.flatMap((d) => d.slots);
   const max = Math.max(...allValues);
@@ -204,6 +276,7 @@ export function PredictionsPanel() {
         </div>
       </div>
 
+      <BenchmarkChart />
       <WhatIfSimulator />
       <DemandHeatmap />
     </div>

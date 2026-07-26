@@ -110,13 +110,16 @@ export const trafficByDay = {
 };
 
 export type InsightSeverity = "info" | "warning" | "success";
+export type InsightCategory = "opportunity" | "risk" | "trend";
 
 export type AiInsight = {
   id: string;
   emoji: string;
   text: string;
   severity: InsightSeverity;
+  category: InsightCategory;
   confidence: number;
+  impact: string;
   recommendation: string;
 };
 
@@ -129,7 +132,9 @@ export const aiInsights: AiInsight[] = [
     emoji: "📈",
     text: "Revenue increased 16% compared to last month.",
     severity: "success",
+    category: "trend",
     confidence: 92,
+    impact: "+£2,540 this month",
     recommendation: "Consider reinvesting part of this into your best-performing channel.",
   },
   {
@@ -137,7 +142,9 @@ export const aiInsights: AiInsight[] = [
     emoji: "🤖",
     text: "AI resolved 81% of customer queries without human input.",
     severity: "success",
+    category: "trend",
     confidence: 95,
+    impact: "~14 hrs/week saved",
     recommendation: "Review the 19% that escalated to find the next automation opportunity.",
   },
   {
@@ -145,7 +152,9 @@ export const aiInsights: AiInsight[] = [
     emoji: "⚠️",
     text: "Customer response time increased yesterday.",
     severity: "warning",
+    category: "risk",
     confidence: 88,
+    impact: "3 enquiries went cold",
     recommendation: "Check staffing cover for yesterday's shift pattern.",
   },
   {
@@ -153,7 +162,9 @@ export const aiInsights: AiInsight[] = [
     emoji: "💡",
     text: "Friday evenings are your highest-converting period.",
     severity: "info",
+    category: "opportunity",
     confidence: 90,
+    impact: "£850/mo potential",
     recommendation: "Consider a limited Friday-evening promotion to capture more of this demand.",
   },
   {
@@ -161,7 +172,9 @@ export const aiInsights: AiInsight[] = [
     emoji: "⭐",
     text: "Returning customers spend 42% more than new customers.",
     severity: "success",
+    category: "opportunity",
     confidence: 93,
+    impact: "£1,120/mo potential",
     recommendation: "A simple loyalty nudge could pay for itself quickly.",
   },
   {
@@ -169,8 +182,30 @@ export const aiInsights: AiInsight[] = [
     emoji: "🔥",
     text: "Local demand is increasing in your area.",
     severity: "info",
+    category: "opportunity",
     confidence: 81,
+    impact: "+9% search volume",
     recommendation: "Now is a good time to increase visibility with local search and social.",
+  },
+  {
+    id: "cancellation-risk",
+    emoji: "📉",
+    text: "Monday cancellations are running above your usual rate.",
+    severity: "warning",
+    category: "risk",
+    confidence: 85,
+    impact: "6 slots lost this week",
+    recommendation: "Automated reminders on Sunday evening typically recover most of this.",
+  },
+  {
+    id: "review-momentum",
+    emoji: "🌟",
+    text: "New review rate has picked up since the AI review prompt went live.",
+    severity: "success",
+    category: "trend",
+    confidence: 89,
+    impact: "+11 reviews this month",
+    recommendation: "Keep the prompt active — momentum like this compounds over a quarter.",
   },
 ];
 
@@ -403,4 +438,44 @@ export const funnelSteps: FunnelStep[] = [
   { label: "Enquiries", value: 168 },
   { label: "Bookings", value: 89 },
   { label: "Customers", value: 63 },
+];
+
+export type WeeklyTrendPoint = { week: string; revenue: number; bookings: number };
+
+// 8-week view feeding the Overview tab's main trend chart — same
+// illustrative revenue/bookings figures as the KPI cards, just unrolled
+// across weeks instead of compressed into a sparkline.
+export const weeklyTrend: WeeklyTrendPoint[] = [
+  { week: "Wk 1", revenue: 13200, bookings: 58 },
+  { week: "Wk 2", revenue: 13900, bookings: 61 },
+  { week: "Wk 3", revenue: 14600, bookings: 65 },
+  { week: "Wk 4", revenue: 14100, bookings: 63 },
+  { week: "Wk 5", revenue: 15800, bookings: 70 },
+  { week: "Wk 6", revenue: 16700, bookings: 75 },
+  { week: "Wk 7", revenue: 17500, bookings: 79 },
+  { week: "Wk 8", revenue: 18400, bookings: 89 },
+];
+
+export type LeadSource = { label: string; value: number };
+
+// Smallest two channels folded into "Other" — keeps this to 3 true
+// categorical identities plus a neutral catch-all, rather than stretching
+// to a 5th generated hue.
+export const leadSources: LeadSource[] = [
+  { label: "Google Search", value: 38 },
+  { label: "AI Chatbot", value: 24 },
+  { label: "Social", value: 19 },
+  { label: "Other (referral, direct)", value: 19 },
+];
+
+export type Benchmark = { metric: string; you: number; industryAvg: number; unit: string; higherIsBetter: boolean };
+
+// Illustrative "similar Edinburgh businesses" comparison — same framing as
+// the rest of the Command Centre, a concept demo rather than sourced
+// industry data.
+export const benchmarks: Benchmark[] = [
+  { metric: "Conversion rate", you: 24, industryAvg: 16, unit: "%", higherIsBetter: true },
+  { metric: "Response time", you: 42, industryAvg: 95, unit: "sec", higherIsBetter: false },
+  { metric: "Customer satisfaction", you: 4.8, industryAvg: 4.3, unit: "★", higherIsBetter: true },
+  { metric: "Repeat customer rate", you: 46, industryAvg: 31, unit: "%", higherIsBetter: true },
 ];

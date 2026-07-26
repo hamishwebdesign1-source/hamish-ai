@@ -4,10 +4,17 @@ import { useState } from "react";
 import { LayoutDashboard, MessageSquare, TrendingUp, Zap, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { HealthRing } from "@/components/analytics/health-ring";
+import { TrendChart, ConversionFunnel, ChannelBreakdown } from "@/components/analytics/overview-charts";
 import { CopilotPanel } from "@/components/analytics/copilot-panel";
 import { PredictionsPanel } from "@/components/analytics/predictions-panel";
 import { AutomationsPanel } from "@/components/analytics/automations-panel";
-import { healthScore, momentumMetrics, aiInsights, executiveBriefing } from "@/lib/analytics-data";
+import {
+  healthScore,
+  momentumMetrics,
+  aiInsights,
+  executiveBriefing,
+  type InsightCategory,
+} from "@/lib/analytics-data";
 
 const TABS = [
   { id: "overview", label: "Overview", icon: LayoutDashboard },
@@ -26,12 +33,29 @@ const severityStyles: Record<string, string> = {
   info: "border-l-[var(--chart-4)]",
 };
 
+const CATEGORY_FILTERS: { id: "all" | InsightCategory; label: string }[] = [
+  { id: "all", label: "All" },
+  { id: "opportunity", label: "Opportunity" },
+  { id: "risk", label: "Risk" },
+  { id: "trend", label: "Trend" },
+];
+
 function OverviewTab() {
+  const [category, setCategory] = useState<"all" | InsightCategory>("all");
   const [offset, setOffset] = useState(0);
+
+  const filteredInsights =
+    category === "all" ? aiInsights : aiInsights.filter((i) => i.category === category);
+  const shown = Math.min(INSIGHTS_SHOWN, filteredInsights.length);
   const visibleInsights = Array.from(
-    { length: INSIGHTS_SHOWN },
-    (_, i) => aiInsights[(offset + i) % aiInsights.length]
+    { length: shown },
+    (_, i) => filteredInsights[(offset + i) % filteredInsights.length]
   );
+
+  function selectCategory(id: "all" | InsightCategory) {
+    setCategory(id);
+    setOffset(0);
+  }
 
   return (
     <div className="tab-panel-enter" key="overview">
@@ -53,7 +77,16 @@ function OverviewTab() {
         </div>
       </div>
 
-      <div className="mt-8 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
+      <div className="mt-8">
+        <TrendChart />
+      </div>
+
+      <div className="mt-6 grid gap-4 lg:grid-cols-2">
+        <ConversionFunnel />
+        <ChannelBreakdown />
+      </div>
+
+      <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
         {momentumMetrics.map((m) => (
           <div
             key={m.id}
@@ -67,7 +100,7 @@ function OverviewTab() {
       </div>
 
       <div className="mt-8">
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <p className="font-mono text-xs font-medium tracking-wide text-primary-foreground/50 uppercase">
             Living insights
           </p>
@@ -75,12 +108,34 @@ function OverviewTab() {
             size="sm"
             variant="ghost"
             className="h-7 gap-1.5 px-2 text-xs text-primary-foreground/70 hover:bg-primary-foreground/10 hover:text-primary-foreground"
-            onClick={() => setOffset((o) => (o + INSIGHTS_SHOWN) % aiInsights.length)}
+            onClick={() => setOffset((o) => (o + shown) % Math.max(filteredInsights.length, 1))}
           >
             <RefreshCw className="size-3.5" />
             Refresh insights
           </Button>
         </div>
+
+        <div className="mt-3 flex flex-wrap gap-1.5">
+          {CATEGORY_FILTERS.map((f) => {
+            const count = f.id === "all" ? aiInsights.length : aiInsights.filter((i) => i.category === f.id).length;
+            const active = category === f.id;
+            return (
+              <button
+                key={f.id}
+                type="button"
+                onClick={() => selectCategory(f.id)}
+                className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                  active
+                    ? "border-accent bg-accent/20 text-primary-foreground"
+                    : "border-white/15 text-primary-foreground/60 hover:text-primary-foreground"
+                }`}
+              >
+                {f.label} <span className="text-primary-foreground/40">({count})</span>
+              </button>
+            );
+          })}
+        </div>
+
         <ul className="mt-4 space-y-3">
           {visibleInsights.map((insight) => (
             <li
@@ -96,11 +151,19 @@ function OverviewTab() {
                   {insight.confidence}% confidence
                 </span>
               </div>
-              <p className="mt-1.5 text-xs text-primary-foreground/60">
-                → {insight.recommendation}
-              </p>
+              <div className="mt-1.5 flex flex-wrap items-center justify-between gap-2">
+                <p className="text-xs text-primary-foreground/60">→ {insight.recommendation}</p>
+                <span className="shrink-0 rounded-full bg-primary-foreground/10 px-2 py-0.5 font-mono text-[10px] text-primary-foreground/70">
+                  {insight.impact}
+                </span>
+              </div>
             </li>
           ))}
+          {visibleInsights.length === 0 && (
+            <li className="rounded-lg border border-dashed border-white/15 px-4 py-6 text-center text-xs text-primary-foreground/50">
+              No insights in this category right now.
+            </li>
+          )}
         </ul>
       </div>
     </div>
