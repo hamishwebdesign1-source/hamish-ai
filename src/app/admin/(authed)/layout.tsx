@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { LayoutDashboard, Users, BookOpen, Plug, Search, Workflow, LogOut } from "lucide-react";
 import { ADMIN_COOKIE_NAME } from "@/lib/admin-auth";
 import { AdminNavLink } from "@/components/admin/nav-link";
+import { AdminMobileNav } from "@/components/admin/mobile-nav";
 import { Button } from "@/components/ui/button";
 
 async function signOut() {
@@ -16,7 +17,7 @@ async function signOut() {
 export default function AdminAuthedLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen bg-secondary/20">
-      <header className="border-b border-border/60 bg-background">
+      <header className="relative border-b border-border/60 bg-background">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-4">
           <Link href="/admin" className="font-heading text-lg font-semibold">
             Hamish<span className="text-accent">AI</span>{" "}
@@ -24,7 +25,7 @@ export default function AdminAuthedLayout({ children }: { children: React.ReactN
               Internal
             </span>
           </Link>
-          <nav className="flex items-center gap-1">
+          <nav className="hidden items-center gap-1 md:flex">
             <AdminNavLink href="/admin">
               <LayoutDashboard className="size-4" />
               Overview
@@ -56,6 +57,7 @@ export default function AdminAuthedLayout({ children }: { children: React.ReactN
               </Button>
             </form>
           </nav>
+          <AdminMobileNav signOutAction={signOut} />
         </div>
       </header>
       <main className="mx-auto max-w-5xl px-6 py-10">{children}</main>
