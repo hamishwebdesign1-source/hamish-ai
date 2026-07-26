@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { sendWeeklyDigests } from "@/lib/weekly-digest";
+import { sendErrorAlert } from "@/lib/send-error-alert";
 
 // Triggered weekly by the Vercel Cron job in vercel.json. Same shared-secret
 // bearer-token pattern as the daily site-checks cron route — no user
@@ -13,6 +14,7 @@ export async function GET(request: Request) {
 
   const result = await sendWeeklyDigests();
   if ("error" in result) {
+    await sendErrorAlert("Weekly digest cron", result.error ?? "Unknown error.");
     return NextResponse.json({ error: result.error }, { status: 500 });
   }
 

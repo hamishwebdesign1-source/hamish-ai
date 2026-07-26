@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { runSiteCheck } from "@/lib/site-monitor";
 import { sendSiteAlertEmail, type FlaggedClient } from "@/lib/send-site-alert";
+import { sendErrorAlert } from "@/lib/send-error-alert";
 
 const SSL_WARNING_DAYS = 14;
 
@@ -29,46 +30,64 @@ export async function GET(request: Request) {
 
   if (error) {
     console.error("Cron: failed to fetch clients:", error);
+    await sendErrorAlert("Daily site-check cron", `Failed to fetch clients: ${error.message}`);
     return NextResponse.json({ error: "Failed to fetch clients." }, { status: 500 });
   }
 
   const checked: string[] = [];
   const flagged: FlaggedClient[] = [];
+  const checkFailures: string[] = [];
 
-  for (const client of clients ?? []) {
-    if (!client.website_url) continue;
+  try {
+    for (const client of clients ?? []) {
+      if (!client.website_url) continue;
 
-    const result = await runSiteCheck(client.id);
-    checked.push(client.business_name);
+      const result = await runSiteCheck(client.id);
+      checked.push(client.business_name);
 
-    if ("error" in result) {
-      console.error(`Cron: site check failed for ${client.business_name}:`, result.error);
-      continue;
-    }
+      if ("error" in result) {
+        console.error(`Cron: site check failed for ${client.business_name}:`, result.error);
+        checkFailures.push(`${client.business_name}: ${result.error}`);
+        continue;
+      }
 
-    const check = result.check;
-    const reasons: string[] = [];
+      const check = result.check;
+      const reasons: string[] = [];
 
-    if (check.uptime_ok === false) reasons.push("site unreachable");
-    if (check.ssl_ok === false) reasons.push("SSL invalid");
-    if (check.ssl_valid_until) {
-      const daysLeft = (new Date(check.ssl_valid_until).getTime() - Date.now()) / (1000 * 60 * 60 * 24);
-      if (daysLeft <= SSL_WARNING_DAYS) {
-        reasons.push(`SSL expires in ${Math.max(0, Math.round(daysLeft))} days`);
+      if (check.uptime_ok === false) reasons.push("site unreachable");
+      if (check.ssl_ok === false) reasons.push("SSL invalid");
+      if (check.ssl_valid_until) {
+        const daysLeft = (new Date(check.ssl_valid_until).getTime() - Date.now()) / (1000 * 60 * 60 * 24);
+        if (daysLeft <= SSL_WARNING_DAYS) {
+          reasons.push(`SSL expires in ${Math.max(0, Math.round(daysLeft))} days`);
+        }
+      }
+      if (check.broken_links?.length > 0) {
+        reasons.push(`${check.broken_links.length} broken link(s)`);
+      }
+
+      if (reasons.length > 0) {
+        flagged.push({
+          businessName: client.business_name,
+          websiteUrl: client.website_url,
+          reasons,
+          aiSummary: check.ai_summary ?? null,
+        });
       }
     }
-    if (check.broken_links?.length > 0) {
-      reasons.push(`${check.broken_links.length} broken link(s)`);
-    }
+  } catch (err) {
+    console.error("Cron: daily site-check run crashed:", err);
+    await sendErrorAlert("Daily site-check cron", `The run crashed partway through:\n\n${err}`);
+    return NextResponse.json({ error: "Site-check cron crashed." }, { status: 500 });
+  }
 
-    if (reasons.length > 0) {
-      flagged.push({
-        businessName: client.business_name,
-        websiteUrl: client.website_url,
-        reasons,
-        aiSummary: check.ai_summary ?? null,
-      });
-    }
+  // A failure rate this high means the checker itself is broken, not that
+  // every client's site happens to be down at once — worth a same-day look.
+  if (checkFailures.length > 0 && checkFailures.length >= checked.length / 2) {
+    await sendErrorAlert(
+      "Daily site-check cron",
+      `${checkFailures.length} of ${checked.length} site checks failed to run:\n\n${checkFailures.join("\n")}`
+    );
   }
 
   if (flagged.length > 0) {

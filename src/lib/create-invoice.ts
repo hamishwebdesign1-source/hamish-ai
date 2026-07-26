@@ -1,6 +1,7 @@
 import { getStripe } from "@/lib/stripe";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { sendClientEmail } from "@/lib/send-client-email";
+import { sendErrorAlert } from "@/lib/send-error-alert";
 
 // Creates a real Stripe invoice and emails the client a link to pay it —
 // collection_method "send_invoice" rather than charging a saved card
@@ -87,6 +88,10 @@ export async function createInvoice(params: {
     return { invoiceUrl: finalized.hosted_invoice_url as string | null };
   } catch (error) {
     console.error("Failed to create Stripe invoice:", error);
+    await sendErrorAlert(
+      "Invoice creation",
+      `Failed to create a Stripe invoice for ${client.business_name} (${params.amountPence / 100} GBP): ${error}`
+    );
     return { error: "Failed to create the invoice via Stripe." as const };
   }
 }

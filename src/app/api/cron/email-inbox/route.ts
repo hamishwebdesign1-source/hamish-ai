@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { checkEmailInbox } from "@/lib/email-inbox";
+import { sendErrorAlert } from "@/lib/send-error-alert";
 
 // Triggered on a schedule by the Vercel Cron job in vercel.json. Same
 // shared-secret bearer-token pattern as the other cron routes.
@@ -12,6 +13,7 @@ export async function GET(request: Request) {
 
   const result = await checkEmailInbox();
   if ("error" in result) {
+    await sendErrorAlert("Daily email-inbox cron", result.error ?? "Unknown error.");
     return NextResponse.json({ error: result.error }, { status: 500 });
   }
 

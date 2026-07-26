@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import type Stripe from "stripe";
 import { getStripe } from "@/lib/stripe";
 import { getSupabaseAdmin } from "@/lib/supabase";
+import { sendErrorAlert } from "@/lib/send-error-alert";
 
 // Stripe's own callback when an invoice's status changes — verified via
 // its signature header rather than the admin cookie (Stripe has no way
@@ -50,7 +51,13 @@ export async function POST(request: Request) {
     if (newStatus === "paid") update.paid_at = new Date().toISOString();
 
     const { error } = await supabase.from("invoices").update(update).eq("stripe_invoice_id", invoice.id);
-    if (error) console.error(`Failed to update invoice ${invoice.id} to ${newStatus}:`, error);
+    if (error) {
+      console.error(`Failed to update invoice ${invoice.id} to ${newStatus}:`, error);
+      await sendErrorAlert(
+        "Stripe webhook",
+        `Received a "${event.type}" event for invoice ${invoice.id} but failed to update our own record: ${error.message}`
+      );
+    }
   }
 
   return NextResponse.json({ received: true });
