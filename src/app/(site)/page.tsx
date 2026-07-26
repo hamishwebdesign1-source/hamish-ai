@@ -7,6 +7,10 @@ import {
   ConciergeBell,
   Dumbbell,
   Briefcase,
+  MessagesSquare,
+  ShieldCheck,
+  Activity,
+  Receipt,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -31,6 +35,29 @@ const industries = [
   { icon: ConciergeBell, name: "Hotels & hospitality", href: "/portfolio/assembly-rooms-hotel" },
   { icon: Dumbbell, name: "Gyms & fitness studios", href: "/portfolio/forge-fitness" },
   { icon: Briefcase, name: "Professional services", href: "/portfolio/lomond-and-grey" },
+];
+
+const dogfoodPoints = [
+  {
+    icon: MessagesSquare,
+    title: "AI reads every enquiry",
+    body: "Claude triages incoming client requests and drafts a response — before we've even opened the inbox.",
+  },
+  {
+    icon: ShieldCheck,
+    title: "Every auto-sent reply is checked",
+    body: "We audit our own AI's accuracy on a rolling basis, not just trust it and hope.",
+  },
+  {
+    icon: Activity,
+    title: "Live uptime monitoring",
+    body: "Client websites are checked around the clock, with an instant alert the moment something breaks.",
+  },
+  {
+    icon: Receipt,
+    title: "Billing runs itself",
+    body: "Recurring invoices go out automatically each month — no spreadsheets, no chasing.",
+  },
 ];
 
 const teaserKpiIds = ["revenue", "leads", "conversion", "response-time"];
@@ -307,6 +334,54 @@ export default function HomePage() {
       </section>
 
       <section className="border-t border-border/60">
+        <div className="mx-auto max-w-6xl px-6 py-16 md:py-20">
+          <div className="grid gap-12 lg:grid-cols-[1fr_1.1fr] lg:items-center">
+            <Reveal>
+              <Eyebrow className="mb-3">How we operate</Eyebrow>
+              <h2 className="font-heading text-2xl font-semibold md:text-3xl">
+                The same AI system running this business runs yours.
+              </h2>
+              <p className="mt-3 max-w-md text-muted-foreground">
+                We&apos;re not describing automation from the outside — Hamish
+                AI&apos;s own operations run on it. Every enquiry, every
+                invoice, every site-health check, handled the same way we&apos;d
+                build it for you.
+              </p>
+              <Button variant="link" className="mt-5 px-0" render={<Link href="/services" />}>
+                See it in the Growth Partnership package
+                <ArrowRight className="size-4" />
+              </Button>
+            </Reveal>
+            <Reveal delay={60}>
+              <div className="overflow-hidden rounded-xl border border-border bg-background shadow-2xl shadow-accent/10">
+                <div className="flex items-center gap-1.5 border-b border-border bg-secondary/60 px-3 py-2">
+                  <span className="size-2.5 rounded-full bg-destructive/50" />
+                  <span className="size-2.5 rounded-full bg-accent/50" />
+                  <span className="size-2.5 rounded-full bg-emerald-500/50" />
+                  <span className="ml-2 font-mono text-[11px] text-muted-foreground">
+                    hamishai.org/admin
+                  </span>
+                </div>
+                <ul className="divide-y divide-border">
+                  {dogfoodPoints.map((d) => (
+                    <li key={d.title} className="flex items-start gap-3 p-4">
+                      <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg bg-accent/10 text-accent">
+                        <d.icon className="size-4" />
+                      </span>
+                      <div>
+                        <p className="font-heading text-sm font-medium">{d.title}</p>
+                        <p className="mt-0.5 text-sm text-muted-foreground">{d.body}</p>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </Reveal>
+          </div>
+        </div>
+      </section>
+
+      <section className="border-t border-border/60 bg-secondary/40">
         <div className="mx-auto max-w-6xl px-6 py-16 md:py-20">
           <Reveal>
             <Eyebrow className="mb-3">Industries we&apos;ve worked with</Eyebrow>
