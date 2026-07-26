@@ -1,8 +1,10 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { LogOut } from "lucide-react";
+import { LayoutDashboard, MessagesSquare, Receipt, LineChart, LifeBuoy, LogOut } from "lucide-react";
 import { createServerSupabaseClient } from "@/lib/supabase-server-auth";
 import { getSupabaseAdmin } from "@/lib/supabase";
+import { PortalNavLink } from "@/components/portal/nav-link";
+import { PortalMobileNav } from "@/components/portal/mobile-nav";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 
@@ -39,30 +41,43 @@ export default async function PortalAuthedLayout({ children }: { children: React
 
   return (
     <div className="min-h-screen bg-secondary/20">
-      <header className="border-b border-border/60 bg-background">
-        <div className="mx-auto flex max-w-3xl items-center justify-between px-6 py-4">
-          <div className="flex items-center gap-6">
-            <p className="font-heading text-lg font-semibold">
-              Hamish<span className="text-accent">AI</span>
-            </p>
-            <nav className="flex items-center gap-4 text-sm text-muted-foreground">
-              <Link href="/portal" className="hover:text-foreground">
-                Home
-              </Link>
-              <Link href="/portal/billing" className="hover:text-foreground">
-                Billing
-              </Link>
-            </nav>
-          </div>
-          <form action="/api/portal/logout" method="post">
-            <Button type="submit" variant="ghost" size="sm" className="text-muted-foreground">
-              <LogOut className="size-4" />
-              Sign out
-            </Button>
-          </form>
+      <header className="relative border-b border-border/60 bg-background">
+        <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-4">
+          <Link href="/portal" className="font-heading text-lg font-semibold">
+            Hamish<span className="text-accent">AI</span>
+          </Link>
+          <nav className="hidden items-center gap-1 md:flex">
+            <PortalNavLink href="/portal">
+              <LayoutDashboard className="size-4" />
+              Overview
+            </PortalNavLink>
+            <PortalNavLink href="/portal/requests">
+              <MessagesSquare className="size-4" />
+              Requests
+            </PortalNavLink>
+            <PortalNavLink href="/portal/billing">
+              <Receipt className="size-4" />
+              Billing
+            </PortalNavLink>
+            <PortalNavLink href="/portal/insights">
+              <LineChart className="size-4" />
+              Insights
+            </PortalNavLink>
+            <PortalNavLink href="/portal/help">
+              <LifeBuoy className="size-4" />
+              Help
+            </PortalNavLink>
+            <form action="/api/portal/logout" method="post">
+              <Button type="submit" variant="ghost" size="sm" className="ml-2 text-muted-foreground">
+                <LogOut className="size-4" />
+                Sign out
+              </Button>
+            </form>
+          </nav>
+          <PortalMobileNav />
         </div>
       </header>
-      <main className="mx-auto max-w-3xl px-6 py-10">{children}</main>
+      <main className="mx-auto max-w-5xl px-6 py-10">{children}</main>
     </div>
   );
 }
