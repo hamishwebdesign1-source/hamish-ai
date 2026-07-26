@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 
 export function AdminNavLink({ href, children }: { href: string; children: React.ReactNode }) {
   const pathname = usePathname();
-  const isActive = pathname === href || pathname.startsWith(`${href}/`);
+  const isActive = pathname === href || (href !== "/admin" && pathname.startsWith(`${href}/`));
 
   return (
     <Link

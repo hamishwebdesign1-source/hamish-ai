@@ -3,6 +3,7 @@ import Link from "next/link";
 import { ExternalLink, Search, X, Clock } from "lucide-react";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { updateLeadStatus, deleteLead, updateLeadEmail } from "@/app/admin/actions";
+import { leadNeedsFollowUp as needsFollowUp } from "@/lib/lead-status";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -16,13 +17,6 @@ const selectClasses =
   "h-8 w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30";
 
 const STATUSES = ["needs_verification", "ready", "contacted", "not_fit"] as const;
-const FOLLOW_UP_DAYS = 5;
-
-function needsFollowUp(lead: { status: string; contacted_at: string | null }) {
-  if (lead.status !== "contacted" || !lead.contacted_at) return false;
-  const daysSince = (Date.now() - new Date(lead.contacted_at).getTime()) / (1000 * 60 * 60 * 24);
-  return daysSince >= FOLLOW_UP_DAYS;
-}
 
 const statusMeta: Record<(typeof STATUSES)[number], { label: string; variant: "warning" | "success" | "accent" | "secondary" }> = {
   needs_verification: { label: "Needs verification", variant: "warning" },
