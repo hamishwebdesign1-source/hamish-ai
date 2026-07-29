@@ -33,3 +33,9 @@ alter table prospects add column if not exists email text;
 -- Added later: when a lead was last marked "contacted", so the admin UI
 -- can flag ones that have gone quiet and need a follow-up nudge.
 alter table prospects add column if not exists contacted_at timestamptz;
+
+-- Added later: the slug of a one-off personalised concept page built for
+-- this lead (see /concepts/[slug]), so the AI-drafted outreach email can
+-- point to that instead of a generic same-industry case study — a much
+-- stronger proof point once one exists.
+alter table prospects add column if not exists concept_slug text;

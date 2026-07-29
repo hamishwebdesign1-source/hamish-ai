@@ -48,13 +48,19 @@ function buildSystemPrompt(
     neighbourhood: string | null;
     signal: string | null;
     outreach_note: string | null;
+    concept_slug?: string | null;
   },
   matchedCaseStudy?: { name: string; industry: string; demoUrl: string },
   isFollowUp = false
 ) {
-  const proofPointInstruction = matchedCaseStudy
-    ? `\n\nOne concrete proof point, required: Hamish has built a similar real site for another ${matchedCaseStudy.industry} business, ${matchedCaseStudy.name}. You MUST include the literal URL https://www.hamishai.org${matchedCaseStudy.demoUrl} spelled out in full in the email body itself (not just the business name on its own) so they can click through and see actual work in their own industry, not just a claim. Weave it in naturally, "here's an example" style, not a sales pitch — but the URL text itself must appear.`
-    : "";
+  // A personalised concept page built specifically for this business is a
+  // far stronger proof point than a same-industry example built for
+  // someone else — always prefer it when one exists.
+  const proofPointInstruction = lead.concept_slug
+    ? `\n\nOne concrete proof point, required: Hamish has actually built ${lead.business_name} a real concept of what their own website could look like — not a generic example, a live page made specifically for them. You MUST include the literal URL https://www.hamishai.org/concepts/${lead.concept_slug} spelled out in full in the email body itself, framed as "here's a concept I put together for your business" style. This is the single most important thing in the email — it's proof, not a pitch.`
+    : matchedCaseStudy
+      ? `\n\nOne concrete proof point, required: Hamish has built a similar real site for another ${matchedCaseStudy.industry} business, ${matchedCaseStudy.name}. You MUST include the literal URL https://www.hamishai.org${matchedCaseStudy.demoUrl} spelled out in full in the email body itself (not just the business name on its own) so they can click through and see actual work in their own industry, not just a claim. Weave it in naturally, "here's an example" style, not a sales pitch — but the URL text itself must appear.`
+      : "";
 
   if (isFollowUp) {
     return `You are ghostwriting a short, low-pressure follow-up email as Hamish, who runs Hamish AI — a small Edinburgh-based AI/web consultancy. He emailed this business a few days ago about a specific issue and hasn't heard back.
@@ -84,7 +90,7 @@ export async function draftLeadEmail(leadId: string, isFollowUp = false) {
 
   const { data: lead, error: leadError } = await supabase
     .from("prospects")
-    .select("business_name, category, neighbourhood, signal, outreach_note, email")
+    .select("business_name, category, neighbourhood, signal, outreach_note, email, concept_slug")
     .eq("id", leadId)
     .single();
 

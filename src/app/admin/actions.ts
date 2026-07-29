@@ -114,6 +114,20 @@ export async function updateLeadEmail(leadId: string, formData: FormData) {
   revalidatePath("/admin/leads");
 }
 
+export async function updateLeadConceptSlug(leadId: string, formData: FormData) {
+  const supabase = getSupabaseAdmin();
+  if (!supabase) return;
+
+  const conceptSlug = String(formData.get("concept_slug") || "").trim();
+  const { error } = await supabase
+    .from("prospects")
+    .update({ concept_slug: conceptSlug || null })
+    .eq("id", leadId);
+  if (error) console.error("Failed to update lead concept slug:", error);
+
+  revalidatePath("/admin/leads");
+}
+
 export async function updateClientStatus(clientId: string, status: string, revalidate: string) {
   const supabase = getSupabaseAdmin();
   if (!supabase) return;

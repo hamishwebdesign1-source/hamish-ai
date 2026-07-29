@@ -2,7 +2,7 @@ import { revalidatePath } from "next/cache";
 import Link from "next/link";
 import { ExternalLink, Search, X, Clock } from "lucide-react";
 import { getSupabaseAdmin } from "@/lib/supabase";
-import { updateLeadStatus, deleteLead, updateLeadEmail } from "@/app/admin/actions";
+import { updateLeadStatus, deleteLead, updateLeadEmail, updateLeadConceptSlug } from "@/app/admin/actions";
 import { leadNeedsFollowUp as needsFollowUp } from "@/lib/lead-status";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -254,6 +254,28 @@ export default async function LeadsPage({
                   <Button type="submit" variant="ghost" size="xs">
                     Save
                   </Button>
+                </form>
+
+                <form action={updateLeadConceptSlug.bind(null, lead.id)} className="mt-1.5 flex items-center gap-1.5">
+                  <Input
+                    name="concept_slug"
+                    defaultValue={lead.concept_slug ?? ""}
+                    placeholder="Concept page slug (e.g. c4-joinery)…"
+                    className="h-7 max-w-64 text-xs"
+                  />
+                  <Button type="submit" variant="ghost" size="xs">
+                    Save
+                  </Button>
+                  {lead.concept_slug && (
+                    <a
+                      href={`/concepts/${lead.concept_slug}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-0.5 text-xs text-accent hover:underline"
+                    >
+                      View <ExternalLink className="size-3" />
+                    </a>
+                  )}
                 </form>
 
                 {lead.signal && <p className="mt-2 text-sm">{lead.signal}</p>}
