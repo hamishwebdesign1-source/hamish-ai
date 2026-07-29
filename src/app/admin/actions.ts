@@ -125,6 +125,16 @@ export async function updateClientStatus(clientId: string, status: string, reval
   revalidatePath("/admin/clients");
 }
 
+export async function toggleAnalyticsEnabled(clientId: string, enabled: boolean, revalidate: string) {
+  const supabase = getSupabaseAdmin();
+  if (!supabase) return;
+
+  const { error } = await supabase.from("clients").update({ analytics_enabled: enabled }).eq("id", clientId);
+  if (error) console.error("Failed to toggle AI Business Analytics entitlement:", error);
+
+  revalidatePath(revalidate);
+}
+
 export async function updateMaintenanceRate(clientId: string, revalidate: string, formData: FormData) {
   const supabase = getSupabaseAdmin();
   if (!supabase) return;

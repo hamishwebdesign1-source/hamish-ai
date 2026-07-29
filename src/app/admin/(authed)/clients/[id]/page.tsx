@@ -1,11 +1,17 @@
 import Link from "next/link";
 import { revalidatePath } from "next/cache";
 import { notFound, redirect } from "next/navigation";
-import { AlertTriangle, ArrowLeft, CalendarCheck, ExternalLink, Globe, Receipt, Zap } from "lucide-react";
+import { AlertTriangle, ArrowLeft, CalendarCheck, ExternalLink, Globe, LineChart, Receipt, Zap } from "lucide-react";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { triageRequest } from "@/lib/triage-request";
 import { createInvoice } from "@/lib/create-invoice";
-import { updateTaskStatus, sendInvoiceReminderAction, updateMaintenanceRate, updateClientStatus } from "@/app/admin/actions";
+import {
+  updateTaskStatus,
+  sendInvoiceReminderAction,
+  updateMaintenanceRate,
+  updateClientStatus,
+  toggleAnalyticsEnabled,
+} from "@/app/admin/actions";
 import { timeAgo } from "@/lib/time-ago";
 import { getInvoiceDisplay, isInvoiceOverdue } from "@/lib/invoice-status";
 import { ProgressReportButton } from "@/components/admin/progress-report-button";
@@ -193,6 +199,21 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
           </span>
         ) : null}
       </form>
+
+      <div className="mt-3 flex items-center gap-1.5">
+        <LineChart className="size-3.5 text-muted-foreground" />
+        <span className="text-xs text-muted-foreground">AI Business Analytics:</span>
+        <form action={toggleAnalyticsEnabled.bind(null, id, !client.analytics_enabled, revalidatePath)}>
+          <Button type="submit" size="xs" variant={client.analytics_enabled ? "default" : "outline"}>
+            {client.analytics_enabled ? "Enabled" : "Not enabled"}
+          </Button>
+        </form>
+        <span className="text-[11px] text-muted-foreground">
+          {client.analytics_enabled
+            ? "Client can see the Site Traffic tab once they connect Google Analytics."
+            : "Flip on once they've paid for the package."}
+        </span>
+      </div>
 
       <div className="mt-8 grid gap-6 lg:grid-cols-2">
         <ProgressReportButton clientId={id} />
