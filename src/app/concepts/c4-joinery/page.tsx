@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import {
   Star,
@@ -15,10 +16,30 @@ import {
 import { Reveal } from "@/components/reveal";
 
 const CRAFT = [
-  { icon: Sofa, title: "Bespoke joinery", body: "Furniture, fitted wardrobes, cabinetry" },
-  { icon: LayoutGrid, title: "Extensions & conversions", body: "Lofts, home extensions" },
-  { icon: DoorClosed, title: "Kitchens, doors & stairs", body: "Installations, repairs, balustrades" },
-  { icon: Fence, title: "Finishing touches", body: "Flooring, decking, bathroom refurbishment" },
+  {
+    icon: Sofa,
+    title: "Bespoke joinery",
+    body: "Furniture, fitted wardrobes, cabinetry",
+    image: "/images/concepts/c4-joinery/bespoke-joinery.jpg",
+  },
+  {
+    icon: LayoutGrid,
+    title: "Extensions & conversions",
+    body: "Lofts, home extensions",
+    image: "/images/concepts/c4-joinery/extensions.jpg",
+  },
+  {
+    icon: DoorClosed,
+    title: "Kitchens, doors & stairs",
+    body: "Installations, repairs, balustrades",
+    image: "/images/concepts/c4-joinery/stairs.jpg",
+  },
+  {
+    icon: Fence,
+    title: "Finishing touches",
+    body: "Flooring, decking, bathroom refurbishment",
+    image: "/images/concepts/c4-joinery/finishing-touches.jpg",
+  },
 ];
 
 const CHIPS = [
@@ -216,8 +237,17 @@ export default function C4JoineryConcept() {
       </div>
 
       {/* Hero */}
-      <section className="relative overflow-hidden bg-[#141110] text-[#f5f1ea]">
-        <GrainMotif className="pointer-events-none absolute top-1/2 right-[-10%] size-[700px] -translate-y-1/2" />
+      <section className="relative isolate overflow-hidden bg-[#141110] text-[#f5f1ea]">
+        <Image
+          src="/images/concepts/c4-joinery/hero-workshop.jpg"
+          alt=""
+          fill
+          priority
+          sizes="100vw"
+          className="absolute inset-0 object-cover opacity-40"
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-[#141110] via-[#141110]/90 to-[#141110]/50" />
+        <GrainMotif className="pointer-events-none absolute top-1/2 right-[-10%] size-[700px] -translate-y-1/2 opacity-70" />
         <div className="relative mx-auto max-w-5xl px-6 pt-24 pb-28 md:pt-36 md:pb-40">
           <Reveal>
             <p className="font-mono text-xs tracking-[0.25em] text-[#c08a4e] uppercase">Linwood · Renfrewshire</p>
@@ -284,16 +314,33 @@ export default function C4JoineryConcept() {
         <div className="mt-8 grid gap-4 sm:grid-cols-2">
           {CRAFT.map((c, i) => (
             <Reveal key={c.title} delay={i * 80}>
-              <div className="group h-full rounded-xl border border-[#e4dccc] bg-white p-7 transition-all duration-300 hover:-translate-y-1 hover:border-[#c08a4e] hover:shadow-xl">
-                <c.icon className="size-6 text-[#c08a4e] transition-transform duration-300 group-hover:scale-110" />
-                <p className="mt-4 text-lg font-semibold" style={{ fontFamily: "var(--font-fraunces)" }}>
-                  {c.title}
-                </p>
-                <p className="mt-1.5 text-sm text-[#6b6259]">{c.body}</p>
+              <div className="group h-full overflow-hidden rounded-xl border border-[#e4dccc] bg-white transition-all duration-300 hover:-translate-y-1 hover:border-[#c08a4e] hover:shadow-xl">
+                <div className="relative h-40 w-full overflow-hidden bg-[#141110]">
+                  <Image
+                    src={c.image}
+                    alt=""
+                    fill
+                    sizes="(max-width: 640px) 100vw, 50vw"
+                    className="object-cover transition-transform duration-500 group-hover:scale-105"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
+                  <c.icon className="absolute bottom-3 left-3 size-5 text-white drop-shadow-md" />
+                </div>
+                <div className="p-7">
+                  <p className="text-lg font-semibold" style={{ fontFamily: "var(--font-fraunces)" }}>
+                    {c.title}
+                  </p>
+                  <p className="mt-1.5 text-sm text-[#6b6259]">{c.body}</p>
+                </div>
               </div>
             </Reveal>
           ))}
         </div>
+        <Reveal delay={CRAFT.length * 80}>
+          <p className="mt-6 text-xs text-[#8a8177]">
+            Styled with concept photography — your own project photos would replace these on the real build.
+          </p>
+        </Reveal>
       </section>
 
       {/* Testimonial moment */}
