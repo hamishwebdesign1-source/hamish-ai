@@ -3,15 +3,10 @@
 import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { Send, Home, UtensilsCrossed, TreePine, Mountain, ArrowDown, ShieldCheck } from "lucide-react";
+import { Send, ArrowDown, ShieldCheck } from "lucide-react";
 import { Reveal } from "@/components/reveal";
 
-const HIGHLIGHTS = [
-  { icon: Home, title: "17th-century country home", body: "Centuries of Highland hospitality" },
-  { icon: UtensilsCrossed, title: "Home-cooked dinners", body: "High-quality local ingredients" },
-  { icon: TreePine, title: "The Garden Studio", body: "Self-catering, set in the orchard" },
-  { icon: Mountain, title: "Stirling Castle views", body: "And the Wallace Monument beyond" },
-];
+const TAGS = ["17th-century country home", "Home-cooked dinners, local ingredients", "Views of Stirling Castle & the Wallace Monument"];
 
 const ROOMS = [
   {
@@ -277,31 +272,16 @@ export default function MackeanstonHouseConcept() {
         </div>
       </section>
 
-      {/* Highlights */}
-      <section id="services" className="mx-auto max-w-5xl px-6 py-24">
-        <Reveal>
-          <p className="font-mono text-xs tracking-[0.2em] text-[#a67a94] uppercase">A stay here</p>
-        </Reveal>
-        <div className="mt-8 grid gap-4 sm:grid-cols-2">
-          {HIGHLIGHTS.map((h, i) => (
-            <Reveal key={h.title} delay={i * 80}>
-              <div className="group h-full rounded-xl border border-[#e2dcc8] bg-white p-7 transition-all duration-300 hover:-translate-y-1 hover:border-[#a67a94] hover:shadow-xl">
-                <h.icon className="size-6 text-[#a67a94] transition-transform duration-300 group-hover:scale-110" />
-                <p className="mt-4 text-lg font-semibold" style={{ fontFamily: "var(--font-fraunces)" }}>
-                  {h.title}
-                </p>
-                <p className="mt-1.5 text-sm text-[#556155]">{h.body}</p>
-              </div>
-            </Reveal>
-          ))}
-        </div>
-      </section>
-
-      {/* Real rooms */}
-      <section className="mx-auto max-w-3xl px-6 pb-24">
+      {/* Where to stay */}
+      <section id="services" className="mx-auto max-w-3xl px-6 py-24">
         <Reveal>
           <p className="font-mono text-xs tracking-[0.2em] text-[#a67a94] uppercase">Where to stay</p>
-          <div className="mt-6 space-y-4">
+          <h2 className="mt-3 text-2xl font-semibold md:text-3xl" style={{ fontFamily: "var(--font-fraunces)" }}>
+            Two ways to stay at Mackeanston.
+          </h2>
+        </Reveal>
+        <Reveal delay={80}>
+          <div className="mt-8 space-y-4">
             {ROOMS.map((r) => (
               <div key={r.name} className="rounded-xl border border-[#e2dcc8] bg-white p-6">
                 <p className="text-lg font-semibold" style={{ fontFamily: "var(--font-fraunces)" }}>
@@ -309,6 +289,18 @@ export default function MackeanstonHouseConcept() {
                 </p>
                 <p className="mt-1.5 text-sm text-[#556155]">{r.body}</p>
               </div>
+            ))}
+          </div>
+        </Reveal>
+        <Reveal delay={160}>
+          <div className="mt-6 flex flex-wrap gap-2">
+            {TAGS.map((t) => (
+              <span
+                key={t}
+                className="rounded-full border border-[#e2dcc8] bg-white px-3 py-1.5 text-xs text-[#556155]"
+              >
+                {t}
+              </span>
             ))}
           </div>
         </Reveal>

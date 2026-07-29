@@ -3,15 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { Send, Coffee, Leaf, Dog, Footprints, ArrowDown, ShieldCheck } from "lucide-react";
+import { Send, ArrowDown, ShieldCheck } from "lucide-react";
 import { Reveal } from "@/components/reveal";
-
-const HIGHLIGHTS = [
-  { icon: Coffee, title: "Locally roasted coffee", body: "Every cup, roasted nearby" },
-  { icon: Leaf, title: "Gluten-free & vegan friendly", body: "Homemade bakes, made well" },
-  { icon: Dog, title: "Dog-friendly", body: "Every dog gets a treat" },
-  { icon: Footprints, title: "Walk-ins only", body: "No booking needed" },
-];
 
 const MENU = [
   { name: "Huevos rancheros", price: "Brunch" },
@@ -19,6 +12,8 @@ const MENU = [
   { name: "Waffles with bacon", price: "Brunch" },
   { name: "Reuben sandwich", price: "Lunch" },
 ];
+
+const TAGS = ["Locally roasted coffee", "Gluten-free & vegan friendly", "Dog-friendly — every dog gets a treat", "Walk-ins only, no booking"];
 
 const CHIPS = [
   { stat: "0", label: "pages of their own website — only Facebook and directory listings" },
@@ -271,33 +266,21 @@ export default function CafeWyndConcept() {
         </div>
       </section>
 
-      {/* Highlights */}
-      <section id="services" className="mx-auto max-w-5xl px-6 py-24">
+      {/* On the menu */}
+      <section id="services" className="mx-auto max-w-3xl px-6 py-24">
         <Reveal>
-          <p className="font-mono text-xs tracking-[0.2em] text-[#c1613f] uppercase">What people love</p>
+          <p className="font-mono text-xs tracking-[0.2em] text-[#c1613f] uppercase">On the menu</p>
+          <h2 className="mt-3 text-2xl font-semibold md:text-3xl" style={{ fontFamily: "var(--font-fraunces)" }}>
+            What people order, again and again.
+          </h2>
         </Reveal>
-        <div className="mt-8 grid gap-4 sm:grid-cols-2">
-          {HIGHLIGHTS.map((h, i) => (
-            <Reveal key={h.title} delay={i * 80}>
-              <div className="group h-full rounded-xl border border-[#e9dfd0] bg-white p-7 transition-all duration-300 hover:-translate-y-1 hover:border-[#c1613f] hover:shadow-xl">
-                <h.icon className="size-6 text-[#c1613f] transition-transform duration-300 group-hover:scale-110" />
-                <p className="mt-4 text-lg font-semibold" style={{ fontFamily: "var(--font-fraunces)" }}>
-                  {h.title}
-                </p>
-                <p className="mt-1.5 text-sm text-[#6b5a4a]">{h.body}</p>
-              </div>
-            </Reveal>
-          ))}
-        </div>
-      </section>
-
-      {/* Real menu */}
-      <section className="mx-auto max-w-3xl px-6 pb-24">
-        <Reveal>
-          <p className="font-mono text-xs tracking-[0.2em] text-[#c1613f] uppercase">A few dishes</p>
-          <div className="mt-6 divide-y divide-[#e9dfd0] overflow-hidden rounded-xl border border-[#e9dfd0] bg-white">
-            {MENU.map((m) => (
-              <div key={m.name} className="flex items-center justify-between gap-4 px-6 py-4">
+        <Reveal delay={80}>
+          <div className="mt-8 overflow-hidden rounded-xl border border-[#e9dfd0] bg-white">
+            {MENU.map((m, i) => (
+              <div
+                key={m.name}
+                className={`flex items-center justify-between gap-4 px-6 py-4 ${i > 0 ? "border-t border-[#e9dfd0]" : ""}`}
+              >
                 <span className="font-medium">{m.name}</span>
                 <span className="tabular-nums text-[#8a7663]">{m.price}</span>
               </div>
@@ -306,6 +289,18 @@ export default function CafeWyndConcept() {
           <p className="mt-3 text-xs text-[#8a7663]">
             Brunch and lunch typically run £10–£20 per person — the full menu changes seasonally.
           </p>
+        </Reveal>
+        <Reveal delay={160}>
+          <div className="mt-6 flex flex-wrap gap-2">
+            {TAGS.map((t) => (
+              <span
+                key={t}
+                className="rounded-full border border-[#e9dfd0] bg-white px-3 py-1.5 text-xs text-[#6b5a4a]"
+              >
+                {t}
+              </span>
+            ))}
+          </div>
         </Reveal>
       </section>
 

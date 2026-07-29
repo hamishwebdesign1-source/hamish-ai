@@ -3,15 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { Send, UtensilsCrossed, Leaf, Coins, Bike, ArrowDown, ShieldCheck } from "lucide-react";
+import { Send, ArrowDown, ShieldCheck } from "lucide-react";
 import { Reveal } from "@/components/reveal";
-
-const HIGHLIGHTS = [
-  { icon: UtensilsCrossed, title: "Arepas & empanadas", body: "The dishes reviewers rave about" },
-  { icon: Leaf, title: "Gluten-free menu", body: "Almost the whole kitchen, clearly marked" },
-  { icon: Coins, title: "Great value", body: "Around £6 a dish, generous portions" },
-  { icon: Bike, title: "Deliveroo & social", body: "Where most orders come from today" },
-];
 
 const MENU = [
   { name: "Arepa Pabellón", price: "£11" },
@@ -19,6 +12,8 @@ const MENU = [
   { name: "Empanadas (cheese)", price: "£4" },
   { name: "Cachapas", price: "Fresh corn pancakes" },
 ];
+
+const TAGS = ["Gluten-free options across most of the menu", "~£6 average per dish", "Ordered via Deliveroo & social media"];
 
 const CHIPS = [
   { stat: "0", label: "their own website domain doesn't resolve at all" },
@@ -283,33 +278,21 @@ export default function OrinocoLatinFoodConcept() {
         </div>
       </section>
 
-      {/* Highlights */}
-      <section id="services" className="mx-auto max-w-5xl px-6 py-24">
+      {/* On the menu */}
+      <section id="services" className="mx-auto max-w-3xl px-6 py-24">
         <Reveal>
           <p className="font-mono text-xs tracking-[0.2em] text-[#e8703f] uppercase">On the menu</p>
+          <h2 className="mt-3 text-2xl font-semibold md:text-3xl" style={{ fontFamily: "var(--font-fraunces)" }}>
+            The dishes reviewers rave about.
+          </h2>
         </Reveal>
-        <div className="mt-8 grid gap-4 sm:grid-cols-2">
-          {HIGHLIGHTS.map((h, i) => (
-            <Reveal key={h.title} delay={i * 80}>
-              <div className="group h-full rounded-xl border border-[#ecdcc4] bg-white p-7 transition-all duration-300 hover:-translate-y-1 hover:border-[#e8703f] hover:shadow-xl">
-                <h.icon className="size-6 text-[#e8703f] transition-transform duration-300 group-hover:scale-110" />
-                <p className="mt-4 text-lg font-semibold" style={{ fontFamily: "var(--font-fraunces)" }}>
-                  {h.title}
-                </p>
-                <p className="mt-1.5 text-sm text-[#6b4c3a]">{h.body}</p>
-              </div>
-            </Reveal>
-          ))}
-        </div>
-      </section>
-
-      {/* Real menu, real prices */}
-      <section className="mx-auto max-w-3xl px-6 pb-24">
-        <Reveal>
-          <p className="font-mono text-xs tracking-[0.2em] text-[#e8703f] uppercase">A few dishes</p>
-          <div className="mt-6 divide-y divide-[#ecdcc4] overflow-hidden rounded-xl border border-[#ecdcc4] bg-white">
-            {MENU.map((m) => (
-              <div key={m.name} className="flex items-center justify-between gap-4 px-6 py-4">
+        <Reveal delay={80}>
+          <div className="mt-8 overflow-hidden rounded-xl border border-[#ecdcc4] bg-white">
+            {MENU.map((m, i) => (
+              <div
+                key={m.name}
+                className={`flex items-center justify-between gap-4 px-6 py-4 ${i > 0 ? "border-t border-[#ecdcc4]" : ""}`}
+              >
                 <span className="font-medium">{m.name}</span>
                 <span className="tabular-nums text-[#8a6f5c]">{m.price}</span>
               </div>
@@ -318,6 +301,18 @@ export default function OrinocoLatinFoodConcept() {
           <p className="mt-3 text-xs text-[#8a6f5c]">
             Sample dishes and prices as listed on delivery platforms — the full menu changes regularly.
           </p>
+        </Reveal>
+        <Reveal delay={160}>
+          <div className="mt-6 flex flex-wrap gap-2">
+            {TAGS.map((t) => (
+              <span
+                key={t}
+                className="rounded-full border border-[#ecdcc4] bg-white px-3 py-1.5 text-xs text-[#6b4c3a]"
+              >
+                {t}
+              </span>
+            ))}
+          </div>
         </Reveal>
       </section>
 

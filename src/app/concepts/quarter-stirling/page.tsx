@@ -3,15 +3,10 @@
 import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { Send, Landmark, Trees, Flame, Dog, ArrowDown, ShieldCheck } from "lucide-react";
+import { Send, ArrowDown, ShieldCheck } from "lucide-react";
 import { Reveal } from "@/components/reveal";
 
-const HIGHLIGHTS = [
-  { icon: Landmark, title: "Georgian country house", body: "Built in 1753, still standing proud" },
-  { icon: Trees, title: "60 acres of grounds", body: "Gardens, parkland, generations of planting" },
-  { icon: Flame, title: "Whisky by the fire", body: "Gently offered, most evenings" },
-  { icon: Dog, title: "Dog-friendly", body: "Warm hospitality, Robin & Pippa" },
-];
+const TAGS = ["Georgian country house, built 1753", "60 acres of gardens & parkland", "Whisky by the fire, most evenings", "Dog-friendly"];
 
 const ROOMS = [
   { name: "Two double rooms", body: "En-suite with a bath, fresh flowers and fruit on arrival" },
@@ -272,41 +267,38 @@ export default function QuarterStirlingConcept() {
         </div>
       </section>
 
-      {/* Highlights */}
-      <section id="services" className="mx-auto max-w-5xl px-6 py-24">
-        <Reveal>
-          <p className="font-mono text-xs tracking-[0.2em] text-[#8a2f3f] uppercase">A stay here</p>
-        </Reveal>
-        <div className="mt-8 grid gap-4 sm:grid-cols-2">
-          {HIGHLIGHTS.map((h, i) => (
-            <Reveal key={h.title} delay={i * 80}>
-              <div className="group h-full rounded-xl border border-[#e6d9c2] bg-white p-7 transition-all duration-300 hover:-translate-y-1 hover:border-[#8a2f3f] hover:shadow-xl">
-                <h.icon className="size-6 text-[#8a2f3f] transition-transform duration-300 group-hover:scale-110" />
-                <p className="mt-4 text-lg font-semibold" style={{ fontFamily: "var(--font-fraunces)" }}>
-                  {h.title}
-                </p>
-                <p className="mt-1.5 text-sm text-[#5c4a51]">{h.body}</p>
-              </div>
-            </Reveal>
-          ))}
-        </div>
-      </section>
-
-      {/* Real rooms */}
-      <section className="mx-auto max-w-3xl px-6 pb-24">
+      {/* Where to stay */}
+      <section id="services" className="mx-auto max-w-3xl px-6 py-24">
         <Reveal>
           <p className="font-mono text-xs tracking-[0.2em] text-[#8a2f3f] uppercase">Where to stay</p>
-          <div className="mt-6 divide-y divide-[#e6d9c2] overflow-hidden rounded-xl border border-[#e6d9c2] bg-white">
-            {ROOMS.map((r) => (
-              <div key={r.name} className="px-6 py-4">
+          <h2 className="mt-3 text-2xl font-semibold md:text-3xl" style={{ fontFamily: "var(--font-fraunces)" }}>
+            Three rooms, one gracious house.
+          </h2>
+        </Reveal>
+        <Reveal delay={80}>
+          <div className="mt-8 overflow-hidden rounded-xl border border-[#e6d9c2] bg-white">
+            {ROOMS.map((r, i) => (
+              <div key={r.name} className={`px-6 py-4 ${i > 0 ? "border-t border-[#e6d9c2]" : ""}`}>
                 <p className="font-medium">{r.name}</p>
                 <p className="mt-0.5 text-sm text-[#7a636a]">{r.body}</p>
               </div>
             ))}
           </div>
           <p className="mt-3 text-xs text-[#7a636a]">
-            Breakfast included, dog-friendly, minimum two-night stay — ten minutes from Stirling itself.
+            Breakfast included, minimum two-night stay — ten minutes from Stirling itself.
           </p>
+        </Reveal>
+        <Reveal delay={160}>
+          <div className="mt-6 flex flex-wrap gap-2">
+            {TAGS.map((t) => (
+              <span
+                key={t}
+                className="rounded-full border border-[#e6d9c2] bg-white px-3 py-1.5 text-xs text-[#5c4a51]"
+              >
+                {t}
+              </span>
+            ))}
+          </div>
         </Reveal>
       </section>
 

@@ -3,15 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { Send, Sandwich, Flame, Beef, Salad, ArrowDown, ShieldCheck } from "lucide-react";
+import { Send, ArrowDown, ShieldCheck } from "lucide-react";
 import { Reveal } from "@/components/reveal";
-
-const HIGHLIGHTS = [
-  { icon: Sandwich, title: "Breakfast rolls", body: "The regulars' order" },
-  { icon: Flame, title: "Cajun chips", body: "\"Best I've ever had\" — reviewer" },
-  { icon: Beef, title: "Chicken burgers", body: "Crispy bacon, fresh salad" },
-  { icon: Salad, title: "Fresh, healthy ingredients", body: "Generous portions, every time" },
-];
 
 const MENU = [
   { name: "Breakfast roll", body: "The regulars' go-to order" },
@@ -19,6 +12,8 @@ const MENU = [
   { name: "Build-your-own salad box", body: "Fill it up, choose two toppings, yogurt-mint dressing" },
   { name: "Club sandwich", body: "A reviewer favourite" },
 ];
+
+const TAGS = ["Fresh, healthy ingredients", "Generous portions", "\"Best Cajun chips I've ever had\" — reviewer"];
 
 const CHIPS = [
   { stat: "→", label: "their own domain now redirects to an unrelated car garage" },
@@ -272,33 +267,18 @@ export default function DeliExpressConcept() {
         </div>
       </section>
 
-      {/* Highlights */}
-      <section id="services" className="mx-auto max-w-5xl px-6 py-24">
+      {/* On the menu */}
+      <section id="services" className="mx-auto max-w-3xl px-6 py-24">
         <Reveal>
           <p className="font-mono text-xs tracking-[0.2em] text-[#c23b2e] uppercase">On the menu</p>
+          <h2 className="mt-3 text-2xl font-semibold md:text-3xl" style={{ fontFamily: "var(--font-fraunces)" }}>
+            What people order, again and again.
+          </h2>
         </Reveal>
-        <div className="mt-8 grid gap-4 sm:grid-cols-2">
-          {HIGHLIGHTS.map((h, i) => (
-            <Reveal key={h.title} delay={i * 80}>
-              <div className="group h-full rounded-xl border border-[#ecdfd4] bg-white p-7 transition-all duration-300 hover:-translate-y-1 hover:border-[#c23b2e] hover:shadow-xl">
-                <h.icon className="size-6 text-[#c23b2e] transition-transform duration-300 group-hover:scale-110" />
-                <p className="mt-4 text-lg font-semibold" style={{ fontFamily: "var(--font-fraunces)" }}>
-                  {h.title}
-                </p>
-                <p className="mt-1.5 text-sm text-[#6b5348]">{h.body}</p>
-              </div>
-            </Reveal>
-          ))}
-        </div>
-      </section>
-
-      {/* Real menu */}
-      <section className="mx-auto max-w-3xl px-6 pb-24">
-        <Reveal>
-          <p className="font-mono text-xs tracking-[0.2em] text-[#c23b2e] uppercase">A few dishes</p>
-          <div className="mt-6 divide-y divide-[#ecdfd4] overflow-hidden rounded-xl border border-[#ecdfd4] bg-white">
-            {MENU.map((m) => (
-              <div key={m.name} className="px-6 py-4">
+        <Reveal delay={80}>
+          <div className="mt-8 overflow-hidden rounded-xl border border-[#ecdfd4] bg-white">
+            {MENU.map((m, i) => (
+              <div key={m.name} className={`px-6 py-4 ${i > 0 ? "border-t border-[#ecdfd4]" : ""}`}>
                 <p className="font-medium">{m.name}</p>
                 <p className="mt-0.5 text-sm text-[#8a7469]">{m.body}</p>
               </div>
@@ -308,6 +288,18 @@ export default function DeliExpressConcept() {
             No published price list found — the menu itself isn&apos;t online anywhere either, just like the
             website.
           </p>
+        </Reveal>
+        <Reveal delay={160}>
+          <div className="mt-6 flex flex-wrap gap-2">
+            {TAGS.map((t) => (
+              <span
+                key={t}
+                className="rounded-full border border-[#ecdfd4] bg-white px-3 py-1.5 text-xs text-[#6b5348]"
+              >
+                {t}
+              </span>
+            ))}
+          </div>
         </Reveal>
       </section>
 
