@@ -15,10 +15,10 @@ import {
 import { Reveal } from "@/components/reveal";
 
 const SERVICES = [
-  { icon: Calculator, title: "Accountancy", body: "Annual accounts, bookkeeping, statutory filing" },
-  { icon: Receipt, title: "Taxation", body: "Personal and corporate tax, HMRC compliance" },
+  { icon: Calculator, title: "Accountancy", body: "Annual accounts, statutory filing, bookkeeping" },
+  { icon: Receipt, title: "Taxation", body: "Self-assessment, corporation tax, VAT returns" },
   { icon: Users, title: "Payroll", body: "PAYE, pensions auto-enrolment, payslips" },
-  { icon: TrendingUp, title: "Business advisory", body: "Planning, forecasting, growth support" },
+  { icon: TrendingUp, title: "Business advisory", body: "Planning, forecasting, start-up advice" },
 ];
 
 const CHIPS = [

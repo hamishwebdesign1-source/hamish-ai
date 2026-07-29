@@ -13,6 +13,17 @@ const HIGHLIGHTS = [
   { icon: Mountain, title: "Stirling Castle views", body: "And the Wallace Monument beyond" },
 ];
 
+const ROOMS = [
+  {
+    name: "Rooms in the main house",
+    body: "En-suite, impeccably clean, warm and homely — Fiona's own hospitality, not a chain standard.",
+  },
+  {
+    name: "The Garden Studio",
+    body: "A self-catering one-bedroom studio in the orchard, past the tennis court — open-plan living space, full kitchen, separate shower room, and French doors onto a balcony facing the Gargunnock Hills.",
+  },
+];
+
 const CHIPS = [
   { stat: "0", label: "pages of their own — the domain redirects straight to Tripadvisor" },
   { stat: "34", label: "Tripadvisor reviews, 4 of 5 — #5 of 6 B&Bs in Doune" },
@@ -284,6 +295,23 @@ export default function MackeanstonHouseConcept() {
             </Reveal>
           ))}
         </div>
+      </section>
+
+      {/* Real rooms */}
+      <section className="mx-auto max-w-3xl px-6 pb-24">
+        <Reveal>
+          <p className="font-mono text-xs tracking-[0.2em] text-[#a67a94] uppercase">Where to stay</p>
+          <div className="mt-6 space-y-4">
+            {ROOMS.map((r) => (
+              <div key={r.name} className="rounded-xl border border-[#e2dcc8] bg-white p-6">
+                <p className="text-lg font-semibold" style={{ fontFamily: "var(--font-fraunces)" }}>
+                  {r.name}
+                </p>
+                <p className="mt-1.5 text-sm text-[#556155]">{r.body}</p>
+              </div>
+            ))}
+          </div>
+        </Reveal>
       </section>
 
       {/* Testimonial moment */}

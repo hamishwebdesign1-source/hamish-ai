@@ -13,6 +13,13 @@ const HIGHLIGHTS = [
   { icon: Salad, title: "Fresh, healthy ingredients", body: "Generous portions, every time" },
 ];
 
+const MENU = [
+  { name: "Breakfast roll", body: "The regulars' go-to order" },
+  { name: "Chicken burger", body: "Southwest sauce, crispy bacon, side of Cajun chips" },
+  { name: "Build-your-own salad box", body: "Fill it up, choose two toppings, yogurt-mint dressing" },
+  { name: "Club sandwich", body: "A reviewer favourite" },
+];
+
 const CHIPS = [
   { stat: "→", label: "their own domain now redirects to an unrelated car garage" },
   { stat: "4.8★", label: "Tripadvisor rating, #31 of 72 restaurants in Motherwell" },
@@ -283,6 +290,25 @@ export default function DeliExpressConcept() {
             </Reveal>
           ))}
         </div>
+      </section>
+
+      {/* Real menu */}
+      <section className="mx-auto max-w-3xl px-6 pb-24">
+        <Reveal>
+          <p className="font-mono text-xs tracking-[0.2em] text-[#c23b2e] uppercase">A few dishes</p>
+          <div className="mt-6 divide-y divide-[#ecdfd4] overflow-hidden rounded-xl border border-[#ecdfd4] bg-white">
+            {MENU.map((m) => (
+              <div key={m.name} className="px-6 py-4">
+                <p className="font-medium">{m.name}</p>
+                <p className="mt-0.5 text-sm text-[#8a7469]">{m.body}</p>
+              </div>
+            ))}
+          </div>
+          <p className="mt-3 text-xs text-[#8a7469]">
+            No published price list found — the menu itself isn&apos;t online anywhere either, just like the
+            website.
+          </p>
+        </Reveal>
       </section>
 
       {/* AI assistant */}

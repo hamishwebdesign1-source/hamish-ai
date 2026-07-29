@@ -13,6 +13,13 @@ const HIGHLIGHTS = [
   { icon: Bike, title: "Deliveroo & social", body: "Where most orders come from today" },
 ];
 
+const MENU = [
+  { name: "Arepa Pabellón", price: "£11" },
+  { name: "Arepa Catira", price: "£10" },
+  { name: "Empanadas (cheese)", price: "£4" },
+  { name: "Cachapas", price: "Fresh corn pancakes" },
+];
+
 const CHIPS = [
   { stat: "0", label: "their own website domain doesn't resolve at all" },
   { stat: "509", label: "reviews averaging 4.9 out of 5" },
@@ -294,6 +301,24 @@ export default function OrinocoLatinFoodConcept() {
             </Reveal>
           ))}
         </div>
+      </section>
+
+      {/* Real menu, real prices */}
+      <section className="mx-auto max-w-3xl px-6 pb-24">
+        <Reveal>
+          <p className="font-mono text-xs tracking-[0.2em] text-[#e8703f] uppercase">A few dishes</p>
+          <div className="mt-6 divide-y divide-[#ecdcc4] overflow-hidden rounded-xl border border-[#ecdcc4] bg-white">
+            {MENU.map((m) => (
+              <div key={m.name} className="flex items-center justify-between gap-4 px-6 py-4">
+                <span className="font-medium">{m.name}</span>
+                <span className="tabular-nums text-[#8a6f5c]">{m.price}</span>
+              </div>
+            ))}
+          </div>
+          <p className="mt-3 text-xs text-[#8a6f5c]">
+            Sample dishes and prices as listed on delivery platforms — the full menu changes regularly.
+          </p>
+        </Reveal>
       </section>
 
       {/* Testimonial moment */}

@@ -13,6 +13,13 @@ const HIGHLIGHTS = [
   { icon: Footprints, title: "Walk-ins only", body: "No booking needed" },
 ];
 
+const MENU = [
+  { name: "Huevos rancheros", price: "Brunch" },
+  { name: "Sourdough toast, poached egg or avocado", price: "Brunch" },
+  { name: "Waffles with bacon", price: "Brunch" },
+  { name: "Reuben sandwich", price: "Lunch" },
+];
+
 const CHIPS = [
   { stat: "0", label: "pages of their own website — only Facebook and directory listings" },
   { stat: "#11", label: "of 190 restaurants in Dunfermline, per Tripadvisor" },
@@ -282,6 +289,24 @@ export default function CafeWyndConcept() {
             </Reveal>
           ))}
         </div>
+      </section>
+
+      {/* Real menu */}
+      <section className="mx-auto max-w-3xl px-6 pb-24">
+        <Reveal>
+          <p className="font-mono text-xs tracking-[0.2em] text-[#c1613f] uppercase">A few dishes</p>
+          <div className="mt-6 divide-y divide-[#e9dfd0] overflow-hidden rounded-xl border border-[#e9dfd0] bg-white">
+            {MENU.map((m) => (
+              <div key={m.name} className="flex items-center justify-between gap-4 px-6 py-4">
+                <span className="font-medium">{m.name}</span>
+                <span className="tabular-nums text-[#8a7663]">{m.price}</span>
+              </div>
+            ))}
+          </div>
+          <p className="mt-3 text-xs text-[#8a7663]">
+            Brunch and lunch typically run £10–£20 per person — the full menu changes seasonally.
+          </p>
+        </Reveal>
       </section>
 
       {/* Testimonial moment */}

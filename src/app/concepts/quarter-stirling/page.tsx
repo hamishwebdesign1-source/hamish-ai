@@ -13,6 +13,11 @@ const HIGHLIGHTS = [
   { icon: Dog, title: "Dog-friendly", body: "Warm hospitality, Robin & Pippa" },
 ];
 
+const ROOMS = [
+  { name: "Two double rooms", body: "En-suite with a bath, fresh flowers and fruit on arrival" },
+  { name: "One twin room", body: "En-suite with a shower, ideal for friends travelling together" },
+];
+
 const CHIPS = [
   { stat: "0", label: "their domain doesn't resolve at all — a DNS failure, confirmed on retry" },
   { stat: "1753", label: "the year this house was built" },
@@ -285,6 +290,24 @@ export default function QuarterStirlingConcept() {
             </Reveal>
           ))}
         </div>
+      </section>
+
+      {/* Real rooms */}
+      <section className="mx-auto max-w-3xl px-6 pb-24">
+        <Reveal>
+          <p className="font-mono text-xs tracking-[0.2em] text-[#8a2f3f] uppercase">Where to stay</p>
+          <div className="mt-6 divide-y divide-[#e6d9c2] overflow-hidden rounded-xl border border-[#e6d9c2] bg-white">
+            {ROOMS.map((r) => (
+              <div key={r.name} className="px-6 py-4">
+                <p className="font-medium">{r.name}</p>
+                <p className="mt-0.5 text-sm text-[#7a636a]">{r.body}</p>
+              </div>
+            ))}
+          </div>
+          <p className="mt-3 text-xs text-[#7a636a]">
+            Breakfast included, dog-friendly, minimum two-night stay — ten minutes from Stirling itself.
+          </p>
+        </Reveal>
       </section>
 
       {/* Testimonial moment */}
