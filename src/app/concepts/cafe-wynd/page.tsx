@@ -218,15 +218,15 @@ export default function CafeWyndConcept() {
               className="mt-6 max-w-2xl text-4xl leading-[1.08] font-semibold text-balance md:text-6xl"
               style={{ fontFamily: "var(--font-fraunces)" }}
             >
-              The 11th best restaurant in Dunfermline
+              Dunfermline&apos;s favourite
               <br />
-              <span className="text-[#e0a685]">has no website at all.</span>
+              <span className="text-[#e0a685]">independent cafe.</span>
             </h1>
           </Reveal>
           <Reveal delay={160}>
             <p className="mt-7 max-w-md text-lg text-[#c9b8a8]">
-              Locally roasted coffee, homemade bakes, and a treat for every dog that walks in — reviewed everywhere
-              except their own front door.
+              Locally roasted coffee, homemade bakes, and a treat for every dog that walks in — ranked #11 of 190
+              restaurants in town.
             </p>
           </Reveal>
           <Reveal delay={240}>

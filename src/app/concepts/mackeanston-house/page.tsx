@@ -222,13 +222,13 @@ export default function MackeanstonHouseConcept() {
             >
               Four centuries of hospitality.
               <br />
-              <span className="text-[#c9a8ba]">Zero pages that are actually theirs.</span>
+              <span className="text-[#c9a8ba]">One Highland welcome.</span>
             </h1>
           </Reveal>
           <Reveal delay={160}>
             <p className="mt-7 max-w-md text-lg text-[#9aa89f]">
               A 17th-century country home with views of Stirling Castle, home-cooked dinners, and a Garden Studio in
-              the orchard — currently just a redirect to somebody else&apos;s listing.
+              the orchard.
             </p>
           </Reveal>
           <Reveal delay={240}>

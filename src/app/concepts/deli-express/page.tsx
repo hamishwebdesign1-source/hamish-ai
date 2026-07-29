@@ -220,15 +220,14 @@ export default function DeliExpressConcept() {
               className="mt-6 max-w-2xl text-4xl leading-[1.08] font-semibold text-balance md:text-6xl"
               style={{ fontFamily: "var(--font-fraunces)" }}
             >
-              Type in their web address.
+              The breakfast roll
               <br />
-              <span className="text-[#e8836f]">You&apos;ll land in a car garage.</span>
+              <span className="text-[#e8836f]">Motherwell can&apos;t stop talking about.</span>
             </h1>
           </Reveal>
           <Reveal delay={160}>
             <p className="mt-7 max-w-md text-lg text-[#b89a90]">
-              4.8★ on Tripadvisor for breakfast rolls and Cajun chips — but their own domain now points somewhere
-              else entirely.
+              Cajun chips, chicken burgers, and fresh, honest ingredients — rated 4.8 on Tripadvisor.
             </p>
           </Reveal>
           <Reveal delay={240}>

@@ -232,15 +232,14 @@ export default function McDowallAccountancyConcept() {
               className="mt-6 max-w-2xl text-4xl leading-[1.08] font-semibold text-balance md:text-6xl"
               style={{ fontFamily: "var(--font-fraunces)" }}
             >
-              Sixteen years of trusted advice.
+              Straightforward advice,
               <br />
-              <span className="text-[#7ba98e]">Zero pages of a real website.</span>
+              <span className="text-[#7ba98e]">sixteen years running.</span>
             </h1>
           </Reveal>
           <Reveal delay={160}>
             <p className="mt-7 max-w-md text-lg text-[#a7afc0]">
-              Chartered, ICAS-regulated, trading in Hamilton since 2010 — currently represented online by a
-              WordPress placeholder.
+              Chartered, ICAS-regulated, and trusted in Hamilton since 2010.
             </p>
           </Reveal>
           <Reveal delay={240}>

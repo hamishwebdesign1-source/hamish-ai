@@ -223,15 +223,14 @@ export default function PasseysConcept() {
               className="mt-6 max-w-2xl text-4xl leading-[1.08] font-semibold text-balance md:text-6xl"
               style={{ fontFamily: "var(--font-fraunces)" }}
             >
-              Award-winning.
+              Portobello&apos;s
               <br />
-              <span className="text-[#7bc5d3]">Currently offline.</span>
+              <span className="text-[#7bc5d3]">award-winning corner cafe.</span>
             </h1>
           </Reveal>
           <Reveal delay={160}>
             <p className="mt-7 max-w-md text-lg text-[#9db9bd]">
-              A Good Food Awards Blue Ribbon winner, made on site with locally sourced ingredients — whose own
-              website simply doesn&apos;t load right now.
+              A Good Food Awards Blue Ribbon winner, made on site with locally sourced ingredients.
             </p>
           </Reveal>
           <Reveal delay={240}>

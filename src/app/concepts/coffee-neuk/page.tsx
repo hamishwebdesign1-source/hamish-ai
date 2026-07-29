@@ -224,15 +224,14 @@ export default function CoffeeNeukConcept() {
               className="mt-6 max-w-2xl text-4xl leading-[1.08] font-semibold text-balance md:text-6xl"
               style={{ fontFamily: "var(--font-fraunces)" }}
             >
-              Family-run since 1972.
+              Fifty years of home-baking,
               <br />
-              <span className="text-[#e8c268]">Findable only on Facebook.</span>
+              <span className="text-[#e8c268]">in the heart of Linlithgow.</span>
             </h1>
           </Reveal>
           <Reveal delay={160}>
             <p className="mt-7 max-w-md text-lg text-[#c4b394]">
-              Home-baking, warm hospitality, and over fifty years in the heart of Linlithgow — with no website of
-              their own to show for it.
+              Family-run since 1972 — cosy, welcoming, and loved by generations of regulars.
             </p>
           </Reveal>
           <Reveal delay={240}>

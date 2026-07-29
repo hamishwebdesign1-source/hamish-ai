@@ -222,15 +222,14 @@ export default function QuarterStirlingConcept() {
               className="mt-6 max-w-2xl text-4xl leading-[1.08] font-semibold text-balance md:text-6xl"
               style={{ fontFamily: "var(--font-fraunces)" }}
             >
-              Built in 1753.
+              Georgian hospitality,
               <br />
-              <span className="text-[#cf98a6]">Can&apos;t be found online in 2026.</span>
+              <span className="text-[#cf98a6]">welcoming guests since 1753.</span>
             </h1>
           </Reveal>
           <Reveal delay={160}>
             <p className="mt-7 max-w-md text-lg text-[#b89aa3]">
-              Sixty acres of gardens, whisky by the fire, and hosts who make you feel completely at home — their own
-              domain simply doesn&apos;t resolve.
+              Sixty acres of gardens, whisky by the fire, and hosts who make you feel completely at home.
             </p>
           </Reveal>
           <Reveal delay={240}>

@@ -231,14 +231,14 @@ export default function OrinocoLatinFoodConcept() {
               className="mt-6 max-w-2xl text-4xl leading-[1.08] font-semibold text-balance md:text-6xl"
               style={{ fontFamily: "var(--font-fraunces)" }}
             >
-              509 rave reviews.
+              509 reasons to love
               <br />
-              <span className="text-[#f0a578]">Not one from their own website.</span>
+              <span className="text-[#f0a578]">Leith Walk&apos;s Venezuelan kitchen.</span>
             </h1>
           </Reveal>
           <Reveal delay={160}>
             <p className="mt-7 max-w-md text-lg text-[#c2a68f]">
-              Empanadas and arepas that earn a 4.9 average — while their own domain doesn&apos;t even resolve.
+              Empanadas and arepas that earn a 4.9 average, at around £6 a dish.
             </p>
           </Reveal>
           <Reveal delay={240}>
