@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { EmailLeadButton } from "@/components/admin/email-lead-button";
+import { CallScriptButton } from "@/components/admin/call-script-button";
 import { cn } from "@/lib/utils";
 
 const selectClasses =
@@ -255,6 +256,10 @@ export default async function LeadsPage({
                       </Button>
                     </form>
                   </div>
+                </div>
+
+                <div className="mt-2">
+                  <CallScriptButton leadId={lead.id} phone={lead.phone} />
                 </div>
 
                 <form action={updateLeadEmail.bind(null, lead.id)} className="mt-2 flex items-center gap-1.5">

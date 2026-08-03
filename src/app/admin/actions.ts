@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { sendClientEmail } from "@/lib/send-client-email";
 import { draftLeadEmail } from "@/lib/draft-lead-email";
+import { draftLeadCallScript } from "@/lib/draft-lead-call-script";
 import { sendInvoiceReminder } from "@/lib/send-invoice-reminder";
 
 export async function updateTaskStatus(taskId: string, status: string, revalidate: string) {
@@ -207,4 +208,29 @@ export async function generateLeadEmailDraft(
   const result = await draftLeadEmail(leadId, isFollowUp);
   if ("error" in result) return { error: result.error };
   return { subject: result.subject, body: result.body, email: result.email };
+}
+
+export type CallScriptState = {
+  opener?: string;
+  talkingPoints?: string[];
+  ifHesitant?: string;
+  closingAsk?: string;
+  phone?: string | null;
+  error?: string;
+};
+
+export async function generateLeadCallScript(
+  leadId: string,
+  _prevState: CallScriptState,
+  _formData: FormData
+): Promise<CallScriptState> {
+  const result = await draftLeadCallScript(leadId);
+  if ("error" in result) return { error: result.error };
+  return {
+    opener: result.opener,
+    talkingPoints: result.talkingPoints,
+    ifHesitant: result.ifHesitant,
+    closingAsk: result.closingAsk,
+    phone: result.phone,
+  };
 }
