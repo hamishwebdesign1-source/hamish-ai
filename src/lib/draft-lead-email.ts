@@ -2,6 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { stripMarkdownEmphasis } from "@/lib/strip-markdown-emphasis";
 import { caseStudies } from "@/lib/case-studies-data";
+import { siteConfig } from "@/lib/site-config";
 
 // Matches a lead's category to the closest live demo/case study, so the
 // outreach email can point to one concrete, industry-matched proof point
@@ -41,6 +42,15 @@ const DRAFT_EMAIL_TOOL: Anthropic.Tool = {
   },
 };
 
+// A real sign-off (name, phone, LinkedIn) reads as a genuine person reaching
+// out, not an anonymous mailer — the AI is told the exact lines to close
+// with so it never has to invent or omit contact details.
+const SIGN_OFF_INSTRUCTION = `End the email with a short sign-off on its own lines, exactly this shape (plain text, no markdown, no extra boilerplate like a job title or company name):
+
+Hamish
+${siteConfig.phone}
+${siteConfig.linkedin}`;
+
 function buildSystemPrompt(
   lead: {
     business_name: string;
@@ -68,7 +78,9 @@ function buildSystemPrompt(
 Business: ${lead.business_name} (${lead.category || "unknown category"}, ${lead.neighbourhood || "unknown location"})
 What the original email was about: ${lead.signal || "not recorded"}
 
-Write a very short follow-up (2-3 sentences) in Hamish's voice: plain English, warm, no pressure, no guilt-tripping about the non-reply. Briefly remind them what the original note was about (in passing, not repeating it in full) and ask if they had a chance to see it — genuinely fine either way, not pushy. Do not repeat the full pitch or re-explain everything from scratch. Sign off as "Hamish" only. Do not use markdown formatting.
+Write a very short follow-up (2-3 sentences) in Hamish's voice: plain English, warm, no pressure, no guilt-tripping about the non-reply. Briefly remind them what the original note was about (in passing, not repeating it in full) and ask if they had a chance to see it — genuinely fine either way, not pushy. Do not repeat the full pitch or re-explain everything from scratch. Do not use markdown formatting.
+
+${SIGN_OFF_INSTRUCTION}
 
 Also write a short, specific subject line that makes clear this is a follow-up (e.g. "Following up on..." style), referencing the actual topic.`;
   }
@@ -79,7 +91,9 @@ Business: ${lead.business_name} (${lead.category || "unknown category"}, ${lead.
 Specific finding from checking their site: ${lead.signal || "not recorded"}
 Suggested outreach angle: ${lead.outreach_note || "not recorded"}
 
-Write a short email (4-6 sentences) in Hamish's voice: plain English, warm, direct, zero jargon, zero hard sell. Open with the specific, concrete observation above — never generic praise or a template greeting like "I hope this finds you well". Make it obvious this isn't spam by referencing the real, specific thing found. Offer to help, invite a reply or a quick chat, no pressure. Sign off as "Hamish" only, no company boilerplate signature. Do not use markdown formatting (no asterisks, headings, or bullet syntax) — the link, if included, should just appear as a plain URL in a sentence.${proofPointInstruction}
+Write a short email (4-6 sentences) in Hamish's voice: plain English, warm, direct, zero jargon, zero hard sell. Open with the specific, concrete observation above — never generic praise or a template greeting like "I hope this finds you well". Make it obvious this isn't spam by referencing the real, specific thing found. Offer to help, invite a reply or a quick chat, no pressure. Do not use markdown formatting (no asterisks, headings, or bullet syntax) — the link, if included, should just appear as a plain URL in a sentence.${proofPointInstruction}
+
+${SIGN_OFF_INSTRUCTION}
 
 Also write a short, specific, non-clickbait subject line that references the actual finding.`;
 }

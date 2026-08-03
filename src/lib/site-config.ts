@@ -5,6 +5,8 @@ export const siteConfig = {
     "We help Edinburgh businesses automate tasks, improve customer experiences, and unlock new growth opportunities using practical AI solutions. We don't just build websites — we make businesses smarter with AI.",
   location: "Edinburgh, Scotland",
   email: "HamishWebDesign1@gmail.com",
+  phone: "07949 674994",
+  linkedin: "https://www.linkedin.com/in/hamish-mcfarlane-38a4881b2/",
   nav: [
     { label: "AI Solutions", href: "/ai-solutions" },
     { label: "Analytics", href: "/analytics" },
