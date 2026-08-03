@@ -9,7 +9,7 @@ import { stripMarkdownEmphasis } from "@/lib/strip-markdown-emphasis";
 // rather than the full always-on monitoring suite (deferred: performance,
 // SEO, accessibility, analytics anomalies, security scanning, scheduling).
 
-function getSslInfo(hostname: string): Promise<{ ok: boolean; validUntil: string | null }> {
+export function getSslInfo(hostname: string): Promise<{ ok: boolean; validUntil: string | null }> {
   return new Promise((resolve) => {
     const socket = tlsConnect({ host: hostname, port: 443, servername: hostname, timeout: 5000 }, () => {
       const cert = socket.getPeerCertificate();
