@@ -1,8 +1,8 @@
 import { revalidatePath } from "next/cache";
 import Link from "next/link";
-import { ExternalLink, Search, X, Clock } from "lucide-react";
+import { ExternalLink, Search, X, Clock, Phone } from "lucide-react";
 import { getSupabaseAdmin } from "@/lib/supabase";
-import { updateLeadStatus, deleteLead, updateLeadEmail, updateLeadConceptSlug } from "@/app/admin/actions";
+import { updateLeadStatus, deleteLead, updateLeadEmail, updateLeadPhone, updateLeadConceptSlug } from "@/app/admin/actions";
 import { leadNeedsFollowUp as needsFollowUp } from "@/lib/lead-status";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -36,6 +36,7 @@ async function addLead(formData: FormData) {
     neighbourhood: String(formData.get("neighbourhood") || "") || null,
     website: String(formData.get("website") || "") || null,
     email: String(formData.get("email") || "") || null,
+    phone: String(formData.get("phone") || "") || null,
     score: formData.get("score") ? Number(formData.get("score")) : null,
     signal: String(formData.get("signal") || "") || null,
     outreach_note: String(formData.get("outreach_note") || "") || null,
@@ -146,6 +147,10 @@ export default async function LeadsPage({
                 <Input id="email" name="email" type="email" placeholder="hello@example.co.uk" />
               </div>
               <div className="space-y-1.5">
+                <Label htmlFor="phone">Contact number</Label>
+                <Input id="phone" name="phone" type="tel" placeholder="0131 123 4567" />
+              </div>
+              <div className="space-y-1.5">
                 <Label htmlFor="score">Score (0–5)</Label>
                 <select id="score" name="score" defaultValue="" className={selectClasses}>
                   <option value="">Not scored</option>
@@ -212,6 +217,15 @@ export default async function LeadsPage({
                           </a>
                         </>
                       )}
+                      {lead.phone && (
+                        <>
+                          {" · "}
+                          <a href={`tel:${lead.phone.replace(/\s+/g, "")}`} className="inline-flex items-center gap-0.5 hover:underline">
+                            <Phone className="size-3" />
+                            {lead.phone}
+                          </a>
+                        </>
+                      )}
                     </p>
                   </div>
                   <div className="flex shrink-0 items-center gap-2">
@@ -249,6 +263,19 @@ export default async function LeadsPage({
                     type="email"
                     defaultValue={lead.email ?? ""}
                     placeholder="Add contact email…"
+                    className="h-7 max-w-64 text-xs"
+                  />
+                  <Button type="submit" variant="ghost" size="xs">
+                    Save
+                  </Button>
+                </form>
+
+                <form action={updateLeadPhone.bind(null, lead.id)} className="mt-1.5 flex items-center gap-1.5">
+                  <Input
+                    name="phone"
+                    type="tel"
+                    defaultValue={lead.phone ?? ""}
+                    placeholder="Add contact number…"
                     className="h-7 max-w-64 text-xs"
                   />
                   <Button type="submit" variant="ghost" size="xs">

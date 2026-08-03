@@ -114,6 +114,20 @@ export async function updateLeadEmail(leadId: string, formData: FormData) {
   revalidatePath("/admin/leads");
 }
 
+export async function updateLeadPhone(leadId: string, formData: FormData) {
+  const supabase = getSupabaseAdmin();
+  if (!supabase) return;
+
+  const phone = String(formData.get("phone") || "").trim();
+  const { error } = await supabase
+    .from("prospects")
+    .update({ phone: phone || null })
+    .eq("id", leadId);
+  if (error) console.error("Failed to update lead phone:", error);
+
+  revalidatePath("/admin/leads");
+}
+
 export async function updateLeadConceptSlug(leadId: string, formData: FormData) {
   const supabase = getSupabaseAdmin();
   if (!supabase) return;

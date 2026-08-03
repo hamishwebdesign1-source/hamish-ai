@@ -39,3 +39,8 @@ alter table prospects add column if not exists contacted_at timestamptz;
 -- point to that instead of a generic same-industry case study — a much
 -- stronger proof point once one exists.
 alter table prospects add column if not exists concept_slug text;
+
+-- Added later: a real contact phone number, sourced the same honest way
+-- as everything else (public listings, Companies House, the business's
+-- own site) — never fabricated, left blank if not confirmed.
+alter table prospects add column if not exists phone text;
