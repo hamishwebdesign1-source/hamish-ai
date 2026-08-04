@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { Big_Shoulders, Work_Sans } from "next/font/google";
 import {
   Star,
   Send,
@@ -14,6 +15,22 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { Reveal } from "@/components/reveal";
+
+// A distinct pairing for this business only — not the site's shared
+// Fraunces/DM Sans, and not reused on any other concept page. Big
+// Shoulders reads like stamped crate lettering / van signage; Work Sans
+// carries the body copy plainly so the display face stays the one loud
+// voice on the page.
+const display = Big_Shoulders({
+  subsets: ["latin"],
+  weight: ["700", "900"],
+  variable: "--font-c4-display",
+});
+const body = Work_Sans({
+  subsets: ["latin"],
+  weight: ["400", "500", "600"],
+  variable: "--font-c4-body",
+});
 
 const CRAFT = [
   {
@@ -81,22 +98,26 @@ function AnimatedNumber({ value, decimals = 0, suffix = "" }: { value: number; d
   );
 }
 
-function GrainMotif({ className }: { className?: string }) {
+// A technical joinery mark — interlocking dovetail pins plus a dimension
+// line with tick marks, like a page torn from a shop drawing — standing
+// in for the generic concentric "wood grain rings" motif every other
+// warm-cream AI site reaches for.
+function DovetailMotif({ className }: { className?: string }) {
   return (
-    <svg viewBox="0 0 600 600" className={className} aria-hidden>
-      {[80, 140, 200, 260, 320, 380].map((r, i) => (
-        <ellipse
-          key={r}
-          cx="300"
-          cy="300"
-          rx={r}
-          ry={r * 0.92}
-          fill="none"
-          stroke="#c08a4e"
-          strokeWidth="1"
-          opacity={0.14 - i * 0.014}
-        />
-      ))}
+    <svg viewBox="0 0 400 420" className={className} aria-hidden fill="none">
+      <g stroke="#d8501f" strokeWidth="1.4" opacity="0.55">
+        <path d="M30 40 L95 40 L118 100 L95 160 L30 160 Z" />
+        <path d="M118 40 L183 40 L160 100 L183 160 L118 160 Z" opacity="0.6" />
+        <path d="M30 210 L95 210 L118 270 L95 330 L30 330 Z" />
+        <path d="M118 210 L183 210 L160 270 L183 330 L118 330 Z" opacity="0.6" />
+      </g>
+      <g stroke="#8a7f70" strokeWidth="1" opacity="0.5">
+        <line x1="230" y1="20" x2="230" y2="400" strokeDasharray="2 7" />
+        <line x1="220" y1="30" x2="240" y2="30" />
+        <line x1="220" y1="390" x2="240" y2="390" />
+        <line x1="250" y1="30" x2="290" y2="30" strokeDasharray="2 7" />
+        <line x1="250" y1="390" x2="290" y2="390" strokeDasharray="2 7" />
+      </g>
     </svg>
   );
 }
@@ -146,32 +167,32 @@ function ConceptChat() {
   }
 
   return (
-    <div className="overflow-hidden rounded-xl border border-[#3a332c] shadow-2xl">
-      <div className="flex items-center gap-1.5 border-b border-[#3a332c] bg-[#1f1b19] px-3 py-2">
+    <div className="overflow-hidden rounded-xl border border-[#362c22] shadow-2xl">
+      <div className="flex items-center gap-1.5 border-b border-[#362c22] bg-[#1a1510] px-3 py-2">
         <span className="size-2.5 rounded-full bg-red-500/40" />
-        <span className="size-2.5 rounded-full bg-[#c08a4e]/50" />
+        <span className="size-2.5 rounded-full bg-[#d8501f]/50" />
         <span className="size-2.5 rounded-full bg-emerald-500/40" />
-        <span className="ml-2 font-mono text-[10px] tracking-wide text-[#a89e94] uppercase">C4 Joinery — live</span>
+        <span className="ml-2 text-[10px] font-medium tracking-wide text-[#9c9184] uppercase">C4 Joinery — live</span>
       </div>
-      <div ref={scrollRef} className="flex h-[360px] flex-col gap-3 overflow-y-auto bg-[#141110] p-4">
+      <div ref={scrollRef} className="flex h-[360px] flex-col gap-3 overflow-y-auto bg-[#120e0b] p-4">
         {messages.map((m, i) => (
           <div
             key={i}
             className={
               m.role === "user"
-                ? "ml-auto max-w-[85%] rounded-2xl rounded-br-sm bg-[#c08a4e] px-3 py-2 text-sm text-[#141110]"
-                : "mr-auto max-w-[85%] rounded-2xl rounded-bl-sm bg-[#28221e] px-3 py-2 text-sm whitespace-pre-line text-[#f5f1ea]"
+                ? "ml-auto max-w-[85%] rounded-2xl rounded-br-sm bg-[#d8501f] px-3 py-2 text-sm text-[#120e0b]"
+                : "mr-auto max-w-[85%] rounded-2xl rounded-bl-sm bg-[#231c15] px-3 py-2 text-sm whitespace-pre-line text-[#f1ece2]"
             }
           >
             {m.content}
           </div>
         ))}
         {loading && (
-          <div className="mr-auto flex max-w-[85%] items-center gap-2 rounded-2xl rounded-bl-sm bg-[#28221e] px-3 py-2.5">
+          <div className="mr-auto flex max-w-[85%] items-center gap-2 rounded-2xl rounded-bl-sm bg-[#231c15] px-3 py-2.5">
             <span className="flex gap-1">
-              <span className="size-1.5 animate-bounce rounded-full bg-[#a89e94] [animation-delay:-0.3s]" />
-              <span className="size-1.5 animate-bounce rounded-full bg-[#a89e94] [animation-delay:-0.15s]" />
-              <span className="size-1.5 animate-bounce rounded-full bg-[#a89e94]" />
+              <span className="size-1.5 animate-bounce rounded-full bg-[#9c9184] [animation-delay:-0.3s]" />
+              <span className="size-1.5 animate-bounce rounded-full bg-[#9c9184] [animation-delay:-0.15s]" />
+              <span className="size-1.5 animate-bounce rounded-full bg-[#9c9184]" />
             </span>
           </div>
         )}
@@ -187,7 +208,7 @@ function ConceptChat() {
                 key={p}
                 type="button"
                 onClick={() => sendMessage(p)}
-                className="rounded-full border border-[#3a332c] px-3 py-1.5 text-xs text-[#a89e94] transition-colors hover:border-[#c08a4e] hover:text-[#f5f1ea]"
+                className="rounded-full border border-[#362c22] px-3 py-1.5 text-xs text-[#9c9184] transition-colors hover:border-[#d8501f] hover:text-[#f1ece2]"
               >
                 {p}
               </button>
@@ -196,7 +217,7 @@ function ConceptChat() {
         )}
       </div>
       <form
-        className="flex items-center gap-2 border-t border-[#3a332c] bg-[#1f1b19] p-3"
+        className="flex items-center gap-2 border-t border-[#362c22] bg-[#1a1510] p-3"
         onSubmit={(e) => {
           e.preventDefault();
           sendMessage();
@@ -208,13 +229,13 @@ function ConceptChat() {
           placeholder="Ask a question…"
           aria-label="Message"
           disabled={loading}
-          className="h-9 flex-1 rounded-md border border-[#3a332c] bg-[#141110] px-3 text-sm text-[#f5f1ea] outline-none placeholder:text-[#6b6259] focus-visible:border-[#c08a4e]"
+          className="h-9 flex-1 rounded-md border border-[#362c22] bg-[#120e0b] px-3 text-sm text-[#f1ece2] outline-none placeholder:text-[#6b6259] focus-visible:border-[#d8501f]"
         />
         <button
           type="submit"
           aria-label="Send"
           disabled={loading || !input.trim()}
-          className="flex size-9 shrink-0 items-center justify-center rounded-md bg-[#c08a4e] text-[#141110] transition-colors hover:bg-[#d19c5f] disabled:opacity-40"
+          className="flex size-9 shrink-0 items-center justify-center rounded-md bg-[#d8501f] text-[#120e0b] transition-colors hover:bg-[#e56534] disabled:opacity-40"
         >
           <Send className="size-4" />
         </button>
@@ -225,50 +246,53 @@ function ConceptChat() {
 
 export default function C4JoineryConcept() {
   return (
-    <div className="min-h-screen bg-[#f5f1ea] text-[#1f1b19]">
-      <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 bg-[#141110] px-4 py-1.5 text-center text-[11px] text-[#8a8177]">
+    <div
+      className={`${display.variable} ${body.variable} min-h-screen bg-[#15110d] text-[#f1ece2]`}
+      style={{ fontFamily: "var(--font-c4-body)" }}
+    >
+      <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 bg-[#0f0c09] px-4 py-1.5 text-center text-[11px] text-[#9c9184]">
         <span>
-          Concept by <span className="text-[#f5f1ea]">Hamish AI</span> for{" "}
-          <span className="text-[#f5f1ea]">C4 Joinery Ltd</span> — not their current site.
+          Concept by <span className="text-[#f1ece2]">Hamish AI</span> for{" "}
+          <span className="text-[#f1ece2]">C4 Joinery Ltd</span> — not their current site.
         </span>
-        <Link href="https://hamishai.org" className="text-[#f5f1ea] underline underline-offset-2">
+        <Link href="https://hamishai.org" className="text-[#f1ece2] underline underline-offset-2">
           hamishai.org
         </Link>
       </div>
 
       {/* Hero */}
-      <section className="relative isolate overflow-hidden bg-[#141110] text-[#f5f1ea]">
+      <section className="relative isolate overflow-hidden bg-[#15110d]">
         <Image
           src="/images/concepts/c4-joinery/hero-workshop.jpg"
           alt=""
           fill
           priority
           sizes="100vw"
-          className="absolute inset-0 object-cover opacity-40"
+          className="absolute inset-0 object-cover opacity-35"
         />
-        <div className="absolute inset-0 bg-gradient-to-t from-[#141110] via-[#141110]/90 to-[#141110]/50" />
-        <GrainMotif className="pointer-events-none absolute top-1/2 right-[-10%] size-[700px] -translate-y-1/2 opacity-70" />
+        <div className="absolute inset-0 bg-gradient-to-t from-[#15110d] via-[#15110d]/92 to-[#15110d]/55" />
+        <DovetailMotif className="pointer-events-none absolute top-1/2 right-[-6%] size-[460px] -translate-y-1/2 opacity-80" />
         <div className="relative mx-auto max-w-5xl px-6 pt-24 pb-28 md:pt-36 md:pb-40">
           <Reveal>
-            <p className="font-mono text-xs tracking-[0.25em] text-[#c08a4e] uppercase">Linwood · Renfrewshire</p>
+            <p className="text-xs font-semibold tracking-[0.25em] text-[#d8501f] uppercase">Linwood · Renfrewshire</p>
           </Reveal>
           <Reveal delay={80}>
             <h1
-              className="mt-6 max-w-3xl text-6xl leading-[0.95] font-semibold tracking-tight text-balance md:text-8xl"
-              style={{ fontFamily: "var(--font-fraunces)" }}
+              className="mt-6 max-w-3xl text-7xl leading-[0.9] font-black tracking-tight text-balance uppercase md:text-[8.5rem]"
+              style={{ fontFamily: "var(--font-c4-display)" }}
             >
-              Craft you can <span className="text-[#c08a4e] italic">trust.</span>
+              Craft you can <span className="text-[#d8501f]">trust.</span>
             </h1>
           </Reveal>
           <Reveal delay={160}>
-            <p className="mt-8 max-w-md text-lg text-[#a89e94]">
+            <p className="mt-8 max-w-md text-lg text-[#a89e8f]">
               Family joinery. Five-star work. Building in Renfrewshire since 2023.
             </p>
           </Reveal>
           <Reveal delay={240}>
             <a
               href="#assistant"
-              className="mt-12 inline-flex items-center gap-2 text-sm font-medium text-[#f5f1ea]/80 hover:text-[#f5f1ea]"
+              className="mt-12 inline-flex items-center gap-2 text-sm font-medium text-[#f1ece2]/80 hover:text-[#f1ece2]"
             >
               See it in action
               <ArrowDown className="size-4 animate-bounce" />
@@ -278,30 +302,39 @@ export default function C4JoineryConcept() {
       </section>
 
       {/* Stats */}
-      <section className="border-t border-[#28221e] bg-[#141110] text-[#f5f1ea]">
+      <section className="border-t border-[#231c15] bg-[#15110d]">
         <div className="mx-auto grid max-w-5xl grid-cols-3 gap-6 px-6 py-16 text-center">
           <Reveal>
-            <div className="flex items-center justify-center gap-1 text-[#c08a4e]">
+            <div className="flex items-center justify-center gap-1 text-[#d8501f]">
               {Array.from({ length: 5 }).map((_, i) => (
                 <Star key={i} className="size-4 fill-current" />
               ))}
             </div>
-            <p className="mt-3 text-4xl font-semibold md:text-5xl" style={{ fontFamily: "var(--font-fraunces)" }}>
+            <p
+              className="mt-3 text-4xl font-black tracking-tight md:text-5xl"
+              style={{ fontFamily: "var(--font-c4-display)" }}
+            >
               <AnimatedNumber value={5} decimals={1} />
             </p>
-            <p className="mt-1 text-xs text-[#8a8177] uppercase">Average rating</p>
+            <p className="mt-1 text-xs text-[#8a7f70] uppercase">Average rating</p>
           </Reveal>
           <Reveal delay={100}>
-            <p className="text-4xl font-semibold md:text-5xl" style={{ fontFamily: "var(--font-fraunces)" }}>
+            <p
+              className="text-4xl font-black tracking-tight md:text-5xl"
+              style={{ fontFamily: "var(--font-c4-display)" }}
+            >
               <AnimatedNumber value={32} />
             </p>
-            <p className="mt-1 text-xs text-[#8a8177] uppercase">Customer reviews</p>
+            <p className="mt-1 text-xs text-[#8a7f70] uppercase">Customer reviews</p>
           </Reveal>
           <Reveal delay={200}>
-            <p className="text-4xl font-semibold md:text-5xl" style={{ fontFamily: "var(--font-fraunces)" }}>
+            <p
+              className="text-4xl font-black tracking-tight md:text-5xl"
+              style={{ fontFamily: "var(--font-c4-display)" }}
+            >
               <AnimatedNumber value={2023} decimals={0} />
             </p>
-            <p className="mt-1 text-xs text-[#8a8177] uppercase">Trusted Trader since</p>
+            <p className="mt-1 text-xs text-[#8a7f70] uppercase">Trusted Trader since</p>
           </Reveal>
         </div>
       </section>
@@ -309,61 +342,67 @@ export default function C4JoineryConcept() {
       {/* Craft */}
       <section id="services" className="mx-auto max-w-5xl px-6 py-24">
         <Reveal>
-          <p className="font-mono text-xs tracking-[0.2em] text-[#c08a4e] uppercase">What we build</p>
+          <p className="text-xs font-semibold tracking-[0.2em] text-[#d8501f] uppercase">What we build</p>
         </Reveal>
         <div className="mt-8 grid gap-4 sm:grid-cols-2">
           {CRAFT.map((c, i) => (
             <Reveal key={c.title} delay={i * 80}>
-              <div className="group h-full overflow-hidden rounded-xl border border-[#e4dccc] bg-white transition-all duration-300 hover:-translate-y-1 hover:border-[#c08a4e] hover:shadow-xl">
-                <div className="relative h-40 w-full overflow-hidden bg-[#141110]">
+              <div className="group h-full overflow-hidden rounded-xl border border-[#362c22] bg-[#1a1510] transition-all duration-300 hover:-translate-y-1 hover:border-[#d8501f] hover:shadow-2xl">
+                <div className="relative h-40 w-full overflow-hidden bg-[#0f0c09]">
                   <Image
                     src={c.image}
                     alt=""
                     fill
                     sizes="(max-width: 640px) 100vw, 50vw"
-                    className="object-cover transition-transform duration-500 group-hover:scale-105"
+                    className="object-cover opacity-90 transition-transform duration-500 group-hover:scale-105"
                   />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
-                  <c.icon className="absolute bottom-3 left-3 size-5 text-white drop-shadow-md" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-[#0f0c09]/70 to-transparent" />
+                  <c.icon className="absolute bottom-3 left-3 size-5 text-[#f1ece2] drop-shadow-md" />
                 </div>
                 <div className="p-7">
-                  <p className="text-lg font-semibold" style={{ fontFamily: "var(--font-fraunces)" }}>
+                  <p
+                    className="text-xl font-bold tracking-tight uppercase"
+                    style={{ fontFamily: "var(--font-c4-display)" }}
+                  >
                     {c.title}
                   </p>
-                  <p className="mt-1.5 text-sm text-[#6b6259]">{c.body}</p>
+                  <p className="mt-1.5 text-sm text-[#a89e8f]">{c.body}</p>
                 </div>
               </div>
             </Reveal>
           ))}
         </div>
         <Reveal delay={CRAFT.length * 80}>
-          <p className="mt-6 text-xs text-[#8a8177]">
+          <p className="mt-6 text-xs text-[#8a7f70]">
             Styled with concept photography — your own project photos would replace these on the real build.
           </p>
         </Reveal>
       </section>
 
       {/* Testimonial moment */}
-      <section className="relative overflow-hidden bg-[#c08a4e] px-6 py-24 text-[#141110]">
+      <section className="relative overflow-hidden bg-[#2f4750] px-6 py-24 text-[#eef4f5]">
         <Reveal>
           <blockquote
-            className="mx-auto max-w-3xl text-center text-3xl leading-tight font-medium text-balance italic md:text-5xl"
-            style={{ fontFamily: "var(--font-fraunces)" }}
+            className="mx-auto max-w-3xl text-center text-3xl leading-[1.05] font-bold tracking-tight text-balance md:text-5xl"
+            style={{ fontFamily: "var(--font-c4-display)" }}
           >
             &ldquo;Nothing was ever a hassle or bother.&rdquo;
           </blockquote>
-          <p className="mt-6 text-center text-sm font-medium tracking-wide uppercase opacity-70">
+          <p className="mt-6 text-center text-sm font-medium tracking-wide text-[#c3d6da] uppercase">
             Trusted Trader review · Renfrewshire
           </p>
         </Reveal>
       </section>
 
       {/* AI assistant */}
-      <section id="assistant" className="bg-[#141110] px-6 py-24 text-[#f5f1ea]">
+      <section id="assistant" className="bg-[#15110d] px-6 py-24">
         <div className="mx-auto max-w-2xl">
           <Reveal>
-            <p className="font-mono text-xs tracking-[0.2em] text-[#c08a4e] uppercase">Live demo</p>
-            <h2 className="mt-3 text-3xl font-semibold md:text-4xl" style={{ fontFamily: "var(--font-fraunces)" }}>
+            <p className="text-xs font-semibold tracking-[0.2em] text-[#d8501f] uppercase">Live demo</p>
+            <h2
+              className="mt-3 text-3xl font-black tracking-tight uppercase md:text-4xl"
+              style={{ fontFamily: "var(--font-c4-display)" }}
+            >
               Your own AI assistant.
             </h2>
           </Reveal>
@@ -378,23 +417,23 @@ export default function C4JoineryConcept() {
       {/* Insight chips */}
       <section className="mx-auto max-w-5xl px-6 py-24">
         <Reveal>
-          <p className="font-mono text-xs tracking-[0.2em] text-[#c08a4e] uppercase">Right now</p>
+          <p className="text-xs font-semibold tracking-[0.2em] text-[#d8501f] uppercase">Right now</p>
         </Reveal>
         <div className="mt-6 grid gap-4 sm:grid-cols-3">
           {CHIPS.map((c, i) => (
             <Reveal key={c.label} delay={i * 80}>
-              <div className="h-full rounded-xl border border-[#e4dccc] bg-white p-6">
-                <p className="text-3xl font-semibold" style={{ fontFamily: "var(--font-fraunces)" }}>
+              <div className="h-full rounded-xl border border-[#362c22] bg-[#1a1510] p-6">
+                <p className="text-3xl font-black tracking-tight" style={{ fontFamily: "var(--font-c4-display)" }}>
                   {c.stat}
                 </p>
-                <p className="mt-2 text-sm text-[#6b6259]">{c.label}</p>
+                <p className="mt-2 text-sm text-[#a89e8f]">{c.label}</p>
               </div>
             </Reveal>
           ))}
         </div>
         <Reveal delay={200}>
-          <div className="mt-6 flex items-center gap-2 text-xs text-[#8a8177]">
-            <ShieldCheck className="size-3.5" />
+          <div className="mt-6 flex items-center gap-2 text-xs text-[#8a7f70]">
+            <ShieldCheck className="size-3.5 text-[#7d9aa3]" />
             AI Business Analytics teaser — quote conversion, job profitability, callout response — illustrative,
             not C4 Joinery&apos;s real figures.
           </div>
@@ -402,21 +441,24 @@ export default function C4JoineryConcept() {
       </section>
 
       {/* Closing */}
-      <section className="border-t border-[#28221e] bg-[#141110] px-6 py-24 text-center text-[#f5f1ea]">
+      <section className="border-t border-[#231c15] bg-[#15110d] px-6 py-24 text-center">
         <Reveal>
-          <p className="mx-auto max-w-xl text-2xl font-medium text-balance md:text-3xl" style={{ fontFamily: "var(--font-fraunces)" }}>
+          <p
+            className="mx-auto max-w-xl text-3xl font-bold tracking-tight text-balance uppercase md:text-4xl"
+            style={{ fontFamily: "var(--font-c4-display)" }}
+          >
             This is what craftsmanship looks like online.
           </p>
           <Link
             href="https://hamishai.org"
-            className="mt-8 inline-block text-sm text-[#c08a4e] underline underline-offset-4 hover:text-[#d19c5f]"
+            className="mt-8 inline-block text-sm text-[#d8501f] underline underline-offset-4 hover:text-[#e56534]"
           >
             hamishai.org
           </Link>
         </Reveal>
       </section>
 
-      <footer className="bg-[#141110] px-6 pb-10 text-center text-[11px] text-[#6b6259]">
+      <footer className="bg-[#0f0c09] px-6 pb-10 pt-8 text-center text-[11px] text-[#6b6259]">
         C4 Joinery Ltd · Mossedge Industrial Estate, Moss Road, Linwood, PA3 3HR · 07483 491 710
         <br />
         Built from publicly available information only — not affiliated with or published by C4 Joinery Ltd.
