@@ -1,5 +1,6 @@
 import Link from "next/link";
 import Image from "next/image";
+import { Bricolage_Grotesque } from "next/font/google";
 import {
   ArrowRight,
   UtensilsCrossed,
@@ -16,8 +17,6 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Reveal } from "@/components/reveal";
 import { Eyebrow } from "@/components/eyebrow";
-import { ConstellationBackdrop } from "@/components/constellation-backdrop";
-import { ParallaxLayer } from "@/components/parallax-layer";
 import { ProcessTimeline } from "@/components/process-timeline";
 import {
   Accordion,
@@ -28,6 +27,16 @@ import {
 import { aiSolutions } from "@/lib/ai-solutions-data";
 import { dashboardKpis, aiInsights } from "@/lib/analytics-data";
 import { KpiCard } from "@/components/analytics/kpi-card";
+
+// Example treatment for the homepage hero only — a distinct display face
+// from the site's shared Fraunces, tried here first rather than changed
+// globally. Bricolage Grotesque carries real character without being the
+// generic "Inter/Space Grotesk" SaaS default.
+const heroDisplay = Bricolage_Grotesque({
+  subsets: ["latin"],
+  weight: ["600", "700", "800"],
+  variable: "--font-hero-display",
+});
 
 const industries = [
   { icon: UtensilsCrossed, name: "Restaurants & cafés", href: "/portfolio/the-gannet" },
@@ -141,31 +150,33 @@ const steps = [
 export default function HomePage() {
   return (
     <>
-      <section className="relative overflow-hidden">
-        <div
-          className="pointer-events-none absolute inset-y-0 right-0 hidden w-full max-w-2xl opacity-70 lg:block"
-          style={{
-            maskImage: "linear-gradient(to left, black 30%, transparent 85%)",
-            WebkitMaskImage: "linear-gradient(to left, black 30%, transparent 85%)",
-          }}
-        >
-          <ParallaxLayer speed={0.08} className="h-full w-full">
-            <ConstellationBackdrop className="h-full w-full" />
-          </ParallaxLayer>
-        </div>
+      <section className={`${heroDisplay.variable} relative isolate overflow-hidden bg-[#0d1420]`}>
+        <Image
+          src="https://images.pexels.com/photos/5893099/pexels-photo-5893099.jpeg?auto=compress&cs=tinysrgb&w=1920"
+          alt="Edinburgh's skyline at golden hour, looking toward the Old Town"
+          fill
+          priority
+          sizes="100vw"
+          className="absolute inset-0 object-cover"
+        />
+        <div className="absolute inset-0 bg-gradient-to-r from-[#0d1420] via-[#0d1420]/75 to-[#0d1420]/15" />
+        <div className="absolute inset-0 bg-gradient-to-t from-[#0d1420] via-transparent to-[#0d1420]/30" />
 
-        <div className="relative mx-auto max-w-6xl px-6 pt-10 pb-16 md:pt-14 md:pb-24">
+        <div className="relative mx-auto max-w-6xl px-6 pt-14 pb-16 md:pt-20 md:pb-24">
           <div className="grid gap-12 lg:grid-cols-[1.1fr_1fr] lg:items-center lg:gap-16">
             <div>
-              <Badge variant="secondary" className="mb-6">
+              <Badge variant="secondary" className="mb-6 border-white/15 bg-white/10 text-white">
                 Edinburgh, Scotland
               </Badge>
-              <h1 className="max-w-xl font-heading text-4xl font-semibold tracking-tight text-balance md:text-6xl">
+              <h1
+                className="max-w-xl text-4xl font-bold tracking-tight text-balance text-white md:text-6xl"
+                style={{ fontFamily: "var(--font-hero-display)" }}
+              >
                 Transform your business with{" "}
                 <span className="text-accent">AI-powered</span> digital
                 solutions.
               </h1>
-              <p className="mt-6 max-w-xl text-lg text-muted-foreground text-balance">
+              <p className="mt-6 max-w-xl text-lg text-white/70 text-balance">
                 We help Edinburgh businesses automate tasks, improve customer
                 experiences, and unlock new growth opportunities using
                 practical AI solutions. We don&apos;t just build websites —
@@ -176,12 +187,12 @@ export default function HomePage() {
                   Book a free AI consultation
                   <ArrowRight className="size-4 transition-transform group-hover/button:translate-x-0.5" />
                 </Button>
-                <Button size="lg" variant="outline" render={<Link href="/ai-solutions" />}>
+                <Button size="lg" variant="outline" className="border-white/25 bg-white/5 text-white hover:bg-white/10" render={<Link href="/ai-solutions" />}>
                   See AI solutions in action
                 </Button>
               </div>
 
-              <div className="mt-10 flex flex-wrap gap-x-6 gap-y-2 text-sm text-muted-foreground">
+              <div className="mt-10 flex flex-wrap gap-x-6 gap-y-2 text-sm text-white/60">
                 {trustPoints.map((t) => (
                   <span key={t} className="flex items-center gap-1.5">
                     <span className="text-accent">✓</span>
@@ -193,8 +204,8 @@ export default function HomePage() {
 
             <div>
               <Eyebrow pulse>A real example — this is what an AI assistant can do</Eyebrow>
-              <div className="mt-4 max-w-sm overflow-hidden rounded-xl border border-border shadow-2xl shadow-accent/10">
-                <div className="flex items-center gap-1.5 border-b border-border bg-secondary/60 px-3 py-2">
+              <div className="mt-4 max-w-sm overflow-hidden rounded-xl border border-white/15 shadow-2xl shadow-black/40">
+                <div className="flex items-center gap-1.5 border-b border-white/10 bg-[#0d1420] px-3 py-2">
                   <span className="size-2.5 rounded-full bg-destructive/50" />
                   <span className="size-2.5 rounded-full bg-accent/50" />
                   <span className="size-2.5 rounded-full bg-emerald-500/50" />
