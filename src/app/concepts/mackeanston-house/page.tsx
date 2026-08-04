@@ -3,8 +3,24 @@
 import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { Cormorant_Garamond, Nunito_Sans } from "next/font/google";
 import { Send, ArrowDown, ShieldCheck } from "lucide-react";
 import { Reveal } from "@/components/reveal";
+
+// A distinct pairing for this business only. Cormorant Garamond is a
+// refined classical serif — country-house letterhead, not a startup
+// display face — paired with Nunito Sans for warm, legible body copy.
+const display = Cormorant_Garamond({
+  subsets: ["latin"],
+  weight: ["500", "600"],
+  style: ["normal", "italic"],
+  variable: "--font-mack-display",
+});
+const body = Nunito_Sans({
+  subsets: ["latin"],
+  weight: ["400", "500", "600"],
+  variable: "--font-mack-body",
+});
 
 const TAGS = ["17th-century country home", "Home-cooked dinners, local ingredients", "Views of Stirling Castle & the Wallace Monument"];
 
@@ -54,14 +70,14 @@ function AnimatedNumber({ value, decimals = 0, suffix = "" }: { value: number; d
   );
 }
 
-// Layered hill silhouettes — evokes the Trossachs setting rather than
-// decoration for its own sake, distinct from the other concept motifs.
+// Layered hill silhouettes — evokes the Trossachs setting, kept from the
+// original build since it already fit well.
 function HillsMotif({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 600 400" className={className} aria-hidden preserveAspectRatio="xMidYMax slice">
-      <path d="M0 260 Q150 190 300 250 T600 220 V400 H0 Z" fill="#a67a94" opacity="0.14" />
-      <path d="M0 310 Q180 250 340 300 T600 280 V400 H0 Z" fill="#a67a94" opacity="0.1" />
-      <path d="M0 350 Q220 310 400 340 T600 330 V400 H0 Z" fill="#a67a94" opacity="0.08" />
+      <path d="M0 260 Q150 190 300 250 T600 220 V400 H0 Z" fill="#a67a94" opacity="0.16" />
+      <path d="M0 310 Q180 250 340 300 T600 280 V400 H0 Z" fill="#a67a94" opacity="0.12" />
+      <path d="M0 350 Q220 310 400 340 T600 330 V400 H0 Z" fill="#a67a94" opacity="0.09" />
     </svg>
   );
 }
@@ -116,7 +132,7 @@ function ConceptChat() {
         <span className="size-2.5 rounded-full bg-red-500/40" />
         <span className="size-2.5 rounded-full bg-[#a67a94]/60" />
         <span className="size-2.5 rounded-full bg-emerald-500/40" />
-        <span className="ml-2 font-mono text-[10px] tracking-wide text-[#9aa89f] uppercase">
+        <span className="ml-2 text-[10px] font-semibold tracking-wide text-[#9aa89f] uppercase">
           Mackeanston House — live
         </span>
       </div>
@@ -126,7 +142,7 @@ function ConceptChat() {
             key={i}
             className={
               m.role === "user"
-                ? "ml-auto max-w-[85%] rounded-2xl rounded-br-sm bg-[#a67a94] px-3 py-2 text-sm text-[#f4f0ee]"
+                ? "ml-auto max-w-[85%] rounded-2xl rounded-br-sm bg-[#a67a94] px-3 py-2 text-sm text-[#1b2420]"
                 : "mr-auto max-w-[85%] rounded-2xl rounded-bl-sm bg-[#25322b] px-3 py-2 text-sm whitespace-pre-line text-[#f4f0ee]"
             }
           >
@@ -192,8 +208,11 @@ function ConceptChat() {
 
 export default function MackeanstonHouseConcept() {
   return (
-    <div className="min-h-screen bg-[#f5f1e6] text-[#1e281f]">
-      <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 bg-[#1b2420] px-4 py-1.5 text-center text-[11px] text-[#9aa89f]">
+    <div
+      className={`${display.variable} ${body.variable} min-h-screen bg-[#eee9db] text-[#1e281f]`}
+      style={{ fontFamily: "var(--font-mack-body)" }}
+    >
+      <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 bg-[#141d17] px-4 py-1.5 text-center text-[11px] text-[#9aa89f]">
         <span>
           Concept by <span className="text-[#f4f0ee]">Hamish AI</span> for{" "}
           <span className="text-[#f4f0ee]">Mackeanston House</span> — not their current site.
@@ -215,20 +234,37 @@ export default function MackeanstonHouseConcept() {
         />
         <div className="absolute inset-0 bg-gradient-to-t from-[#1b2420] via-[#1b2420]/90 to-[#1b2420]/55" />
         <HillsMotif className="pointer-events-none absolute inset-x-0 bottom-0 h-[260px] w-full" />
-        <div className="relative mx-auto max-w-5xl px-6 pt-24 pb-20 md:pt-32 md:pb-24">
+        <div className="relative mx-auto max-w-5xl px-6 pt-16 pb-20 md:pt-20 md:pb-24">
           <Reveal>
-            <p className="font-mono text-xs tracking-[0.25em] text-[#c9a8ba] uppercase">
+            <div className="flex items-center gap-3">
+              <span
+                className="flex size-11 shrink-0 items-center justify-center rounded-full border border-[#c9a8ba] text-lg font-semibold text-[#c9a8ba] italic"
+                style={{ fontFamily: "var(--font-mack-display)" }}
+                aria-hidden
+              >
+                M
+              </span>
+              <span
+                className="text-2xl font-medium tracking-wide text-[#f4f0ee]"
+                style={{ fontFamily: "var(--font-mack-display)" }}
+              >
+                Mackeanston House
+              </span>
+            </div>
+          </Reveal>
+          <Reveal delay={40}>
+            <p className="mt-10 text-xs font-semibold tracking-[0.25em] text-[#c9a8ba] uppercase">
               Doune · Loch Lomond &amp; Trossachs
             </p>
           </Reveal>
           <Reveal delay={80}>
             <h1
               className="mt-6 max-w-2xl text-4xl leading-[1.08] font-semibold text-balance md:text-6xl"
-              style={{ fontFamily: "var(--font-fraunces)" }}
+              style={{ fontFamily: "var(--font-mack-display)" }}
             >
               Four centuries of hospitality.
               <br />
-              <span className="text-[#c9a8ba]">One Highland welcome.</span>
+              <span className="text-[#c9a8ba] italic">One Highland welcome.</span>
             </h1>
           </Reveal>
           <Reveal delay={160}>
@@ -251,19 +287,19 @@ export default function MackeanstonHouseConcept() {
         <div className="relative border-t border-[#2f3c33]">
           <div className="mx-auto grid max-w-5xl grid-cols-3 gap-6 px-6 py-8 text-center">
             <Reveal>
-              <p className="text-2xl font-semibold tabular-nums" style={{ fontFamily: "var(--font-fraunces)" }}>
+              <p className="text-2xl font-semibold tabular-nums" style={{ fontFamily: "var(--font-mack-display)" }}>
                 <AnimatedNumber value={4} />
               </p>
               <p className="mt-1 text-[11px] text-[#9aa89f] uppercase">Tripadvisor rating</p>
             </Reveal>
             <Reveal delay={80}>
-              <p className="text-2xl font-semibold tabular-nums" style={{ fontFamily: "var(--font-fraunces)" }}>
+              <p className="text-2xl font-semibold tabular-nums" style={{ fontFamily: "var(--font-mack-display)" }}>
                 <AnimatedNumber value={34} />
               </p>
               <p className="mt-1 text-[11px] text-[#9aa89f] uppercase">Traveller reviews</p>
             </Reveal>
             <Reveal delay={160}>
-              <p className="text-2xl font-semibold" style={{ fontFamily: "var(--font-fraunces)" }}>
+              <p className="text-2xl font-semibold" style={{ fontFamily: "var(--font-mack-display)" }}>
                 17th c.
               </p>
               <p className="mt-1 text-[11px] text-[#9aa89f] uppercase">Built</p>
@@ -275,16 +311,16 @@ export default function MackeanstonHouseConcept() {
       {/* Where to stay */}
       <section id="services" className="mx-auto max-w-3xl px-6 py-24">
         <Reveal>
-          <p className="font-mono text-xs tracking-[0.2em] text-[#a67a94] uppercase">Where to stay</p>
-          <h2 className="mt-3 text-2xl font-semibold md:text-3xl" style={{ fontFamily: "var(--font-fraunces)" }}>
+          <p className="text-xs font-semibold tracking-[0.2em] text-[#7a5a6d] uppercase">Where to stay</p>
+          <h2 className="mt-3 text-2xl font-semibold md:text-3xl" style={{ fontFamily: "var(--font-mack-display)" }}>
             Two ways to stay at Mackeanston.
           </h2>
         </Reveal>
         <Reveal delay={80}>
           <div className="mt-8 space-y-4">
             {ROOMS.map((r) => (
-              <div key={r.name} className="rounded-xl border border-[#e2dcc8] bg-white p-6">
-                <p className="text-lg font-semibold" style={{ fontFamily: "var(--font-fraunces)" }}>
+              <div key={r.name} className="rounded-xl border border-[#ded7c2] bg-white p-6">
+                <p className="text-lg font-semibold" style={{ fontFamily: "var(--font-mack-display)" }}>
                   {r.name}
                 </p>
                 <p className="mt-1.5 text-sm text-[#556155]">{r.body}</p>
@@ -297,7 +333,7 @@ export default function MackeanstonHouseConcept() {
             {TAGS.map((t) => (
               <span
                 key={t}
-                className="rounded-full border border-[#e2dcc8] bg-white px-3 py-1.5 text-xs text-[#556155]"
+                className="rounded-full border border-[#ded7c2] bg-white px-3 py-1.5 text-xs text-[#556155]"
               >
                 {t}
               </span>
@@ -311,7 +347,7 @@ export default function MackeanstonHouseConcept() {
         <Reveal>
           <blockquote
             className="mx-auto max-w-3xl text-center text-3xl leading-tight font-medium text-balance italic md:text-5xl"
-            style={{ fontFamily: "var(--font-fraunces)" }}
+            style={{ fontFamily: "var(--font-mack-display)" }}
           >
             &ldquo;More like visiting a country cousin than staying with strangers.&rdquo;
           </blockquote>
@@ -325,8 +361,8 @@ export default function MackeanstonHouseConcept() {
       <section id="assistant" className="bg-[#1b2420] px-6 py-24 text-[#f4f0ee]">
         <div className="mx-auto max-w-2xl">
           <Reveal>
-            <p className="font-mono text-xs tracking-[0.2em] text-[#c9a8ba] uppercase">Live demo</p>
-            <h2 className="mt-3 text-3xl font-semibold md:text-4xl" style={{ fontFamily: "var(--font-fraunces)" }}>
+            <p className="text-xs font-semibold tracking-[0.2em] text-[#c9a8ba] uppercase">Live demo</p>
+            <h2 className="mt-3 text-3xl font-semibold md:text-4xl" style={{ fontFamily: "var(--font-mack-display)" }}>
               Your own AI assistant.
             </h2>
           </Reveal>
@@ -341,13 +377,13 @@ export default function MackeanstonHouseConcept() {
       {/* Insight chips */}
       <section className="mx-auto max-w-5xl px-6 py-24">
         <Reveal>
-          <p className="font-mono text-xs tracking-[0.2em] text-[#a67a94] uppercase">Right now</p>
+          <p className="text-xs font-semibold tracking-[0.2em] text-[#7a5a6d] uppercase">Right now</p>
         </Reveal>
         <div className="mt-6 grid gap-4 sm:grid-cols-3">
           {CHIPS.map((c, i) => (
             <Reveal key={c.label} delay={i * 80}>
-              <div className="h-full rounded-xl border border-[#e2dcc8] bg-white p-6">
-                <p className="text-3xl font-semibold" style={{ fontFamily: "var(--font-fraunces)" }}>
+              <div className="h-full rounded-xl border border-[#ded7c2] bg-white p-6">
+                <p className="text-3xl font-semibold" style={{ fontFamily: "var(--font-mack-display)" }}>
                   {c.stat}
                 </p>
                 <p className="mt-2 text-sm text-[#556155]">{c.label}</p>
@@ -367,7 +403,10 @@ export default function MackeanstonHouseConcept() {
       {/* Closing */}
       <section className="border-t border-[#2f3c33] bg-[#1b2420] px-6 py-24 text-center text-[#f4f0ee]">
         <Reveal>
-          <p className="mx-auto max-w-xl text-2xl font-medium text-balance md:text-3xl" style={{ fontFamily: "var(--font-fraunces)" }}>
+          <p
+            className="mx-auto max-w-xl text-2xl font-medium text-balance md:text-3xl"
+            style={{ fontFamily: "var(--font-mack-display)" }}
+          >
             A home this welcoming deserves its own front door online.
           </p>
           <Link
@@ -379,7 +418,7 @@ export default function MackeanstonHouseConcept() {
         </Reveal>
       </section>
 
-      <footer className="bg-[#1b2420] px-6 pb-10 text-center text-[11px] text-[#7a8a7c]">
+      <footer className="bg-[#141d17] px-6 pb-10 pt-8 text-center text-[11px] text-[#7a8a7c]">
         Mackeanston House · Doune, Stirling, Scotland
         <br />
         Built from publicly available information only — not affiliated with or published by Mackeanston House.
