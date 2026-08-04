@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Reveal } from "@/components/reveal";
 import { Eyebrow } from "@/components/eyebrow";
+import { ParallaxLayer } from "@/components/parallax-layer";
 import { ProcessTimeline } from "@/components/process-timeline";
 import {
   Accordion,
@@ -151,14 +152,16 @@ export default function HomePage() {
   return (
     <>
       <section className={`${heroDisplay.variable} relative isolate overflow-hidden bg-[#0d1420]`}>
-        <Image
-          src="https://images.pexels.com/photos/5893099/pexels-photo-5893099.jpeg?auto=compress&cs=tinysrgb&w=1920"
-          alt="Edinburgh's skyline at golden hour, looking toward the Old Town"
-          fill
-          priority
-          sizes="100vw"
-          className="absolute inset-0 object-cover"
-        />
+        <ParallaxLayer speed={0.12} className="absolute inset-x-0 -top-24 h-[calc(100%+12rem)]">
+          <Image
+            src="https://images.pexels.com/photos/5893099/pexels-photo-5893099.jpeg?auto=compress&cs=tinysrgb&w=1920"
+            alt="Edinburgh's skyline at golden hour, looking toward the Old Town"
+            fill
+            priority
+            sizes="100vw"
+            className="object-cover"
+          />
+        </ParallaxLayer>
         <div className="absolute inset-0 bg-gradient-to-r from-[#0d1420] via-[#0d1420]/75 to-[#0d1420]/15" />
         <div className="absolute inset-0 bg-gradient-to-t from-[#0d1420] via-transparent to-[#0d1420]/30" />
 
@@ -244,127 +247,98 @@ export default function HomePage() {
         <div className="mx-auto max-w-6xl px-6 py-16 md:py-20">
           <Reveal>
             <h2 className="font-heading text-2xl font-semibold md:text-3xl">
-              Sound familiar?
+              Sound familiar? Here&apos;s what AI can actually do about it.
             </h2>
           </Reveal>
-          <div className="mt-10 grid gap-6 md:grid-cols-3">
+          <div className="mt-8 flex flex-wrap gap-x-8 gap-y-3 border-b border-border/60 pb-10">
             {problems.map((p, i) => (
-              <Reveal key={p.title} delay={i * 80}>
-                <div className="card-interactive h-full rounded-lg border border-border bg-background p-5">
-                  <h3 className="font-heading text-lg font-medium">{p.title}</h3>
-                  <p className="mt-2 text-sm text-muted-foreground">{p.body}</p>
-                </div>
+              <Reveal key={p.title} delay={i * 60} className="max-w-xs">
+                <p className="font-heading text-sm font-medium">{p.title}</p>
+                <p className="mt-1 text-sm text-muted-foreground">{p.body}</p>
+              </Reveal>
+            ))}
+          </div>
+
+          <Reveal delay={120}>
+            <div className="mt-10 flex flex-wrap items-end justify-between gap-4">
+              <p className="max-w-lg text-muted-foreground">
+                Six practical solutions, each with a real example you can
+                read in under a minute.
+              </p>
+              <Button variant="link" className="px-0" render={<Link href="/ai-solutions" />}>
+                See all AI solutions →
+              </Button>
+            </div>
+          </Reveal>
+
+          <div className="mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            {aiSolutions.map((s, i) => (
+              <Reveal key={s.slug} delay={140 + i * 60}>
+                <Link
+                  href={`/ai-solutions#${s.slug}`}
+                  className="card-interactive block h-full overflow-hidden rounded-lg border border-border bg-background"
+                >
+                  <div className="relative aspect-[16/10] w-full overflow-hidden bg-primary">
+                    <Image
+                      src={s.image}
+                      alt=""
+                      fill
+                      sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
+                      className="object-cover"
+                    />
+                  </div>
+                  <div className="p-5">
+                    <p className="font-mono text-xs font-medium tracking-wide text-accent uppercase">
+                      {s.audience}
+                    </p>
+                    <h3 className="mt-1 font-heading text-lg font-medium">{s.name}</h3>
+                    <p className="mt-2 text-sm text-muted-foreground">{s.callout}</p>
+                  </div>
+                </Link>
               </Reveal>
             ))}
           </div>
         </div>
       </section>
 
-      <section className="mx-auto max-w-6xl px-6 py-16 md:py-20">
-        <Reveal>
-          <div className="flex flex-wrap items-end justify-between gap-4">
-            <div>
-              <h2 className="font-heading text-2xl font-semibold md:text-3xl">
-                What AI can do for your business
-              </h2>
-              <p className="mt-2 max-w-lg text-muted-foreground">
-                Six practical solutions, each with a real example you can
-                read in under a minute.
-              </p>
-            </div>
-            <Button variant="link" className="px-0" render={<Link href="/ai-solutions" />}>
-              See all AI solutions →
-            </Button>
-          </div>
-        </Reveal>
-
-        <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {aiSolutions.map((s, i) => (
-            <Reveal key={s.slug} delay={i * 60}>
-              <Link
-                href={`/ai-solutions#${s.slug}`}
-                className="card-interactive block h-full overflow-hidden rounded-lg border border-border bg-background"
-              >
-                <div className="relative aspect-[16/10] w-full overflow-hidden bg-primary">
-                  <Image
-                    src={s.image}
-                    alt=""
-                    fill
-                    sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
-                    className="object-cover"
-                  />
-                </div>
-                <div className="p-5">
-                  <p className="font-mono text-xs font-medium tracking-wide text-accent uppercase">
-                    {s.audience}
-                  </p>
-                  <h3 className="mt-1 font-heading text-lg font-medium">{s.name}</h3>
-                  <p className="mt-2 text-sm text-muted-foreground">{s.callout}</p>
-                </div>
-              </Link>
-            </Reveal>
-          ))}
-        </div>
-      </section>
-
-      <section className="border-t border-border/60 bg-secondary/40">
-        <div className="mx-auto max-w-6xl px-6 py-16 md:py-20">
-          <div className="grid gap-12 lg:grid-cols-[1fr_1.1fr] lg:items-center">
-            <Reveal>
-              <Eyebrow className="mb-3">AI Business Analytics</Eyebrow>
-              <h2 className="font-heading text-2xl font-semibold md:text-3xl">
-                Turn your data into decisions.
-              </h2>
-              <p className="mt-3 max-w-md text-muted-foreground">
-                Most businesses collect data — bookings, enquiries, website
-                visits — but never turn it into anything actionable. We build
-                the executive dashboards and automated AI reports that close
-                that gap.
-              </p>
-              <div className="mt-5 rounded-lg border border-accent/30 bg-accent/10 px-4 py-3 text-sm text-foreground">
-                &ldquo;{aiInsights[0].text}&rdquo;
-              </div>
-              <Button
-                variant="link"
-                className="mt-5 px-0"
-                render={<Link href="/analytics" />}
-              >
-                Explore AI Business Analytics
-                <ArrowRight className="size-4" />
-              </Button>
-            </Reveal>
-            <Reveal delay={60}>
-              <div className="grid grid-cols-2 gap-4">
-                {homepageTeaserKpis.map((kpi) => (
-                  <KpiCard key={kpi.id} kpi={kpi} compact />
-                ))}
-              </div>
-            </Reveal>
-          </div>
-        </div>
-      </section>
-
       <section className="border-t border-border/60">
         <div className="mx-auto max-w-6xl px-6 py-16 md:py-20">
-          <div className="grid gap-12 lg:grid-cols-[1fr_1.1fr] lg:items-center">
-            <Reveal>
-              <Eyebrow className="mb-3">How we operate</Eyebrow>
-              <h2 className="font-heading text-2xl font-semibold md:text-3xl">
-                The same AI system running this business runs yours.
-              </h2>
-              <p className="mt-3 max-w-md text-muted-foreground">
-                We&apos;re not describing automation from the outside — Hamish
-                AI&apos;s own operations run on it. Every enquiry, every
-                invoice, every site-health check, handled the same way we&apos;d
-                build it for you.
-              </p>
-              <Button variant="link" className="mt-5 px-0" render={<Link href="/services" />}>
-                See it in the Growth Partnership package
-                <ArrowRight className="size-4" />
-              </Button>
-            </Reveal>
+          <Reveal>
+            <h2 className="font-heading text-2xl font-semibold md:text-3xl">
+              Proof, not promises.
+            </h2>
+            <p className="mt-2 max-w-lg text-muted-foreground">
+              We&apos;re not describing automation from the outside — Hamish
+              AI&apos;s own operations run on the same system we&apos;d build for you.
+            </p>
+          </Reveal>
+
+          <div className="mt-10 grid gap-8 lg:grid-cols-2">
             <Reveal delay={60}>
-              <div className="overflow-hidden rounded-xl border border-border bg-background shadow-2xl shadow-accent/10">
+              <div className="flex h-full flex-col rounded-xl border border-border bg-background p-6">
+                <Eyebrow className="mb-2">AI Business Analytics</Eyebrow>
+                <p className="font-heading text-lg font-medium">Turn your data into decisions.</p>
+                <div className="mt-4 grid grid-cols-2 gap-3">
+                  {homepageTeaserKpis.map((kpi) => (
+                    <KpiCard key={kpi.id} kpi={kpi} compact />
+                  ))}
+                </div>
+                <div className="mt-4 rounded-lg border border-accent/30 bg-accent/10 px-4 py-3 text-sm text-foreground">
+                  &ldquo;{aiInsights[0].text}&rdquo;
+                </div>
+                <Button
+                  variant="link"
+                  className="mt-4 self-start px-0"
+                  render={<Link href="/analytics" />}
+                >
+                  Explore AI Business Analytics
+                  <ArrowRight className="size-4" />
+                </Button>
+              </div>
+            </Reveal>
+
+            <Reveal delay={120}>
+              <div className="flex h-full flex-col overflow-hidden rounded-xl border border-border bg-background shadow-2xl shadow-accent/10">
                 <div className="flex items-center gap-1.5 border-b border-border bg-secondary/60 px-3 py-2">
                   <span className="size-2.5 rounded-full bg-destructive/50" />
                   <span className="size-2.5 rounded-full bg-accent/50" />
@@ -373,7 +347,7 @@ export default function HomePage() {
                     hamishai.org/admin
                   </span>
                 </div>
-                <ul className="divide-y divide-border">
+                <ul className="flex-1 divide-y divide-border">
                   {dogfoodPoints.map((d) => (
                     <li key={d.title} className="flex items-start gap-3 p-4">
                       <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg bg-accent/10 text-accent">
@@ -386,6 +360,12 @@ export default function HomePage() {
                     </li>
                   ))}
                 </ul>
+                <div className="border-t border-border p-4">
+                  <Button variant="link" className="px-0" render={<Link href="/services" />}>
+                    See it in the Growth Partnership package
+                    <ArrowRight className="size-4" />
+                  </Button>
+                </div>
               </div>
             </Reveal>
           </div>
@@ -395,10 +375,17 @@ export default function HomePage() {
       <section className="border-t border-border/60 bg-secondary/40">
         <div className="mx-auto max-w-6xl px-6 py-16 md:py-20">
           <Reveal>
-            <Eyebrow className="mb-3">Industries we&apos;ve worked with</Eyebrow>
-            <h2 className="font-heading text-2xl font-semibold md:text-3xl">
-              Built for real Edinburgh businesses, not a generic template.
-            </h2>
+            <div className="flex flex-wrap items-end justify-between gap-4">
+              <div>
+                <Eyebrow className="mb-3">Industries we&apos;ve worked with</Eyebrow>
+                <h2 className="font-heading text-2xl font-semibold md:text-3xl">
+                  Built for real Edinburgh businesses, not a generic template.
+                </h2>
+              </div>
+              <Button size="lg" variant="gradient" render={<Link href="/portfolio" />}>
+                View the portfolio
+              </Button>
+            </div>
           </Reveal>
           <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
             {industries.map((ind, i) => (
@@ -419,25 +406,6 @@ export default function HomePage() {
               </Reveal>
             ))}
           </div>
-        </div>
-      </section>
-
-      <section className="border-t border-border/60 bg-secondary/40">
-        <div className="mx-auto flex max-w-6xl flex-col items-start gap-6 px-6 py-16 md:flex-row md:items-center md:justify-between md:py-20">
-          <Reveal>
-            <div>
-              <h2 className="font-heading text-2xl font-semibold md:text-3xl">
-                See it running on a real-feeling website
-              </h2>
-              <p className="mt-2 max-w-lg text-muted-foreground">
-                Concept redesigns for Edinburgh businesses — with the AI
-                features built in, not just described.
-              </p>
-            </div>
-          </Reveal>
-          <Button size="lg" variant="gradient" render={<Link href="/portfolio" />}>
-            View the portfolio
-          </Button>
         </div>
       </section>
 
