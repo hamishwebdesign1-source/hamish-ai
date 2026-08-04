@@ -3,8 +3,24 @@
 import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { Bitter, Karla } from "next/font/google";
 import { Send, ArrowDown, ShieldCheck } from "lucide-react";
 import { Reveal } from "@/components/reveal";
+
+// A distinct pairing for this business only — not the site's shared
+// Fraunces/mono, and not shared with C4 Joinery or McDowall. Bitter is a
+// warm printed-menu-board slab serif; Karla is a rounded, friendly
+// grotesque for body copy.
+const display = Bitter({
+  subsets: ["latin"],
+  weight: ["600", "700", "800"],
+  variable: "--font-wynd-display",
+});
+const body = Karla({
+  subsets: ["latin"],
+  weight: ["400", "500", "600"],
+  variable: "--font-wynd-body",
+});
 
 const MENU = [
   { name: "Huevos rancheros", price: "Brunch" },
@@ -50,16 +66,15 @@ function AnimatedNumber({ value, decimals = 0, suffix = "" }: { value: number; d
   );
 }
 
-// Coffee-ring stains — overlapping translucent circles, evoking cup marks
-// on a table. Distinct from the tree-ring and ledger-line motifs used on
-// the other concept pages, and thematically apt for a cafe.
+// Coffee-ring stains in sage — ties to the real menu (avocado toast,
+// vegan-friendly) rather than a generic "warm cafe brown" motif.
 function RingMotif({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 600 600" className={className} aria-hidden>
-      <circle cx="220" cy="200" r="140" fill="none" stroke="#c1613f" strokeWidth="10" opacity="0.16" />
-      <circle cx="380" cy="340" r="100" fill="none" stroke="#c1613f" strokeWidth="8" opacity="0.14" />
-      <circle cx="300" cy="440" r="60" fill="none" stroke="#c1613f" strokeWidth="6" opacity="0.18" />
-      <circle cx="140" cy="380" r="45" fill="none" stroke="#c1613f" strokeWidth="5" opacity="0.15" />
+      <circle cx="220" cy="200" r="140" fill="none" stroke="#8aa06a" strokeWidth="10" opacity="0.18" />
+      <circle cx="380" cy="340" r="100" fill="none" stroke="#8aa06a" strokeWidth="8" opacity="0.15" />
+      <circle cx="300" cy="440" r="60" fill="none" stroke="#d97b3f" strokeWidth="6" opacity="0.18" />
+      <circle cx="140" cy="380" r="45" fill="none" stroke="#d97b3f" strokeWidth="5" opacity="0.16" />
     </svg>
   );
 }
@@ -109,32 +124,32 @@ function ConceptChat() {
   }
 
   return (
-    <div className="overflow-hidden rounded-xl border border-[#54402f] shadow-2xl">
-      <div className="flex items-center gap-1.5 border-b border-[#54402f] bg-[#33241a] px-3 py-2">
+    <div className="overflow-hidden rounded-xl border border-[#4a3826] shadow-2xl">
+      <div className="flex items-center gap-1.5 border-b border-[#4a3826] bg-[#2f2015] px-3 py-2">
         <span className="size-2.5 rounded-full bg-red-500/40" />
-        <span className="size-2.5 rounded-full bg-[#c1613f]/60" />
+        <span className="size-2.5 rounded-full bg-[#d97b3f]/60" />
         <span className="size-2.5 rounded-full bg-emerald-500/40" />
-        <span className="ml-2 font-mono text-[10px] tracking-wide text-[#c9b8a8] uppercase">Cafe Wynd — live</span>
+        <span className="ml-2 text-[10px] font-medium tracking-wide text-[#c2ab90] uppercase">Cafe Wynd — live</span>
       </div>
-      <div ref={scrollRef} className="flex h-[360px] flex-col gap-3 overflow-y-auto bg-[#3d2a20] p-4">
+      <div ref={scrollRef} className="flex h-[360px] flex-col gap-3 overflow-y-auto bg-[#1c130d] p-4">
         {messages.map((m, i) => (
           <div
             key={i}
             className={
               m.role === "user"
-                ? "ml-auto max-w-[85%] rounded-2xl rounded-br-sm bg-[#c1613f] px-3 py-2 text-sm text-[#fdf8f2]"
-                : "mr-auto max-w-[85%] rounded-2xl rounded-bl-sm bg-[#4a3527] px-3 py-2 text-sm whitespace-pre-line text-[#fdf8f2]"
+                ? "ml-auto max-w-[85%] rounded-2xl rounded-br-sm bg-[#8aa06a] px-3 py-2 text-sm text-[#1c130d]"
+                : "mr-auto max-w-[85%] rounded-2xl rounded-bl-sm bg-[#2f2015] px-3 py-2 text-sm whitespace-pre-line text-[#faf3e8]"
             }
           >
             {m.content}
           </div>
         ))}
         {loading && (
-          <div className="mr-auto flex max-w-[85%] items-center gap-2 rounded-2xl rounded-bl-sm bg-[#4a3527] px-3 py-2.5">
+          <div className="mr-auto flex max-w-[85%] items-center gap-2 rounded-2xl rounded-bl-sm bg-[#2f2015] px-3 py-2.5">
             <span className="flex gap-1">
-              <span className="size-1.5 animate-bounce rounded-full bg-[#c9b8a8] [animation-delay:-0.3s]" />
-              <span className="size-1.5 animate-bounce rounded-full bg-[#c9b8a8] [animation-delay:-0.15s]" />
-              <span className="size-1.5 animate-bounce rounded-full bg-[#c9b8a8]" />
+              <span className="size-1.5 animate-bounce rounded-full bg-[#c2ab90] [animation-delay:-0.3s]" />
+              <span className="size-1.5 animate-bounce rounded-full bg-[#c2ab90] [animation-delay:-0.15s]" />
+              <span className="size-1.5 animate-bounce rounded-full bg-[#c2ab90]" />
             </span>
           </div>
         )}
@@ -150,7 +165,7 @@ function ConceptChat() {
                 key={p}
                 type="button"
                 onClick={() => sendMessage(p)}
-                className="rounded-full border border-[#54402f] px-3 py-1.5 text-xs text-[#c9b8a8] transition-colors hover:border-[#c1613f] hover:text-[#fdf8f2]"
+                className="rounded-full border border-[#4a3826] px-3 py-1.5 text-xs text-[#c2ab90] transition-colors hover:border-[#8aa06a] hover:text-[#faf3e8]"
               >
                 {p}
               </button>
@@ -159,7 +174,7 @@ function ConceptChat() {
         )}
       </div>
       <form
-        className="flex items-center gap-2 border-t border-[#54402f] bg-[#33241a] p-3"
+        className="flex items-center gap-2 border-t border-[#4a3826] bg-[#2f2015] p-3"
         onSubmit={(e) => {
           e.preventDefault();
           sendMessage();
@@ -171,13 +186,13 @@ function ConceptChat() {
           placeholder="Ask a question…"
           aria-label="Message"
           disabled={loading}
-          className="h-9 flex-1 rounded-md border border-[#54402f] bg-[#3d2a20] px-3 text-sm text-[#fdf8f2] outline-none placeholder:text-[#8a7663] focus-visible:border-[#c1613f]"
+          className="h-9 flex-1 rounded-md border border-[#4a3826] bg-[#1c130d] px-3 text-sm text-[#faf3e8] outline-none placeholder:text-[#7a6551] focus-visible:border-[#8aa06a]"
         />
         <button
           type="submit"
           aria-label="Send"
           disabled={loading || !input.trim()}
-          className="flex size-9 shrink-0 items-center justify-center rounded-md bg-[#c1613f] text-[#fdf8f2] transition-colors hover:bg-[#d1734f] disabled:opacity-40"
+          className="flex size-9 shrink-0 items-center justify-center rounded-md bg-[#8aa06a] text-[#1c130d] transition-colors hover:bg-[#9bb37c] disabled:opacity-40"
         >
           <Send className="size-4" />
         </button>
@@ -188,45 +203,67 @@ function ConceptChat() {
 
 export default function CafeWyndConcept() {
   return (
-    <div className="min-h-screen bg-[#f7f2e9] text-[#2c1f16]">
-      <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 bg-[#3d2a20] px-4 py-1.5 text-center text-[11px] text-[#c9b8a8]">
+    <div
+      className={`${display.variable} ${body.variable} min-h-screen bg-[#241811] text-[#faf3e8]`}
+      style={{ fontFamily: "var(--font-wynd-body)" }}
+    >
+      <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 bg-[#1c130d] px-4 py-1.5 text-center text-[11px] text-[#c2ab90]">
         <span>
-          Concept by <span className="text-[#fdf8f2]">Hamish AI</span> for{" "}
-          <span className="text-[#fdf8f2]">Cafe Wynd</span> — not their current site.
+          Concept by <span className="text-[#faf3e8]">Hamish AI</span> for{" "}
+          <span className="text-[#faf3e8]">Cafe Wynd</span> — not their current site.
         </span>
-        <Link href="https://hamishai.org" className="text-[#fdf8f2] underline underline-offset-2">
+        <Link href="https://hamishai.org" className="text-[#faf3e8] underline underline-offset-2">
           hamishai.org
         </Link>
       </div>
 
       {/* Hero */}
-      <section className="relative isolate overflow-hidden bg-[#3d2a20] text-[#fdf8f2]">
+      <section className="relative isolate overflow-hidden bg-[#241811]">
         <Image
           src="/images/concepts/cafe-wynd/hero.jpg"
           alt=""
           fill
           priority
           sizes="100vw"
-          className="absolute inset-0 object-cover opacity-30"
+          className="absolute inset-0 object-cover opacity-25"
         />
-        <div className="absolute inset-0 bg-gradient-to-t from-[#3d2a20] via-[#3d2a20]/90 to-[#3d2a20]/60" />
+        <div className="absolute inset-0 bg-gradient-to-t from-[#241811] via-[#241811]/92 to-[#241811]/60" />
         <RingMotif className="pointer-events-none absolute top-1/2 right-[-8%] size-[600px] -translate-y-1/2" />
-        <div className="relative mx-auto max-w-5xl px-6 pt-24 pb-20 md:pt-32 md:pb-24">
+        <div className="relative mx-auto max-w-5xl px-6 pt-16 pb-20 md:pt-20 md:pb-24">
           <Reveal>
-            <p className="font-mono text-xs tracking-[0.25em] text-[#e0a685] uppercase">Dunfermline · Fife</p>
+            <div className="flex items-center gap-3">
+              <span
+                className="flex size-11 shrink-0 items-center justify-center rounded-full border-2 border-[#d97b3f] text-lg font-bold text-[#d97b3f]"
+                style={{ fontFamily: "var(--font-wynd-display)" }}
+                aria-hidden
+              >
+                W
+              </span>
+              <span
+                className="text-2xl font-extrabold tracking-tight text-[#faf3e8]"
+                style={{ fontFamily: "var(--font-wynd-display)" }}
+              >
+                Cafe Wynd
+              </span>
+            </div>
+          </Reveal>
+          <Reveal delay={40}>
+            <p className="mt-10 text-xs font-semibold tracking-[0.25em] text-[#d97b3f] uppercase">
+              Dunfermline · Fife
+            </p>
           </Reveal>
           <Reveal delay={80}>
             <h1
-              className="mt-6 max-w-2xl text-4xl leading-[1.08] font-semibold text-balance md:text-6xl"
-              style={{ fontFamily: "var(--font-fraunces)" }}
+              className="mt-6 max-w-2xl text-4xl leading-[1.08] font-bold text-balance md:text-6xl"
+              style={{ fontFamily: "var(--font-wynd-display)" }}
             >
               Dunfermline&apos;s favourite
               <br />
-              <span className="text-[#e0a685]">independent cafe.</span>
+              <span className="text-[#8aa06a]">independent cafe.</span>
             </h1>
           </Reveal>
           <Reveal delay={160}>
-            <p className="mt-7 max-w-md text-lg text-[#c9b8a8]">
+            <p className="mt-7 max-w-md text-lg text-[#c2ab90]">
               Locally roasted coffee, homemade bakes, and a treat for every dog that walks in — ranked #11 of 190
               restaurants in town.
             </p>
@@ -234,7 +271,7 @@ export default function CafeWyndConcept() {
           <Reveal delay={240}>
             <a
               href="#assistant"
-              className="mt-11 inline-flex items-center gap-2 text-sm font-medium text-[#fdf8f2]/80 hover:text-[#fdf8f2]"
+              className="mt-11 inline-flex items-center gap-2 text-sm font-medium text-[#faf3e8]/80 hover:text-[#faf3e8]"
             >
               See it in action
               <ArrowDown className="size-4 animate-bounce" />
@@ -242,25 +279,31 @@ export default function CafeWyndConcept() {
           </Reveal>
         </div>
 
-        <div className="relative border-t border-[#54402f]">
+        <div className="relative border-t border-[#4a3826]">
           <div className="mx-auto grid max-w-5xl grid-cols-3 gap-6 px-6 py-8 text-center">
             <Reveal>
-              <p className="text-2xl font-semibold tabular-nums" style={{ fontFamily: "var(--font-fraunces)" }}>
+              <p
+                className="text-2xl font-bold tabular-nums"
+                style={{ fontFamily: "var(--font-wynd-display)" }}
+              >
                 <AnimatedNumber value={4.7} decimals={1} />
               </p>
-              <p className="mt-1 text-[11px] text-[#c9b8a8] uppercase">Tripadvisor rating</p>
+              <p className="mt-1 text-[11px] text-[#c2ab90] uppercase">Tripadvisor rating</p>
             </Reveal>
             <Reveal delay={80}>
-              <p className="text-2xl font-semibold tabular-nums" style={{ fontFamily: "var(--font-fraunces)" }}>
+              <p
+                className="text-2xl font-bold tabular-nums"
+                style={{ fontFamily: "var(--font-wynd-display)" }}
+              >
                 <AnimatedNumber value={815} />
               </p>
-              <p className="mt-1 text-[11px] text-[#c9b8a8] uppercase">Restaurant Guru reviews</p>
+              <p className="mt-1 text-[11px] text-[#c2ab90] uppercase">Restaurant Guru reviews</p>
             </Reveal>
             <Reveal delay={160}>
-              <p className="text-2xl font-semibold" style={{ fontFamily: "var(--font-fraunces)" }}>
+              <p className="text-2xl font-bold" style={{ fontFamily: "var(--font-wynd-display)" }}>
                 #11 / 190
               </p>
-              <p className="mt-1 text-[11px] text-[#c9b8a8] uppercase">Restaurants in Dunfermline</p>
+              <p className="mt-1 text-[11px] text-[#c2ab90] uppercase">Restaurants in Dunfermline</p>
             </Reveal>
           </div>
         </div>
@@ -269,20 +312,20 @@ export default function CafeWyndConcept() {
       {/* On the menu */}
       <section id="services" className="mx-auto max-w-3xl px-6 py-24">
         <Reveal>
-          <p className="font-mono text-xs tracking-[0.2em] text-[#c1613f] uppercase">On the menu</p>
-          <h2 className="mt-3 text-2xl font-semibold md:text-3xl" style={{ fontFamily: "var(--font-fraunces)" }}>
+          <p className="text-xs font-semibold tracking-[0.2em] text-[#d97b3f] uppercase">On the menu</p>
+          <h2 className="mt-3 text-2xl font-bold md:text-3xl" style={{ fontFamily: "var(--font-wynd-display)" }}>
             What people order, again and again.
           </h2>
         </Reveal>
         <Reveal delay={80}>
-          <div className="mt-8 overflow-hidden rounded-xl border border-[#e9dfd0] bg-white">
+          <div className="mt-8 overflow-hidden rounded-xl border border-[#4a3826] bg-[#2f2015]">
             {MENU.map((m, i) => (
               <div
                 key={m.name}
-                className={`flex items-center justify-between gap-4 px-6 py-4 ${i > 0 ? "border-t border-[#e9dfd0]" : ""}`}
+                className={`flex items-center justify-between gap-4 px-6 py-4 ${i > 0 ? "border-t border-[#4a3826]" : ""}`}
               >
                 <span className="font-medium">{m.name}</span>
-                <span className="tabular-nums text-[#8a7663]">{m.price}</span>
+                <span className="tabular-nums text-[#c2ab90]">{m.price}</span>
               </div>
             ))}
           </div>
@@ -295,7 +338,7 @@ export default function CafeWyndConcept() {
             {TAGS.map((t) => (
               <span
                 key={t}
-                className="rounded-full border border-[#e9dfd0] bg-white px-3 py-1.5 text-xs text-[#6b5a4a]"
+                className="rounded-full border border-[#4a3826] bg-[#2f2015] px-3 py-1.5 text-xs text-[#c2ab90]"
               >
                 {t}
               </span>
@@ -305,11 +348,11 @@ export default function CafeWyndConcept() {
       </section>
 
       {/* Testimonial moment */}
-      <section className="relative overflow-hidden bg-[#c1613f] px-6 py-24 text-[#3d2a20]">
+      <section className="relative overflow-hidden bg-[#8aa06a] px-6 py-24 text-[#1c130d]">
         <Reveal>
           <blockquote
-            className="mx-auto max-w-3xl text-center text-3xl leading-tight font-medium text-balance italic md:text-5xl"
-            style={{ fontFamily: "var(--font-fraunces)" }}
+            className="mx-auto max-w-3xl text-center text-3xl leading-tight font-bold text-balance md:text-5xl"
+            style={{ fontFamily: "var(--font-wynd-display)" }}
           >
             &ldquo;The only dog-friendly place I could find in the whole of Dunfermline.&rdquo;
           </blockquote>
@@ -320,11 +363,11 @@ export default function CafeWyndConcept() {
       </section>
 
       {/* AI assistant */}
-      <section id="assistant" className="bg-[#3d2a20] px-6 py-24 text-[#fdf8f2]">
+      <section id="assistant" className="bg-[#1c130d] px-6 py-24">
         <div className="mx-auto max-w-2xl">
           <Reveal>
-            <p className="font-mono text-xs tracking-[0.2em] text-[#e0a685] uppercase">Live demo</p>
-            <h2 className="mt-3 text-3xl font-semibold md:text-4xl" style={{ fontFamily: "var(--font-fraunces)" }}>
+            <p className="text-xs font-semibold tracking-[0.2em] text-[#d97b3f] uppercase">Live demo</p>
+            <h2 className="mt-3 text-3xl font-bold md:text-4xl" style={{ fontFamily: "var(--font-wynd-display)" }}>
               Your own AI assistant.
             </h2>
           </Reveal>
@@ -339,16 +382,16 @@ export default function CafeWyndConcept() {
       {/* Insight chips */}
       <section className="mx-auto max-w-5xl px-6 py-24">
         <Reveal>
-          <p className="font-mono text-xs tracking-[0.2em] text-[#c1613f] uppercase">Right now</p>
+          <p className="text-xs font-semibold tracking-[0.2em] text-[#d97b3f] uppercase">Right now</p>
         </Reveal>
         <div className="mt-6 grid gap-4 sm:grid-cols-3">
           {CHIPS.map((c, i) => (
             <Reveal key={c.label} delay={i * 80}>
-              <div className="h-full rounded-xl border border-[#e9dfd0] bg-white p-6">
-                <p className="text-3xl font-semibold" style={{ fontFamily: "var(--font-fraunces)" }}>
+              <div className="h-full rounded-xl border border-[#4a3826] bg-[#2f2015] p-6">
+                <p className="text-3xl font-bold" style={{ fontFamily: "var(--font-wynd-display)" }}>
                   {c.stat}
                 </p>
-                <p className="mt-2 text-sm text-[#6b5a4a]">{c.label}</p>
+                <p className="mt-2 text-sm text-[#c2ab90]">{c.label}</p>
               </div>
             </Reveal>
           ))}
@@ -363,21 +406,24 @@ export default function CafeWyndConcept() {
       </section>
 
       {/* Closing */}
-      <section className="border-t border-[#54402f] bg-[#3d2a20] px-6 py-24 text-center text-[#fdf8f2]">
+      <section className="border-t border-[#4a3826] bg-[#241811] px-6 py-24 text-center">
         <Reveal>
-          <p className="mx-auto max-w-xl text-2xl font-medium text-balance md:text-3xl" style={{ fontFamily: "var(--font-fraunces)" }}>
+          <p
+            className="mx-auto max-w-xl text-2xl font-bold text-balance md:text-3xl"
+            style={{ fontFamily: "var(--font-wynd-display)" }}
+          >
             A cafe this loved deserves to be found.
           </p>
           <Link
             href="https://hamishai.org"
-            className="mt-8 inline-block text-sm text-[#e0a685] underline underline-offset-4 hover:text-[#eebb9e]"
+            className="mt-8 inline-block text-sm text-[#d97b3f] underline underline-offset-4 hover:text-[#e6935f]"
           >
             hamishai.org
           </Link>
         </Reveal>
       </section>
 
-      <footer className="bg-[#3d2a20] px-6 pb-10 text-center text-[11px] text-[#8a7663]">
+      <footer className="bg-[#1c130d] px-6 pb-10 pt-8 text-center text-[11px] text-[#8a7663]">
         Cafe Wynd · 10 Cross Wynd, Dunfermline, Fife, KY12 7AP
         <br />
         Built from publicly available information only — not affiliated with or published by Cafe Wynd.
