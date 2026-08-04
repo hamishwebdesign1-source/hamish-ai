@@ -3,8 +3,25 @@
 import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { Libre_Baskerville, Source_Sans_3 } from "next/font/google";
 import { Send, ArrowDown, ShieldCheck } from "lucide-react";
 import { Reveal } from "@/components/reveal";
+
+// A distinct pairing for this business only — and a period-accurate one:
+// Baskerville was cut in the 1750s, the exact decade this house was
+// built, so the display face is a genuine historical reference rather
+// than an arbitrary choice. Source Sans 3 carries the body plainly.
+const display = Libre_Baskerville({
+  subsets: ["latin"],
+  weight: ["400", "700"],
+  style: ["normal", "italic"],
+  variable: "--font-qs-display",
+});
+const body = Source_Sans_3({
+  subsets: ["latin"],
+  weight: ["400", "500", "600"],
+  variable: "--font-qs-body",
+});
 
 const TAGS = ["Georgian country house, built 1753", "60 acres of gardens & parkland", "Whisky by the fire, most evenings", "Dog-friendly"];
 
@@ -48,18 +65,17 @@ function AnimatedNumber({ value, decimals = 0, suffix = "" }: { value: number; d
   );
 }
 
-// A classical pediment silhouette — evokes Georgian architecture rather
-// than decoration for its own sake, distinct from the other concept
-// pages' motifs (including Mackeanston's rustic hill silhouettes).
+// A classical pediment silhouette — evokes Georgian architecture, kept
+// from the original build since it already fit well.
 function PedimentMotif({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 600 400" className={className} aria-hidden>
-      <path d="M150 220 L300 100 L450 220 Z" fill="none" stroke="#a8677a" strokeWidth="2" opacity="0.25" />
-      <line x1="180" y1="220" x2="180" y2="340" stroke="#a8677a" strokeWidth="2" opacity="0.2" />
-      <line x1="260" y1="220" x2="260" y2="340" stroke="#a8677a" strokeWidth="2" opacity="0.2" />
-      <line x1="340" y1="220" x2="340" y2="340" stroke="#a8677a" strokeWidth="2" opacity="0.2" />
-      <line x1="420" y1="220" x2="420" y2="340" stroke="#a8677a" strokeWidth="2" opacity="0.2" />
-      <line x1="150" y1="220" x2="450" y2="220" stroke="#a8677a" strokeWidth="2" opacity="0.25" />
+      <path d="M150 220 L300 100 L450 220 Z" fill="none" stroke="#cf98a6" strokeWidth="2" opacity="0.3" />
+      <line x1="180" y1="220" x2="180" y2="340" stroke="#cf98a6" strokeWidth="2" opacity="0.22" />
+      <line x1="260" y1="220" x2="260" y2="340" stroke="#cf98a6" strokeWidth="2" opacity="0.22" />
+      <line x1="340" y1="220" x2="340" y2="340" stroke="#cf98a6" strokeWidth="2" opacity="0.22" />
+      <line x1="420" y1="220" x2="420" y2="340" stroke="#cf98a6" strokeWidth="2" opacity="0.22" />
+      <line x1="150" y1="220" x2="450" y2="220" stroke="#cf98a6" strokeWidth="2" opacity="0.3" />
     </svg>
   );
 }
@@ -110,11 +126,11 @@ function ConceptChat() {
 
   return (
     <div className="overflow-hidden rounded-xl border border-[#3c2530] shadow-2xl">
-      <div className="flex items-center gap-1.5 border-b border-[#3c2530] bg-[#180d13] px-3 py-2">
+      <div className="flex items-center gap-1.5 border-b border-[#3c2530] bg-[#140a0f] px-3 py-2">
         <span className="size-2.5 rounded-full bg-red-500/40" />
         <span className="size-2.5 rounded-full bg-[#8a2f3f]/60" />
         <span className="size-2.5 rounded-full bg-emerald-500/40" />
-        <span className="ml-2 font-mono text-[10px] tracking-wide text-[#b89aa3] uppercase">
+        <span className="ml-2 text-[10px] font-semibold tracking-wide text-[#b89aa3] uppercase">
           Quarter Stirling — live
         </span>
       </div>
@@ -161,7 +177,7 @@ function ConceptChat() {
         )}
       </div>
       <form
-        className="flex items-center gap-2 border-t border-[#3c2530] bg-[#180d13] p-3"
+        className="flex items-center gap-2 border-t border-[#3c2530] bg-[#140a0f] p-3"
         onSubmit={(e) => {
           e.preventDefault();
           sendMessage();
@@ -190,8 +206,11 @@ function ConceptChat() {
 
 export default function QuarterStirlingConcept() {
   return (
-    <div className="min-h-screen bg-[#f6f0e2] text-[#1c1015]">
-      <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 bg-[#1c1015] px-4 py-1.5 text-center text-[11px] text-[#b89aa3]">
+    <div
+      className={`${display.variable} ${body.variable} min-h-screen bg-[#f6f0e2] text-[#1c1015]`}
+      style={{ fontFamily: "var(--font-qs-body)" }}
+    >
+      <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 bg-[#140a0f] px-4 py-1.5 text-center text-[11px] text-[#b89aa3]">
         <span>
           Concept by <span className="text-[#f4ecee]">Hamish AI</span> for{" "}
           <span className="text-[#f4ecee]">Quarter Stirling</span> — not their current site.
@@ -213,18 +232,37 @@ export default function QuarterStirlingConcept() {
         />
         <div className="absolute inset-0 bg-gradient-to-t from-[#1c1015] via-[#1c1015]/90 to-[#1c1015]/55" />
         <PedimentMotif className="pointer-events-none absolute top-1/2 right-[-4%] size-[600px] -translate-y-1/2" />
-        <div className="relative mx-auto max-w-5xl px-6 pt-24 pb-20 md:pt-32 md:pb-24">
+        <div className="relative mx-auto max-w-5xl px-6 pt-16 pb-20 md:pt-20 md:pb-24">
           <Reveal>
-            <p className="font-mono text-xs tracking-[0.25em] text-[#cf98a6] uppercase">Denny · Near Stirling</p>
+            <div className="flex items-center gap-3">
+              <span
+                className="flex size-11 shrink-0 items-center justify-center border border-[#cf98a6] text-lg text-[#cf98a6]"
+                style={{ fontFamily: "var(--font-qs-display)" }}
+                aria-hidden
+              >
+                QS
+              </span>
+              <span
+                className="text-2xl font-bold tracking-tight text-[#f4ecee]"
+                style={{ fontFamily: "var(--font-qs-display)" }}
+              >
+                Quarter Stirling
+              </span>
+            </div>
+          </Reveal>
+          <Reveal delay={40}>
+            <p className="mt-10 text-xs font-semibold tracking-[0.25em] text-[#cf98a6] uppercase">
+              Denny · Near Stirling
+            </p>
           </Reveal>
           <Reveal delay={80}>
             <h1
-              className="mt-6 max-w-2xl text-4xl leading-[1.08] font-semibold text-balance md:text-6xl"
-              style={{ fontFamily: "var(--font-fraunces)" }}
+              className="mt-6 max-w-2xl text-4xl leading-[1.08] font-bold text-balance md:text-6xl"
+              style={{ fontFamily: "var(--font-qs-display)" }}
             >
               Georgian hospitality,
               <br />
-              <span className="text-[#cf98a6]">welcoming guests since 1753.</span>
+              <span className="text-[#cf98a6] italic">welcoming guests since 1753.</span>
             </h1>
           </Reveal>
           <Reveal delay={160}>
@@ -246,19 +284,19 @@ export default function QuarterStirlingConcept() {
         <div className="relative border-t border-[#3c2530]">
           <div className="mx-auto grid max-w-5xl grid-cols-3 gap-6 px-6 py-8 text-center">
             <Reveal>
-              <p className="text-2xl font-semibold" style={{ fontFamily: "var(--font-fraunces)" }}>
+              <p className="text-2xl font-bold" style={{ fontFamily: "var(--font-qs-display)" }}>
                 1753
               </p>
               <p className="mt-1 text-[11px] text-[#b89aa3] uppercase">Built</p>
             </Reveal>
             <Reveal delay={80}>
-              <p className="text-2xl font-semibold tabular-nums" style={{ fontFamily: "var(--font-fraunces)" }}>
+              <p className="text-2xl font-bold tabular-nums" style={{ fontFamily: "var(--font-qs-display)" }}>
                 <AnimatedNumber value={60} />
               </p>
               <p className="mt-1 text-[11px] text-[#b89aa3] uppercase">Acres of grounds</p>
             </Reveal>
             <Reveal delay={160}>
-              <p className="text-2xl font-semibold tabular-nums" style={{ fontFamily: "var(--font-fraunces)" }}>
+              <p className="text-2xl font-bold tabular-nums" style={{ fontFamily: "var(--font-qs-display)" }}>
                 <AnimatedNumber value={3} />
               </p>
               <p className="mt-1 text-[11px] text-[#b89aa3] uppercase">En-suite rooms</p>
@@ -270,8 +308,8 @@ export default function QuarterStirlingConcept() {
       {/* Where to stay */}
       <section id="services" className="mx-auto max-w-3xl px-6 py-24">
         <Reveal>
-          <p className="font-mono text-xs tracking-[0.2em] text-[#8a2f3f] uppercase">Where to stay</p>
-          <h2 className="mt-3 text-2xl font-semibold md:text-3xl" style={{ fontFamily: "var(--font-fraunces)" }}>
+          <p className="text-xs font-semibold tracking-[0.2em] text-[#8a2f3f] uppercase">Where to stay</p>
+          <h2 className="mt-3 text-2xl font-bold md:text-3xl" style={{ fontFamily: "var(--font-qs-display)" }}>
             Three rooms, one gracious house.
           </h2>
         </Reveal>
@@ -279,7 +317,7 @@ export default function QuarterStirlingConcept() {
           <div className="mt-8 overflow-hidden rounded-xl border border-[#e6d9c2] bg-white">
             {ROOMS.map((r, i) => (
               <div key={r.name} className={`px-6 py-4 ${i > 0 ? "border-t border-[#e6d9c2]" : ""}`}>
-                <p className="font-medium">{r.name}</p>
+                <p className="font-semibold">{r.name}</p>
                 <p className="mt-0.5 text-sm text-[#7a636a]">{r.body}</p>
               </div>
             ))}
@@ -306,8 +344,8 @@ export default function QuarterStirlingConcept() {
       <section className="relative overflow-hidden bg-[#8a2f3f] px-6 py-24 text-[#f6f0e2]">
         <Reveal>
           <blockquote
-            className="mx-auto max-w-3xl text-center text-3xl leading-tight font-medium text-balance italic md:text-5xl"
-            style={{ fontFamily: "var(--font-fraunces)" }}
+            className="mx-auto max-w-3xl text-center text-3xl leading-tight font-bold text-balance italic md:text-5xl"
+            style={{ fontFamily: "var(--font-qs-display)" }}
           >
             &ldquo;Pippa is ever accommodating and looks after your every need.&rdquo;
           </blockquote>
@@ -318,11 +356,11 @@ export default function QuarterStirlingConcept() {
       </section>
 
       {/* AI assistant */}
-      <section id="assistant" className="bg-[#1c1015] px-6 py-24 text-[#f4ecee]">
+      <section id="assistant" className="bg-[#140a0f] px-6 py-24 text-[#f4ecee]">
         <div className="mx-auto max-w-2xl">
           <Reveal>
-            <p className="font-mono text-xs tracking-[0.2em] text-[#cf98a6] uppercase">Live demo</p>
-            <h2 className="mt-3 text-3xl font-semibold md:text-4xl" style={{ fontFamily: "var(--font-fraunces)" }}>
+            <p className="text-xs font-semibold tracking-[0.2em] text-[#cf98a6] uppercase">Live demo</p>
+            <h2 className="mt-3 text-3xl font-bold md:text-4xl" style={{ fontFamily: "var(--font-qs-display)" }}>
               Your own AI assistant.
             </h2>
           </Reveal>
@@ -337,13 +375,13 @@ export default function QuarterStirlingConcept() {
       {/* Insight chips */}
       <section className="mx-auto max-w-5xl px-6 py-24">
         <Reveal>
-          <p className="font-mono text-xs tracking-[0.2em] text-[#8a2f3f] uppercase">Right now</p>
+          <p className="text-xs font-semibold tracking-[0.2em] text-[#8a2f3f] uppercase">Right now</p>
         </Reveal>
         <div className="mt-6 grid gap-4 sm:grid-cols-3">
           {CHIPS.map((c, i) => (
             <Reveal key={c.label} delay={i * 80}>
               <div className="h-full rounded-xl border border-[#e6d9c2] bg-white p-6">
-                <p className="text-3xl font-semibold" style={{ fontFamily: "var(--font-fraunces)" }}>
+                <p className="text-3xl font-bold" style={{ fontFamily: "var(--font-qs-display)" }}>
                   {c.stat}
                 </p>
                 <p className="mt-2 text-sm text-[#5c4a51]">{c.label}</p>
@@ -363,7 +401,10 @@ export default function QuarterStirlingConcept() {
       {/* Closing */}
       <section className="border-t border-[#3c2530] bg-[#1c1015] px-6 py-24 text-center text-[#f4ecee]">
         <Reveal>
-          <p className="mx-auto max-w-xl text-2xl font-medium text-balance md:text-3xl" style={{ fontFamily: "var(--font-fraunces)" }}>
+          <p
+            className="mx-auto max-w-xl text-2xl font-bold text-balance md:text-3xl"
+            style={{ fontFamily: "var(--font-qs-display)" }}
+          >
             A house this gracious deserves to be found.
           </p>
           <Link
@@ -375,7 +416,7 @@ export default function QuarterStirlingConcept() {
         </Reveal>
       </section>
 
-      <footer className="bg-[#1c1015] px-6 pb-10 text-center text-[11px] text-[#7a636a]">
+      <footer className="bg-[#140a0f] px-6 pb-10 pt-8 text-center text-[11px] text-[#7a636a]">
         Quarter Stirling · Denny, near Stirling, Scotland · quarterstirling@hotmail.co.uk
         <br />
         Built from publicly available information only — not affiliated with or published by Quarter Stirling.
