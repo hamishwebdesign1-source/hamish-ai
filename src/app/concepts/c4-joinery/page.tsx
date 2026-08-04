@@ -272,9 +272,28 @@ export default function C4JoineryConcept() {
         />
         <div className="absolute inset-0 bg-gradient-to-t from-[#15110d] via-[#15110d]/92 to-[#15110d]/55" />
         <DovetailMotif className="pointer-events-none absolute top-1/2 right-[-6%] size-[460px] -translate-y-1/2 opacity-80" />
-        <div className="relative mx-auto max-w-5xl px-6 pt-24 pb-28 md:pt-36 md:pb-40">
+        <div className="relative mx-auto max-w-5xl px-6 pt-16 pb-28 md:pt-20 md:pb-40">
           <Reveal>
-            <p className="text-xs font-semibold tracking-[0.25em] text-[#d8501f] uppercase">Linwood · Renfrewshire</p>
+            <div className="flex items-center gap-3">
+              <span
+                className="flex size-11 shrink-0 items-center justify-center border-2 border-[#d8501f] text-lg font-black text-[#d8501f]"
+                style={{ fontFamily: "var(--font-c4-display)" }}
+                aria-hidden
+              >
+                C4
+              </span>
+              <span
+                className="text-2xl font-black tracking-[0.08em] text-[#f1ece2] uppercase"
+                style={{ fontFamily: "var(--font-c4-display)" }}
+              >
+                C4 Joinery
+              </span>
+            </div>
+          </Reveal>
+          <Reveal delay={40}>
+            <p className="mt-10 text-xs font-semibold tracking-[0.25em] text-[#d8501f] uppercase">
+              Linwood · Renfrewshire
+            </p>
           </Reveal>
           <Reveal delay={80}>
             <h1
