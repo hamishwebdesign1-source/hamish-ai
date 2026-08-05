@@ -147,7 +147,7 @@ function OverviewTab({ data }: { data: PortalInsights }) {
           {data.insights.map((insight) => (
             <li
               key={insight.id}
-              className={`rounded-lg border-l-4 bg-primary-foreground/5 px-4 py-3 ${CATEGORY_META[insight.category].className}`}
+              className={`feed-item-enter rounded-lg border-l-4 bg-primary-foreground/5 px-4 py-3 ${CATEGORY_META[insight.category].className}`}
             >
               <p className="text-sm text-primary-foreground">{insight.text}</p>
             </li>
@@ -379,8 +379,12 @@ function AutomationsTab({ data }: { data: PortalInsights }) {
         </div>
         {!data.automationEvents.length && <p className="mt-4 text-sm text-primary-foreground/50">Nothing automated yet.</p>}
         <ul className="mt-4 space-y-2.5">
-          {data.automationEvents.map((event) => (
-            <li key={event.id} className="flex items-start gap-3 rounded-lg bg-primary-foreground/5 px-3.5 py-2.5">
+          {data.automationEvents.map((event, i) => (
+            <li
+              key={event.id}
+              className="feed-item-enter flex items-start gap-3 rounded-lg bg-primary-foreground/5 px-3.5 py-2.5"
+              style={{ animationDelay: `${i * 60}ms` }}
+            >
               <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-emerald-400" />
               <div>
                 <p className="text-sm text-primary-foreground">{event.label}</p>
