@@ -2,6 +2,7 @@ import { getStripe } from "@/lib/stripe";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { sendClientEmail } from "@/lib/send-client-email";
 import { sendErrorAlert } from "@/lib/send-error-alert";
+import { logInfo, logError } from "@/lib/structured-log";
 
 // Creates a real Stripe invoice and emails the client a link to pay it —
 // collection_method "send_invoice" rather than charging a saved card
@@ -74,7 +75,11 @@ export async function createInvoice(params: {
       due_date: finalized.due_date ? new Date(finalized.due_date * 1000).toISOString().slice(0, 10) : null,
     });
 
-    if (insertError) console.error("Failed to save invoice record:", insertError);
+    if (insertError) {
+      logError("invoice.save_record_failed", { client_id: params.clientId, stripe_invoice_id: finalized.id, message: insertError.message });
+    } else {
+      logInfo("invoice.created", { client_id: params.clientId, stripe_invoice_id: finalized.id, amount_pence: params.amountPence });
+    }
 
     if (finalized.hosted_invoice_url) {
       const amountPounds = (params.amountPence / 100).toFixed(2);
@@ -87,7 +92,7 @@ export async function createInvoice(params: {
 
     return { invoiceUrl: finalized.hosted_invoice_url as string | null };
   } catch (error) {
-    console.error("Failed to create Stripe invoice:", error);
+    logError("invoice.create_failed", { client_id: params.clientId, amount_pence: params.amountPence, message: error instanceof Error ? error.message : String(error) });
     await sendErrorAlert(
       "Invoice creation",
       `Failed to create a Stripe invoice for ${client.business_name} (${params.amountPence / 100} GBP): ${error}`

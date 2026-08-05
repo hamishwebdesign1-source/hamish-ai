@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { createServerSupabaseClient } from "@/lib/supabase-server-auth";
 import { ADMIN_COOKIE_NAME, hashAdminPassword } from "@/lib/admin-auth";
+import { logInfo, logWarn } from "@/lib/structured-log";
 
 // Magic-link sign-in for /admin — an alternative to typing the shared
 // password each time. Unlike the portal (open to any email that matches a
@@ -41,8 +42,10 @@ export async function GET(request: Request) {
       path: "/",
       maxAge: 60 * 60 * 24 * 30,
     });
+    logInfo("admin_auth.magic_link_success", { email });
     return NextResponse.redirect(`${origin}/admin`);
   }
 
+  logWarn("admin_auth.magic_link_failed", { email: email ?? null });
   return NextResponse.redirect(`${origin}/admin/login?error=1`);
 }

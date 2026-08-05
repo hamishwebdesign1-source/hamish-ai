@@ -2,6 +2,7 @@ import type Stripe from "stripe";
 import { getStripe } from "@/lib/stripe";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { sendErrorAlert } from "@/lib/send-error-alert";
+import { logInfo, logError } from "@/lib/structured-log";
 
 // Every client's subscription shares this one Product (fixed, explicit
 // id so retrieve/create is idempotent with no DB bookkeeping needed) —
@@ -90,11 +91,12 @@ export async function startSubscription(clientId: string) {
       .from("clients")
       .update({ stripe_subscription_id: subscription.id, subscription_status: subscription.status })
       .eq("id", client.id);
-    if (updateError) console.error("Failed to save new subscription id:", updateError);
+    if (updateError) logError("subscription.save_id_failed", { client_id: client.id, stripe_subscription_id: subscription.id, message: updateError.message });
 
+    logInfo("subscription.started", { client_id: client.id, stripe_subscription_id: subscription.id, amount_pence: client.maintenance_monthly_pence });
     return { subscriptionId: subscription.id };
   } catch (error) {
-    console.error("Failed to create Stripe subscription:", error);
+    logError("subscription.create_failed", { client_id: client.id, message: error instanceof Error ? error.message : String(error) });
     await sendErrorAlert("Subscription creation", `Failed to create a Stripe subscription for ${client.business_name}: ${error}`);
     return { error: "Failed to create the subscription via Stripe." as const };
   }
@@ -116,10 +118,12 @@ export async function cancelSubscription(clientId: string) {
       .from("clients")
       .update({ stripe_subscription_id: null, subscription_status: "canceled" })
       .eq("id", clientId);
-    if (error) console.error("Failed to clear cancelled subscription id:", error);
+    if (error) logError("subscription.clear_id_failed", { client_id: clientId, message: error.message });
+
+    logInfo("subscription.cancelled", { client_id: clientId, stripe_subscription_id: client.stripe_subscription_id });
     return { ok: true as const };
   } catch (error) {
-    console.error("Failed to cancel Stripe subscription:", error);
+    logError("subscription.cancel_failed", { client_id: clientId, message: error instanceof Error ? error.message : String(error) });
     await sendErrorAlert("Subscription cancellation", `Failed to cancel the Stripe subscription for ${client?.business_name}: ${error}`);
     return { error: "Failed to cancel the subscription via Stripe." as const };
   }

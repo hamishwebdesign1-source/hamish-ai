@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
 import { ADMIN_COOKIE_NAME, hashAdminPassword } from "@/lib/admin-auth";
+import { logInfo, logWarn } from "@/lib/structured-log";
 import { AdminMagicLinkForm } from "@/components/admin/magic-link-form";
 import { Eyebrow } from "@/components/eyebrow";
 import { Card, CardContent } from "@/components/ui/card";
@@ -14,6 +15,9 @@ async function login(formData: FormData) {
   const expected = process.env.ADMIN_PASSWORD;
 
   if (!expected || password !== expected) {
+    // Never log the password itself, correct or not — the fact of a
+    // failed attempt is what's worth knowing, not the guess.
+    logWarn("admin_auth.password_login_failed");
     redirect("/admin/login?error=1");
   }
 
@@ -26,6 +30,7 @@ async function login(formData: FormData) {
     path: "/",
     maxAge: 60 * 60 * 24 * 30,
   });
+  logInfo("admin_auth.password_login_success");
   redirect("/admin");
 }
 

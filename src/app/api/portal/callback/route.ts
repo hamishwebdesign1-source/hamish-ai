@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase-server-auth";
+import { logInfo, logWarn } from "@/lib/structured-log";
 
 // The redirect target Supabase sends a client to after they click their
 // magic-link email. Handles both confirmation formats Supabase can produce:
@@ -17,18 +18,22 @@ export async function GET(request: Request) {
   const supabase = await createServerSupabaseClient();
 
   if (code) {
-    const { error } = await supabase.auth.exchangeCodeForSession(code);
+    const { data, error } = await supabase.auth.exchangeCodeForSession(code);
     if (!error) {
+      logInfo("portal_auth.login_success", { email: data.user?.email ?? null, method: "code" });
       return NextResponse.redirect(`${origin}/portal`);
     }
+    logWarn("portal_auth.login_failed", { method: "code", message: error.message });
   } else if (tokenHash && type) {
-    const { error } = await supabase.auth.verifyOtp({
+    const { data, error } = await supabase.auth.verifyOtp({
       token_hash: tokenHash,
       type: type as "magiclink" | "email",
     });
     if (!error) {
+      logInfo("portal_auth.login_success", { email: data.user?.email ?? null, method: "token_hash" });
       return NextResponse.redirect(`${origin}/portal`);
     }
+    logWarn("portal_auth.login_failed", { method: "token_hash", message: error.message });
   }
 
   return NextResponse.redirect(`${origin}/portal/login?error=1`);
