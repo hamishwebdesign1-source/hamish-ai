@@ -197,6 +197,49 @@ export async function sendInvoiceReminderAction(invoiceId: string, revalidate: s
   revalidatePath(revalidate);
 }
 
+// Admin-managed team invites, not self-serve — consistent with the rest of
+// this product's consultation-gated model (no client-facing signup or
+// checkout anywhere). If a client ever wants to invite their own
+// colleagues without going through Hamish, that's a distinct, larger
+// feature (in-portal invite UI + its own RLS write policy) worth building
+// only once someone actually asks for it.
+export async function inviteClientMember(clientId: string, revalidate: string, formData: FormData) {
+  const supabase = getSupabaseAdmin();
+  if (!supabase) return;
+
+  const email = String(formData.get("email") || "").trim().toLowerCase();
+  const role = String(formData.get("role") || "member") === "owner" ? "owner" : "member";
+  if (!email) return;
+
+  const { data: client } = await supabase.from("clients").select("business_name").eq("id", clientId).single();
+
+  const { error } = await supabase.from("client_members").insert({ client_id: clientId, email, role, invited_by: "admin" });
+
+  if (error) {
+    // 23505 = unique_violation (client_id, email) -- they're already a
+    // member, which isn't really a failure worth logging as one.
+    if (error.code !== "23505") console.error("Failed to invite client member:", error);
+  } else if (client) {
+    await sendClientEmail(
+      email,
+      `You've been added to ${client.business_name}'s Hamish AI portal`,
+      `Hi,\n\nYou now have access to ${client.business_name}'s Hamish AI client portal.\n\nSign in any time at https://hamishai.org/portal/login with this email address (${email}) — we'll send you a one-time login link, no password needed.\n\n— Hamish AI`
+    );
+  }
+
+  revalidatePath(revalidate);
+}
+
+export async function removeClientMember(memberId: string, revalidate: string) {
+  const supabase = getSupabaseAdmin();
+  if (!supabase) return;
+
+  const { error } = await supabase.from("client_members").delete().eq("id", memberId);
+  if (error) console.error("Failed to remove client member:", error);
+
+  revalidatePath(revalidate);
+}
+
 export type DraftEmailState = { subject?: string; body?: string; email?: string | null; error?: string };
 
 export async function generateLeadEmailDraft(

@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase-server-auth";
+import { getPortalMembership } from "@/lib/portal-membership";
 import { answerAccountQuestion } from "@/lib/answer-account-question";
+import { isRateLimited } from "@/lib/chat-rate-limit";
 
 const MAX_MESSAGES = 12;
 
@@ -12,11 +14,22 @@ export async function POST(request: Request) {
   if (!user?.email) return NextResponse.json({ error: "Not signed in." }, { status: 401 });
 
   // Session-bound client from here on, same as the insights page — RLS
-  // (schema-rls-portal.sql) enforces this can only ever resolve to the
-  // signed-in user's own client row, independent of this app-level check.
-  const { data: client } = await supabase.from("clients").select("id, status").eq("email", user.email).single();
+  // (schema-client-members.sql) enforces this can only ever resolve to a
+  // client this signed-in user is a member of, independent of this
+  // app-level check.
+  const membership = await getPortalMembership(supabase, user.email);
+  const { data: client } = membership
+    ? await supabase.from("clients").select("id, status").eq("id", membership.clientId).single()
+    : { data: null };
   if (!client || client.status === "churned") {
     return NextResponse.json({ error: "No portal access found." }, { status: 403 });
+  }
+
+  // This was previously the one AI-calling endpoint in the app with no rate
+  // limit at all — being signed in isn't a defence against a compromised
+  // account or a runaway client-side loop burning Anthropic API spend.
+  if (await isRateLimited(`portal-copilot:${client.id}`)) {
+    return NextResponse.json({ error: "Too many questions in a short time — try again in a few minutes." }, { status: 429 });
   }
 
   const body = await request.json().catch(() => null);

@@ -2,11 +2,10 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { HeartPulse, MessagesSquare, ListChecks, Receipt, ArrowRight, CheckCircle2 } from "lucide-react";
 import { createServerSupabaseClient } from "@/lib/supabase-server-auth";
-import { getSupabaseAdmin } from "@/lib/supabase";
+import { getPortalMembership } from "@/lib/portal-membership";
 import { AskSupportAgent } from "@/components/portal/ask-support-agent";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { RequestStatusBadge } from "@/components/status-badges";
 
 function StatCard({
@@ -49,35 +48,38 @@ export default async function PortalHomePage() {
   } = await supabase.auth.getUser();
   if (!user?.email) redirect("/portal/login");
 
-  const admin = getSupabaseAdmin();
-  if (!admin) redirect("/portal/login");
+  const membership = await getPortalMembership(supabase, user.email);
+  if (!membership) redirect("/portal/login");
+  const clientId = membership.clientId;
 
-  const { data: client } = await admin.from("clients").select("*").eq("email", user.email).single();
+  // Session-scoped client from here on — RLS (schema-client-members.sql)
+  // means these queries can only ever return this one client's rows.
+  const { data: client } = await supabase.from("clients").select("*").eq("id", clientId).single();
   if (!client) redirect("/portal/login");
 
-  const { data: requests } = await admin
+  const { data: requests } = await supabase
     .from("requests")
     .select("id, raw_text, status, created_at")
-    .eq("client_id", client.id)
+    .eq("client_id", clientId)
     .order("created_at", { ascending: false });
 
   const requestIds = (requests ?? []).map((r) => r.id);
   const { data: tasks } = requestIds.length
-    ? await admin.from("tasks").select("id, status").in("request_id", requestIds)
+    ? await supabase.from("tasks").select("id, status").in("request_id", requestIds)
     : { data: [] };
 
-  const { data: invoices } = await admin
+  const { data: invoices } = await supabase
     .from("invoices")
     .select("amount_pence, status, due_date")
-    .eq("client_id", client.id)
+    .eq("client_id", clientId)
     .neq("status", "paid")
     .order("due_date", { ascending: true });
 
   const { data: siteChecks } = client.website_url
-    ? await admin
+    ? await supabase
         .from("site_checks")
         .select("ai_summary, uptime_ok, checked_at")
-        .eq("client_id", client.id)
+        .eq("client_id", clientId)
         .order("checked_at", { ascending: false })
         .limit(1)
     : { data: [] };

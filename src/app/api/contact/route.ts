@@ -14,7 +14,7 @@ function sanitizeHeaderValue(value: string) {
 }
 
 export async function POST(request: Request) {
-  if (isRateLimited(getClientKey(request))) {
+  if (await isRateLimited(getClientKey(request))) {
     return NextResponse.json(
       { error: "Too many requests — please try again in a few minutes." },
       { status: 429 }

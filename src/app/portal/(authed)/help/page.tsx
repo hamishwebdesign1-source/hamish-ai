@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { BookOpen } from "lucide-react";
 import { createServerSupabaseClient } from "@/lib/supabase-server-auth";
-import { getSupabaseAdmin } from "@/lib/supabase";
+import { getPortalMembership } from "@/lib/portal-membership";
 import { AskSupportAgent } from "@/components/portal/ask-support-agent";
 import { Card, CardContent } from "@/components/ui/card";
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion";
@@ -13,16 +13,14 @@ export default async function PortalHelpPage() {
   } = await supabase.auth.getUser();
   if (!user?.email) redirect("/portal/login");
 
-  const admin = getSupabaseAdmin();
-  if (!admin) redirect("/portal/login");
+  const membership = await getPortalMembership(supabase, user.email);
+  if (!membership) redirect("/portal/login");
+  const clientId = membership.clientId;
 
-  const { data: client } = await admin.from("clients").select("id").eq("email", user.email).single();
-  if (!client) redirect("/portal/login");
-
-  const { data: entries } = await admin
+  const { data: entries } = await supabase
     .from("knowledge_base")
     .select("id, title, content")
-    .or(`client_id.eq.${client.id},client_id.is.null`)
+    .or(`client_id.eq.${clientId},client_id.is.null`)
     .order("title");
 
   return (
@@ -33,7 +31,7 @@ export default async function PortalHelpPage() {
       </p>
 
       <div className="mt-6">
-        <AskSupportAgent clientId={client.id} />
+        <AskSupportAgent clientId={clientId} />
       </div>
 
       <div className="mt-8">

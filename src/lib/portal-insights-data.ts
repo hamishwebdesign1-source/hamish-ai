@@ -62,7 +62,6 @@ function average(nums: number[]) {
 // AI model), just "if the last couple of months' pace continues." Returns
 // null when there isn't enough history to say anything honest.
 function projectNextMonth(monthlyTotals: number[]): number | null {
-  const nonZero = monthlyTotals.filter((v, i) => i > 0 || v > 0);
   if (monthlyTotals.length < 2) return null;
   const recent = monthlyTotals.slice(-3);
   if (recent.every((v) => v === 0)) return null;

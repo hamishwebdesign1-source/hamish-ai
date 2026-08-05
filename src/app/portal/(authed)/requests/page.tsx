@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { revalidatePath } from "next/cache";
 import { createServerSupabaseClient } from "@/lib/supabase-server-auth";
-import { getSupabaseAdmin } from "@/lib/supabase";
+import { getPortalMembership } from "@/lib/portal-membership";
 import { triageRequest } from "@/lib/triage-request";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
@@ -44,16 +44,14 @@ export default async function PortalRequestsPage({
   } = await supabase.auth.getUser();
   if (!user?.email) redirect("/portal/login");
 
-  const admin = getSupabaseAdmin();
-  if (!admin) redirect("/portal/login");
+  const membership = await getPortalMembership(supabase, user.email);
+  if (!membership) redirect("/portal/login");
+  const clientId = membership.clientId;
 
-  const { data: client } = await admin.from("clients").select("id").eq("email", user.email).single();
-  if (!client) redirect("/portal/login");
-
-  const { data: allRequests } = await admin
+  const { data: allRequests } = await supabase
     .from("requests")
     .select("id, raw_text, status, category, missing_info, created_at")
-    .eq("client_id", client.id)
+    .eq("client_id", clientId)
     .order("created_at", { ascending: false });
 
   const requests =
@@ -61,15 +59,15 @@ export default async function PortalRequestsPage({
 
   const requestIds = (allRequests ?? []).map((r) => r.id);
   const { data: tasks } = requestIds.length
-    ? await admin.from("tasks").select("id, request_id, title, status").in("request_id", requestIds)
+    ? await supabase.from("tasks").select("id, request_id, title, status").in("request_id", requestIds)
     : { data: [] };
 
-  const submitRequestWithId = submitRequest.bind(null, client.id);
+  const submitRequestWithId = submitRequest.bind(null, clientId);
 
   return (
     <div>
       <h1 className="font-heading text-2xl font-semibold">Requests</h1>
-      <p className="mt-1 text-sm text-muted-foreground">Everything you've sent us, and what's happening with it.</p>
+      <p className="mt-1 text-sm text-muted-foreground">Everything you&apos;ve sent us, and what&apos;s happening with it.</p>
 
       <Card className="mt-6">
         <CardHeader>
