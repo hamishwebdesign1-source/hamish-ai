@@ -9,6 +9,13 @@ function monthMarker(date: Date) {
   return date.toLocaleDateString("en-GB", { month: "long", year: "numeric" });
 }
 
+// Phase 3: real Stripe subscriptions (subscription.ts) now handle
+// recurring billing directly for any client who's been moved onto one —
+// Stripe generates and sends their invoice itself each cycle, caught by
+// the webhook. This cron stays as the fallback for clients still on the
+// old flow (a maintenance rate set, but no subscription started yet), and
+// naturally does less every month as more clients migrate, rather than
+// needing a hard cutover.
 export async function generateMonthlyInvoices() {
   const supabase = getSupabaseAdmin();
   if (!supabase) return { error: "Supabase is not configured." as const };
@@ -17,6 +24,7 @@ export async function generateMonthlyInvoices() {
     .from("clients")
     .select("id, business_name, maintenance_monthly_pence")
     .eq("status", "active")
+    .is("stripe_subscription_id", null)
     .not("maintenance_monthly_pence", "is", null)
     .gt("maintenance_monthly_pence", 0);
 

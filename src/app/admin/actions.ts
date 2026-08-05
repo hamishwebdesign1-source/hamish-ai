@@ -6,6 +6,7 @@ import { sendClientEmail } from "@/lib/send-client-email";
 import { draftLeadEmail } from "@/lib/draft-lead-email";
 import { draftLeadCallScript } from "@/lib/draft-lead-call-script";
 import { sendInvoiceReminder } from "@/lib/send-invoice-reminder";
+import { startSubscription, cancelSubscription } from "@/lib/subscription";
 
 export async function updateTaskStatus(taskId: string, status: string, revalidate: string) {
   const supabase = getSupabaseAdmin();
@@ -161,6 +162,18 @@ export async function toggleAnalyticsEnabled(clientId: string, enabled: boolean,
   const { error } = await supabase.from("clients").update({ analytics_enabled: enabled }).eq("id", clientId);
   if (error) console.error("Failed to toggle AI Business Analytics entitlement:", error);
 
+  revalidatePath(revalidate);
+}
+
+export async function startSubscriptionAction(clientId: string, revalidate: string) {
+  const result = await startSubscription(clientId);
+  if ("error" in result) console.error("Failed to start subscription:", result.error);
+  revalidatePath(revalidate);
+}
+
+export async function cancelSubscriptionAction(clientId: string, revalidate: string) {
+  const result = await cancelSubscription(clientId);
+  if ("error" in result) console.error("Failed to cancel subscription:", result.error);
   revalidatePath(revalidate);
 }
 

@@ -13,6 +13,8 @@ import {
   toggleAnalyticsEnabled,
   inviteClientMember,
   removeClientMember,
+  startSubscriptionAction,
+  cancelSubscriptionAction,
 } from "@/app/admin/actions";
 import { timeAgo } from "@/lib/time-ago";
 import { getInvoiceDisplay, isInvoiceOverdue } from "@/lib/invoice-status";
@@ -61,6 +63,17 @@ const planLabel: Record<string, string> = {
   none: "No maintenance plan",
   basic: "Basic maintenance",
   growth: "Growth partnership",
+};
+
+const subscriptionStatusVariant: Record<string, "success" | "warning" | "secondary"> = {
+  active: "success",
+  trialing: "success",
+  past_due: "warning",
+  incomplete: "warning",
+  canceled: "secondary",
+  unpaid: "warning",
+  incomplete_expired: "secondary",
+  paused: "secondary",
 };
 
 const CLIENT_STATUSES = ["active", "paused", "churned"] as const;
@@ -191,12 +204,42 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
         <Button type="submit" variant="ghost" size="xs">
           Save
         </Button>
-        {client.maintenance_monthly_pence ? (
+        {client.maintenance_monthly_pence && !client.stripe_subscription_id ? (
           <span className="text-[11px] text-muted-foreground">
-            Auto-invoiced on the 1st of each month
+            Auto-invoiced on the 1st of each month — or start a real subscription below
           </span>
         ) : null}
       </form>
+
+      {client.maintenance_monthly_pence ? (
+        <div className="mt-3 flex items-center gap-1.5">
+          <Receipt className="size-3.5 text-muted-foreground" />
+          <span className="text-xs text-muted-foreground">Subscription:</span>
+          {client.stripe_subscription_id ? (
+            <>
+              <Badge variant={subscriptionStatusVariant[client.subscription_status ?? ""] ?? "secondary"} className="capitalize">
+                {(client.subscription_status ?? "active").replace("_", " ")}
+              </Badge>
+              <form action={cancelSubscriptionAction.bind(null, id, revalidatePath)}>
+                <Button type="submit" size="xs" variant="outline">
+                  Cancel
+                </Button>
+              </form>
+            </>
+          ) : (
+            <form action={startSubscriptionAction.bind(null, id, revalidatePath)}>
+              <Button type="submit" size="xs">
+                Start subscription
+              </Button>
+            </form>
+          )}
+          <span className="text-[11px] text-muted-foreground">
+            {client.stripe_subscription_id
+              ? "Stripe bills this automatically each month — no more manual monthly invoicing needed."
+              : "Moves this client off the monthly cron onto a real Stripe subscription."}
+          </span>
+        </div>
+      ) : null}
 
       <div className="mt-3 flex items-center gap-1.5">
         <LineChart className="size-3.5 text-muted-foreground" />
