@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase-server-auth";
+import { getPortalMembership } from "@/lib/portal-membership";
 import { answerAccountQuestion } from "@/lib/answer-account-question";
 import { isRateLimited } from "@/lib/chat-rate-limit";
 
@@ -13,9 +14,13 @@ export async function POST(request: Request) {
   if (!user?.email) return NextResponse.json({ error: "Not signed in." }, { status: 401 });
 
   // Session-bound client from here on, same as the insights page — RLS
-  // (schema-rls-portal.sql) enforces this can only ever resolve to the
-  // signed-in user's own client row, independent of this app-level check.
-  const { data: client } = await supabase.from("clients").select("id, status").eq("email", user.email).single();
+  // (schema-client-members.sql) enforces this can only ever resolve to a
+  // client this signed-in user is a member of, independent of this
+  // app-level check.
+  const membership = await getPortalMembership(supabase, user.email);
+  const { data: client } = membership
+    ? await supabase.from("clients").select("id, status").eq("id", membership.clientId).single()
+    : { data: null };
   if (!client || client.status === "churned") {
     return NextResponse.json({ error: "No portal access found." }, { status: 403 });
   }

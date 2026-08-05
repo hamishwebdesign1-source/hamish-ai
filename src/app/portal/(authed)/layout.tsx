@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { LayoutDashboard, MessagesSquare, Receipt, LineChart, LifeBuoy, LogOut } from "lucide-react";
 import { createServerSupabaseClient } from "@/lib/supabase-server-auth";
 import { getSupabaseAdmin } from "@/lib/supabase";
+import { getPortalMembership, markMembershipAccepted } from "@/lib/portal-membership";
 import { PortalNavLink } from "@/components/portal/nav-link";
 import { PortalMobileNav } from "@/components/portal/mobile-nav";
 import { Card, CardContent } from "@/components/ui/card";
@@ -18,9 +19,12 @@ export default async function PortalAuthedLayout({ children }: { children: React
     redirect("/portal/login");
   }
 
-  const admin = getSupabaseAdmin();
-  const { data: client } = admin
-    ? await admin.from("clients").select("id, business_name, status").eq("email", user.email).single()
+  // Session-scoped client from here on — RLS (schema-client-members.sql)
+  // enforces the same gate at the database level, so a bug in this .eq()
+  // alone couldn't leak another client's row in.
+  const membership = await getPortalMembership(supabase, user.email);
+  const { data: client } = membership
+    ? await supabase.from("clients").select("id, business_name, status").eq("id", membership.clientId).single()
     : { data: null };
 
   if (!client || client.status === "churned") {
@@ -37,6 +41,11 @@ export default async function PortalAuthedLayout({ children }: { children: React
         </Card>
       </div>
     );
+  }
+
+  if (membership && !membership.acceptedAt) {
+    const admin = getSupabaseAdmin();
+    if (admin) await markMembershipAccepted(admin, membership.clientId, user.email);
   }
 
   return (

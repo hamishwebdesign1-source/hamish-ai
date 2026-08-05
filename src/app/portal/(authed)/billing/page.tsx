@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { ExternalLink, Receipt, Wallet, Clock } from "lucide-react";
 import { createServerSupabaseClient } from "@/lib/supabase-server-auth";
-import { getSupabaseAdmin } from "@/lib/supabase";
+import { getPortalMembership } from "@/lib/portal-membership";
 import { getInvoiceDisplay } from "@/lib/invoice-status";
 import { Badge } from "@/components/ui/badge";
 
@@ -12,13 +12,13 @@ export default async function PortalBillingPage() {
   } = await supabase.auth.getUser();
   if (!user?.email) redirect("/portal/login");
 
-  const admin = getSupabaseAdmin();
-  if (!admin) redirect("/portal/login");
+  const membership = await getPortalMembership(supabase, user.email);
+  if (!membership) redirect("/portal/login");
 
-  const { data: client } = await admin.from("clients").select("id, business_name").eq("email", user.email).single();
+  const { data: client } = await supabase.from("clients").select("id, business_name").eq("id", membership.clientId).single();
   if (!client) redirect("/portal/login");
 
-  const { data: invoices } = await admin
+  const { data: invoices } = await supabase
     .from("invoices")
     .select("id, amount_pence, description, status, due_date, paid_at, stripe_hosted_invoice_url")
     .eq("client_id", client.id)
@@ -36,7 +36,7 @@ export default async function PortalBillingPage() {
   return (
     <div>
       <h1 className="font-heading text-2xl font-semibold">Billing</h1>
-      <p className="mt-1 text-sm text-muted-foreground">Every invoice we've sent {client.business_name}, and its status.</p>
+      <p className="mt-1 text-sm text-muted-foreground">Every invoice we&apos;ve sent {client.business_name}, and its status.</p>
 
       <div className="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-3">
         <div className="rounded-xl border border-border bg-card p-4">
