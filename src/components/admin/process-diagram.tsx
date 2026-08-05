@@ -21,8 +21,8 @@ flowchart TD
 
     subgraph ON["2 &middot; Client Onboarding"]
         direction TB
-        B1["Hamish adds client record"] --> B2["Portal access granted<br/>email-matched, no separate signup"]
-        B1 --> B3["Maintenance plan set<br/>none / basic / growth"]
+        B1["Hamish adds client record"] --> B2["Portal access invited by email<br/>owner + team members, no public sign-up"]
+        B1 --> B3["Maintenance set<br/>none / one-off invoicing / Stripe subscription"]
     end
 
     subgraph RQ["3 &middot; Request Handling &amp; Fulfillment"]
@@ -54,16 +54,18 @@ flowchart TD
 
     subgraph BL["6 &middot; Billing"]
         direction TB
-        F1["Hamish creates invoice"] --> F2["Stripe invoice created &amp; finalized"]
+        F0["Recurring: Stripe subscription<br/>at the client's own custom rate"] --> F2
+        F1["One-off: Hamish creates invoice"] --> F2["Stripe invoice created &amp; finalized"]
         F2 --> F3["Client emailed payment link"]
         F3 --> F4{"Paid before due date?"}
         F4 -->|"yes"| F5["Stripe webhook marks paid"]
         F4 -->|"overdue"| F6["Reminder email sent"]
         F6 --> F3
         F5 --> F7["Status visible in portal billing page"]
+        F7 --> F8["Client manages cards &amp; history<br/>via Stripe Customer Portal"]
     end
 
-    subgraph OV["7 &middot; Daily Overview"]
+    subgraph OV["7 &middot; Daily Overview &amp; Accountability"]
         direction TB
         G1["Overdue invoices"]
         G2["Requests stuck on awaiting_info"]
@@ -73,15 +75,20 @@ flowchart TD
         G2 --> G5
         G3 --> G5
         G4 --> G5
+        G6["Every admin action logged<br/>/admin/activity-log"]
     end
 
     B2 --> C1
     B2 --> D1
-    B3 --> F1
+    B3 --> F0
     C6 -.->|"flags"| G2
     F6 -.->|"flags"| G1
     A7 -.->|"flags"| G3
     E3 -.->|"flags"| G4
+    B1 -.->|"logs"| G6
+    B3 -.->|"logs"| G6
+    F0 -.->|"logs"| G6
+    F1 -.->|"logs"| G6
 `;
 
 export function ProcessDiagram() {

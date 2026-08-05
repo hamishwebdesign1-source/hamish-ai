@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { BookOpenText, FileDown, ClipboardCheck } from "lucide-react";
 import { ProcessDiagram } from "@/components/admin/process-diagram";
+import { ProcessSteps } from "@/components/admin/process-steps";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 
@@ -16,7 +17,23 @@ export default function AdminProcessPage() {
       </p>
 
       <div className="mt-8">
-        <ProcessDiagram />
+        <h2 className="font-heading text-lg font-semibold">The 7 stages, in plain English</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Expand a stage for what actually happens, step by step — no diagram-reading required.
+        </p>
+        <div className="mt-4">
+          <ProcessSteps />
+        </div>
+      </div>
+
+      <div className="mt-10">
+        <h2 className="font-heading text-lg font-semibold">The same process, as a flowchart</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Every branch, decision point, and automation trigger behind the stages above.
+        </p>
+        <div className="mt-4">
+          <ProcessDiagram />
+        </div>
       </div>
 
       <Card className="mt-8">
