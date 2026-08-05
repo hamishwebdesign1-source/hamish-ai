@@ -4,8 +4,10 @@ import { LayoutDashboard, MessagesSquare, Receipt, LineChart, LifeBuoy, LogOut }
 import { createServerSupabaseClient } from "@/lib/supabase-server-auth";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { getPortalMembership, markMembershipAccepted } from "@/lib/portal-membership";
+import { getRecentPortalEvents } from "@/lib/portal-events";
 import { PortalNavLink } from "@/components/portal/nav-link";
 import { PortalMobileNav } from "@/components/portal/mobile-nav";
+import { NotificationBell } from "@/components/portal/notification-bell";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 
@@ -48,6 +50,10 @@ export default async function PortalAuthedLayout({ children }: { children: React
     if (admin) await markMembershipAccepted(admin, membership.clientId, user.email);
   }
 
+  // Lean, dedicated fetch (not the full buildPortalInsights computation)
+  // since this runs on every portal page load, not just Insights visits.
+  const recentEvents = await getRecentPortalEvents(supabase, client.id, 8);
+
   return (
     <div className="min-h-screen bg-secondary/20">
       <header className="relative border-b border-border/60 bg-background">
@@ -83,7 +89,10 @@ export default async function PortalAuthedLayout({ children }: { children: React
               </Button>
             </form>
           </nav>
-          <PortalMobileNav />
+          <div className="flex items-center gap-1">
+            <NotificationBell events={recentEvents} />
+            <PortalMobileNav />
+          </div>
         </div>
       </header>
       <main className="mx-auto max-w-5xl px-6 py-10">{children}</main>

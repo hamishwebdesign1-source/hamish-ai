@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { buildAutomationEvents } from "@/lib/portal-events";
 
 // Real-data equivalent of the marketing site's illustrative AI Command
 // Centre. Every number here is computed from tables we actually have for
@@ -197,22 +198,9 @@ export async function buildPortalInsights(supabase: SupabaseClient, clientId: st
     ),
   }));
 
-  // --- Automation events (real, chronological) ---
-  type Event = { id: string; label: string; detail: string; at: string };
-  const events: Event[] = [];
-  requests
-    .filter((r) => r.auto_sent && r.responded_at)
-    .forEach((r) => events.push({ id: `auto-${r.id}`, label: "AI auto-replied to your request", detail: "Covered by your plan — no wait for a human", at: r.responded_at! }));
-  siteChecks
-    .slice(0, 8)
-    .forEach((c, i) => events.push({ id: `check-${i}`, label: "Site health check ran", detail: c.uptime_ok === false ? "Issue detected" : "All clear", at: c.checked_at }));
-  invoices
-    .filter((i) => i.paid_at)
-    .forEach((i) => events.push({ id: `paid-${i.created_at}`, label: "Payment received", detail: `£${(i.amount_pence / 100).toFixed(2)}`, at: i.paid_at! }));
-  invoices.forEach((i) =>
-    events.push({ id: `created-${i.created_at}`, label: "Invoice generated", detail: `£${(i.amount_pence / 100).toFixed(2)}`, at: i.created_at })
-  );
-  const automationEvents = events.sort((a, b) => (a.at < b.at ? 1 : -1)).slice(0, 12);
+  // --- Automation events (real, chronological) — shared with the header
+  // notification bell's lean fetch, see portal-events.ts ---
+  const automationEvents = buildAutomationEvents(requests, siteChecks, invoices, 12);
 
   const autoReplyCount = requests.filter((r) => r.auto_sent).length;
   const siteCheckCount = siteChecks.length;
