@@ -21,9 +21,7 @@ export function Testimonial({ study }: { study: CaseStudy }) {
           )}
           <div className="p-8 md:p-10">
             <div className="flex items-center justify-between gap-4">
-              <span className="flex size-10 items-center justify-center rounded-full bg-accent/10 text-accent">
-                <Quote className="size-5" />
-              </span>
+              <Quote className="size-8" style={{ color: study.accentFrom }} />
               <Badge variant="outline">Illustrative example — not a real client</Badge>
             </div>
             <p className="mt-6 font-heading text-2xl leading-snug text-balance md:text-3xl">

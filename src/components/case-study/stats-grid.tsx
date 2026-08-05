@@ -7,8 +7,11 @@ export function StatsGrid({ study }: { study: CaseStudy }) {
       <div className="mx-auto max-w-6xl px-6 py-16 md:py-20">
         <div className="flex items-center gap-2">
           <span className="relative flex size-2">
-            <span className="absolute inline-flex size-full animate-ping rounded-full bg-accent opacity-75" />
-            <span className="relative inline-flex size-2 rounded-full bg-accent" />
+            <span
+              className="absolute inline-flex size-full animate-ping rounded-full opacity-75"
+              style={{ backgroundColor: study.accentFrom }}
+            />
+            <span className="relative inline-flex size-2 rounded-full" style={{ backgroundColor: study.accentFrom }} />
           </span>
           <p className="font-mono text-xs font-medium tracking-wide text-primary-foreground/70 uppercase">
             Results dashboard
@@ -36,7 +39,7 @@ export function StatsGrid({ study }: { study: CaseStudy }) {
               >
                 <div className="flex items-center justify-between">
                   <Icon className="size-5 text-primary-foreground/60" />
-                  {TrendIcon && <TrendIcon className="size-4 text-accent" />}
+                  {TrendIcon && <TrendIcon className="size-4" style={{ color: study.accentFrom }} />}
                 </div>
                 <p className="mt-3 font-heading text-3xl font-semibold tabular-nums">
                   {s.value}
