@@ -1,11 +1,20 @@
 import { redirect } from "next/navigation";
-import { ExternalLink, Receipt, Wallet, Clock } from "lucide-react";
+import { ExternalLink, Receipt, Wallet, Clock, CreditCard } from "lucide-react";
 import { createServerSupabaseClient } from "@/lib/supabase-server-auth";
 import { getPortalMembership } from "@/lib/portal-membership";
 import { getInvoiceDisplay } from "@/lib/invoice-status";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 
-export default async function PortalBillingPage() {
+const PORTAL_ERROR_COPY: Record<string, string> = {
+  not_set_up:
+    "There's no billing account set up for you yet — this appears once your first invoice or subscription has been created.",
+  unavailable: "Couldn't open billing management right now — try again in a moment, or contact us if it persists.",
+};
+
+export default async function PortalBillingPage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
+  const { error: errorParam } = await searchParams;
+
   const supabase = await createServerSupabaseClient();
   const {
     data: { user },
@@ -15,7 +24,11 @@ export default async function PortalBillingPage() {
   const membership = await getPortalMembership(supabase, user.email);
   if (!membership) redirect("/portal/login");
 
-  const { data: client } = await supabase.from("clients").select("id, business_name").eq("id", membership.clientId).single();
+  const { data: client } = await supabase
+    .from("clients")
+    .select("id, business_name, stripe_customer_id")
+    .eq("id", membership.clientId)
+    .single();
   if (!client) redirect("/portal/login");
 
   const { data: invoices } = await supabase
@@ -35,8 +48,24 @@ export default async function PortalBillingPage() {
 
   return (
     <div>
-      <h1 className="font-heading text-2xl font-semibold">Billing</h1>
-      <p className="mt-1 text-sm text-muted-foreground">Every invoice we&apos;ve sent {client.business_name}, and its status.</p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="font-heading text-2xl font-semibold">Billing</h1>
+          <p className="mt-1 text-sm text-muted-foreground">Every invoice we&apos;ve sent {client.business_name}, and its status.</p>
+        </div>
+        {client.stripe_customer_id && (
+          <form action="/api/portal/stripe-portal-session" method="post">
+            <Button type="submit" variant="outline" size="sm" className="gap-1.5">
+              <CreditCard className="size-3.5" />
+              Manage billing
+            </Button>
+          </form>
+        )}
+      </div>
+
+      {errorParam && PORTAL_ERROR_COPY[errorParam] && (
+        <p className="mt-4 rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{PORTAL_ERROR_COPY[errorParam]}</p>
+      )}
 
       <div className="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-3">
         <div className="rounded-xl border border-border bg-card p-4">
