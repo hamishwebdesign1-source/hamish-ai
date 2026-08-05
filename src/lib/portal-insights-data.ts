@@ -136,8 +136,11 @@ export async function buildPortalInsights(supabase: SupabaseClient, clientId: st
 
   const healthScore = components.length ? Math.round(average(components.map((c) => c.value))!) : null;
 
-  // --- Monthly series (6 months) ---
-  const months = lastNMonths(6);
+  // --- Monthly series (12 months, matching the marketing demo's trend
+  // depth — Phase 2 of the roadmap: bring the real dashboard closer to the
+  // demo's feel without fabricating anything, just showing more of the
+  // history that's already there) ---
+  const months = lastNMonths(12);
   const requestsByMonth = months.map((m) => ({
     label: m.label,
     value: requests.filter((r) => monthKey(r.created_at) === m.key).length,

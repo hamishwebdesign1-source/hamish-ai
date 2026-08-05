@@ -13,28 +13,40 @@ const TONE_COLOR: Record<string, string> = {
   warning: "var(--warning)",
 };
 
+// Bars get a fixed minimum width and the row scrolls horizontally rather
+// than compressing — a 6-bar chart and a 12-bar chart (Phase 2 extended the
+// trend window from 6 to 12 months) both stay legible instead of the
+// labels/values cramming or wrapping onto themselves on a narrow panel.
+const MIN_BAR_WIDTH = 34;
+
 export function VerticalBarChart({ data, formatValue }: { data: Bar[]; formatValue?: (v: number) => string }) {
   const max = Math.max(...data.map((d) => d.value), 1);
 
   return (
-    <div className="flex items-end gap-2" style={{ height: 140 }}>
-      {data.map((d) => {
-        const heightPct = (d.value / max) * 100;
-        return (
-          <div key={d.label} className="flex h-full flex-1 flex-col items-center justify-end gap-1.5">
-            <span className="font-mono text-[10px] tabular-nums text-primary-foreground/60">
-              {formatValue ? formatValue(d.value) : d.value}
-            </span>
-            <div className="w-full rounded-t-md bg-primary-foreground/10" style={{ height: "100%", position: "relative" }}>
-              <div
-                className="absolute right-0 bottom-0 left-0 rounded-t-md"
-                style={{ height: `${heightPct}%`, background: TONE_COLOR[d.tone ?? "default"] }}
-              />
+    <div className="overflow-x-auto">
+      <div className="flex items-end gap-2" style={{ height: 140, minWidth: data.length * (MIN_BAR_WIDTH + 8) }}>
+        {data.map((d) => {
+          const heightPct = (d.value / max) * 100;
+          return (
+            <div
+              key={d.label}
+              className="flex h-full flex-1 flex-col items-center justify-end gap-1.5"
+              style={{ minWidth: MIN_BAR_WIDTH }}
+            >
+              <span className="font-mono text-[10px] whitespace-nowrap tabular-nums text-primary-foreground/60">
+                {formatValue ? formatValue(d.value) : d.value}
+              </span>
+              <div className="w-full rounded-t-md bg-primary-foreground/10" style={{ height: "100%", position: "relative" }}>
+                <div
+                  className="absolute right-0 bottom-0 left-0 rounded-t-md"
+                  style={{ height: `${heightPct}%`, background: TONE_COLOR[d.tone ?? "default"] }}
+                />
+              </div>
+              <span className="text-[10px] whitespace-nowrap text-primary-foreground/50">{d.label}</span>
             </div>
-            <span className="text-[10px] whitespace-nowrap text-primary-foreground/50">{d.label}</span>
-          </div>
-        );
-      })}
+          );
+        })}
+      </div>
     </div>
   );
 }
