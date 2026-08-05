@@ -9,7 +9,7 @@ export async function askQuestion(clientId: string, _prevState: AskState, formDa
   const question = String(formData.get("question") || "").trim();
   if (!question) return {};
 
-  if (isRateLimited(`portal-ask:${clientId}`)) {
+  if (await isRateLimited(`portal-ask:${clientId}`)) {
     return { error: "Too many questions in a short time — try again in a few minutes." };
   }
 

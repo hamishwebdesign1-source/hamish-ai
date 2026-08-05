@@ -132,7 +132,7 @@ const SAVE_LEAD_TOOL: Anthropic.Tool = {
 };
 
 export async function POST(request: Request) {
-  if (isRateLimited(getClientKey(request))) {
+  if (await isRateLimited(getClientKey(request))) {
     return NextResponse.json(
       { error: "Too many messages — please try again in a few minutes." },
       { status: 429 }
