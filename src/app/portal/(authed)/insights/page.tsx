@@ -1,6 +1,5 @@
 import { redirect } from "next/navigation";
 import { createServerSupabaseClient } from "@/lib/supabase-server-auth";
-import { getSupabaseAdmin } from "@/lib/supabase";
 import { buildPortalInsights } from "@/lib/portal-insights-data";
 import { InsightsCentre } from "@/components/portal/insights-centre";
 
@@ -11,13 +10,14 @@ export default async function PortalInsightsPage() {
   } = await supabase.auth.getUser();
   if (!user?.email) redirect("/portal/login");
 
-  const admin = getSupabaseAdmin();
-  if (!admin) redirect("/portal/login");
-
-  const { data: client } = await admin.from("clients").select("id").eq("email", user.email).single();
+  // Reads from here on use this session-bound client, not the service-role
+  // client — Postgres RLS (schema-rls-portal.sql) enforces that this query,
+  // and every query buildPortalInsights makes, can only ever return rows
+  // belonging to the signed-in user's own client record.
+  const { data: client } = await supabase.from("clients").select("id").eq("email", user.email).single();
   if (!client) redirect("/portal/login");
 
-  const insights = await buildPortalInsights(client.id);
+  const insights = await buildPortalInsights(supabase, client.id);
   if ("error" in insights) {
     return (
       <div>

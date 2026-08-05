@@ -1,4 +1,4 @@
-import { getSupabaseAdmin } from "@/lib/supabase";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 // Real-data equivalent of the marketing site's illustrative AI Command
 // Centre. Every number here is computed from tables we actually have for
@@ -8,6 +8,14 @@ import { getSupabaseAdmin } from "@/lib/supabase";
 // this module computes the closest honest equivalent from our own data
 // (a request funnel, request categories, a trend projection of request
 // volume) rather than inventing a stand-in number.
+//
+// Takes a session-scoped Supabase client (the signed-in client's own JWT),
+// not the service-role client — Postgres RLS (schema-rls-portal.sql)
+// enforces that every query below can only ever return this one client's
+// rows, as a second, database-level layer under the .eq("client_id", ...)
+// filters already in this file. Both layers stay in place deliberately:
+// the explicit filters are what make the code's intent obvious to read;
+// RLS is what still protects the data if one of them is ever wrong.
 
 export type InsightsData = Awaited<ReturnType<typeof buildPortalInsights>>;
 export type PortalInsights = Exclude<InsightsData, { error: string }>;
@@ -63,10 +71,7 @@ function projectNextMonth(monthlyTotals: number[]): number | null {
   return Math.max(0, projected);
 }
 
-export async function buildPortalInsights(clientId: string) {
-  const supabase = getSupabaseAdmin();
-  if (!supabase) return { error: "Supabase is not configured." as const };
-
+export async function buildPortalInsights(supabase: SupabaseClient, clientId: string) {
   const { data: client } = await supabase
     .from("clients")
     .select("id, business_name, website_url")

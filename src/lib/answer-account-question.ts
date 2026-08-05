@@ -1,5 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { getSupabaseAdmin } from "@/lib/supabase";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { stripMarkdownEmphasis } from "@/lib/strip-markdown-emphasis";
 import { buildPortalInsights, type PortalInsights } from "@/lib/portal-insights-data";
 
@@ -48,11 +48,12 @@ ${knowledge}
 Plain English, warm but direct, no markdown formatting, no jargon. Keep answers short — a sentence or two unless they ask for detail.`;
 }
 
-export async function answerAccountQuestion(clientId: string, messages: { role: "user" | "assistant"; content: string }[]) {
-  const supabase = getSupabaseAdmin();
-  if (!supabase) return { error: "Supabase is not configured." as const };
-
-  const insights = await buildPortalInsights(clientId);
+export async function answerAccountQuestion(
+  supabase: SupabaseClient,
+  clientId: string,
+  messages: { role: "user" | "assistant"; content: string }[]
+) {
+  const insights = await buildPortalInsights(supabase, clientId);
   if ("error" in insights) return { error: insights.error };
 
   const { data: knowledgeEntries } = await supabase
