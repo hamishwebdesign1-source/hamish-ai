@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { revalidatePath } from "next/cache";
 import { notFound, redirect } from "next/navigation";
-import { AlertTriangle, ArrowLeft, CalendarCheck, ExternalLink, Globe, LineChart, Receipt, Zap } from "lucide-react";
+import { AlertTriangle, ArrowLeft, CalendarCheck, ExternalLink, Globe, LineChart, Receipt, UserPlus, Users, X, Zap } from "lucide-react";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { triageRequest } from "@/lib/triage-request";
 import { createInvoice } from "@/lib/create-invoice";
@@ -11,6 +11,8 @@ import {
   updateMaintenanceRate,
   updateClientStatus,
   toggleAnalyticsEnabled,
+  inviteClientMember,
+  removeClientMember,
 } from "@/app/admin/actions";
 import { timeAgo } from "@/lib/time-ago";
 import { getInvoiceDisplay, isInvoiceOverdue } from "@/lib/invoice-status";
@@ -105,6 +107,12 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
     .eq("client_id", id)
     .order("created_at", { ascending: false });
 
+  const { data: members } = await supabase
+    .from("client_members")
+    .select("id, email, role, accepted_at, invited_at")
+    .eq("client_id", id)
+    .order("invited_at", { ascending: true });
+
   const logRequestWithId = logRequest.bind(null, id);
   const revalidatePath = `/admin/clients/${id}`;
 
@@ -163,16 +171,6 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
         )}
       </div>
 
-      {client.email && (
-        <p className="mt-3 text-xs text-muted-foreground">
-          Portal access: they can sign in at{" "}
-          <Link href="/portal/login" className="text-accent hover:underline">
-            /portal/login
-          </Link>{" "}
-          with <span className="font-medium text-foreground">{client.email}</span>.
-        </p>
-      )}
-
       <form
         action={updateMaintenanceRate.bind(null, id, revalidatePath)}
         className="mt-3 flex items-center gap-1.5"
@@ -219,6 +217,75 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
         <ProgressReportButton clientId={id} />
         {client.website_url && <SiteCheckButton clientId={id} latestCheck={latestCheck} />}
       </div>
+
+      <Card className="mt-8">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-1.5">
+            <Users className="size-4" />
+            Team members
+          </CardTitle>
+          <CardDescription>
+            Anyone listed here can sign in at{" "}
+            <Link href="/portal/login" className="text-accent hover:underline">
+              /portal/login
+            </Link>{" "}
+            with their own email — no shared password, no account to create. Admin-managed for now: invite whoever
+            should have access, remove anyone who shouldn&apos;t.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {!members?.length && <p className="text-sm text-muted-foreground">No portal access set up yet.</p>}
+          {!!members?.length && (
+            <ul className="space-y-2">
+              {members.map((m) => (
+                <li
+                  key={m.id}
+                  className="flex items-center justify-between gap-2 rounded-lg border border-border bg-card px-3 py-2"
+                >
+                  <div>
+                    <p className="text-sm font-medium">{m.email}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {m.role === "owner" ? "Owner" : "Member"} ·{" "}
+                      {m.accepted_at ? "Active" : "Invited, not yet signed in"}
+                    </p>
+                  </div>
+                  <form action={removeClientMember.bind(null, m.id, `/admin/clients/${id}`)}>
+                    <Button type="submit" variant="ghost" size="xs" aria-label={`Remove ${m.email}`}>
+                      <X className="size-3.5" />
+                    </Button>
+                  </form>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          <form
+            action={inviteClientMember.bind(null, id, `/admin/clients/${id}`)}
+            className="mt-4 flex flex-wrap items-end gap-2"
+          >
+            <div className="min-w-[180px] flex-1 space-y-1.5">
+              <Label htmlFor="member_email">Invite by email</Label>
+              <Input id="member_email" name="email" type="email" required placeholder="name@business.com" className="h-8" />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="member_role">Role</Label>
+              <select
+                id="member_role"
+                name="role"
+                defaultValue="member"
+                className="h-8 rounded-md border border-input bg-background px-2 text-sm"
+              >
+                <option value="member">Member</option>
+                <option value="owner">Owner</option>
+              </select>
+            </div>
+            <Button type="submit" size="sm" className="gap-1.5">
+              <UserPlus className="size-3.5" />
+              Invite
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
 
       <div className="mt-8 grid gap-6 lg:grid-cols-[1fr_1.2fr]">
         <Card className="h-fit">
