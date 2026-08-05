@@ -3,17 +3,34 @@ import { revalidatePath } from "next/cache";
 import { Building2, Bell, Users } from "lucide-react";
 import { createServerSupabaseClient } from "@/lib/supabase-server-auth";
 import { getPortalMembership } from "@/lib/portal-membership";
+import { logAuditEvent } from "@/lib/audit-log";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 
 async function updateNotificationPreference(clientId: string, enabled: boolean) {
   "use server";
   const supabase = await createServerSupabaseClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
   // Session-scoped client, deliberately — RLS + a column-level grant
   // (schema-portal-settings.sql) mean this can only ever touch
   // weekly_digest_enabled on the caller's own client row, nothing else.
   const { error } = await supabase.from("clients").update({ weekly_digest_enabled: enabled }).eq("id", clientId);
-  if (error) console.error("Failed to update notification preference:", error);
+  if (error) {
+    console.error("Failed to update notification preference:", error);
+  } else if (user?.email) {
+    await logAuditEvent({
+      actor: user.email,
+      actorType: "client",
+      action: "client.notification_preference_changed",
+      targetType: "client",
+      targetId: clientId,
+      clientId,
+      metadata: { weekly_digest_enabled: enabled },
+    });
+  }
   revalidatePath("/portal/settings");
 }
 

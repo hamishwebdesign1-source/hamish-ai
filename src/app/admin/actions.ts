@@ -7,6 +7,7 @@ import { draftLeadEmail } from "@/lib/draft-lead-email";
 import { draftLeadCallScript } from "@/lib/draft-lead-call-script";
 import { sendInvoiceReminder } from "@/lib/send-invoice-reminder";
 import { startSubscription, cancelSubscription } from "@/lib/subscription";
+import { logAuditEvent } from "@/lib/audit-log";
 
 export async function updateTaskStatus(taskId: string, status: string, revalidate: string) {
   const supabase = getSupabaseAdmin();
@@ -148,8 +149,20 @@ export async function updateClientStatus(clientId: string, status: string, reval
   const supabase = getSupabaseAdmin();
   if (!supabase) return;
 
+  const { data: previous } = await supabase.from("clients").select("status").eq("id", clientId).single();
   const { error } = await supabase.from("clients").update({ status }).eq("id", clientId);
-  if (error) console.error("Failed to update client status:", error);
+  if (error) {
+    console.error("Failed to update client status:", error);
+  } else {
+    await logAuditEvent({
+      actor: "admin",
+      action: "client.status_changed",
+      targetType: "client",
+      targetId: clientId,
+      clientId,
+      metadata: { from: previous?.status ?? null, to: status },
+    });
+  }
 
   revalidatePath(revalidate);
   revalidatePath("/admin/clients");
@@ -167,13 +180,28 @@ export async function toggleAnalyticsEnabled(clientId: string, enabled: boolean,
 
 export async function startSubscriptionAction(clientId: string, revalidate: string) {
   const result = await startSubscription(clientId);
-  if ("error" in result) console.error("Failed to start subscription:", result.error);
+  if ("error" in result) {
+    console.error("Failed to start subscription:", result.error);
+  } else {
+    await logAuditEvent({
+      actor: "admin",
+      action: "subscription.started",
+      targetType: "client",
+      targetId: clientId,
+      clientId,
+      metadata: { stripe_subscription_id: result.subscriptionId },
+    });
+  }
   revalidatePath(revalidate);
 }
 
 export async function cancelSubscriptionAction(clientId: string, revalidate: string) {
   const result = await cancelSubscription(clientId);
-  if ("error" in result) console.error("Failed to cancel subscription:", result.error);
+  if ("error" in result) {
+    console.error("Failed to cancel subscription:", result.error);
+  } else {
+    await logAuditEvent({ actor: "admin", action: "subscription.cancelled", targetType: "client", targetId: clientId, clientId });
+  }
   revalidatePath(revalidate);
 }
 
@@ -185,7 +213,18 @@ export async function updateMaintenanceRate(clientId: string, revalidate: string
   const pence = Number.isFinite(pounds) && pounds > 0 ? Math.round(pounds * 100) : null;
 
   const { error } = await supabase.from("clients").update({ maintenance_monthly_pence: pence }).eq("id", clientId);
-  if (error) console.error("Failed to update maintenance rate:", error);
+  if (error) {
+    console.error("Failed to update maintenance rate:", error);
+  } else {
+    await logAuditEvent({
+      actor: "admin",
+      action: "client.maintenance_rate_changed",
+      targetType: "client",
+      targetId: clientId,
+      clientId,
+      metadata: { maintenance_monthly_pence: pence },
+    });
+  }
 
   revalidatePath(revalidate);
 }
@@ -233,6 +272,7 @@ export async function inviteClientMember(clientId: string, revalidate: string, f
     // member, which isn't really a failure worth logging as one.
     if (error.code !== "23505") console.error("Failed to invite client member:", error);
   } else if (client) {
+    await logAuditEvent({ actor: "admin", action: "client_member.invited", targetType: "client_member", clientId, metadata: { email, role } });
     await sendClientEmail(
       email,
       `You've been added to ${client.business_name}'s Hamish AI portal`,
@@ -247,8 +287,20 @@ export async function removeClientMember(memberId: string, revalidate: string) {
   const supabase = getSupabaseAdmin();
   if (!supabase) return;
 
+  const { data: member } = await supabase.from("client_members").select("client_id, email").eq("id", memberId).single();
   const { error } = await supabase.from("client_members").delete().eq("id", memberId);
-  if (error) console.error("Failed to remove client member:", error);
+  if (error) {
+    console.error("Failed to remove client member:", error);
+  } else if (member) {
+    await logAuditEvent({
+      actor: "admin",
+      action: "client_member.removed",
+      targetType: "client_member",
+      targetId: memberId,
+      clientId: member.client_id,
+      metadata: { email: member.email },
+    });
+  }
 
   revalidatePath(revalidate);
 }
