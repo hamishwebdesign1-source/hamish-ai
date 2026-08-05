@@ -12,6 +12,9 @@ import {
   ShieldCheck,
   Activity,
   Receipt,
+  MoonStar,
+  RefreshCcw,
+  Compass,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -117,14 +120,17 @@ const faqs = [
 
 const problems = [
   {
+    icon: MoonStar,
     title: "Missed enquiries after hours",
     body: "A customer messages at 9pm, gets no reply, and books somewhere else instead.",
   },
   {
+    icon: RefreshCcw,
     title: "Staff answering the same questions",
     body: "Opening hours, pricing, availability — the same five questions, all day, every day.",
   },
   {
+    icon: Compass,
     title: "No idea where to start with AI",
     body: "AI sounds useful, but nobody's shown you what it actually looks like for a business like yours.",
   },
@@ -243,18 +249,28 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section className="border-t border-border/60 bg-secondary/40">
+      <section className={`${heroDisplay.variable} border-t border-border/60 bg-secondary/40`}>
         <div className="mx-auto max-w-6xl px-6 py-16 md:py-20">
           <Reveal>
-            <h2 className="font-heading text-2xl font-semibold md:text-3xl">
+            <h2
+              className="max-w-2xl text-2xl font-bold tracking-tight text-balance md:text-3xl"
+              style={{ fontFamily: "var(--font-hero-display)" }}
+            >
               Sound familiar? Here&apos;s what AI can actually do about it.
             </h2>
           </Reveal>
-          <div className="mt-8 flex flex-wrap gap-x-8 gap-y-3 border-b border-border/60 pb-10">
+          <div className="mt-8 grid gap-4 border-b border-border/60 pb-10 sm:grid-cols-3">
             {problems.map((p, i) => (
-              <Reveal key={p.title} delay={i * 60} className="max-w-xs">
-                <p className="font-heading text-sm font-medium">{p.title}</p>
-                <p className="mt-1 text-sm text-muted-foreground">{p.body}</p>
+              <Reveal key={p.title} delay={i * 60}>
+                <div className="card-interactive flex h-full items-start gap-3 rounded-lg border border-border bg-background p-4">
+                  <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-accent/10 text-accent">
+                    <p.icon className="size-4" />
+                  </span>
+                  <div>
+                    <p className="font-heading text-sm font-semibold">{p.title}</p>
+                    <p className="mt-1 text-sm text-muted-foreground">{p.body}</p>
+                  </div>
+                </div>
               </Reveal>
             ))}
           </div>
