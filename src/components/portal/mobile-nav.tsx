@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { LayoutDashboard, MessagesSquare, Receipt, LineChart, LifeBuoy, LogOut, Menu, X } from "lucide-react";
+import { LayoutDashboard, MessagesSquare, Receipt, LineChart, LifeBuoy, Settings, LogOut, Menu, X } from "lucide-react";
 import { PortalNavLink } from "@/components/portal/nav-link";
 import { Button } from "@/components/ui/button";
 
@@ -11,6 +11,7 @@ const NAV_ITEMS = [
   { href: "/portal/billing", label: "Billing", icon: Receipt },
   { href: "/portal/insights", label: "Insights", icon: LineChart },
   { href: "/portal/help", label: "Help", icon: LifeBuoy },
+  { href: "/portal/settings", label: "Settings", icon: Settings },
 ];
 
 export function PortalMobileNav() {

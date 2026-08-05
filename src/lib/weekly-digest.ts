@@ -13,6 +13,7 @@ export async function sendWeeklyDigests() {
     .from("clients")
     .select("id, business_name, email")
     .eq("status", "active")
+    .eq("weekly_digest_enabled", true)
     .not("email", "is", null);
 
   if (clientsError) return { error: "Failed to fetch clients." as const };

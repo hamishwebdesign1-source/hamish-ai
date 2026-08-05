@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { LayoutDashboard, MessagesSquare, Receipt, LineChart, LifeBuoy, LogOut } from "lucide-react";
+import { LayoutDashboard, MessagesSquare, Receipt, LineChart, LifeBuoy, Settings, LogOut } from "lucide-react";
 import { createServerSupabaseClient } from "@/lib/supabase-server-auth";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { getPortalMembership, markMembershipAccepted } from "@/lib/portal-membership";
@@ -81,6 +81,10 @@ export default async function PortalAuthedLayout({ children }: { children: React
             <PortalNavLink href="/portal/help">
               <LifeBuoy className="size-4" />
               Help
+            </PortalNavLink>
+            <PortalNavLink href="/portal/settings">
+              <Settings className="size-4" />
+              Settings
             </PortalNavLink>
             <form action="/api/portal/logout" method="post">
               <Button type="submit" variant="ghost" size="sm" className="ml-2 text-muted-foreground">
