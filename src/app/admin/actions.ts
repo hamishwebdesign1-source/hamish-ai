@@ -111,6 +111,32 @@ export async function markLeadCalled(leadId: string) {
   revalidatePath("/admin/leads");
 }
 
+// Manual counterpart to checkOneLeadSend's "sent" branch — same resulting
+// state (contacted, email cadence started, pending draft cleared), but
+// without calling the Gmail API. For when the operator has already sent
+// the email themselves (from Gmail directly, or because the automated
+// check is unavailable/erroring) and just needs to record it — this is
+// what drives the checkbox next to the Email button, and starting
+// contacted_at here is what makes the 5-day call reminder (see
+// lead-status.ts's EMAIL_TO_CALL_DAYS) fire on schedule.
+export async function markLeadEmailSent(leadId: string) {
+  const supabase = getSupabaseAdmin();
+  if (!supabase) return;
+
+  const { error } = await supabase
+    .from("prospects")
+    .update({
+      status: "contacted",
+      contacted_at: new Date().toISOString(),
+      last_contact_method: "email",
+      pending_email_message_id: null,
+    })
+    .eq("id", leadId);
+  if (error) console.error("Failed to mark lead emailed:", error);
+
+  revalidatePath("/admin/leads");
+}
+
 // No automated inbox-matching for prospect replies (unlike existing
 // clients — see checkEmailInbox in email-inbox.ts, scoped to known
 // client_members addresses), so this is a manual confirmation. Setting

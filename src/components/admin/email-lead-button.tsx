@@ -2,7 +2,7 @@
 
 import { useActionState, useState, useTransition } from "react";
 import { Mail, ExternalLink, RefreshCw, Check } from "lucide-react";
-import { generateLeadEmailDraft, checkLeadEmailSent, type DraftEmailState } from "@/app/admin/actions";
+import { generateLeadEmailDraft, checkLeadEmailSent, markLeadEmailSent, type DraftEmailState } from "@/app/admin/actions";
 import { Button } from "@/components/ui/button";
 
 const GMAIL_DRAFTS_URL = "https://mail.google.com/mail/u/0/#drafts";
@@ -12,28 +12,40 @@ const GMAIL_DRAFTS_URL = "https://mail.google.com/mail/u/0/#drafts";
 // see gmail-draft.ts), signature included. Never auto-sends: the operator
 // still opens Gmail and hits send themselves. The lead isn't marked
 // "contacted" here — only once that send is actually confirmed, either by
-// the daily cron sweep or the "Check now" button below.
+// the daily cron sweep, the "Check now" button, or the "Sent" checkbox
+// (for when the automated Gmail check is unavailable/erroring, or the
+// operator just wants to confirm it themselves without waiting).
 export function EmailLeadButton({
   leadId,
   isFollowUp = false,
   hasPendingDraft = false,
+  alreadySent = false,
 }: {
   leadId: string;
   isFollowUp?: boolean;
   hasPendingDraft?: boolean;
+  alreadySent?: boolean;
 }) {
   const boundAction = generateLeadEmailDraft.bind(null, leadId, isFollowUp);
   const [state, formAction, isPending] = useActionState<DraftEmailState, FormData>(boundAction, {});
   const [checkResult, setCheckResult] = useState<"sent" | "pending" | "gone" | "no_pending_draft" | null>(null);
   const [isChecking, startChecking] = useTransition();
+  const [isMarkingSent, startMarkingSent] = useTransition();
 
   const draftJustCreated = Boolean(state.subject && !state.error);
   const showPendingUi = hasPendingDraft || draftJustCreated;
+  const sentConfirmed = alreadySent || checkResult === "sent";
 
   function checkNow() {
     startChecking(async () => {
       const result = await checkLeadEmailSent(leadId);
       setCheckResult(result.status);
+    });
+  }
+
+  function confirmSentManually() {
+    startMarkingSent(async () => {
+      await markLeadEmailSent(leadId);
     });
   }
 
@@ -46,7 +58,7 @@ export function EmailLeadButton({
             {isPending ? "Drafting…" : isFollowUp ? "Follow up" : "Email"}
           </Button>
         </form>
-        {showPendingUi && (
+        {showPendingUi && !sentConfirmed && (
           <>
             <a
               href={GMAIL_DRAFTS_URL}
@@ -69,6 +81,20 @@ export function EmailLeadButton({
             </Button>
           </>
         )}
+        {/* Manual fallback for when the automated Gmail check is
+            unavailable (or the operator already sent it themselves and
+            doesn't want to wait) — ticking this sets contacted_at directly,
+            which is what starts the 5-day call-reminder cadence. */}
+        <label className="flex items-center gap-1 text-xs text-muted-foreground select-none">
+          <input
+            type="checkbox"
+            checked={sentConfirmed}
+            disabled={sentConfirmed || isMarkingSent}
+            onChange={confirmSentManually}
+            className="size-3 accent-current"
+          />
+          {isMarkingSent ? "Marking…" : "Sent"}
+        </label>
       </div>
       {state.error && <p className="text-xs text-destructive">{state.error}</p>}
       {draftJustCreated && (
@@ -77,7 +103,7 @@ export function EmailLeadButton({
           Draft created in Gmail — review and send it from there.
         </p>
       )}
-      {checkResult === "sent" && (
+      {sentConfirmed && (
         <p className="text-xs text-success">Confirmed sent — marked as contacted.</p>
       )}
       {checkResult === "pending" && (

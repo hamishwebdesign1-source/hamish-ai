@@ -334,6 +334,7 @@ export default async function LeadsPage({
                       leadId={lead.id}
                       isFollowUp={lead.status === "contacted"}
                       hasPendingDraft={Boolean(lead.pending_email_message_id)}
+                      alreadySent={lead.status === "contacted" && lead.last_contact_method !== "call"}
                     />
                     <form action={deleteLead.bind(null, lead.id)}>
                       <Button type="submit" variant="ghost" size="icon-xs" className="text-muted-foreground hover:text-destructive">
