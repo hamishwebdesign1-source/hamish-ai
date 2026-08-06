@@ -80,12 +80,12 @@ function TicketMotif({ className }: { className?: string }) {
           cy={20 + i * 38}
           r="9"
           fill="#1a1210"
-          className="motif-anim [animation:motif-cascade_3.2s_ease-in-out_infinite]"
+          className="motif-anim [animation:motif-cascade_2.4s_ease-in-out_infinite]"
           style={
             {
-              "--motif-opacity-min": 0.5,
-              "--motif-opacity-max": 0.9,
-              animationDelay: `${i * 130}ms`,
+              "--motif-opacity-min": 0.3,
+              "--motif-opacity-max": 0.95,
+              animationDelay: `${i * 110}ms`,
             } as React.CSSProperties
           }
         />

@@ -71,10 +71,10 @@ function AnimatedNumber({ value, decimals = 0, suffix = "" }: { value: number; d
 // ring ripples outward on its own slow cycle, like a fresh mark spreading.
 function RingMotif({ className }: { className?: string }) {
   const rings = [
-    { cx: 220, cy: 200, r: 140, stroke: "#8aa06a", width: 10, delay: 0 },
-    { cx: 380, cy: 340, r: 100, stroke: "#8aa06a", width: 8, delay: 1.8 },
-    { cx: 300, cy: 440, r: 60, stroke: "#d97b3f", width: 6, delay: 0.9 },
-    { cx: 140, cy: 380, r: 45, stroke: "#d97b3f", width: 5, delay: 2.7 },
+    { cx: 220, cy: 200, r: 140, stroke: "#8aa06a", width: 10, delay: 0, peak: 0.45 },
+    { cx: 380, cy: 340, r: 100, stroke: "#8aa06a", width: 8, delay: 1.3, peak: 0.4 },
+    { cx: 300, cy: 440, r: 60, stroke: "#d97b3f", width: 6, delay: 0.65, peak: 0.5 },
+    { cx: 140, cy: 380, r: 45, stroke: "#d97b3f", width: 5, delay: 1.95, peak: 0.45 },
   ];
   return (
     <svg viewBox="0 0 600 600" className={className} aria-hidden>
@@ -87,8 +87,14 @@ function RingMotif({ className }: { className?: string }) {
           fill="none"
           stroke={c.stroke}
           strokeWidth={c.width}
-          className="motif-anim [animation:motif-ripple_7s_ease-out_infinite]"
-          style={{ transformOrigin: `${c.cx}px ${c.cy}px`, animationDelay: `${c.delay}s` }}
+          className="motif-anim [animation:motif-ripple_5s_ease-out_infinite]"
+          style={
+            {
+              transformOrigin: `${c.cx}px ${c.cy}px`,
+              animationDelay: `${c.delay}s`,
+              "--motif-opacity-max": c.peak,
+            } as React.CSSProperties
+          }
         />
       ))}
     </svg>

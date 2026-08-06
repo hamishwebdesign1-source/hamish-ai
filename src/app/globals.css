@@ -309,14 +309,14 @@
 
 @keyframes motif-ripple {
   0% {
-    transform: scale(0.92);
-    opacity: 0.22;
+    transform: scale(0.85);
+    opacity: 0.05;
   }
-  70% {
-    opacity: 0.1;
+  40% {
+    opacity: var(--motif-opacity-max, 0.5);
   }
   100% {
-    transform: scale(1.06);
+    transform: scale(1.18);
     opacity: 0;
   }
 }
@@ -324,10 +324,10 @@
 @keyframes motif-sway {
   0%,
   100% {
-    transform: translateX(-2%);
+    transform: translateX(-5%);
   }
   50% {
-    transform: translateX(2%);
+    transform: translateX(5%);
   }
 }
 
@@ -337,7 +337,7 @@
     transform: translateX(0);
   }
   50% {
-    transform: translateX(-1.5%);
+    transform: translateX(-4%);
   }
 }
 

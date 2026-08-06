@@ -76,11 +76,11 @@ function SpeedLinesMotif({ className }: { className?: string }) {
           y2="600"
           stroke="#ff5a36"
           strokeWidth="3"
-          className="motif-anim [animation:motif-speed-line_1.8s_linear_infinite]"
+          className="motif-anim [animation:motif-speed-line_1.6s_linear_infinite]"
           style={
             {
-              "--motif-opacity-max": 0.12 - (i % 4) * 0.015,
-              animationDelay: `${i * 150}ms`,
+              "--motif-opacity-max": 0.5 - (i % 4) * 0.06,
+              animationDelay: `${i * 130}ms`,
             } as React.CSSProperties
           }
         />

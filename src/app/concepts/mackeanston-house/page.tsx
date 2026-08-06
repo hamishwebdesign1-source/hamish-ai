@@ -79,22 +79,22 @@ function HillsMotif({ className }: { className?: string }) {
       <path
         d="M0 260 Q150 190 300 250 T600 220 V400 H0 Z"
         fill="#a67a94"
-        opacity="0.16"
-        className="motif-anim [animation:motif-drift_50s_ease-in-out_infinite]"
+        opacity="0.2"
+        className="motif-anim [animation:motif-drift_26s_ease-in-out_infinite]"
       />
       <path
         d="M0 310 Q180 250 340 300 T600 280 V400 H0 Z"
         fill="#a67a94"
-        opacity="0.12"
-        className="motif-anim [animation:motif-drift_36s_ease-in-out_infinite]"
-        style={{ animationDelay: "-8s" }}
+        opacity="0.16"
+        className="motif-anim [animation:motif-drift_19s_ease-in-out_infinite]"
+        style={{ animationDelay: "-5s" }}
       />
       <path
         d="M0 350 Q220 310 400 340 T600 330 V400 H0 Z"
         fill="#a67a94"
-        opacity="0.09"
-        className="motif-anim [animation:motif-drift_24s_ease-in-out_infinite]"
-        style={{ animationDelay: "-16s" }}
+        opacity="0.13"
+        className="motif-anim [animation:motif-drift_13s_ease-in-out_infinite]"
+        style={{ animationDelay: "-9s" }}
       />
     </svg>
   );

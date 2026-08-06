@@ -76,8 +76,8 @@ function PedimentMotif({ className }: { className?: string }) {
         stroke="#cf98a6"
         strokeWidth="2"
         fill="none"
-        className="motif-anim [animation:motif-cascade_9s_ease-in-out_infinite]"
-        style={{ "--motif-opacity-min": 0.16, "--motif-opacity-max": 0.3 } as React.CSSProperties}
+        className="motif-anim [animation:motif-cascade_6s_ease-in-out_infinite]"
+        style={{ "--motif-opacity-min": 0.1, "--motif-opacity-max": 0.5 } as React.CSSProperties}
       >
         <path d="M150 220 L300 100 L450 220 Z" />
         <line x1="150" y1="220" x2="450" y2="220" />
@@ -91,12 +91,12 @@ function PedimentMotif({ className }: { className?: string }) {
           y2="340"
           stroke="#cf98a6"
           strokeWidth="2"
-          className="motif-anim [animation:motif-cascade_3.4s_ease-in-out_infinite]"
+          className="motif-anim [animation:motif-cascade_2.6s_ease-in-out_infinite]"
           style={
             {
-              "--motif-opacity-min": 0.1,
-              "--motif-opacity-max": 0.22,
-              animationDelay: `${i * 260}ms`,
+              "--motif-opacity-min": 0.06,
+              "--motif-opacity-max": 0.48,
+              animationDelay: `${i * 200}ms`,
             } as React.CSSProperties
           }
         />

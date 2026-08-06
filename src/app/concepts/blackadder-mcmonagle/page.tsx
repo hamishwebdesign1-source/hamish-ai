@@ -69,7 +69,7 @@ function PillarMotif({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 600 600" className={className} aria-hidden>
       {Array.from({ length: 9 }).map((_, i) => {
-        const base = 0.16 - (i % 4) * 0.02;
+        const peak = 0.5 - (i % 4) * 0.05;
         return (
           <rect
             key={i}
@@ -79,13 +79,13 @@ function PillarMotif({ className }: { className?: string }) {
             height="520"
             fill="none"
             stroke="#7a2e2e"
-            strokeWidth="1.5"
-            className="motif-anim [animation:motif-cascade_3.6s_ease-in-out_infinite]"
+            strokeWidth="2"
+            className="motif-anim [animation:motif-cascade_2.8s_ease-in-out_infinite]"
             style={
               {
-                "--motif-opacity-min": base * 0.4,
-                "--motif-opacity-max": base + 0.1,
-                animationDelay: `${i * 220}ms`,
+                "--motif-opacity-min": 0.05,
+                "--motif-opacity-max": peak,
+                animationDelay: `${i * 180}ms`,
               } as React.CSSProperties
             }
           />

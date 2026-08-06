@@ -71,7 +71,7 @@ function WindowGridMotif({ className }: { className?: string }) {
     <svg viewBox="0 0 600 600" className={className} aria-hidden>
       {Array.from({ length: 5 }).map((_, row) =>
         Array.from({ length: 4 }).map((_, col) => {
-          const base = 0.16 - (row + col) * 0.01;
+          const peak = 0.55 - (row + col) * 0.035;
           return (
             <rect
               key={`${row}-${col}`}
@@ -81,13 +81,13 @@ function WindowGridMotif({ className }: { className?: string }) {
               height="70"
               fill="none"
               stroke="#c9a15a"
-              strokeWidth="1.5"
-              className="motif-anim [animation:motif-cascade_5s_ease-in-out_infinite]"
+              strokeWidth="2"
+              className="motif-anim [animation:motif-cascade_3.5s_ease-in-out_infinite]"
               style={
                 {
-                  "--motif-opacity-min": base * 0.25,
-                  "--motif-opacity-max": base,
-                  animationDelay: `${(row * 4 + col) * 260}ms`,
+                  "--motif-opacity-min": 0.04,
+                  "--motif-opacity-max": peak,
+                  animationDelay: `${(row * 4 + col) * 180}ms`,
                 } as React.CSSProperties
               }
             />

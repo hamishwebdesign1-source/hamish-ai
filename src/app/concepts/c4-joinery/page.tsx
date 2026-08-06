@@ -108,8 +108,8 @@ function DovetailMotif({ className }: { className?: string }) {
       <g
         stroke="#d8501f"
         strokeWidth="1.4"
-        className="motif-anim [animation:motif-cascade_4s_ease-in-out_infinite]"
-        style={{ "--motif-opacity-min": 0.22, "--motif-opacity-max": 0.55 } as React.CSSProperties}
+        className="motif-anim [animation:motif-cascade_2.8s_ease-in-out_infinite]"
+        style={{ "--motif-opacity-min": 0.1, "--motif-opacity-max": 0.75 } as React.CSSProperties}
       >
         <path d="M30 40 L95 40 L118 100 L95 160 L30 160 Z" />
         <path d="M118 40 L183 40 L160 100 L183 160 L118 160 Z" opacity="0.6" />
@@ -117,12 +117,12 @@ function DovetailMotif({ className }: { className?: string }) {
       <g
         stroke="#d8501f"
         strokeWidth="1.4"
-        className="motif-anim [animation:motif-cascade_4s_ease-in-out_infinite]"
+        className="motif-anim [animation:motif-cascade_2.8s_ease-in-out_infinite]"
         style={
           {
-            "--motif-opacity-min": 0.22,
-            "--motif-opacity-max": 0.55,
-            animationDelay: "2s",
+            "--motif-opacity-min": 0.1,
+            "--motif-opacity-max": 0.75,
+            animationDelay: "1.4s",
           } as React.CSSProperties
         }
       >

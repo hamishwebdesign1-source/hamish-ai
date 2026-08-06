@@ -70,7 +70,7 @@ function AnimatedNumber({ value, decimals = 0, suffix = "" }: { value: number; d
 function AwningMotif({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 600 200" className={className} aria-hidden preserveAspectRatio="xMidYMin slice">
-      <g className="motif-anim [animation:motif-sway_6s_ease-in-out_infinite]" style={{ transformOrigin: "300px 0px" }}>
+      <g className="motif-anim [animation:motif-sway_4s_ease-in-out_infinite]" style={{ transformOrigin: "300px 0px" }}>
         {Array.from({ length: 10 }).map((_, i) => (
           <path
             key={i}

@@ -82,7 +82,7 @@ function LedgerMotif({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 600 400" className={className} aria-hidden>
       {Array.from({ length: 14 }).map((_, i) => {
-        const base = 0.22 - i * 0.013;
+        const peak = 0.48 - i * 0.025;
         return (
           <line
             key={i}
@@ -91,13 +91,13 @@ function LedgerMotif({ className }: { className?: string }) {
             x2="600"
             y2={30 + i * 27}
             stroke="#b98a3d"
-            strokeWidth="1"
-            className="motif-anim [animation:motif-cascade_4.2s_ease-in-out_infinite]"
+            strokeWidth="1.5"
+            className="motif-anim [animation:motif-cascade_3.2s_ease-in-out_infinite]"
             style={
               {
-                "--motif-opacity-min": base * 0.3,
-                "--motif-opacity-max": base,
-                animationDelay: `${i * 120}ms`,
+                "--motif-opacity-min": 0.03,
+                "--motif-opacity-max": peak,
+                animationDelay: `${i * 100}ms`,
               } as React.CSSProperties
             }
           />
