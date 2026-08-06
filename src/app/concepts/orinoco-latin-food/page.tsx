@@ -270,9 +270,9 @@ export default function OrinocoLatinFoodConcept() {
               className="mt-6 max-w-2xl text-4xl leading-[1.08] font-semibold text-balance md:text-6xl"
               style={{ fontFamily: "var(--font-orin-display)" }}
             >
-              509 reasons to love
+              Arepas and empanadas
               <br />
-              <span className="text-[#f0b429]">Leith Walk&apos;s Venezuelan kitchen.</span>
+              <span className="text-[#f0b429]">Leith Walk keeps coming back for.</span>
             </h1>
           </Reveal>
           <Reveal delay={160}>
