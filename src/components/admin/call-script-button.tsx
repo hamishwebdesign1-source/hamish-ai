@@ -1,8 +1,8 @@
 "use client";
 
-import { useActionState, useState } from "react";
-import { Phone, Copy, Check } from "lucide-react";
-import { generateLeadCallScript, type CallScriptState } from "@/app/admin/actions";
+import { useActionState, useState, useTransition } from "react";
+import { Phone, Copy, Check, PhoneCall } from "lucide-react";
+import { generateLeadCallScript, markLeadCalled, type CallScriptState } from "@/app/admin/actions";
 import { Button } from "@/components/ui/button";
 
 // Unlike EmailLeadButton (which hands off to Gmail compose), a phone call
@@ -13,6 +13,15 @@ export function CallScriptButton({ leadId, phone }: { leadId: string; phone: str
   const boundAction = generateLeadCallScript.bind(null, leadId);
   const [state, formAction, isPending] = useActionState<CallScriptState, FormData>(boundAction, {});
   const [copied, setCopied] = useState(false);
+  const [marked, setMarked] = useState(false);
+  const [isMarking, startMarking] = useTransition();
+
+  function markCalled() {
+    startMarking(async () => {
+      await markLeadCalled(leadId);
+      setMarked(true);
+    });
+  }
 
   const hasScript = Boolean(state.opener);
 
@@ -54,10 +63,23 @@ export function CallScriptButton({ leadId, phone }: { leadId: string; phone: str
             ) : (
               <span className="text-muted-foreground">No phone number on file yet</span>
             )}
-            <Button type="button" variant="ghost" size="xs" onClick={copyScript} className="gap-1">
-              {copied ? <Check className="size-3" /> : <Copy className="size-3" />}
-              {copied ? "Copied" : "Copy"}
-            </Button>
+            <div className="flex items-center gap-1">
+              <Button type="button" variant="ghost" size="xs" onClick={copyScript} className="gap-1">
+                {copied ? <Check className="size-3" /> : <Copy className="size-3" />}
+                {copied ? "Copied" : "Copy"}
+              </Button>
+              <Button
+                type="button"
+                variant={marked ? "outline" : "default"}
+                size="xs"
+                onClick={markCalled}
+                disabled={isMarking || marked}
+                className="gap-1"
+              >
+                <PhoneCall className="size-3" />
+                {marked ? "Marked as called" : isMarking ? "Marking…" : "Mark as called"}
+              </Button>
+            </div>
           </div>
           <p>
             <span className="font-medium text-foreground">Opener: </span>

@@ -1,9 +1,17 @@
 import { revalidatePath } from "next/cache";
 import Link from "next/link";
-import { ExternalLink, Search, X, Clock, Phone } from "lucide-react";
+import { ExternalLink, Search, X, Clock, Phone, PhoneCall, Mail, MessageCircleReply } from "lucide-react";
 import { getSupabaseAdmin } from "@/lib/supabase";
-import { updateLeadStatus, deleteLead, updateLeadEmail, updateLeadPhone, updateLeadConceptSlug } from "@/app/admin/actions";
-import { leadNeedsFollowUp as needsFollowUp } from "@/lib/lead-status";
+import {
+  updateLeadStatus,
+  deleteLead,
+  updateLeadEmail,
+  updateLeadPhone,
+  updateLeadConceptSlug,
+  markLeadReplied,
+} from "@/app/admin/actions";
+import { leadNeedsFollowUp as needsFollowUp, getLeadCadenceAction } from "@/lib/lead-status";
+import { timeAgo } from "@/lib/time-ago";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -51,6 +59,55 @@ async function addLead(formData: FormData) {
 
 function websiteHref(website: string) {
   return website.startsWith("http") ? website : `https://${website.split(" ")[0]}`;
+}
+
+type LeadRow = {
+  status: string;
+  contacted_at: string | null;
+  last_contact_method: string | null;
+  replied_at: string | null;
+};
+
+// The single badge that tells Hamish, at a glance, exactly where a lead
+// sits in the email → wait → call cadence — replied, due a call, due a
+// follow-up, or just a quiet "here's the last touch" note.
+function ContactBadge({ lead }: { lead: LeadRow }) {
+  if (lead.replied_at) {
+    return (
+      <Badge variant="success" className="gap-1">
+        <MessageCircleReply className="size-3" />
+        Replied {timeAgo(lead.replied_at)}
+      </Badge>
+    );
+  }
+
+  const action = getLeadCadenceAction(lead);
+  if (action === "call") {
+    return (
+      <Badge variant="warning" className="gap-1">
+        <PhoneCall className="size-3" />
+        Call now
+      </Badge>
+    );
+  }
+  if (action === "follow_up") {
+    return (
+      <Badge variant="warning" className="gap-1">
+        <Clock className="size-3" />
+        Needs follow-up
+      </Badge>
+    );
+  }
+  if (lead.status === "contacted" && lead.contacted_at) {
+    const wasCall = lead.last_contact_method === "call";
+    return (
+      <Badge variant="secondary" className="gap-1">
+        {wasCall ? <PhoneCall className="size-3" /> : <Mail className="size-3" />}
+        {wasCall ? "Called" : "Emailed"} {timeAgo(lead.contacted_at)}
+      </Badge>
+    );
+  }
+  return null;
 }
 
 export default async function LeadsPage({
@@ -230,11 +287,14 @@ export default async function LeadsPage({
                     </p>
                   </div>
                   <div className="flex shrink-0 items-center gap-2">
-                    {needsFollowUp(lead) && (
-                      <Badge variant="warning" className="gap-1">
-                        <Clock className="size-3" />
-                        Needs follow-up
-                      </Badge>
+                    <ContactBadge lead={lead} />
+                    {lead.status === "contacted" && !lead.replied_at && (
+                      <form action={markLeadReplied.bind(null, lead.id)}>
+                        <Button type="submit" variant="ghost" size="xs" className="gap-1 text-muted-foreground">
+                          <MessageCircleReply className="size-3" />
+                          Mark replied
+                        </Button>
+                      </form>
                     )}
                     {lead.score != null && (
                       <div className="flex items-center gap-0.5">

@@ -93,6 +93,40 @@ export async function updateLeadStatus(leadId: string, status: string) {
   revalidatePath("/admin/leads");
 }
 
+// Distinct from updateLeadStatus's generic "contacted" click: this is the
+// explicit "I actually just phoned them" confirmation, separate from
+// drafting/viewing the call script (which can happen well before the
+// call itself, or be re-generated without a call ever being made).
+export async function markLeadCalled(leadId: string) {
+  const supabase = getSupabaseAdmin();
+  if (!supabase) return;
+
+  const { error } = await supabase
+    .from("prospects")
+    .update({ status: "contacted", contacted_at: new Date().toISOString(), last_contact_method: "call" })
+    .eq("id", leadId);
+  if (error) console.error("Failed to mark lead called:", error);
+
+  revalidatePath("/admin/leads");
+}
+
+// No automated inbox-matching for prospect replies (unlike existing
+// clients — see checkEmailInbox in email-inbox.ts, scoped to known
+// client_members addresses), so this is a manual confirmation. Setting
+// replied_at takes the lead out of the follow-up cadence entirely.
+export async function markLeadReplied(leadId: string) {
+  const supabase = getSupabaseAdmin();
+  if (!supabase) return;
+
+  const { error } = await supabase
+    .from("prospects")
+    .update({ replied_at: new Date().toISOString() })
+    .eq("id", leadId);
+  if (error) console.error("Failed to mark lead replied:", error);
+
+  revalidatePath("/admin/leads");
+}
+
 export async function deleteLead(leadId: string) {
   const supabase = getSupabaseAdmin();
   if (!supabase) return;

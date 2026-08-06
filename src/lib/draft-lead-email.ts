@@ -135,6 +135,16 @@ export async function draftLeadEmail(leadId: string, isFollowUp = false) {
 
     const draft = toolUse.input as { subject: string; body: string };
 
+    // Record the touch now, not on a separate manual "Contacted" click —
+    // opening the Gmail compose window is the last step before sending
+    // (same trust model as before: the operator still reviews and hits
+    // send themselves), so this is what actually starts the follow-up
+    // cadence. Every draft — including a follow-up — resets the clock.
+    await supabase
+      .from("prospects")
+      .update({ status: "contacted", contacted_at: new Date().toISOString(), last_contact_method: "email" })
+      .eq("id", leadId);
+
     return {
       subject: stripMarkdownEmphasis(draft.subject),
       body: stripMarkdownEmphasis(draft.body),
