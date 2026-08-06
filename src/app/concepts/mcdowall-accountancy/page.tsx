@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { Newsreader, Archivo } from "next/font/google";
 import {
@@ -250,6 +251,15 @@ export default function McDowallAccountancyConcept() {
 
       {/* Hero */}
       <section className="relative isolate overflow-hidden bg-[#14201a]">
+        <Image
+          src="/images/concepts/mcdowall-accountancy/hero.jpg"
+          alt=""
+          fill
+          priority
+          sizes="100vw"
+          className="absolute inset-0 object-cover opacity-25"
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-[#14201a] via-[#14201a]/92 to-[#14201a]/60" />
         <LedgerMotif className="pointer-events-none absolute top-0 right-[-6%] h-full w-[640px] opacity-70" />
         <div className="relative mx-auto max-w-5xl px-6 pt-16 pb-20 md:pt-20 md:pb-24">
           <Reveal>

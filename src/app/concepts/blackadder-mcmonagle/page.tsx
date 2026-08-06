@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { Playfair_Display, Barlow } from "next/font/google";
 import { Send, Scale, Landmark, FileText, ArrowDown, ShieldCheck, BadgeCheck } from "lucide-react";
@@ -236,20 +237,29 @@ export default function BlackadderMcMonagleConcept() {
       </div>
 
       {/* Hero */}
-      <section className="relative isolate overflow-hidden bg-[#f5f1e8]">
+      <section className="relative isolate overflow-hidden bg-[#1c1613] text-[#f5f1e8]">
+        <Image
+          src="/images/concepts/blackadder-mcmonagle/hero.jpg"
+          alt=""
+          fill
+          priority
+          sizes="100vw"
+          className="absolute inset-0 object-cover opacity-30"
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-[#1c1613] via-[#1c1613]/90 to-[#1c1613]/55" />
         <PillarMotif className="pointer-events-none absolute top-0 right-[-6%] h-full w-[600px] opacity-60" />
         <div className="relative mx-auto max-w-5xl px-6 pt-16 pb-20 md:pt-20 md:pb-24">
           <Reveal>
             <div className="flex items-center gap-3">
               <span
-                className="flex size-11 shrink-0 items-center justify-center border-2 border-[#7a2e2e] text-base font-semibold text-[#7a2e2e]"
+                className="flex size-11 shrink-0 items-center justify-center border-2 border-[#cf8a8a] text-base font-semibold text-[#cf8a8a]"
                 style={{ fontFamily: "var(--font-bm-display)" }}
                 aria-hidden
               >
                 B&amp;M
               </span>
               <span
-                className="text-xl font-semibold tracking-wide text-[#1f2a24] uppercase"
+                className="text-xl font-semibold tracking-wide text-[#f5f1e8] uppercase"
                 style={{ fontFamily: "var(--font-bm-display)" }}
               >
                 Blackadder &amp; McMonagle
@@ -257,7 +267,7 @@ export default function BlackadderMcMonagleConcept() {
             </div>
           </Reveal>
           <Reveal delay={40}>
-            <p className="mt-10 text-xs font-semibold tracking-[0.25em] text-[#7a2e2e] uppercase">
+            <p className="mt-10 text-xs font-semibold tracking-[0.25em] text-[#cf8a8a] uppercase">
               High Street · Falkirk
             </p>
           </Reveal>
@@ -268,18 +278,18 @@ export default function BlackadderMcMonagleConcept() {
             >
               Over a century of practice.
               <br />
-              <span className="text-[#7a2e2e]">Not one enquiry form.</span>
+              <span className="text-[#cf8a8a]">Not one enquiry form.</span>
             </h1>
           </Reveal>
           <Reveal delay={160}>
-            <p className="mt-7 max-w-md text-lg text-[#5b5140]">
+            <p className="mt-7 max-w-md text-lg text-[#c9beae]">
               Founded 1905 at Grahamston Station, Falkirk — still practising, still phone-and-email only.
             </p>
           </Reveal>
           <Reveal delay={240}>
             <a
               href="#assistant"
-              className="mt-11 inline-flex items-center gap-2 text-sm font-medium text-[#1f2a24]/80 hover:text-[#1f2a24]"
+              className="mt-11 inline-flex items-center gap-2 text-sm font-medium text-[#f5f1e8]/80 hover:text-[#f5f1e8]"
             >
               See it in action
               <ArrowDown className="size-4 animate-bounce" />
@@ -287,35 +297,35 @@ export default function BlackadderMcMonagleConcept() {
           </Reveal>
         </div>
 
-        <div className="relative border-t border-[#d9cdb8]">
+        <div className="relative border-t border-[#3a322c]">
           <div className="mx-auto grid max-w-5xl grid-cols-2 gap-6 px-6 py-8 sm:grid-cols-4">
             <Reveal>
               <p className="text-2xl font-semibold tabular-nums" style={{ fontFamily: "var(--font-bm-display)" }}>
                 1905
               </p>
-              <p className="mt-1 text-[11px] text-[#5b5140] uppercase">Founded</p>
+              <p className="mt-1 text-[11px] text-[#c9beae] uppercase">Founded</p>
             </Reveal>
             <Reveal delay={80}>
               <p className="text-2xl font-semibold tabular-nums" style={{ fontFamily: "var(--font-bm-display)" }}>
                 <AnimatedNumber value={120} suffix="+" />
               </p>
-              <p className="mt-1 text-[11px] text-[#5b5140] uppercase">Years practising</p>
+              <p className="mt-1 text-[11px] text-[#c9beae] uppercase">Years practising</p>
             </Reveal>
             <Reveal delay={160}>
               <p
                 className="flex items-center gap-1.5 text-2xl font-semibold"
                 style={{ fontFamily: "var(--font-bm-display)" }}
               >
-                <BadgeCheck className="size-5 text-[#7a2e2e]" />
+                <BadgeCheck className="size-5 text-[#cf8a8a]" />
                 Falkirk
               </p>
-              <p className="mt-1 text-[11px] text-[#5b5140] uppercase">Sheriff Court agency</p>
+              <p className="mt-1 text-[11px] text-[#c9beae] uppercase">Sheriff Court agency</p>
             </Reveal>
             <Reveal delay={240}>
               <p className="text-2xl font-semibold" style={{ fontFamily: "var(--font-bm-display)" }}>
                 3 areas
               </p>
-              <p className="mt-1 text-[11px] text-[#5b5140] uppercase">Litigation, property, wills</p>
+              <p className="mt-1 text-[11px] text-[#c9beae] uppercase">Litigation, property, wills</p>
             </Reveal>
           </div>
         </div>

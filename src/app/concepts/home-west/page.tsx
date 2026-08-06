@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { Domine, Inter } from "next/font/google";
 import { Send, Home, Camera, ClipboardList, Key, ArrowDown, ShieldCheck } from "lucide-react";
@@ -240,6 +241,15 @@ export default function HomeWestConcept() {
 
       {/* Hero */}
       <section className="relative isolate overflow-hidden bg-[#10151c]">
+        <Image
+          src="/images/concepts/home-west/hero.jpg"
+          alt=""
+          fill
+          priority
+          sizes="100vw"
+          className="absolute inset-0 object-cover opacity-30"
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-[#10151c] via-[#10151c]/90 to-[#10151c]/60" />
         <WindowGridMotif className="pointer-events-none absolute top-1/2 right-[-8%] size-[640px] -translate-y-1/2" />
         <div className="relative mx-auto max-w-5xl px-6 pt-16 pb-20 md:pt-20 md:pb-24">
           <Reveal>

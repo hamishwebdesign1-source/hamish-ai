@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { Oswald, Rubik } from "next/font/google";
 import { Send, Dumbbell, Users, Flame, ArrowDown, ShieldCheck } from "lucide-react";
@@ -231,6 +232,15 @@ export default function G1PersonalTrainingConcept() {
 
       {/* Hero */}
       <section className="relative isolate overflow-hidden bg-[#0b0b0d]">
+        <Image
+          src="/images/concepts/g1-personal-training/hero.jpg"
+          alt=""
+          fill
+          priority
+          sizes="100vw"
+          className="absolute inset-0 object-cover opacity-35"
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-[#0b0b0d] via-[#0b0b0d]/88 to-[#0b0b0d]/55" />
         <SpeedLinesMotif className="pointer-events-none absolute inset-0 size-full" />
         <div className="relative mx-auto max-w-5xl px-6 pt-16 pb-20 md:pt-20 md:pb-24">
           <Reveal>
