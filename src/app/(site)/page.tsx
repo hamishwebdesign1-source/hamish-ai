@@ -21,6 +21,7 @@ import { Badge } from "@/components/ui/badge";
 import { Reveal } from "@/components/reveal";
 import { Eyebrow } from "@/components/eyebrow";
 import { ParallaxLayer } from "@/components/parallax-layer";
+import { ConstellationBackdrop } from "@/components/constellation-backdrop";
 import { ProcessTimeline } from "@/components/process-timeline";
 import {
   Accordion,
@@ -159,17 +160,43 @@ export default function HomePage() {
     <>
       <section className={`${heroDisplay.variable} relative isolate overflow-hidden bg-[#0d1420]`}>
         <ParallaxLayer speed={0.12} className="absolute inset-x-0 -top-24 h-[calc(100%+12rem)]">
+          {/* Poster doubles as the reduced-motion fallback: the video sits on
+              top and is hidden by the prefers-reduced-motion rule in
+              globals.css, which reveals this still frame underneath. */}
           <Image
-            src="https://images.pexels.com/photos/5893099/pexels-photo-5893099.jpeg?auto=compress&cs=tinysrgb&w=1920"
-            alt="Edinburgh's skyline at golden hour, looking toward the Old Town"
+            src="/videos/hero-edinburgh-poster.jpg"
+            alt="Aerial view of Edinburgh's Old Town at golden hour, looking over the rooftops toward the Balmoral clock tower and the Castle"
             fill
             priority
             sizes="100vw"
             className="object-cover"
           />
+          <video
+            className="hero-bg-video absolute inset-0 h-full w-full object-cover"
+            autoPlay
+            muted
+            loop
+            playsInline
+            poster="/videos/hero-edinburgh-poster.jpg"
+            aria-hidden="true"
+          >
+            <source src="/videos/hero-edinburgh-1080p.mp4" type="video/mp4" media="(min-width: 768px)" />
+            <source src="/videos/hero-edinburgh-540p.mp4" type="video/mp4" />
+          </video>
         </ParallaxLayer>
         <div className="absolute inset-0 bg-gradient-to-r from-[#0d1420] via-[#0d1420]/75 to-[#0d1420]/15" />
         <div className="absolute inset-0 bg-gradient-to-t from-[#0d1420] via-transparent to-[#0d1420]/30" />
+        {/* The same node-and-line motif used for OG images / page heroes,
+            laid over the footage as a faint "technology" signal rather than
+            a separate literal clip — screen-blended so the city underneath
+            still reads through it. */}
+        <div
+          className="pointer-events-none absolute inset-0 opacity-70 mix-blend-screen"
+          style={{ "--foreground": "#ffffff" } as React.CSSProperties}
+          aria-hidden="true"
+        >
+          <ConstellationBackdrop className="h-full w-full" />
+        </div>
 
         <div className="relative mx-auto max-w-6xl px-6 pt-14 pb-16 md:pt-20 md:pb-24">
           <div className="grid gap-12 lg:grid-cols-[1.1fr_1fr] lg:items-center lg:gap-16">

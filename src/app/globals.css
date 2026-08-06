@@ -303,4 +303,7 @@
   .tab-panel-enter {
     animation: none;
   }
+  .hero-bg-video {
+    display: none;
+  }
 }
