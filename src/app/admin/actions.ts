@@ -5,6 +5,7 @@ import { getSupabaseAdmin } from "@/lib/supabase";
 import { sendClientEmail } from "@/lib/send-client-email";
 import { draftLeadEmail } from "@/lib/draft-lead-email";
 import { draftLeadCallScript } from "@/lib/draft-lead-call-script";
+import { checkOneLeadSend } from "@/lib/check-lead-sends";
 import { sendInvoiceReminder } from "@/lib/send-invoice-reminder";
 import { startSubscription, cancelSubscription } from "@/lib/subscription";
 import { logAuditEvent } from "@/lib/audit-log";
@@ -125,6 +126,16 @@ export async function markLeadReplied(leadId: string) {
   if (error) console.error("Failed to mark lead replied:", error);
 
   revalidatePath("/admin/leads");
+}
+
+// On-demand version of the daily cron sweep (checkPendingLeadSends) —
+// lets the operator get an immediate answer right after they actually hit
+// send in Gmail, instead of waiting for the next scheduled run.
+export async function checkLeadEmailSent(leadId: string) {
+  const result = await checkOneLeadSend(leadId);
+  revalidatePath("/admin/leads");
+  if ("error" in result) return { status: "no_pending_draft" as const };
+  return result;
 }
 
 export async function deleteLead(leadId: string) {

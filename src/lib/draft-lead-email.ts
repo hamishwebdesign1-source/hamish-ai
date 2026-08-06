@@ -3,6 +3,7 @@ import { getSupabaseAdmin } from "@/lib/supabase";
 import { stripMarkdownEmphasis } from "@/lib/strip-markdown-emphasis";
 import { caseStudies } from "@/lib/case-studies-data";
 import { siteConfig } from "@/lib/site-config";
+import { createLeadGmailDraft } from "@/lib/gmail-draft";
 
 // Matches a lead's category to the closest live demo/case study, so the
 // outreach email can point to one concrete, industry-matched proof point
@@ -109,6 +110,7 @@ export async function draftLeadEmail(leadId: string, isFollowUp = false) {
     .single();
 
   if (leadError || !lead) return { error: "Lead not found." as const };
+  if (!lead.email) return { error: "No email on file for this lead yet — add one first." as const };
 
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return { error: "ANTHROPIC_API_KEY is not configured." as const };
@@ -134,22 +136,24 @@ export async function draftLeadEmail(leadId: string, isFollowUp = false) {
     if (!toolUse) return { error: "The AI did not return a draft." as const };
 
     const draft = toolUse.input as { subject: string; body: string };
+    const subject = stripMarkdownEmphasis(draft.subject);
+    const body = stripMarkdownEmphasis(draft.body);
 
-    // Record the touch now, not on a separate manual "Contacted" click —
-    // opening the Gmail compose window is the last step before sending
-    // (same trust model as before: the operator still reviews and hits
-    // send themselves), so this is what actually starts the follow-up
-    // cadence. Every draft — including a follow-up — resets the clock.
+    // Creates a real Gmail draft (signature included) instead of the old
+    // mail.google.com compose-URL trick — see gmail-draft.ts for why. This
+    // does NOT mark the lead contacted: that only happens once the daily
+    // cron (or the "check now" button) confirms the draft was genuinely
+    // sent, not just created. Every draft — including a follow-up —
+    // replaces any still-pending one for this lead.
+    const created = await createLeadGmailDraft({ to: lead.email, subject, body });
+    if ("error" in created) return { error: created.error };
+
     await supabase
       .from("prospects")
-      .update({ status: "contacted", contacted_at: new Date().toISOString(), last_contact_method: "email" })
+      .update({ pending_email_message_id: created.messageId })
       .eq("id", leadId);
 
-    return {
-      subject: stripMarkdownEmphasis(draft.subject),
-      body: stripMarkdownEmphasis(draft.body),
-      email: lead.email as string | null,
-    };
+    return { subject, body, email: lead.email as string | null };
   } catch (error) {
     console.error(`Failed to draft outreach email for lead ${leadId}:`, error);
     return { error: "The drafting agent is temporarily unavailable." as const };

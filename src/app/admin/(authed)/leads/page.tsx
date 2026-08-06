@@ -66,6 +66,7 @@ type LeadRow = {
   contacted_at: string | null;
   last_contact_method: string | null;
   replied_at: string | null;
+  pending_email_message_id: string | null;
 };
 
 // The single badge that tells Hamish, at a glance, exactly where a lead
@@ -104,6 +105,14 @@ function ContactBadge({ lead }: { lead: LeadRow }) {
       <Badge variant="secondary" className="gap-1">
         {wasCall ? <PhoneCall className="size-3" /> : <Mail className="size-3" />}
         {wasCall ? "Called" : "Emailed"} {timeAgo(lead.contacted_at)}
+      </Badge>
+    );
+  }
+  if (lead.pending_email_message_id) {
+    return (
+      <Badge variant="outline" className="gap-1 text-muted-foreground">
+        <Mail className="size-3" />
+        Draft pending — not sent yet
       </Badge>
     );
   }
@@ -321,7 +330,11 @@ export default async function LeadsPage({
                         ))}
                       </div>
                     )}
-                    <EmailLeadButton leadId={lead.id} email={lead.email} isFollowUp={lead.status === "contacted"} />
+                    <EmailLeadButton
+                      leadId={lead.id}
+                      isFollowUp={lead.status === "contacted"}
+                      hasPendingDraft={Boolean(lead.pending_email_message_id)}
+                    />
                     <form action={deleteLead.bind(null, lead.id)}>
                       <Button type="submit" variant="ghost" size="icon-xs" className="text-muted-foreground hover:text-destructive">
                         <X className="size-3.5" />
