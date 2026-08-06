@@ -118,10 +118,22 @@ export default async function LeadsPage({
   const { status: statusFilter } = await searchParams;
   const supabase = getSupabaseAdmin();
 
-  const { data: allLeads, error } = supabase
+  const { data: fetchedLeads, error } = supabase
     ? await supabase.from("prospects").select("*").order("score", { ascending: false })
     : { data: [], error: null };
   if (error) console.error("Failed to fetch leads:", error);
+
+  // Leads with a real, built concept page (see /concepts/[slug]) are the
+  // strongest thing to lead outreach with — always surface them first,
+  // regardless of score; score still breaks ties within each group.
+  const allLeads = fetchedLeads
+    ? [...fetchedLeads].sort((a, b) => {
+        const aHasConcept = a.concept_slug ? 1 : 0;
+        const bHasConcept = b.concept_slug ? 1 : 0;
+        if (aHasConcept !== bHasConcept) return bHasConcept - aHasConcept;
+        return (b.score ?? -1) - (a.score ?? -1);
+      })
+    : fetchedLeads;
 
   const counts = STATUSES.reduce(
     (acc, s) => ({ ...acc, [s]: allLeads?.filter((l) => l.status === s).length ?? 0 }),
