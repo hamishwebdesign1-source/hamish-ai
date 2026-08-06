@@ -81,18 +81,28 @@ function AnimatedNumber({ value, decimals = 0, suffix = "" }: { value: number; d
 function LedgerMotif({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 600 400" className={className} aria-hidden>
-      {Array.from({ length: 14 }).map((_, i) => (
-        <line
-          key={i}
-          x1="0"
-          y1={30 + i * 27}
-          x2="600"
-          y2={30 + i * 27}
-          stroke="#b98a3d"
-          strokeWidth="1"
-          opacity={0.22 - i * 0.013}
-        />
-      ))}
+      {Array.from({ length: 14 }).map((_, i) => {
+        const base = 0.22 - i * 0.013;
+        return (
+          <line
+            key={i}
+            x1="0"
+            y1={30 + i * 27}
+            x2="600"
+            y2={30 + i * 27}
+            stroke="#b98a3d"
+            strokeWidth="1"
+            className="motif-anim [animation:motif-cascade_4.2s_ease-in-out_infinite]"
+            style={
+              {
+                "--motif-opacity-min": base * 0.3,
+                "--motif-opacity-max": base,
+                animationDelay: `${i * 120}ms`,
+              } as React.CSSProperties
+            }
+          />
+        );
+      })}
       <line x1="470" y1="0" x2="470" y2="400" stroke="#b98a3d" strokeWidth="1" opacity="0.15" />
     </svg>
   );

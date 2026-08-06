@@ -66,16 +66,41 @@ function AnimatedNumber({ value, decimals = 0, suffix = "" }: { value: number; d
 }
 
 // A classical pediment silhouette — evokes Georgian architecture, kept
-// from the original build since it already fit well.
+// from the original build since it already fit well. Low light seems to
+// cross the columns one at a time; the roofline and pediment hold a
+// slower, unified breathing pulse rather than joining the sweep.
 function PedimentMotif({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 600 400" className={className} aria-hidden>
-      <path d="M150 220 L300 100 L450 220 Z" fill="none" stroke="#cf98a6" strokeWidth="2" opacity="0.3" />
-      <line x1="180" y1="220" x2="180" y2="340" stroke="#cf98a6" strokeWidth="2" opacity="0.22" />
-      <line x1="260" y1="220" x2="260" y2="340" stroke="#cf98a6" strokeWidth="2" opacity="0.22" />
-      <line x1="340" y1="220" x2="340" y2="340" stroke="#cf98a6" strokeWidth="2" opacity="0.22" />
-      <line x1="420" y1="220" x2="420" y2="340" stroke="#cf98a6" strokeWidth="2" opacity="0.22" />
-      <line x1="150" y1="220" x2="450" y2="220" stroke="#cf98a6" strokeWidth="2" opacity="0.3" />
+      <g
+        stroke="#cf98a6"
+        strokeWidth="2"
+        fill="none"
+        className="motif-anim [animation:motif-cascade_9s_ease-in-out_infinite]"
+        style={{ "--motif-opacity-min": 0.16, "--motif-opacity-max": 0.3 } as React.CSSProperties}
+      >
+        <path d="M150 220 L300 100 L450 220 Z" />
+        <line x1="150" y1="220" x2="450" y2="220" />
+      </g>
+      {[180, 260, 340, 420].map((x, i) => (
+        <line
+          key={x}
+          x1={x}
+          y1="220"
+          x2={x}
+          y2="340"
+          stroke="#cf98a6"
+          strokeWidth="2"
+          className="motif-anim [animation:motif-cascade_3.4s_ease-in-out_infinite]"
+          style={
+            {
+              "--motif-opacity-min": 0.1,
+              "--motif-opacity-max": 0.22,
+              animationDelay: `${i * 260}ms`,
+            } as React.CSSProperties
+          }
+        />
+      ))}
     </svg>
   );
 }

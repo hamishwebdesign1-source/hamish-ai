@@ -67,12 +67,28 @@ function AnimatedNumber({ value, decimals = 0, suffix = "" }: { value: number; d
 }
 
 // A perforated ticket-stub edge — evokes an order ticket, kept from the
-// original build since it already fit a counter-service deli well.
+// original build since it already fit a counter-service deli well. The
+// perforations pulse in sequence top to bottom, like a number counter
+// ticking over as each ticket is called.
 function TicketMotif({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 600 600" className={className} aria-hidden>
       {Array.from({ length: 16 }).map((_, i) => (
-        <circle key={i} cx="470" cy={20 + i * 38} r="9" fill="#1a1210" opacity="0.9" />
+        <circle
+          key={i}
+          cx="470"
+          cy={20 + i * 38}
+          r="9"
+          fill="#1a1210"
+          className="motif-anim [animation:motif-cascade_3.2s_ease-in-out_infinite]"
+          style={
+            {
+              "--motif-opacity-min": 0.5,
+              "--motif-opacity-max": 0.9,
+              animationDelay: `${i * 130}ms`,
+            } as React.CSSProperties
+          }
+        />
       ))}
       <line x1="470" y1="0" x2="470" y2="600" stroke="#e0a52c" strokeWidth="1.5" opacity="0.3" strokeDasharray="2 10" />
     </svg>

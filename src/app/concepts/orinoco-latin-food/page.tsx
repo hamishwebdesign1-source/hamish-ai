@@ -71,23 +71,25 @@ function AnimatedNumber({ value, decimals = 0, suffix = "" }: { value: number; d
 function RaysMotif({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 600 600" className={className} aria-hidden>
-      {Array.from({ length: 12 }).map((_, i) => {
-        const angle = (i * 30 * Math.PI) / 180;
-        const x2 = 300 + Math.cos(angle) * 340;
-        const y2 = 300 + Math.sin(angle) * 340;
-        return (
-          <line
-            key={i}
-            x1="300"
-            y1="300"
-            x2={x2}
-            y2={y2}
-            stroke="#f0b429"
-            strokeWidth="3"
-            opacity={0.14 - (i % 3) * 0.02}
-          />
-        );
-      })}
+      <g className="motif-anim [animation:motif-spin_90s_linear_infinite]" style={{ transformOrigin: "300px 300px" }}>
+        {Array.from({ length: 12 }).map((_, i) => {
+          const angle = (i * 30 * Math.PI) / 180;
+          const x2 = 300 + Math.cos(angle) * 340;
+          const y2 = 300 + Math.sin(angle) * 340;
+          return (
+            <line
+              key={i}
+              x1="300"
+              y1="300"
+              x2={x2}
+              y2={y2}
+              stroke="#f0b429"
+              strokeWidth="3"
+              opacity={0.14 - (i % 3) * 0.02}
+            />
+          );
+        })}
+      </g>
     </svg>
   );
 }

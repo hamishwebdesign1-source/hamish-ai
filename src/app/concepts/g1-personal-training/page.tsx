@@ -62,7 +62,8 @@ function AnimatedNumber({ value, decimals = 0, suffix = "" }: { value: number; d
 }
 
 // Diagonal speed-lines — motion and effort, not a literal photo of any
-// specific person or gym floor.
+// specific person or gym floor. Each streak actually travels down its own
+// diagonal and fades, one after another, like a rep count ticking over.
 function SpeedLinesMotif({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 600 600" className={className} aria-hidden>
@@ -75,7 +76,13 @@ function SpeedLinesMotif({ className }: { className?: string }) {
           y2="600"
           stroke="#ff5a36"
           strokeWidth="3"
-          opacity={0.12 - (i % 4) * 0.015}
+          className="motif-anim [animation:motif-speed-line_1.8s_linear_infinite]"
+          style={
+            {
+              "--motif-opacity-max": 0.12 - (i % 4) * 0.015,
+              animationDelay: `${i * 150}ms`,
+            } as React.CSSProperties
+          }
         />
       ))}
     </svg>

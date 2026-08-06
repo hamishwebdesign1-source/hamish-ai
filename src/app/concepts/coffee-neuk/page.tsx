@@ -65,18 +65,21 @@ function AnimatedNumber({ value, decimals = 0, suffix = "" }: { value: number; d
 }
 
 // A scalloped awning edge — evokes an old high-street cafe frontage,
-// kept from the original build and recoloured to the new palette.
+// kept from the original build and recoloured to the new palette. Sways
+// gently side to side, as if there's a breeze on the street.
 function AwningMotif({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 600 200" className={className} aria-hidden preserveAspectRatio="xMidYMin slice">
-      {Array.from({ length: 10 }).map((_, i) => (
-        <path
-          key={i}
-          d={`M${i * 60} 0 A30 30 0 0 0 ${i * 60 + 60} 0 Z`}
-          fill={i % 2 === 0 ? "#c1552e" : "#7a8a4a"}
-          opacity={0.18}
-        />
-      ))}
+      <g className="motif-anim [animation:motif-sway_6s_ease-in-out_infinite]" style={{ transformOrigin: "300px 0px" }}>
+        {Array.from({ length: 10 }).map((_, i) => (
+          <path
+            key={i}
+            d={`M${i * 60} 0 A30 30 0 0 0 ${i * 60 + 60} 0 Z`}
+            fill={i % 2 === 0 ? "#c1552e" : "#7a8a4a"}
+            opacity={0.18}
+          />
+        ))}
+      </g>
     </svg>
   );
 }

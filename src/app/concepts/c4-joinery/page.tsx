@@ -105,14 +105,40 @@ function AnimatedNumber({ value, decimals = 0, suffix = "" }: { value: number; d
 function DovetailMotif({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 400 420" className={className} aria-hidden fill="none">
-      <g stroke="#d8501f" strokeWidth="1.4" opacity="0.55">
+      <g
+        stroke="#d8501f"
+        strokeWidth="1.4"
+        className="motif-anim [animation:motif-cascade_4s_ease-in-out_infinite]"
+        style={{ "--motif-opacity-min": 0.22, "--motif-opacity-max": 0.55 } as React.CSSProperties}
+      >
         <path d="M30 40 L95 40 L118 100 L95 160 L30 160 Z" />
         <path d="M118 40 L183 40 L160 100 L183 160 L118 160 Z" opacity="0.6" />
+      </g>
+      <g
+        stroke="#d8501f"
+        strokeWidth="1.4"
+        className="motif-anim [animation:motif-cascade_4s_ease-in-out_infinite]"
+        style={
+          {
+            "--motif-opacity-min": 0.22,
+            "--motif-opacity-max": 0.55,
+            animationDelay: "2s",
+          } as React.CSSProperties
+        }
+      >
         <path d="M30 210 L95 210 L118 270 L95 330 L30 330 Z" />
         <path d="M118 210 L183 210 L160 270 L183 330 L118 330 Z" opacity="0.6" />
       </g>
+      {/* Dimension line's dashes creep along like a tape measure being drawn out */}
       <g stroke="#8a7f70" strokeWidth="1" opacity="0.5">
-        <line x1="230" y1="20" x2="230" y2="400" strokeDasharray="2 7" />
+        <line
+          x1="230"
+          y1="20"
+          x2="230"
+          y2="400"
+          strokeDasharray="2 7"
+          className="motif-anim [animation:motif-dash-crawl_3s_linear_infinite]"
+        />
         <line x1="220" y1="30" x2="240" y2="30" />
         <line x1="220" y1="390" x2="240" y2="390" />
         <line x1="250" y1="30" x2="290" y2="30" strokeDasharray="2 7" />

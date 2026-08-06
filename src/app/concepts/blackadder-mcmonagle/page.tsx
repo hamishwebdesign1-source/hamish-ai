@@ -62,23 +62,35 @@ function AnimatedNumber({ value, decimals = 0, suffix = "" }: { value: number; d
 }
 
 // A fluted-pillar motif — the columned front of a solicitor's office,
-// rendered as plain vertical rules rather than any literal building.
+// rendered as plain vertical rules rather than any literal building. A
+// slow glow crosses the row left to right, like low sun catching each
+// column in turn.
 function PillarMotif({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 600 600" className={className} aria-hidden>
-      {Array.from({ length: 9 }).map((_, i) => (
-        <rect
-          key={i}
-          x={20 + i * 64}
-          y="40"
-          width="20"
-          height="520"
-          fill="none"
-          stroke="#7a2e2e"
-          strokeWidth="1.5"
-          opacity={0.16 - (i % 4) * 0.02}
-        />
-      ))}
+      {Array.from({ length: 9 }).map((_, i) => {
+        const base = 0.16 - (i % 4) * 0.02;
+        return (
+          <rect
+            key={i}
+            x={20 + i * 64}
+            y="40"
+            width="20"
+            height="520"
+            fill="none"
+            stroke="#7a2e2e"
+            strokeWidth="1.5"
+            className="motif-anim [animation:motif-cascade_3.6s_ease-in-out_infinite]"
+            style={
+              {
+                "--motif-opacity-min": base * 0.4,
+                "--motif-opacity-max": base + 0.1,
+                animationDelay: `${i * 220}ms`,
+              } as React.CSSProperties
+            }
+          />
+        );
+      })}
     </svg>
   );
 }

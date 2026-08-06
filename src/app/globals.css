@@ -285,6 +285,97 @@
   animation: tab-panel-in 0.3s ease-out both;
 }
 
+/* Concept-page hero motifs: each business's static SVG motif (rings,
+   pillars, ledger lines, etc. — see src/app/concepts/[slug]/page.tsx)
+   gets its own small, literal-to-the-shape motion instead of one
+   generic effect reused everywhere. Every animated element also carries
+   the .motif-anim class so prefers-reduced-motion can switch all of them
+   off at once, below. */
+@keyframes motif-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes motif-cascade {
+  0%,
+  100% {
+    opacity: var(--motif-opacity-min, 0.08);
+  }
+  50% {
+    opacity: var(--motif-opacity-max, 0.32);
+  }
+}
+
+@keyframes motif-ripple {
+  0% {
+    transform: scale(0.92);
+    opacity: 0.22;
+  }
+  70% {
+    opacity: 0.1;
+  }
+  100% {
+    transform: scale(1.06);
+    opacity: 0;
+  }
+}
+
+@keyframes motif-sway {
+  0%,
+  100% {
+    transform: translateX(-2%);
+  }
+  50% {
+    transform: translateX(2%);
+  }
+}
+
+@keyframes motif-drift {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  50% {
+    transform: translateX(-1.5%);
+  }
+}
+
+@keyframes motif-wave-scroll {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-150px);
+  }
+}
+
+@keyframes motif-dash-crawl {
+  from {
+    stroke-dashoffset: 0;
+  }
+  to {
+    stroke-dashoffset: -18;
+  }
+}
+
+@keyframes motif-speed-line {
+  from {
+    transform: translate(0, 0);
+    opacity: 0;
+  }
+  15% {
+    opacity: var(--motif-opacity-max, 1);
+  }
+  85% {
+    opacity: var(--motif-opacity-max, 1);
+  }
+  to {
+    transform: translate(140px, 140px);
+    opacity: 0;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;
@@ -305,5 +396,8 @@
   }
   .hero-bg-video {
     display: none;
+  }
+  .motif-anim {
+    animation: none !important;
   }
 }

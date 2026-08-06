@@ -71,13 +71,31 @@ function AnimatedNumber({ value, decimals = 0, suffix = "" }: { value: number; d
 }
 
 // Layered hill silhouettes — evokes the Trossachs setting, kept from the
-// original build since it already fit well.
+// original build since it already fit well. Each layer drifts at its own
+// slow speed, a gentle parallax rather than anything literal.
 function HillsMotif({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 600 400" className={className} aria-hidden preserveAspectRatio="xMidYMax slice">
-      <path d="M0 260 Q150 190 300 250 T600 220 V400 H0 Z" fill="#a67a94" opacity="0.16" />
-      <path d="M0 310 Q180 250 340 300 T600 280 V400 H0 Z" fill="#a67a94" opacity="0.12" />
-      <path d="M0 350 Q220 310 400 340 T600 330 V400 H0 Z" fill="#a67a94" opacity="0.09" />
+      <path
+        d="M0 260 Q150 190 300 250 T600 220 V400 H0 Z"
+        fill="#a67a94"
+        opacity="0.16"
+        className="motif-anim [animation:motif-drift_50s_ease-in-out_infinite]"
+      />
+      <path
+        d="M0 310 Q180 250 340 300 T600 280 V400 H0 Z"
+        fill="#a67a94"
+        opacity="0.12"
+        className="motif-anim [animation:motif-drift_36s_ease-in-out_infinite]"
+        style={{ animationDelay: "-8s" }}
+      />
+      <path
+        d="M0 350 Q220 310 400 340 T600 330 V400 H0 Z"
+        fill="#a67a94"
+        opacity="0.09"
+        className="motif-anim [animation:motif-drift_24s_ease-in-out_infinite]"
+        style={{ animationDelay: "-16s" }}
+      />
     </svg>
   );
 }

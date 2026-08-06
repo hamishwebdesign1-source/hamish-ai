@@ -64,24 +64,35 @@ function AnimatedNumber({ value, decimals = 0, suffix = "" }: { value: number; d
 
 // An abstract terraced-window grid — Glasgow West End sandstone tenement
 // windows rendered as a line motif, not a literal photo of any specific
-// building.
+// building. Each window twinkles on its own cycle, like lights coming on
+// across a tenement at dusk.
 function WindowGridMotif({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 600 600" className={className} aria-hidden>
       {Array.from({ length: 5 }).map((_, row) =>
-        Array.from({ length: 4 }).map((_, col) => (
-          <rect
-            key={`${row}-${col}`}
-            x={40 + col * 130}
-            y={40 + row * 110}
-            width="90"
-            height="70"
-            fill="none"
-            stroke="#c9a15a"
-            strokeWidth="1.5"
-            opacity={0.16 - (row + col) * 0.01}
-          />
-        )),
+        Array.from({ length: 4 }).map((_, col) => {
+          const base = 0.16 - (row + col) * 0.01;
+          return (
+            <rect
+              key={`${row}-${col}`}
+              x={40 + col * 130}
+              y={40 + row * 110}
+              width="90"
+              height="70"
+              fill="none"
+              stroke="#c9a15a"
+              strokeWidth="1.5"
+              className="motif-anim [animation:motif-cascade_5s_ease-in-out_infinite]"
+              style={
+                {
+                  "--motif-opacity-min": base * 0.25,
+                  "--motif-opacity-max": base,
+                  animationDelay: `${(row * 4 + col) * 260}ms`,
+                } as React.CSSProperties
+              }
+            />
+          );
+        }),
       )}
     </svg>
   );

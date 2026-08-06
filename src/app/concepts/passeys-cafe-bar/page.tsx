@@ -66,16 +66,27 @@ function AnimatedNumber({ value, decimals = 0, suffix = "" }: { value: number; d
 }
 
 // Gentle wave lines — evokes the Portobello seafront, kept from the
-// original build and recoloured to the new navy/coral palette.
+// original build and recoloured to the new navy/coral palette. Each
+// layer scrolls left at its own speed — actual lapping water, not just a
+// static line. The path is drawn one extra 150px period wider than the
+// viewBox (T750) so the loop has no seam once it's shifted exactly one
+// period by motif-wave-scroll.
 function WaveMotif({ className }: { className?: string }) {
+  const layers = [
+    { y: 330, opacity: 0.16, duration: 9 },
+    { y: 355, opacity: 0.13, duration: 6.5 },
+    { y: 380, opacity: 0.1, duration: 4.5 },
+  ];
   return (
     <svg viewBox="0 0 600 400" className={className} aria-hidden preserveAspectRatio="xMidYMax slice">
-      {[330, 355, 380].map((y, i) => (
+      {layers.map((l) => (
         <path
-          key={y}
-          d={`M0 ${y} Q75 ${y - 22} 150 ${y} T300 ${y} T450 ${y} T600 ${y} V400 H0 Z`}
+          key={l.y}
+          d={`M0 ${l.y} Q75 ${l.y - 22} 150 ${l.y} T300 ${l.y} T450 ${l.y} T600 ${l.y} T750 ${l.y} V400 H0 Z`}
           fill="#e8603f"
-          opacity={0.16 - i * 0.03}
+          opacity={l.opacity}
+          className="motif-anim [animation:motif-wave-scroll_linear_infinite]"
+          style={{ animationDuration: `${l.duration}s` }}
         />
       ))}
     </svg>

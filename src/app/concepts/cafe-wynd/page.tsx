@@ -67,14 +67,30 @@ function AnimatedNumber({ value, decimals = 0, suffix = "" }: { value: number; d
 }
 
 // Coffee-ring stains in sage — ties to the real menu (avocado toast,
-// vegan-friendly) rather than a generic "warm cafe brown" motif.
+// vegan-friendly) rather than a generic "warm cafe brown" motif. Each
+// ring ripples outward on its own slow cycle, like a fresh mark spreading.
 function RingMotif({ className }: { className?: string }) {
+  const rings = [
+    { cx: 220, cy: 200, r: 140, stroke: "#8aa06a", width: 10, delay: 0 },
+    { cx: 380, cy: 340, r: 100, stroke: "#8aa06a", width: 8, delay: 1.8 },
+    { cx: 300, cy: 440, r: 60, stroke: "#d97b3f", width: 6, delay: 0.9 },
+    { cx: 140, cy: 380, r: 45, stroke: "#d97b3f", width: 5, delay: 2.7 },
+  ];
   return (
     <svg viewBox="0 0 600 600" className={className} aria-hidden>
-      <circle cx="220" cy="200" r="140" fill="none" stroke="#8aa06a" strokeWidth="10" opacity="0.18" />
-      <circle cx="380" cy="340" r="100" fill="none" stroke="#8aa06a" strokeWidth="8" opacity="0.15" />
-      <circle cx="300" cy="440" r="60" fill="none" stroke="#d97b3f" strokeWidth="6" opacity="0.18" />
-      <circle cx="140" cy="380" r="45" fill="none" stroke="#d97b3f" strokeWidth="5" opacity="0.16" />
+      {rings.map((c, i) => (
+        <circle
+          key={i}
+          cx={c.cx}
+          cy={c.cy}
+          r={c.r}
+          fill="none"
+          stroke={c.stroke}
+          strokeWidth={c.width}
+          className="motif-anim [animation:motif-ripple_7s_ease-out_infinite]"
+          style={{ transformOrigin: `${c.cx}px ${c.cy}px`, animationDelay: `${c.delay}s` }}
+        />
+      ))}
     </svg>
   );
 }
