@@ -150,7 +150,7 @@ export async function draftLeadEmail(leadId: string, isFollowUp = false) {
 
     await supabase
       .from("prospects")
-      .update({ pending_email_message_id: created.messageId })
+      .update({ pending_email_message_id: created.threadId })
       .eq("id", leadId);
 
     return { subject, body, email: lead.email as string | null };

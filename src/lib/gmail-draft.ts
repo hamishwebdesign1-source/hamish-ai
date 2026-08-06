@@ -10,13 +10,30 @@ import { siteConfig } from "@/lib/site-config";
 //      window is opened with a pre-filled `body` param — so this builds
 //      the HTML signature directly into the message instead.
 //   2. There's no way to know afterwards whether a compose-URL tab was
-//      ever actually sent. A created draft has a stable underlying
-//      message id that transitions from the DRAFT label to the SENT
-//      label the moment it's really sent — see checkDraftSendStatus.
+//      ever actually sent — see checkDraftSendStatus for how.
 //
 // Still never auto-sends anything — this creates a draft sitting in the
 // operator's own Drafts folder, same as before, just server-built instead
 // of client-composed.
+//
+// checkDraftSendStatus's identifier went through two wrong assumptions
+// before landing on threadId, both caught only by an actual verified send
+// (via drafts.send to a real inbox, twice) rather than by reasoning about
+// the API alone:
+//   1st attempt: Gmail's own internal message id. Assumed stable across
+//   the draft->sent transition; a real send proved it isn't — Gmail hands
+//   the sent copy a brand new message id, so the original 404s and reads
+//   as "deleted" even when it genuinely sent.
+//   2nd attempt: an explicit RFC822 Message-ID header, set here instead
+//   of left to Gmail to generate, on the theory that message content
+//   (unlike Gmail's internal id) survives a send unchanged. Also wrong —
+//   Gmail's outbound relay overwrites any Message-ID you supply with its
+//   own at send time (fetched and confirmed directly on a sent message).
+//   What actually survives, confirmed the same way: threadId. A fresh
+//   draft's thread id equals its own message id, and the sent message
+//   that eventually lands in that thread keeps the same thread id even
+//   though its own message id is new — so threads.get on the thread id
+//   captured at draft-creation time reliably finds it either way.
 
 const SIGNATURE_HTML = `
 <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="font-family:Arial,Helvetica,sans-serif;max-width:480px;margin-top:24px;">
@@ -71,6 +88,8 @@ function buildRawMessage({ to, subject, textBody }: { to: string; subject: strin
   const message = [
     `To: ${to}`,
     `Subject: ${subject}`,
+    // No point setting our own Message-ID — Gmail overwrites it with its
+    // own the moment the message is actually sent (see module comment).
     "MIME-Version: 1.0",
     `Content-Type: multipart/alternative; boundary="${boundary}"`,
     "",
@@ -102,7 +121,7 @@ export async function createLeadGmailDraft({
   to: string;
   subject: string;
   body: string;
-}): Promise<{ draftId: string; messageId: string } | { error: string }> {
+}): Promise<{ draftId: string; threadId: string } | { error: string }> {
   const auth = getGoogleAuthClient();
   if (!auth) return { error: "Google (Gmail) is not configured." };
 
@@ -114,8 +133,8 @@ export async function createLeadGmailDraft({
       userId: "me",
       requestBody: { message: { raw } },
     });
-    if (!data.id || !data.message?.id) return { error: "Gmail didn't return a draft id." };
-    return { draftId: data.id, messageId: data.message.id };
+    if (!data.id || !data.message?.threadId) return { error: "Gmail didn't return a draft id." };
+    return { draftId: data.id, threadId: data.message.threadId };
   } catch (error) {
     console.error("Failed to create Gmail draft:", error);
     return { error: "Failed to create the Gmail draft." };
@@ -124,20 +143,22 @@ export async function createLeadGmailDraft({
 
 export type DraftSendStatus = "sent" | "pending" | "gone";
 
-// The definitive "was it actually sent" check: a draft's underlying
-// message id is stable across the transition from draft to sent (Gmail
-// just swaps the DRAFT label for SENT on the same message) — unlike the
-// draft id itself, which stops resolving the moment it's sent OR
-// deleted, so checking the draft id alone can't tell those two apart.
-export async function checkDraftSendStatus(gmail: gmail_v1.Gmail, messageId: string): Promise<DraftSendStatus> {
+// Looks up the thread directly (threads.get, not a search query — so no
+// search-index propagation lag to worry about either) and reports whether
+// any message in it is SENT, still just a DRAFT, or the thread doesn't
+// exist at all (deleted without ever being sent). Verified against a real
+// send, not just reasoned about — see the module comment.
+export async function checkDraftSendStatus(gmail: gmail_v1.Gmail, threadId: string): Promise<DraftSendStatus> {
   try {
-    const { data } = await gmail.users.messages.get({ userId: "me", id: messageId, format: "minimal" });
-    if (data.labelIds?.includes("SENT")) return "sent";
-    return "pending";
+    const { data } = await gmail.users.threads.get({ userId: "me", id: threadId, format: "metadata" });
+    const labels = new Set((data.messages ?? []).flatMap((m) => m.labelIds ?? []));
+    if (labels.has("SENT")) return "sent";
+    if (labels.has("DRAFT")) return "pending";
+    return "gone";
   } catch (error: unknown) {
     const status = (error as { code?: number; response?: { status?: number } })?.code ?? (error as { response?: { status?: number } })?.response?.status;
     if (status === 404) return "gone";
-    console.error(`Failed to check send status for message ${messageId}:`, error);
+    console.error(`Failed to check send status for thread ${threadId}:`, error);
     return "pending";
   }
 }

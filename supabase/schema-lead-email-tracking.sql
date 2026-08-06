@@ -2,6 +2,12 @@
 -- app can tell "contacted" apart from "drafted but never sent" — see
 -- src/lib/gmail-draft.ts for why this replaced the old compose-URL trick.
 --
+-- Despite the column name, holds a Gmail THREAD id, not a message id —
+-- the module comment in gmail-draft.ts explains why two message-id-based
+-- approaches (Gmail's own internal id, then an explicit RFC822 Message-ID
+-- header) both turned out not to survive a real send, and thread id does.
+-- Not renaming the column for this; not worth a migration over.
+--
 -- Set when a draft is created (draft-lead-email.ts), cleared once the
 -- underlying message is confirmed SENT (check-lead-sends.ts) — at which
 -- point contacted_at/last_contact_method are set for real, not on draft
