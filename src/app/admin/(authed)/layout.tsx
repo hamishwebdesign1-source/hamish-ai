@@ -46,6 +46,10 @@ export default function AdminAuthedLayout({ children }: { children: React.ReactN
               <Plug className="size-4" />
               Google
             </AdminNavLink>
+            <AdminNavLink href="/admin/ms-setup">
+              <Plug className="size-4" />
+              Microsoft
+            </AdminNavLink>
             <AdminNavLink href="/admin/process">
               <Workflow className="size-4" />
               Process

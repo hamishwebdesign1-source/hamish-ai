@@ -6,6 +6,7 @@ import { sendClientEmail } from "@/lib/send-client-email";
 import { researchLead, type LeadResearch } from "@/lib/research-lead";
 import { draftSalesKit, type SalesKit } from "@/lib/draft-sales-kit";
 import { createLeadGmailDraft } from "@/lib/gmail-draft";
+import { findAvailableSlots, createTeamsMeeting, type MeetingSlot } from "@/lib/teams-meeting";
 import { checkOneLeadSend } from "@/lib/check-lead-sends";
 import { sendInvoiceReminder } from "@/lib/send-invoice-reminder";
 import { startSubscription, cancelSubscription } from "@/lib/subscription";
@@ -546,4 +547,71 @@ export async function saveSalesKitEmailToGmail(
   await logSaved(true);
   revalidatePath("/admin/leads");
   return { email: lead.email };
+}
+
+// Phase 1 of docs/teams-meeting-intelligence-plan.md — scheduling only,
+// no AI yet. Two plain RPC-style actions rather than useActionState: both
+// are click-driven (pick a slot, confirm it), nothing text-typed to
+// submit, so there's no form to bind to — same style markLeadCalled etc.
+// already use via startTransition on the client side.
+// _leadId isn't used yet — findAvailableSlots only reads Hamish's own
+// calendar today. Kept on the signature (rather than dropped) for a future
+// per-lead override, e.g. a client's own stated preferred hours.
+export async function getMeetingSlotSuggestions(_leadId: string): Promise<{ slots: MeetingSlot[] } | { error: string }> {
+  return findAvailableSlots();
+}
+
+export async function scheduleLeadMeeting(
+  leadId: string,
+  startLocal: string,
+  endLocal: string
+): Promise<{ joinUrl: string; scheduledStart: string; meetingId: string } | { error: string }> {
+  const supabase = getSupabaseAdmin();
+  if (!supabase) return { error: "Supabase is not configured." };
+
+  const { data: lead, error: leadError } = await supabase
+    .from("prospects")
+    .select("business_name, email")
+    .eq("id", leadId)
+    .single();
+  if (leadError || !lead) return { error: "Lead not found." };
+
+  const created = await createTeamsMeeting({
+    subject: `Hamish AI <> ${lead.business_name}`,
+    attendeeEmail: lead.email,
+    attendeeName: lead.business_name,
+    startLocal,
+    endLocal,
+    bodyHtml: "<p>Looking forward to speaking — join using the Teams link in this invite.</p>",
+  });
+  if ("error" in created) return { error: created.error };
+
+  const { data: inserted, error: insertError } = await supabase
+    .from("lead_meetings")
+    .insert({
+      prospect_id: leadId,
+      ms_event_id: created.eventId,
+      ms_meeting_id: created.meetingId,
+      scheduled_start: created.startIso,
+      scheduled_end: created.endIso,
+      join_url: created.joinUrl,
+      status: "scheduled",
+    })
+    .select("id")
+    .single();
+  if (insertError || !inserted) {
+    console.error("Failed to save scheduled meeting:", insertError);
+    return { error: "Meeting created in Teams but failed to save here — check Outlook directly." };
+  }
+
+  await logAuditEvent({
+    actor: "admin",
+    action: "lead.meeting_scheduled",
+    targetType: "prospect",
+    targetId: leadId,
+    metadata: { meeting_id: inserted.id, scheduled_start: created.startIso, join_url: created.joinUrl },
+  });
+
+  revalidatePath("/admin/leads");
+  return { joinUrl: created.joinUrl, scheduledStart: created.startIso, meetingId: inserted.id };
 }

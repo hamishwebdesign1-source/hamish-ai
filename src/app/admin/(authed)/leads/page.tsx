@@ -5,6 +5,7 @@ import Link from "next/link";
 import { ExternalLink, Search, X, Clock, Phone, PhoneCall, Mail, MessageCircleReply, Sparkles, FileX, AlertTriangle, Zap, ArrowRight, History, TrendingUp, Flame, FileCheck2, Hourglass } from "lucide-react";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { checkGoogleConnection } from "@/lib/check-google-connection";
+import { checkMsConnection } from "@/lib/check-ms-connection";
 import { logAuditEvent } from "@/lib/audit-log";
 import {
   updateLeadStatus,
@@ -25,6 +26,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { SalesKitButton } from "@/components/admin/sales-kit-button";
 import { ResearchLeadButton } from "@/components/admin/research-lead-button";
+import { ScheduleTeamsMeetingButton } from "@/components/admin/schedule-teams-meeting-button";
 import { cn } from "@/lib/utils";
 
 const selectClasses =
@@ -122,6 +124,10 @@ function describeAuditEntry(entry: AuditEntry): string {
       return "Call script drafted";
     case "lead.sales_kit_generated":
       return "Sales kit generated (email, call script, LinkedIn, agenda, proposal)";
+    case "lead.meeting_scheduled":
+      return meta.scheduled_start
+        ? `Teams meeting scheduled for ${new Date(meta.scheduled_start as string).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" })}`
+        : "Teams meeting scheduled";
     case "lead.researched":
       return `Researched — score set to ${meta.score}, AI fit ${meta.ai_opportunity_fit}`;
     case "lead.notes_updated":
@@ -359,11 +365,12 @@ export default async function LeadsPage({
   // doesn't depend on which lead IDs exist (fetched unconditionally,
   // bounded, grouped client-side below) specifically so it can run in the
   // same batch instead of waiting on the leads query first.
-  const [{ data: fetchedLeads, error }, googleStatus, { data: auditRows }] = await Promise.all([
+  const [{ data: fetchedLeads, error }, googleStatus, msStatus, { data: auditRows }, { data: meetingRows }] = await Promise.all([
     supabase
       ? supabase.from("prospects").select("*").order("score", { ascending: false })
       : Promise.resolve({ data: [], error: null }),
     checkGoogleConnection(),
+    checkMsConnection(),
     supabase
       ? supabase
           .from("audit_log")
@@ -371,6 +378,16 @@ export default async function LeadsPage({
           .eq("target_type", "prospect")
           .order("created_at", { ascending: false })
           .limit(1000)
+      : Promise.resolve({ data: [] }),
+    // Only ever the *next* scheduled meeting per lead is shown on the card
+    // (see meetingByLead below) — ascending order means the first row seen
+    // per prospect_id while grouping is always the soonest one.
+    supabase
+      ? supabase
+          .from("lead_meetings")
+          .select("prospect_id, scheduled_start, join_url")
+          .eq("status", "scheduled")
+          .order("scheduled_start", { ascending: true })
       : Promise.resolve({ data: [] }),
   ]);
   if (error) console.error("Failed to fetch leads:", error);
@@ -382,6 +399,13 @@ export default async function LeadsPage({
     const list = auditByLead.get(row.target_id) ?? [];
     list.push(row);
     auditByLead.set(row.target_id, list);
+  }
+
+  const meetingByLead = new Map<string, { joinUrl: string; scheduledStart: string }>();
+  for (const row of meetingRows ?? []) {
+    if (!meetingByLead.has(row.prospect_id)) {
+      meetingByLead.set(row.prospect_id, { joinUrl: row.join_url, scheduledStart: row.scheduled_start });
+    }
   }
 
   // Leads with a real, built concept page (see /concepts/[slug]) are the
@@ -494,6 +518,26 @@ export default async function LeadsPage({
             <Link href="/admin/google-setup" className="shrink-0">
               <Button type="button" variant="outline" size="sm">
                 Reconnect
+              </Button>
+            </Link>
+          </CardContent>
+        </Card>
+      )}
+
+      {!msStatus.connected && (
+        <Card className="mt-6 border-warning/30 bg-warning/5">
+          <CardContent className="flex flex-wrap items-center justify-between gap-3 py-4">
+            <div className="flex items-start gap-2 text-sm">
+              <AlertTriangle className="mt-0.5 size-4 shrink-0 text-warning" />
+              <span>
+                <strong className="font-medium">Microsoft isn&apos;t connected</strong> — &ldquo;Schedule Teams
+                meeting&rdquo; won&apos;t work until this is set up.
+                <span className="mt-1 block text-xs text-muted-foreground">{msStatus.reason}</span>
+              </span>
+            </div>
+            <Link href="/admin/ms-setup" className="shrink-0">
+              <Button type="button" variant="outline" size="sm">
+                Connect
               </Button>
             </Link>
           </CardContent>
@@ -833,6 +877,10 @@ export default async function LeadsPage({
                     initialKit={lead.sales_kit ?? null}
                     initialGeneratedAt={lead.sales_kit_generated_at ?? null}
                   />
+                </div>
+
+                <div className="mt-2">
+                  <ScheduleTeamsMeetingButton leadId={lead.id} initialMeeting={meetingByLead.get(lead.id) ?? null} />
                 </div>
 
                 <form action={updateLeadEmail.bind(null, lead.id)} className="mt-2 flex items-center gap-1.5">

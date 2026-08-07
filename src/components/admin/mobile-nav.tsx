@@ -11,6 +11,7 @@ const NAV_ITEMS = [
   { href: "/admin/leads", label: "Leads", icon: Search },
   { href: "/admin/knowledge", label: "Knowledge", icon: BookOpen },
   { href: "/admin/google-setup", label: "Google", icon: Plug },
+  { href: "/admin/ms-setup", label: "Microsoft", icon: Plug },
   { href: "/admin/process", label: "Process", icon: Workflow },
   { href: "/admin/audit", label: "Audit", icon: ShieldCheck },
   { href: "/admin/activity-log", label: "Activity", icon: History },

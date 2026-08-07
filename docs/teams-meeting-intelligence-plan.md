@@ -1,6 +1,8 @@
 # Microsoft Teams AI Meeting Intelligence: Planning Document
 
-Status: planning document, no code changes yet. Written the same way `leads-automation-plan.md` was — grounded in the actual current state of `/admin/leads` (research pipeline, sales kit, pipeline widgets all live as of High Impact #6–9) rather than a hypothetical greenfield build. This is a big feature area; it's broken into five independently-shippable phases at the end rather than one large build.
+Status: Phase 1 (scheduling only, no AI) is built and typechecks/lints/builds clean — untested against a live Microsoft account, since Phase 0 (Azure AD app registration, confirming the M365 licence covers the transcript API) is still outstanding. Phases 2–5 are still just the plan below. Written the same way `leads-automation-plan.md` was — grounded in the actual current state of `/admin/leads` (research pipeline, sales kit, pipeline widgets all live as of High Impact #6–9) rather than a hypothetical greenfield build.
+
+**Build note (deviation from the plan below):** section 2 originally assumed a fourth env var, `MS_REFRESH_TOKEN`, mirroring `GOOGLE_REFRESH_TOKEN`. That turned out to be wrong once actually building it — Microsoft's v2.0 token endpoint rotates the refresh token on every use (Google's stays static), and nothing at runtime can rewrite a Vercel env var. The refresh token lives in a new `ms_graph_tokens` table instead (`supabase/schema-ms-graph.sql`), rewritten automatically every time `getMsAccessToken()` runs. `/admin/ms-setup` also skips the Google flow's "copy this value into your env vars" manual step entirely as a result — connecting there is now one click, no redeploy needed.
 
 ## 0. What this builds on
 
@@ -188,7 +190,7 @@ Net new infrastructure: **one webhook route, one cron route**. Nothing else — 
 ## 8. Implementation roadmap
 
 - **Phase 0 (prerequisite, Hamish-side — not something I can do)**: confirm the M365 plan actually supports Graph transcript/recording API access; register the Azure AD app; run the one-time OAuth setup script to mint `MS_REFRESH_TOKEN`. Nothing in Phase 1+ can start without this, the same way Gmail drafting couldn't work before `scripts/google-oauth-setup.mjs` was run once.
-- **Phase 1 — Scheduling only, no AI.** `ms-graph-auth.ts`, `teams-meeting.ts`, `ScheduleTeamsMeetingButton`, `lead_meetings` table, Join button, audit-log entries, connection-health banner. Ships something usable in one session, same as how High Impact #6 shipped before #7–9 layered on.
+- **Phase 1 — Scheduling only, no AI.** ~~Ships something usable in one session, same as how High Impact #6 shipped before #7–9 layered on.~~ **Built** (`ms-graph-auth.ts`, `check-ms-connection.ts`, `teams-meeting.ts`, `ScheduleTeamsMeetingButton`, `lead_meetings` + `ms_graph_tokens` tables, `/admin/ms-setup`, `/api/internal/ms-callback`, audit-log entries, connection-health banner on `/admin/leads`). `findAvailableSlots()` deliberately skips Graph's `findMeetingTimes` — see the comment at the top of `teams-meeting.ts` for why — and instead reads Hamish's own `calendarView` directly, offering business-hour slots over the next week. Not yet exercised against a live Microsoft account (blocked on Phase 0).
 - **Phase 2 — Meeting prep AI.** `generateMeetingBriefing`, `MeetingBriefingPanel`, triggered automatically right after Phase 1's create-meeting action succeeds.
 - **Phase 3 — Post-meeting webhook + analysis.** `/api/webhooks/teams`, `analyseMeetingTranscript`, `lead_memory`, deterministic score/stage recalculation, `meeting-followup-sweep` cron backstop.
 - **Phase 4 — Follow-up automation.** `generateFollowUp`, `lead_tasks`, approval-gated client-action drafts reusing the sales-kit Save-to-Gmail pattern.
