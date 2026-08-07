@@ -23,8 +23,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { EmailLeadButton } from "@/components/admin/email-lead-button";
-import { CallScriptButton } from "@/components/admin/call-script-button";
+import { SalesKitButton } from "@/components/admin/sales-kit-button";
 import { ResearchLeadButton } from "@/components/admin/research-lead-button";
 import { cn } from "@/lib/utils";
 
@@ -121,6 +120,8 @@ function describeAuditEntry(entry: AuditEntry): string {
       return meta.saved_to_gmail ? "Email drafted and saved to Gmail" : "Email drafted (not saved to Gmail)";
     case "lead.call_script_drafted":
       return "Call script drafted";
+    case "lead.sales_kit_generated":
+      return "Sales kit generated (email, call script, LinkedIn, agenda, proposal)";
     case "lead.researched":
       return `Researched — score set to ${meta.score}, AI fit ${meta.ai_opportunity_fit}`;
     case "lead.notes_updated":
@@ -716,12 +717,6 @@ export default async function LeadsPage({
                         ))}
                       </div>
                     )}
-                    <EmailLeadButton
-                      leadId={lead.id}
-                      isFollowUp={lead.status === "contacted"}
-                      hasPendingDraft={Boolean(lead.pending_email_message_id)}
-                      alreadySent={lead.status === "contacted" && lead.last_contact_method !== "call"}
-                    />
                     <form action={deleteLead.bind(null, lead.id)}>
                       <Button type="submit" variant="ghost" size="icon-xs" className="text-muted-foreground hover:text-destructive">
                         <X className="size-3.5" />
@@ -735,7 +730,15 @@ export default async function LeadsPage({
                 </div>
 
                 <div className="mt-2">
-                  <CallScriptButton leadId={lead.id} phone={lead.phone} />
+                  <SalesKitButton
+                    leadId={lead.id}
+                    phone={lead.phone}
+                    isFollowUp={lead.status === "contacted"}
+                    hasPendingDraft={Boolean(lead.pending_email_message_id)}
+                    alreadySent={lead.status === "contacted" && lead.last_contact_method !== "call"}
+                    initialKit={lead.sales_kit ?? null}
+                    initialGeneratedAt={lead.sales_kit_generated_at ?? null}
+                  />
                 </div>
 
                 <form action={updateLeadEmail.bind(null, lead.id)} className="mt-2 flex items-center gap-1.5">

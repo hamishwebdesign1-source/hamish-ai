@@ -3,9 +3,9 @@
 import { revalidatePath } from "next/cache";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { sendClientEmail } from "@/lib/send-client-email";
-import { draftLeadEmail } from "@/lib/draft-lead-email";
-import { draftLeadCallScript } from "@/lib/draft-lead-call-script";
 import { researchLead, type LeadResearch } from "@/lib/research-lead";
+import { draftSalesKit, type SalesKit } from "@/lib/draft-sales-kit";
+import { createLeadGmailDraft } from "@/lib/gmail-draft";
 import { checkOneLeadSend } from "@/lib/check-lead-sends";
 import { sendInvoiceReminder } from "@/lib/send-invoice-reminder";
 import { startSubscription, cancelSubscription } from "@/lib/subscription";
@@ -460,28 +460,6 @@ export async function removeClientMember(memberId: string, revalidate: string) {
   revalidatePath(revalidate);
 }
 
-export type DraftEmailState = {
-  subject?: string;
-  body?: string;
-  email?: string | null;
-  error?: string;
-  // Set when the text drafted fine but saving it as a real Gmail draft
-  // didn't — no email on file, or the Google connector is down. The text
-  // is still returned so the operator can copy it and send it another way.
-  gmailError?: string;
-};
-
-export async function generateLeadEmailDraft(
-  leadId: string,
-  isFollowUp: boolean,
-  _prevState: DraftEmailState,
-  _formData: FormData
-): Promise<DraftEmailState> {
-  const result = await draftLeadEmail(leadId, isFollowUp);
-  if ("error" in result) return { error: result.error };
-  return { subject: result.subject, body: result.body, email: result.email, gmailError: result.gmailError };
-}
-
 export type ResearchState = { research?: LeadResearch; score?: number; generatedAt?: string; error?: string };
 
 export async function generateLeadResearch(
@@ -495,27 +473,77 @@ export async function generateLeadResearch(
   return { research: result.research, score: result.score, generatedAt: result.generatedAt };
 }
 
-export type CallScriptState = {
-  opener?: string;
-  talkingPoints?: string[];
-  ifHesitant?: string;
-  closingAsk?: string;
-  phone?: string | null;
-  error?: string;
-};
+export type SalesKitState = { kit?: SalesKit; generatedAt?: string; error?: string };
 
-export async function generateLeadCallScript(
+// High Impact #8: one Claude call producing all six outreach artifacts at
+// once (see draft-sales-kit.ts) — replaces the old separate
+// generateLeadEmailDraft (x2, initial + follow-up) and
+// generateLeadCallScript actions/components, which are no longer wired
+// into the leads page.
+export async function generateSalesKit(
   leadId: string,
-  _prevState: CallScriptState,
+  _prevState: SalesKitState,
   _formData: FormData
-): Promise<CallScriptState> {
-  const result = await draftLeadCallScript(leadId);
+): Promise<SalesKitState> {
+  const result = await draftSalesKit(leadId);
+  revalidatePath("/admin/leads");
   if ("error" in result) return { error: result.error };
-  return {
-    opener: result.opener,
-    talkingPoints: result.talkingPoints,
-    ifHesitant: result.ifHesitant,
-    closingAsk: result.closingAsk,
-    phone: result.phone,
-  };
+  return { kit: result.kit, generatedAt: result.generatedAt };
+}
+
+export type SaveKitEmailState = { email?: string | null; error?: string; gmailError?: string };
+
+// Saves the already-generated (cached) outreach or follow-up email from a
+// lead's sales kit as a real Gmail draft — no new LLM call, just reads
+// `sales_kit` back out and hands it to the same createLeadGmailDraft used
+// by draft-lead-email.ts. Mirrors that file's "don't throw the draft away
+// if Gmail saving fails" behaviour: the text stays cached either way, only
+// the save-to-Gmail step can fail.
+export async function saveSalesKitEmailToGmail(
+  leadId: string,
+  variant: "outreach" | "follow_up",
+  _prevState: SaveKitEmailState,
+  _formData: FormData
+): Promise<SaveKitEmailState> {
+  const supabase = getSupabaseAdmin();
+  if (!supabase) return { error: "Supabase is not configured." };
+
+  const { data: lead, error: leadError } = await supabase
+    .from("prospects")
+    .select("email, sales_kit")
+    .eq("id", leadId)
+    .single();
+  if (leadError || !lead) return { error: "Lead not found." };
+
+  const kit = lead.sales_kit as SalesKit | null;
+  if (!kit) return { error: "No sales kit generated yet." };
+
+  const { subject, body } = variant === "follow_up" ? kit.follow_up_email : kit.outreach_email;
+
+  async function logSaved(savedToGmail: boolean, gmailError?: string) {
+    await logAuditEvent({
+      actor: "admin",
+      action: "lead.email_drafted",
+      targetType: "prospect",
+      targetId: leadId,
+      metadata: { subject, is_follow_up: variant === "follow_up", saved_to_gmail: savedToGmail, gmail_error: gmailError ?? null, source: "sales_kit" },
+    });
+  }
+
+  if (!lead.email) {
+    const gmailError = "No email on file for this lead — copy this and send it another way (e.g. Facebook).";
+    await logSaved(false, gmailError);
+    return { email: null, gmailError };
+  }
+
+  const created = await createLeadGmailDraft({ to: lead.email, subject, body });
+  if ("error" in created) {
+    await logSaved(false, created.error);
+    return { email: lead.email, gmailError: created.error };
+  }
+
+  await supabase.from("prospects").update({ pending_email_message_id: created.threadId }).eq("id", leadId);
+  await logSaved(true);
+  revalidatePath("/admin/leads");
+  return { email: lead.email };
 }

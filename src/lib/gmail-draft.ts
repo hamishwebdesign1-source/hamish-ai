@@ -98,7 +98,7 @@ function buildRawMessage({ to, subject, textBody }: { to: string; subject: strin
     "Content-Transfer-Encoding: 7bit",
     "",
     // textBody already ends with its own plain sign-off (see
-    // SIGN_OFF_INSTRUCTION in draft-lead-email.ts) — not duplicated here.
+    // SIGN_OFF_INSTRUCTION in draft-sales-kit.ts) — not duplicated here.
     textBody,
     "",
     `--${boundary}`,
