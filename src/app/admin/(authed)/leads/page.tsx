@@ -2,7 +2,7 @@ import fs from "fs";
 import path from "path";
 import { revalidatePath } from "next/cache";
 import Link from "next/link";
-import { ExternalLink, Search, X, Clock, Phone, PhoneCall, Mail, MessageCircleReply, Sparkles, FileX, AlertTriangle, Zap, ArrowRight, History } from "lucide-react";
+import { ExternalLink, Search, X, Clock, Phone, PhoneCall, Mail, MessageCircleReply, Sparkles, FileX, AlertTriangle, Zap, ArrowRight, History, TrendingUp, Flame, FileCheck2, Hourglass } from "lucide-react";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { checkGoogleConnection } from "@/lib/check-google-connection";
 import { logAuditEvent } from "@/lib/audit-log";
@@ -260,15 +260,80 @@ function sortLeads(list: any[], sortKey: string): any[] {
   }
 }
 
+// High Impact #9 from docs/leads-automation-plan.md — pipeline widgets
+// built entirely from the fields #6-8 already added (research, score,
+// sales_kit), zero extra LLM cost: pure JS filters over the same
+// already-fetched `allLeads` array everything else on this page reads.
+// "Follow-up today" isn't here — it's the existing needsFollowUp/
+// getLeadCadenceAction check, already surfaced as its own stat card and
+// ?status=needs_followup filter above.
+const INSIGHT_LABELS: Record<string, string> = {
+  high_value: "High value",
+  hot: "Hot opportunities",
+  ready_for_proposal: "Ready for proposal",
+  waiting: "Waiting for customer",
+  recently_researched: "Recently researched",
+};
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function isHighValue(l: any): boolean {
+  const band = l.research?.estimated_project_value_band;
+  return band === "£6,000+" || band === "£3,000-£6,000";
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function isHotOpportunity(l: any): boolean {
+  return l.research?.conversion_probability_band === "high";
+}
+
+// Contacted and they've actually replied — the next step is a proposal,
+// not another chase email.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function isReadyForProposal(l: any): boolean {
+  return l.status === "contacted" && Boolean(l.replied_at);
+}
+
+// Contacted, no reply yet, but still inside the normal cadence window —
+// leadNeedsFollowUp(l) is what flags it once that window's up, so this
+// deliberately excludes those to avoid double-counting the same lead
+// under two different pipeline widgets.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function isWaitingForCustomer(l: any): boolean {
+  return l.status === "contacted" && !l.replied_at && !needsFollowUp(l);
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function isRecentlyResearched(l: any): boolean {
+  return Boolean(l.research_generated_at) && daysSince(l.research_generated_at) <= 7;
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const INSIGHT_PREDICATES: Record<string, (l: any) => boolean> = {
+  high_value: isHighValue,
+  hot: isHotOpportunity,
+  ready_for_proposal: isReadyForProposal,
+  waiting: isWaitingForCustomer,
+  recently_researched: isRecentlyResearched,
+};
+
+const INSIGHT_ICONS: Record<string, typeof TrendingUp> = {
+  high_value: TrendingUp,
+  hot: Flame,
+  ready_for_proposal: FileCheck2,
+  waiting: Hourglass,
+  recently_researched: Sparkles,
+};
+
 export default async function LeadsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; contacted?: string; concept?: string; q?: string; sort?: string }>;
+  searchParams: Promise<{ status?: string; contacted?: string; concept?: string; insight?: string; q?: string; sort?: string }>;
 }) {
   const {
     status: statusFilter,
     contacted: contactedFilter,
     concept: conceptFilter,
+    insight: insightFilter,
     q: searchQuery,
     sort: sortKey = "priority",
   } = await searchParams;
@@ -343,10 +408,15 @@ export default async function LeadsPage({
   const hasConceptCount = allLeads?.filter((l) => l.concept_slug).length ?? 0;
   const noConceptCount = (allLeads?.length ?? 0) - hasConceptCount;
 
-  // Three independent filter dimensions that AND together (status,
-  // contacted/not, concept-built/not) rather than one combined enum —
-  // lets you ask e.g. "ready AND no concept yet" in one view, which is
-  // the actual question when deciding what to build next.
+  // Pipeline widget counts — see INSIGHT_PREDICATES above.
+  const insightCounts: Record<string, number> = Object.fromEntries(
+    Object.keys(INSIGHT_LABELS).map((key) => [key, allLeads?.filter(INSIGHT_PREDICATES[key]).length ?? 0])
+  );
+
+  // Four independent filter dimensions that AND together (status,
+  // contacted/not, concept-built/not, pipeline insight) rather than one
+  // combined enum — lets you ask e.g. "ready AND no concept yet" in one
+  // view, which is the actual question when deciding what to build next.
   let leads =
     statusFilter === "needs_followup"
       ? allLeads?.filter(needsFollowUp)
@@ -357,6 +427,7 @@ export default async function LeadsPage({
   else if (contactedFilter === "no") leads = leads?.filter((l) => l.status !== "contacted");
   if (conceptFilter === "yes") leads = leads?.filter((l) => Boolean(l.concept_slug));
   else if (conceptFilter === "no") leads = leads?.filter((l) => !l.concept_slug);
+  if (insightFilter && INSIGHT_PREDICATES[insightFilter]) leads = leads?.filter(INSIGHT_PREDICATES[insightFilter]);
 
   // Free-text search — business name, category, neighbourhood, website,
   // and email, so "who did I already look at in Falkirk" or "find the
@@ -380,11 +451,12 @@ export default async function LeadsPage({
   // (including the current search query) — clicking one pill, or
   // submitting a search, shouldn't reset the others. Pass `undefined` for
   // a dimension to clear it back to "All"/empty.
-  function filterHref(overrides: { status?: string; contacted?: string; concept?: string; q?: string; sort?: string }) {
+  function filterHref(overrides: { status?: string; contacted?: string; concept?: string; insight?: string; q?: string; sort?: string }) {
     const next = {
       status: statusFilter,
       contacted: contactedFilter,
       concept: conceptFilter,
+      insight: insightFilter,
       q: searchQuery,
       sort: sortKey === "priority" ? undefined : sortKey,
       ...overrides,
@@ -393,6 +465,7 @@ export default async function LeadsPage({
     if (next.status) params.set("status", next.status);
     if (next.contacted) params.set("contacted", next.contacted);
     if (next.concept) params.set("concept", next.concept);
+    if (next.insight) params.set("insight", next.insight);
     if (next.q) params.set("q", next.q);
     if (next.sort) params.set("sort", next.sort);
     const qs = params.toString();
@@ -561,6 +634,27 @@ export default async function LeadsPage({
             Concept made ({hasConceptCount})
           </Badge>
         </Link>
+      </div>
+
+      {/* Pipeline widgets (High Impact #9) — pure JS filters over the
+          research/score fields #6-8 added, zero LLM cost. Independent of
+          the three dimensions above, same "AND together" pattern. */}
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        <span className="text-xs text-muted-foreground">Pipeline:</span>
+        <Link href={filterHref({ insight: undefined })}>
+          <Badge variant={!insightFilter ? "default" : "outline"}>All</Badge>
+        </Link>
+        {Object.entries(INSIGHT_LABELS).map(([key, label]) => {
+          const Icon = INSIGHT_ICONS[key];
+          return (
+            <Link key={key} href={filterHref({ insight: key })}>
+              <Badge variant={insightFilter === key ? "default" : "outline"} className="gap-1">
+                <Icon className="size-3" />
+                {label} ({insightCounts[key]})
+              </Badge>
+            </Link>
+          );
+        })}
       </div>
 
       {/* Display order only — doesn't touch the "Do this next" card above,
