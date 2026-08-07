@@ -4,6 +4,7 @@ import { stripMarkdownEmphasis } from "@/lib/strip-markdown-emphasis";
 import { caseStudies } from "@/lib/case-studies-data";
 import { siteConfig } from "@/lib/site-config";
 import { createLeadGmailDraft } from "@/lib/gmail-draft";
+import { logAuditEvent } from "@/lib/audit-log";
 
 // Matches a lead's category to the closest live demo/case study, so the
 // outreach email can point to one concrete, industry-matched proof point
@@ -138,17 +139,27 @@ export async function draftLeadEmail(leadId: string, isFollowUp = false) {
     const subject = stripMarkdownEmphasis(draft.subject);
     const body = stripMarkdownEmphasis(draft.body);
 
+    // One event either way — savedToGmail in the metadata is what
+    // distinguishes "created a real Gmail draft" from "drafted, but the
+    // operator has to send it some other way" on the lead's timeline.
+    async function logDrafted(savedToGmail: boolean, gmailError?: string) {
+      await logAuditEvent({
+        actor: "admin",
+        action: "lead.email_drafted",
+        targetType: "prospect",
+        targetId: leadId,
+        metadata: { subject, is_follow_up: isFollowUp, saved_to_gmail: savedToGmail, gmail_error: gmailError ?? null },
+      });
+    }
+
     // Some leads (Facebook-only outreach, no confirmed email) have nowhere
     // to save a Gmail draft to — return the text anyway so the operator can
     // copy it and send it some other way, rather than failing the whole
     // draft over a missing "to" address.
     if (!lead.email) {
-      return {
-        subject,
-        body,
-        email: null as string | null,
-        gmailError: "No email on file for this lead — copy this and send it another way (e.g. Facebook).",
-      };
+      const gmailError = "No email on file for this lead — copy this and send it another way (e.g. Facebook).";
+      await logDrafted(false, gmailError);
+      return { subject, body, email: null as string | null, gmailError };
     }
 
     // Creates a real Gmail draft (signature included) instead of the old
@@ -162,6 +173,7 @@ export async function draftLeadEmail(leadId: string, isFollowUp = false) {
       // The text still drafted fine even though saving it to Gmail failed
       // (e.g. the connector needs reconnecting, see check-google-connection.ts)
       // — don't throw the draft away, let the operator copy it instead.
+      await logDrafted(false, created.error);
       return { subject, body, email: lead.email as string | null, gmailError: created.error };
     }
 
@@ -170,6 +182,7 @@ export async function draftLeadEmail(leadId: string, isFollowUp = false) {
       .update({ pending_email_message_id: created.threadId })
       .eq("id", leadId);
 
+    await logDrafted(true);
     return { subject, body, email: lead.email as string | null };
   } catch (error) {
     console.error(`Failed to draft outreach email for lead ${leadId}:`, error);

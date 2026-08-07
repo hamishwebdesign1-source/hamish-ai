@@ -82,6 +82,8 @@ export async function updateLeadStatus(leadId: string, status: string) {
   const supabase = getSupabaseAdmin();
   if (!supabase) return;
 
+  const { data: previous } = await supabase.from("prospects").select("status").eq("id", leadId).single();
+
   // contacted_at tracks the most recent contact touch — set every time
   // status moves to "contacted" (including re-clicking it after a
   // follow-up), since that's what the stale-outreach check is measured from.
@@ -89,7 +91,17 @@ export async function updateLeadStatus(leadId: string, status: string) {
   if (status === "contacted") update.contacted_at = new Date().toISOString();
 
   const { error } = await supabase.from("prospects").update(update).eq("id", leadId);
-  if (error) console.error("Failed to update lead status:", error);
+  if (error) {
+    console.error("Failed to update lead status:", error);
+  } else {
+    await logAuditEvent({
+      actor: "admin",
+      action: "lead.status_changed",
+      targetType: "prospect",
+      targetId: leadId,
+      metadata: { from: previous?.status ?? null, to: status },
+    });
+  }
 
   revalidatePath("/admin/leads");
 }
@@ -106,7 +118,11 @@ export async function markLeadCalled(leadId: string) {
     .from("prospects")
     .update({ status: "contacted", contacted_at: new Date().toISOString(), last_contact_method: "call" })
     .eq("id", leadId);
-  if (error) console.error("Failed to mark lead called:", error);
+  if (error) {
+    console.error("Failed to mark lead called:", error);
+  } else {
+    await logAuditEvent({ actor: "admin", action: "lead.called", targetType: "prospect", targetId: leadId });
+  }
 
   revalidatePath("/admin/leads");
 }
@@ -132,7 +148,11 @@ export async function markLeadEmailSent(leadId: string) {
       pending_email_message_id: null,
     })
     .eq("id", leadId);
-  if (error) console.error("Failed to mark lead emailed:", error);
+  if (error) {
+    console.error("Failed to mark lead emailed:", error);
+  } else {
+    await logAuditEvent({ actor: "admin", action: "lead.email_marked_sent", targetType: "prospect", targetId: leadId });
+  }
 
   revalidatePath("/admin/leads");
 }
@@ -149,7 +169,11 @@ export async function markLeadReplied(leadId: string) {
     .from("prospects")
     .update({ replied_at: new Date().toISOString() })
     .eq("id", leadId);
-  if (error) console.error("Failed to mark lead replied:", error);
+  if (error) {
+    console.error("Failed to mark lead replied:", error);
+  } else {
+    await logAuditEvent({ actor: "admin", action: "lead.replied", targetType: "prospect", targetId: leadId });
+  }
 
   revalidatePath("/admin/leads");
 }
@@ -168,8 +192,23 @@ export async function deleteLead(leadId: string) {
   const supabase = getSupabaseAdmin();
   if (!supabase) return;
 
+  // Fetched before deleting, not after — nothing to log a name against
+  // once the row is gone. audit_log's target_id has no FK to prospects,
+  // so the entry stays valid and readable after the lead itself doesn't.
+  const { data: lead } = await supabase.from("prospects").select("business_name").eq("id", leadId).single();
+
   const { error } = await supabase.from("prospects").delete().eq("id", leadId);
-  if (error) console.error("Failed to delete lead:", error);
+  if (error) {
+    console.error("Failed to delete lead:", error);
+  } else {
+    await logAuditEvent({
+      actor: "admin",
+      action: "lead.deleted",
+      targetType: "prospect",
+      targetId: leadId,
+      metadata: { business_name: lead?.business_name ?? null },
+    });
+  }
 
   revalidatePath("/admin/leads");
 }
@@ -183,7 +222,11 @@ export async function updateLeadEmail(leadId: string, formData: FormData) {
     .from("prospects")
     .update({ email: email || null })
     .eq("id", leadId);
-  if (error) console.error("Failed to update lead email:", error);
+  if (error) {
+    console.error("Failed to update lead email:", error);
+  } else {
+    await logAuditEvent({ actor: "admin", action: "lead.email_updated", targetType: "prospect", targetId: leadId, metadata: { email: email || null } });
+  }
 
   revalidatePath("/admin/leads");
 }
@@ -197,7 +240,11 @@ export async function updateLeadPhone(leadId: string, formData: FormData) {
     .from("prospects")
     .update({ phone: phone || null })
     .eq("id", leadId);
-  if (error) console.error("Failed to update lead phone:", error);
+  if (error) {
+    console.error("Failed to update lead phone:", error);
+  } else {
+    await logAuditEvent({ actor: "admin", action: "lead.phone_updated", targetType: "prospect", targetId: leadId, metadata: { phone: phone || null } });
+  }
 
   revalidatePath("/admin/leads");
 }
@@ -217,7 +264,13 @@ export async function updateLeadNotes(leadId: string, formData: FormData) {
     .from("prospects")
     .update({ notes: notes || null })
     .eq("id", leadId);
-  if (error) console.error("Failed to update lead notes:", error);
+  if (error) {
+    console.error("Failed to update lead notes:", error);
+  } else if (notes) {
+    // Only logged when there's actually a note to show — an empty save
+    // (clearing the field) doesn't need its own timeline entry.
+    await logAuditEvent({ actor: "admin", action: "lead.notes_updated", targetType: "prospect", targetId: leadId, metadata: { notes } });
+  }
 
   revalidatePath("/admin/leads");
 }
@@ -231,7 +284,17 @@ export async function updateLeadConceptSlug(leadId: string, formData: FormData) 
     .from("prospects")
     .update({ concept_slug: conceptSlug || null })
     .eq("id", leadId);
-  if (error) console.error("Failed to update lead concept slug:", error);
+  if (error) {
+    console.error("Failed to update lead concept slug:", error);
+  } else {
+    await logAuditEvent({
+      actor: "admin",
+      action: "lead.concept_slug_updated",
+      targetType: "prospect",
+      targetId: leadId,
+      metadata: { concept_slug: conceptSlug || null },
+    });
+  }
 
   revalidatePath("/admin/leads");
 }

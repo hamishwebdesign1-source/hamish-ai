@@ -2,9 +2,10 @@ import fs from "fs";
 import path from "path";
 import { revalidatePath } from "next/cache";
 import Link from "next/link";
-import { ExternalLink, Search, X, Clock, Phone, PhoneCall, Mail, MessageCircleReply, Sparkles, FileX, AlertTriangle, Zap, ArrowRight } from "lucide-react";
+import { ExternalLink, Search, X, Clock, Phone, PhoneCall, Mail, MessageCircleReply, Sparkles, FileX, AlertTriangle, Zap, ArrowRight, History } from "lucide-react";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { checkGoogleConnection } from "@/lib/check-google-connection";
+import { logAuditEvent } from "@/lib/audit-log";
 import {
   updateLeadStatus,
   deleteLead,
@@ -43,26 +44,93 @@ async function addLead(formData: FormData) {
   const supabase = getSupabaseAdmin();
   if (!supabase) return;
 
-  const { error } = await supabase.from("prospects").insert({
-    business_name: String(formData.get("business_name") || ""),
-    category: String(formData.get("category") || "") || null,
-    neighbourhood: String(formData.get("neighbourhood") || "") || null,
-    website: String(formData.get("website") || "") || null,
-    email: String(formData.get("email") || "") || null,
-    phone: String(formData.get("phone") || "") || null,
-    score: formData.get("score") ? Number(formData.get("score")) : null,
-    signal: String(formData.get("signal") || "") || null,
-    outreach_note: String(formData.get("outreach_note") || "") || null,
-    status: String(formData.get("status") || "needs_verification"),
-  });
+  const businessName = String(formData.get("business_name") || "");
+  const { data: inserted, error } = await supabase
+    .from("prospects")
+    .insert({
+      business_name: businessName,
+      category: String(formData.get("category") || "") || null,
+      neighbourhood: String(formData.get("neighbourhood") || "") || null,
+      website: String(formData.get("website") || "") || null,
+      email: String(formData.get("email") || "") || null,
+      phone: String(formData.get("phone") || "") || null,
+      score: formData.get("score") ? Number(formData.get("score")) : null,
+      signal: String(formData.get("signal") || "") || null,
+      outreach_note: String(formData.get("outreach_note") || "") || null,
+      status: String(formData.get("status") || "needs_verification"),
+    })
+    .select("id")
+    .single();
 
-  if (error) console.error("Failed to insert lead:", error);
+  if (error) {
+    console.error("Failed to insert lead:", error);
+  } else if (inserted) {
+    await logAuditEvent({
+      actor: "admin",
+      action: "lead.created",
+      targetType: "prospect",
+      targetId: inserted.id,
+      metadata: { business_name: businessName },
+    });
+  }
 
   revalidatePath("/admin/leads");
 }
 
 function websiteHref(website: string) {
   return website.startsWith("http") ? website : `https://${website.split(" ")[0]}`;
+}
+
+type AuditEntry = { action: string; created_at: string; metadata: Record<string, unknown> | null };
+
+function daysSince(iso: string) {
+  return (Date.now() - new Date(iso).getTime()) / (1000 * 60 * 60 * 24);
+}
+
+// 30+ days with no logged activity, still sitting in one of the two
+// "not yet actioned" statuses — everything past that point is either
+// contacted, not a fit, or moving fast enough that it isn't stale.
+// "Last touched" is the most recent audit_log entry if one exists,
+// falling back to when the row was first found.
+function isStaleLead(lead: { status: string; created_at: string }, entries: AuditEntry[] | undefined) {
+  if (lead.status !== "needs_verification" && lead.status !== "ready") return false;
+  const lastTouched = entries?.[0]?.created_at ?? lead.created_at;
+  return daysSince(lastTouched) >= 30;
+}
+
+// One short, human-readable line per audit_log action — the raw
+// "lead.email_drafted" strings are for filtering/analytics, not for
+// reading, so the timeline renders a translated version instead.
+function describeAuditEntry(entry: AuditEntry): string {
+  const meta = entry.metadata ?? {};
+  switch (entry.action) {
+    case "lead.created":
+      return "Lead added";
+    case "lead.status_changed":
+      return `Status changed to "${statusMeta[meta.to as keyof typeof statusMeta]?.label ?? meta.to}"`;
+    case "lead.called":
+      return "Marked as called";
+    case "lead.email_marked_sent":
+      return "Marked email as sent (manual)";
+    case "lead.email_sent_confirmed":
+      return `Email send confirmed (${meta.via === "cron_sweep" ? "daily check" : "manual check"})`;
+    case "lead.replied":
+      return "Marked as replied";
+    case "lead.email_drafted":
+      return meta.saved_to_gmail ? "Email drafted and saved to Gmail" : "Email drafted (not saved to Gmail)";
+    case "lead.call_script_drafted":
+      return "Call script drafted";
+    case "lead.notes_updated":
+      return `Note added: "${meta.notes}"`;
+    case "lead.email_updated":
+      return meta.email ? `Contact email set to ${meta.email}` : "Contact email cleared";
+    case "lead.phone_updated":
+      return meta.phone ? `Contact phone set to ${meta.phone}` : "Contact phone cleared";
+    case "lead.concept_slug_updated":
+      return meta.concept_slug ? `Linked to concept page "${meta.concept_slug}"` : "Concept page link removed";
+    default:
+      return entry.action;
+  }
 }
 
 type LeadRow = {
@@ -125,28 +193,35 @@ function ContactBadge({ lead }: { lead: LeadRow }) {
 
 type NextActionReason = "call" | "follow_up" | "send" | "build_concept" | "verify";
 
-// The single most useful thing to do next, instead of making the operator
-// scan the list and combine filters themselves. Checked in priority order:
-// an overdue call/follow-up beats everything (time-sensitive), then a
-// ready lead that already has a concept page (fastest to actually send),
-// then a ready lead still needing one built, then anything left needing a
-// manual verification pass. `allLeads` is already sorted concept-first/
-// score-desc, so each `.find()` naturally picks the strongest match within
-// its tier.
+// The most useful things to do next, instead of making the operator scan
+// the list and combine filters themselves. Walks the same priority tiers
+// as before (overdue call/follow-up beats everything time-sensitive, then
+// ready-with-concept, then ready-needs-concept, then needs-verification)
+// but now collects up to `limit` distinct leads across those tiers rather
+// than stopping at the first match — a top-5 queue, not a single pick.
+// `allLeads` is already sorted concept-first/score-desc, so each tier's
+// scan naturally surfaces its strongest matches first.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function pickNextAction(allLeads: any[] | null | undefined): { lead: any; reason: NextActionReason } | null {
-  if (!allLeads?.length) return null;
-  const callDue = allLeads.find((l) => getLeadCadenceAction(l) === "call");
-  if (callDue) return { lead: callDue, reason: "call" };
-  const followUpDue = allLeads.find((l) => getLeadCadenceAction(l) === "follow_up");
-  if (followUpDue) return { lead: followUpDue, reason: "follow_up" };
-  const readyWithConcept = allLeads.find((l) => l.status === "ready" && l.concept_slug);
-  if (readyWithConcept) return { lead: readyWithConcept, reason: "send" };
-  const readyNoConcept = allLeads.find((l) => l.status === "ready" && !l.concept_slug);
-  if (readyNoConcept) return { lead: readyNoConcept, reason: "build_concept" };
-  const unverified = allLeads.find((l) => l.status === "needs_verification");
-  if (unverified) return { lead: unverified, reason: "verify" };
-  return null;
+function pickNextActions(allLeads: any[] | null | undefined, limit = 5): { lead: any; reason: NextActionReason }[] {
+  if (!allLeads?.length) return [];
+  const tiers: { match: (l: any) => boolean; reason: NextActionReason }[] = [
+    { match: (l) => getLeadCadenceAction(l) === "call", reason: "call" },
+    { match: (l) => getLeadCadenceAction(l) === "follow_up", reason: "follow_up" },
+    { match: (l) => l.status === "ready" && Boolean(l.concept_slug), reason: "send" },
+    { match: (l) => l.status === "ready" && !l.concept_slug, reason: "build_concept" },
+    { match: (l) => l.status === "needs_verification", reason: "verify" },
+  ];
+  const seen = new Set<string>();
+  const results: { lead: any; reason: NextActionReason }[] = [];
+  for (const tier of tiers) {
+    for (const lead of allLeads) {
+      if (results.length >= limit) return results;
+      if (seen.has(lead.id) || !tier.match(lead)) continue;
+      seen.add(lead.id);
+      results.push({ lead, reason: tier.reason });
+    }
+  }
+  return results;
 }
 
 const nextActionCopy: Record<NextActionReason, (l: { business_name: string }) => string> = {
@@ -211,14 +286,34 @@ export default async function LeadsPage({
   }
 
   // Run alongside the leads fetch, not after it — a live Google API call
-  // adds real latency, so it shouldn't be paid twice.
-  const [{ data: fetchedLeads, error }, googleStatus] = await Promise.all([
+  // adds real latency, so it shouldn't be paid twice. The audit-log fetch
+  // doesn't depend on which lead IDs exist (fetched unconditionally,
+  // bounded, grouped client-side below) specifically so it can run in the
+  // same batch instead of waiting on the leads query first.
+  const [{ data: fetchedLeads, error }, googleStatus, { data: auditRows }] = await Promise.all([
     supabase
       ? supabase.from("prospects").select("*").order("score", { ascending: false })
       : Promise.resolve({ data: [], error: null }),
     checkGoogleConnection(),
+    supabase
+      ? supabase
+          .from("audit_log")
+          .select("target_id, action, created_at, metadata")
+          .eq("target_type", "prospect")
+          .order("created_at", { ascending: false })
+          .limit(1000)
+      : Promise.resolve({ data: [] }),
   ]);
   if (error) console.error("Failed to fetch leads:", error);
+
+  // Grouped once, read many times below (the timeline per card, and the
+  // "last touched" date the stale-lead badge is computed from).
+  const auditByLead = new Map<string, { action: string; created_at: string; metadata: Record<string, unknown> | null }[]>();
+  for (const row of auditRows ?? []) {
+    const list = auditByLead.get(row.target_id) ?? [];
+    list.push(row);
+    auditByLead.set(row.target_id, list);
+  }
 
   // Leads with a real, built concept page (see /concepts/[slug]) are the
   // strongest thing to lead outreach with — always surface them first,
@@ -232,7 +327,7 @@ export default async function LeadsPage({
       })
     : fetchedLeads;
 
-  const nextAction = pickNextAction(allLeads);
+  const nextActions = pickNextActions(allLeads);
 
   const counts = STATUSES.reduce(
     (acc, s) => ({ ...acc, [s]: allLeads?.filter((l) => l.status === s).length ?? 0 }),
@@ -272,7 +367,7 @@ export default async function LeadsPage({
     );
   }
 
-  // Re-sort for display only — allLeads/pickNextAction() above always
+  // Re-sort for display only — allLeads/pickNextActions() above always
   // reason over the default concept-first/score-desc order regardless of
   // what the operator has this list currently sorted by.
   if (leads && sortKey !== "priority") leads = sortLeads(leads, sortKey);
@@ -328,29 +423,33 @@ export default async function LeadsPage({
         </Card>
       )}
 
-      {/* Single highest-priority action, computed by pickNextAction() above
+      {/* Top 5 highest-priority actions, computed by pickNextActions() above
           — the point is to remove the "scan the list and combine filters
           yourself" step for the common case of "what should I actually do
           right now". */}
-      {nextAction && (
+      {nextActions.length > 0 && (
         <Card className="mt-6 border-accent/30 bg-accent/5">
-          <CardContent className="flex flex-wrap items-center justify-between gap-3 py-4">
-            <div className="flex items-start gap-2 text-sm">
-              <Zap className="mt-0.5 size-4 shrink-0 text-accent" />
-              <div>
-                <p className="text-xs font-semibold tracking-[0.08em] text-accent uppercase">Do this next</p>
-                <p className="mt-0.5">{nextActionCopy[nextAction.reason](nextAction.lead)}</p>
-              </div>
-            </div>
-            {/* Always the unfiltered view, not filterHref() — an active
-                filter could exclude this exact lead, and the anchor only
-                exists on the page it's actually rendered on. */}
-            <a href={`/admin/leads#lead-${nextAction.lead.id}`} className="shrink-0">
-              <Button type="button" variant="outline" size="sm" className="gap-1">
-                Jump to it
-                <ArrowRight className="size-3.5" />
-              </Button>
-            </a>
+          <CardContent className="py-4">
+            <p className="flex items-center gap-1.5 text-xs font-semibold tracking-[0.08em] text-accent uppercase">
+              <Zap className="size-3.5" />
+              Do this next
+            </p>
+            <ul className="mt-2 divide-y divide-accent/15">
+              {nextActions.map(({ lead, reason }) => (
+                <li key={lead.id} className="flex flex-wrap items-center justify-between gap-3 py-2 text-sm first:pt-0 last:pb-0">
+                  <span>{nextActionCopy[reason](lead)}</span>
+                  {/* Always the unfiltered view, not filterHref() — an
+                      active filter could exclude this exact lead, and the
+                      anchor only exists on the page it's actually rendered on. */}
+                  <a href={`/admin/leads#lead-${lead.id}`} className="shrink-0">
+                    <Button type="button" variant="outline" size="xs" className="gap-1">
+                      Jump to it
+                      <ArrowRight className="size-3" />
+                    </Button>
+                  </a>
+                </li>
+              ))}
+            </ul>
           </CardContent>
         </Card>
       )}
@@ -587,6 +686,12 @@ export default async function LeadsPage({
                   </div>
                   <div className="flex shrink-0 items-center gap-2">
                     <ContactBadge lead={lead} />
+                    {isStaleLead(lead, auditByLead.get(lead.id)) && (
+                      <Badge variant="warning" className="gap-1">
+                        <Clock className="size-3" />
+                        Stale — 30+ days
+                      </Badge>
+                    )}
                     {lead.status === "contacted" && !lead.replied_at && (
                       <form action={markLeadReplied.bind(null, lead.id)}>
                         <Button type="submit" variant="ghost" size="xs" className="gap-1 text-muted-foreground">
@@ -714,6 +819,26 @@ export default async function LeadsPage({
                     </form>
                   ))}
                 </div>
+
+                {/* Native <details>, not a client component — zero JS for
+                    a per-card collapsible, consistent with this being a
+                    plain server component throughout. */}
+                {(auditByLead.get(lead.id)?.length ?? 0) > 0 && (
+                  <details className="mt-3 text-xs">
+                    <summary className="flex cursor-pointer items-center gap-1 text-muted-foreground select-none hover:text-foreground">
+                      <History className="size-3" />
+                      Timeline ({auditByLead.get(lead.id)!.length})
+                    </summary>
+                    <ul className="mt-2 space-y-1 border-l border-border pl-3">
+                      {auditByLead.get(lead.id)!.map((entry, i) => (
+                        <li key={i} className="text-muted-foreground">
+                          <span className="text-foreground">{describeAuditEntry(entry)}</span> —{" "}
+                          {timeAgo(entry.created_at)}
+                        </li>
+                      ))}
+                    </ul>
+                  </details>
+                )}
               </li>
             ))}
           </ul>

@@ -2,6 +2,7 @@ import { google } from "googleapis";
 import { getGoogleAuthClient } from "@/lib/google-auth";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { checkDraftSendStatus } from "@/lib/gmail-draft";
+import { logAuditEvent } from "@/lib/audit-log";
 
 // Sweeps every lead with a pending Gmail draft and marks it genuinely
 // "contacted" only once the draft was actually sent — see gmail-draft.ts
@@ -39,6 +40,14 @@ export async function checkPendingLeadSends() {
           pending_email_message_id: null,
         })
         .eq("id", lead.id);
+      await logAuditEvent({
+        actor: "system",
+        actorType: "system",
+        action: "lead.email_sent_confirmed",
+        targetType: "prospect",
+        targetId: lead.id,
+        metadata: { via: "cron_sweep" },
+      });
       confirmed.push(lead.business_name);
     } else if (status === "gone") {
       // Draft was deleted (never sent) rather than sent — just stop
@@ -84,6 +93,13 @@ export async function checkOneLeadSend(leadId: string) {
         pending_email_message_id: null,
       })
       .eq("id", leadId);
+    await logAuditEvent({
+      actor: "admin",
+      action: "lead.email_sent_confirmed",
+      targetType: "prospect",
+      targetId: leadId,
+      metadata: { via: "manual_check" },
+    });
     return { status: "sent" as const };
   }
   if (status === "gone") {

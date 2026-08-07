@@ -1,6 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { stripMarkdownEmphasis } from "@/lib/strip-markdown-emphasis";
+import { logAuditEvent } from "@/lib/audit-log";
 
 // A quick-reference call script, not a script to read verbatim — a phone
 // call needs short, scannable prompts (opener, a couple of talking
@@ -87,6 +88,14 @@ export async function draftLeadCallScript(leadId: string) {
       if_hesitant: string;
       closing_ask: string;
     };
+
+    await logAuditEvent({
+      actor: "admin",
+      action: "lead.call_script_drafted",
+      targetType: "prospect",
+      targetId: leadId,
+      metadata: { opener: stripMarkdownEmphasis(draft.opener) },
+    });
 
     return {
       opener: stripMarkdownEmphasis(draft.opener),
