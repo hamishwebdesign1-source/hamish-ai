@@ -1,6 +1,6 @@
 import { revalidatePath } from "next/cache";
 import Link from "next/link";
-import { ExternalLink, Search, X, Clock, Phone, PhoneCall, Mail, MessageCircleReply } from "lucide-react";
+import { ExternalLink, Search, X, Clock, Phone, PhoneCall, Mail, MessageCircleReply, Sparkles, FileX } from "lucide-react";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import {
   updateLeadStatus,
@@ -122,9 +122,9 @@ function ContactBadge({ lead }: { lead: LeadRow }) {
 export default async function LeadsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string }>;
+  searchParams: Promise<{ status?: string; contacted?: string; concept?: string; q?: string }>;
 }) {
-  const { status: statusFilter } = await searchParams;
+  const { status: statusFilter, contacted: contactedFilter, concept: conceptFilter, q: searchQuery } = await searchParams;
   const supabase = getSupabaseAdmin();
 
   const { data: fetchedLeads, error } = supabase
@@ -149,13 +149,53 @@ export default async function LeadsPage({
     {} as Record<string, number>
   );
   const followUpCount = allLeads?.filter(needsFollowUp).length ?? 0;
+  const contactedCount = allLeads?.filter((l) => l.status === "contacted").length ?? 0;
+  const notContactedCount = (allLeads?.length ?? 0) - contactedCount;
+  const hasConceptCount = allLeads?.filter((l) => l.concept_slug).length ?? 0;
+  const noConceptCount = (allLeads?.length ?? 0) - hasConceptCount;
 
-  const leads =
+  // Three independent filter dimensions that AND together (status,
+  // contacted/not, concept-built/not) rather than one combined enum —
+  // lets you ask e.g. "ready AND no concept yet" in one view, which is
+  // the actual question when deciding what to build next.
+  let leads =
     statusFilter === "needs_followup"
       ? allLeads?.filter(needsFollowUp)
       : statusFilter
         ? allLeads?.filter((l) => l.status === statusFilter)
         : allLeads;
+  if (contactedFilter === "yes") leads = leads?.filter((l) => l.status === "contacted");
+  else if (contactedFilter === "no") leads = leads?.filter((l) => l.status !== "contacted");
+  if (conceptFilter === "yes") leads = leads?.filter((l) => Boolean(l.concept_slug));
+  else if (conceptFilter === "no") leads = leads?.filter((l) => !l.concept_slug);
+
+  // Free-text search — business name, category, neighbourhood, website,
+  // and email, so "who did I already look at in Falkirk" or "find the
+  // joiners" both work. Combines with the three filter dimensions above
+  // rather than replacing them.
+  const trimmedQuery = searchQuery?.trim().toLowerCase();
+  if (trimmedQuery) {
+    leads = leads?.filter((l) =>
+      [l.business_name, l.category, l.neighbourhood, l.website, l.email]
+        .filter(Boolean)
+        .some((field) => String(field).toLowerCase().includes(trimmedQuery))
+    );
+  }
+
+  // Builds a filter-pill href that preserves the other active dimensions
+  // (including the current search query) — clicking one pill, or
+  // submitting a search, shouldn't reset the others. Pass `undefined` for
+  // a dimension to clear it back to "All"/empty.
+  function filterHref(overrides: { status?: string; contacted?: string; concept?: string; q?: string }) {
+    const next = { status: statusFilter, contacted: contactedFilter, concept: conceptFilter, q: searchQuery, ...overrides };
+    const params = new URLSearchParams();
+    if (next.status) params.set("status", next.status);
+    if (next.contacted) params.set("contacted", next.contacted);
+    if (next.concept) params.set("concept", next.concept);
+    if (next.q) params.set("q", next.q);
+    const qs = params.toString();
+    return `/admin/leads${qs ? `?${qs}` : ""}`;
+  }
 
   return (
     <div>
@@ -163,6 +203,34 @@ export default async function LeadsPage({
       <p className="mt-1 text-sm text-muted-foreground">
         Central Belt of Scotland business prospects — researched weekly and worked through to outreach from here.
       </p>
+
+      {/* GET form, not a client component — keeps this page a plain server
+          component like the rest of the file. Hidden inputs carry the
+          three filter dimensions through so searching doesn't reset them. */}
+      <form action="/admin/leads" className="mt-6 flex items-center gap-2">
+        {statusFilter && <input type="hidden" name="status" value={statusFilter} />}
+        {contactedFilter && <input type="hidden" name="contacted" value={contactedFilter} />}
+        {conceptFilter && <input type="hidden" name="concept" value={conceptFilter} />}
+        <div className="relative flex-1">
+          <Search className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            name="q"
+            defaultValue={searchQuery ?? ""}
+            placeholder="Search by name, category, neighbourhood, website, or email…"
+            className="h-9 pl-8"
+          />
+        </div>
+        <Button type="submit" variant="outline" size="sm">
+          Search
+        </Button>
+        {trimmedQuery && (
+          <Link href={filterHref({ q: undefined })}>
+            <Button type="button" variant="ghost" size="icon-sm" className="text-muted-foreground">
+              <X className="size-4" />
+            </Button>
+          </Link>
+        )}
+      </form>
 
       <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-5">
         <Card className="p-4">
@@ -182,18 +250,61 @@ export default async function LeadsPage({
       </div>
 
       <div className="mt-6 flex flex-wrap gap-2">
-        <Link href="/admin/leads">
+        <Link href={filterHref({ status: undefined })}>
           <Badge variant={!statusFilter ? "default" : "outline"}>All</Badge>
         </Link>
         {STATUSES.map((s) => (
-          <Link key={s} href={`/admin/leads?status=${s}`}>
+          <Link key={s} href={filterHref({ status: s })}>
             <Badge variant={statusFilter === s ? "default" : "outline"}>{statusMeta[s].label}</Badge>
           </Link>
         ))}
-        <Link href="/admin/leads?status=needs_followup">
+        <Link href={filterHref({ status: "needs_followup" })}>
           <Badge variant={statusFilter === "needs_followup" ? "default" : "outline"} className="gap-1">
             <Clock className="size-3" />
             Needs follow-up
+          </Badge>
+        </Link>
+      </div>
+
+      {/* Contacted / not contacted — independent of the status pills above,
+          so it can combine with them (e.g. "Ready" + "Not contacted"). */}
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        <span className="text-xs text-muted-foreground">Contact:</span>
+        <Link href={filterHref({ contacted: undefined })}>
+          <Badge variant={!contactedFilter ? "default" : "outline"}>All ({allLeads?.length ?? 0})</Badge>
+        </Link>
+        <Link href={filterHref({ contacted: "no" })}>
+          <Badge variant={contactedFilter === "no" ? "default" : "outline"} className="gap-1">
+            <Mail className="size-3" />
+            Not contacted ({notContactedCount})
+          </Badge>
+        </Link>
+        <Link href={filterHref({ contacted: "yes" })}>
+          <Badge variant={contactedFilter === "yes" ? "default" : "outline"} className="gap-1">
+            <MessageCircleReply className="size-3" />
+            Contacted ({contactedCount})
+          </Badge>
+        </Link>
+      </div>
+
+      {/* Concept page built / not — same independence, so you can filter
+          e.g. "Ready for outreach" + "No concept yet" to see exactly who
+          to build a concept page for next. */}
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        <span className="text-xs text-muted-foreground">Concept page:</span>
+        <Link href={filterHref({ concept: undefined })}>
+          <Badge variant={!conceptFilter ? "default" : "outline"}>All ({allLeads?.length ?? 0})</Badge>
+        </Link>
+        <Link href={filterHref({ concept: "no" })}>
+          <Badge variant={conceptFilter === "no" ? "default" : "outline"} className="gap-1">
+            <FileX className="size-3" />
+            No concept yet ({noConceptCount})
+          </Badge>
+        </Link>
+        <Link href={filterHref({ concept: "yes" })}>
+          <Badge variant={conceptFilter === "yes" ? "default" : "outline"} className="gap-1">
+            <Sparkles className="size-3" />
+            Concept made ({hasConceptCount})
           </Badge>
         </Link>
       </div>
