@@ -1,6 +1,8 @@
+import fs from "fs";
+import path from "path";
 import { revalidatePath } from "next/cache";
 import Link from "next/link";
-import { ExternalLink, Search, X, Clock, Phone, PhoneCall, Mail, MessageCircleReply, Sparkles, FileX, AlertTriangle } from "lucide-react";
+import { ExternalLink, Search, X, Clock, Phone, PhoneCall, Mail, MessageCircleReply, Sparkles, FileX, AlertTriangle, Zap, ArrowRight } from "lucide-react";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { checkGoogleConnection } from "@/lib/check-google-connection";
 import {
@@ -9,9 +11,10 @@ import {
   updateLeadEmail,
   updateLeadPhone,
   updateLeadConceptSlug,
+  updateLeadNotes,
   markLeadReplied,
 } from "@/app/admin/actions";
-import { leadNeedsFollowUp as needsFollowUp, getLeadCadenceAction } from "@/lib/lead-status";
+import { leadNeedsFollowUp as needsFollowUp, getLeadCadenceAction, EMAIL_TO_CALL_DAYS } from "@/lib/lead-status";
 import { timeAgo } from "@/lib/time-ago";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -120,6 +123,40 @@ function ContactBadge({ lead }: { lead: LeadRow }) {
   return null;
 }
 
+type NextActionReason = "call" | "follow_up" | "send" | "build_concept" | "verify";
+
+// The single most useful thing to do next, instead of making the operator
+// scan the list and combine filters themselves. Checked in priority order:
+// an overdue call/follow-up beats everything (time-sensitive), then a
+// ready lead that already has a concept page (fastest to actually send),
+// then a ready lead still needing one built, then anything left needing a
+// manual verification pass. `allLeads` is already sorted concept-first/
+// score-desc, so each `.find()` naturally picks the strongest match within
+// its tier.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function pickNextAction(allLeads: any[] | null | undefined): { lead: any; reason: NextActionReason } | null {
+  if (!allLeads?.length) return null;
+  const callDue = allLeads.find((l) => getLeadCadenceAction(l) === "call");
+  if (callDue) return { lead: callDue, reason: "call" };
+  const followUpDue = allLeads.find((l) => getLeadCadenceAction(l) === "follow_up");
+  if (followUpDue) return { lead: followUpDue, reason: "follow_up" };
+  const readyWithConcept = allLeads.find((l) => l.status === "ready" && l.concept_slug);
+  if (readyWithConcept) return { lead: readyWithConcept, reason: "send" };
+  const readyNoConcept = allLeads.find((l) => l.status === "ready" && !l.concept_slug);
+  if (readyNoConcept) return { lead: readyNoConcept, reason: "build_concept" };
+  const unverified = allLeads.find((l) => l.status === "needs_verification");
+  if (unverified) return { lead: unverified, reason: "verify" };
+  return null;
+}
+
+const nextActionCopy: Record<NextActionReason, (l: { business_name: string }) => string> = {
+  call: (l) => `${l.business_name} is due a follow-up call — it's been ${EMAIL_TO_CALL_DAYS}+ days since the email, no reply yet.`,
+  follow_up: (l) => `One last follow-up for ${l.business_name} before parking it.`,
+  send: (l) => `${l.business_name} has a concept page ready to go — send it.`,
+  build_concept: (l) => `${l.business_name} is ready for outreach but has no concept page yet.`,
+  verify: (l) => `${l.business_name} needs a quick manual check before it's outreach-ready.`,
+};
+
 export default async function LeadsPage({
   searchParams,
 }: {
@@ -127,6 +164,21 @@ export default async function LeadsPage({
 }) {
   const { status: statusFilter, contacted: contactedFilter, concept: conceptFilter, q: searchQuery } = await searchParams;
   const supabase = getSupabaseAdmin();
+
+  // Real, built concept pages only — reading the actual directory instead
+  // of hardcoding a list means this never drifts out of date, and turns
+  // the old free-text slug field (one typo from a dead link) into a
+  // dropdown that can't produce a broken /concepts/<slug> URL.
+  let conceptSlugs: string[] = [];
+  try {
+    conceptSlugs = fs
+      .readdirSync(path.join(process.cwd(), "src/app/concepts"), { withFileTypes: true })
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => entry.name)
+      .sort();
+  } catch (err) {
+    console.error("Failed to list concept pages:", err);
+  }
 
   // Run alongside the leads fetch, not after it — a live Google API call
   // adds real latency, so it shouldn't be paid twice.
@@ -149,6 +201,8 @@ export default async function LeadsPage({
         return (b.score ?? -1) - (a.score ?? -1);
       })
     : fetchedLeads;
+
+  const nextAction = pickNextAction(allLeads);
 
   const counts = STATUSES.reduce(
     (acc, s) => ({ ...acc, [s]: allLeads?.filter((l) => l.status === s).length ?? 0 }),
@@ -227,6 +281,33 @@ export default async function LeadsPage({
                 Reconnect
               </Button>
             </Link>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Single highest-priority action, computed by pickNextAction() above
+          — the point is to remove the "scan the list and combine filters
+          yourself" step for the common case of "what should I actually do
+          right now". */}
+      {nextAction && (
+        <Card className="mt-6 border-accent/30 bg-accent/5">
+          <CardContent className="flex flex-wrap items-center justify-between gap-3 py-4">
+            <div className="flex items-start gap-2 text-sm">
+              <Zap className="mt-0.5 size-4 shrink-0 text-accent" />
+              <div>
+                <p className="text-xs font-semibold tracking-[0.08em] text-accent uppercase">Do this next</p>
+                <p className="mt-0.5">{nextActionCopy[nextAction.reason](nextAction.lead)}</p>
+              </div>
+            </div>
+            {/* Always the unfiltered view, not filterHref() — an active
+                filter could exclude this exact lead, and the anchor only
+                exists on the page it's actually rendered on. */}
+            <a href={`/admin/leads#lead-${nextAction.lead.id}`} className="shrink-0">
+              <Button type="button" variant="outline" size="sm" className="gap-1">
+                Jump to it
+                <ArrowRight className="size-3.5" />
+              </Button>
+            </a>
           </CardContent>
         </Card>
       )}
@@ -414,7 +495,11 @@ export default async function LeadsPage({
           )}
           <ul className="space-y-3">
             {leads?.map((lead) => (
-              <li key={lead.id} className="rounded-xl border border-border bg-card p-4">
+              <li
+                key={lead.id}
+                id={`lead-${lead.id}`}
+                className="scroll-mt-4 rounded-xl border border-border bg-card p-4"
+              >
                 <div className="flex flex-wrap items-start justify-between gap-2">
                   <div>
                     <p className="font-medium">{lead.business_name}</p>
@@ -513,12 +598,18 @@ export default async function LeadsPage({
                 </form>
 
                 <form action={updateLeadConceptSlug.bind(null, lead.id)} className="mt-1.5 flex items-center gap-1.5">
-                  <Input
+                  <select
                     name="concept_slug"
                     defaultValue={lead.concept_slug ?? ""}
-                    placeholder="Concept page slug (e.g. c4-joinery)…"
-                    className="h-7 max-w-64 text-xs"
-                  />
+                    className="h-7 max-w-64 min-w-0 rounded-lg border border-input bg-transparent px-2 text-xs outline-none focus-visible:border-ring dark:bg-input/30"
+                  >
+                    <option value="">No concept page</option>
+                    {conceptSlugs.map((slug) => (
+                      <option key={slug} value={slug}>
+                        {slug}
+                      </option>
+                    ))}
+                  </select>
                   <Button type="submit" variant="ghost" size="xs">
                     Save
                   </Button>
@@ -532,6 +623,19 @@ export default async function LeadsPage({
                       View <ExternalLink className="size-3" />
                     </a>
                   )}
+                </form>
+
+                <form action={updateLeadNotes.bind(null, lead.id)} className="mt-1.5 flex items-start gap-1.5">
+                  <Textarea
+                    name="notes"
+                    defaultValue={lead.notes ?? ""}
+                    placeholder="Notes — called, no answer, try Thursday…"
+                    rows={2}
+                    className="max-w-96 text-xs"
+                  />
+                  <Button type="submit" variant="ghost" size="xs">
+                    Save
+                  </Button>
                 </form>
 
                 {lead.signal && <p className="mt-2 text-sm">{lead.signal}</p>}

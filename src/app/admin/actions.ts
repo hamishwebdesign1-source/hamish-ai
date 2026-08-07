@@ -202,6 +202,26 @@ export async function updateLeadPhone(leadId: string, formData: FormData) {
   revalidatePath("/admin/leads");
 }
 
+// Freeform context that doesn't fit any of the structured fields — "called,
+// no answer, try Thursday afternoon" and the like. Requires the `notes`
+// column added by supabase/schema-lead-notes.sql — not run automatically,
+// since this app has no migration runner and the service-role client can't
+// execute DDL; that file needs to be pasted into the Supabase SQL editor
+// once.
+export async function updateLeadNotes(leadId: string, formData: FormData) {
+  const supabase = getSupabaseAdmin();
+  if (!supabase) return;
+
+  const notes = String(formData.get("notes") || "").trim();
+  const { error } = await supabase
+    .from("prospects")
+    .update({ notes: notes || null })
+    .eq("id", leadId);
+  if (error) console.error("Failed to update lead notes:", error);
+
+  revalidatePath("/admin/leads");
+}
+
 export async function updateLeadConceptSlug(leadId: string, formData: FormData) {
   const supabase = getSupabaseAdmin();
   if (!supabase) return;
