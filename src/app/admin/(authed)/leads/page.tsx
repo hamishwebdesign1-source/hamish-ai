@@ -25,6 +25,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { EmailLeadButton } from "@/components/admin/email-lead-button";
 import { CallScriptButton } from "@/components/admin/call-script-button";
+import { ResearchLeadButton } from "@/components/admin/research-lead-button";
 import { cn } from "@/lib/utils";
 
 const selectClasses =
@@ -120,6 +121,8 @@ function describeAuditEntry(entry: AuditEntry): string {
       return meta.saved_to_gmail ? "Email drafted and saved to Gmail" : "Email drafted (not saved to Gmail)";
     case "lead.call_script_drafted":
       return "Call script drafted";
+    case "lead.researched":
+      return `Researched — score set to ${meta.score}, AI fit ${meta.ai_opportunity_fit}`;
     case "lead.notes_updated":
       return `Note added: "${meta.notes}"`;
     case "lead.email_updated":
@@ -725,6 +728,10 @@ export default async function LeadsPage({
                       </Button>
                     </form>
                   </div>
+                </div>
+
+                <div className="mt-2">
+                  <ResearchLeadButton leadId={lead.id} initialResearch={lead.research ?? null} initialGeneratedAt={lead.research_generated_at ?? null} />
                 </div>
 
                 <div className="mt-2">

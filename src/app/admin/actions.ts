@@ -5,6 +5,7 @@ import { getSupabaseAdmin } from "@/lib/supabase";
 import { sendClientEmail } from "@/lib/send-client-email";
 import { draftLeadEmail } from "@/lib/draft-lead-email";
 import { draftLeadCallScript } from "@/lib/draft-lead-call-script";
+import { researchLead, type LeadResearch } from "@/lib/research-lead";
 import { checkOneLeadSend } from "@/lib/check-lead-sends";
 import { sendInvoiceReminder } from "@/lib/send-invoice-reminder";
 import { startSubscription, cancelSubscription } from "@/lib/subscription";
@@ -479,6 +480,19 @@ export async function generateLeadEmailDraft(
   const result = await draftLeadEmail(leadId, isFollowUp);
   if ("error" in result) return { error: result.error };
   return { subject: result.subject, body: result.body, email: result.email, gmailError: result.gmailError };
+}
+
+export type ResearchState = { research?: LeadResearch; score?: number; generatedAt?: string; error?: string };
+
+export async function generateLeadResearch(
+  leadId: string,
+  _prevState: ResearchState,
+  _formData: FormData
+): Promise<ResearchState> {
+  const result = await researchLead(leadId);
+  revalidatePath("/admin/leads");
+  if ("error" in result) return { error: result.error };
+  return { research: result.research, score: result.score, generatedAt: result.generatedAt };
 }
 
 export type CallScriptState = {
