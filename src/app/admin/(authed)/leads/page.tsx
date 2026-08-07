@@ -157,12 +157,42 @@ const nextActionCopy: Record<NextActionReason, (l: { business_name: string }) =>
   verify: (l) => `${l.business_name} needs a quick manual check before it's outreach-ready.`,
 };
 
+const SORT_LABELS: Record<string, string> = {
+  priority: "Concept-first",
+  score: "Highest score",
+  recent: "Most recent",
+  az: "A–Z",
+};
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function sortLeads(list: any[], sortKey: string): any[] {
+  const copy = [...list];
+  switch (sortKey) {
+    case "score":
+      return copy.sort((a, b) => (b.score ?? -1) - (a.score ?? -1));
+    case "recent":
+      return copy.sort(
+        (a, b) => new Date(b.found_at ?? b.created_at ?? 0).getTime() - new Date(a.found_at ?? a.created_at ?? 0).getTime()
+      );
+    case "az":
+      return copy.sort((a, b) => String(a.business_name).localeCompare(String(b.business_name)));
+    default:
+      return copy; // already in the default concept-first/score-desc order
+  }
+}
+
 export default async function LeadsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; contacted?: string; concept?: string; q?: string }>;
+  searchParams: Promise<{ status?: string; contacted?: string; concept?: string; q?: string; sort?: string }>;
 }) {
-  const { status: statusFilter, contacted: contactedFilter, concept: conceptFilter, q: searchQuery } = await searchParams;
+  const {
+    status: statusFilter,
+    contacted: contactedFilter,
+    concept: conceptFilter,
+    q: searchQuery,
+    sort: sortKey = "priority",
+  } = await searchParams;
   const supabase = getSupabaseAdmin();
 
   // Real, built concept pages only — reading the actual directory instead
@@ -242,17 +272,30 @@ export default async function LeadsPage({
     );
   }
 
+  // Re-sort for display only — allLeads/pickNextAction() above always
+  // reason over the default concept-first/score-desc order regardless of
+  // what the operator has this list currently sorted by.
+  if (leads && sortKey !== "priority") leads = sortLeads(leads, sortKey);
+
   // Builds a filter-pill href that preserves the other active dimensions
   // (including the current search query) — clicking one pill, or
   // submitting a search, shouldn't reset the others. Pass `undefined` for
   // a dimension to clear it back to "All"/empty.
-  function filterHref(overrides: { status?: string; contacted?: string; concept?: string; q?: string }) {
-    const next = { status: statusFilter, contacted: contactedFilter, concept: conceptFilter, q: searchQuery, ...overrides };
+  function filterHref(overrides: { status?: string; contacted?: string; concept?: string; q?: string; sort?: string }) {
+    const next = {
+      status: statusFilter,
+      contacted: contactedFilter,
+      concept: conceptFilter,
+      q: searchQuery,
+      sort: sortKey === "priority" ? undefined : sortKey,
+      ...overrides,
+    };
     const params = new URLSearchParams();
     if (next.status) params.set("status", next.status);
     if (next.contacted) params.set("contacted", next.contacted);
     if (next.concept) params.set("concept", next.concept);
     if (next.q) params.set("q", next.q);
+    if (next.sort) params.set("sort", next.sort);
     const qs = params.toString();
     return `/admin/leads${qs ? `?${qs}` : ""}`;
   }
@@ -415,6 +458,18 @@ export default async function LeadsPage({
             Concept made ({hasConceptCount})
           </Badge>
         </Link>
+      </div>
+
+      {/* Display order only — doesn't touch the "Do this next" card above,
+          which always reasons over the default priority order regardless
+          of how the list below is currently sorted. */}
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        <span className="text-xs text-muted-foreground">Sort:</span>
+        {Object.entries(SORT_LABELS).map(([key, label]) => (
+          <Link key={key} href={filterHref({ sort: key === "priority" ? undefined : key })}>
+            <Badge variant={sortKey === key ? "default" : "outline"}>{label}</Badge>
+          </Link>
+        ))}
       </div>
 
       <div className="mt-8 grid gap-6 lg:grid-cols-[1fr_1.4fr]">
