@@ -376,7 +376,16 @@ export async function removeClientMember(memberId: string, revalidate: string) {
   revalidatePath(revalidate);
 }
 
-export type DraftEmailState = { subject?: string; body?: string; email?: string | null; error?: string };
+export type DraftEmailState = {
+  subject?: string;
+  body?: string;
+  email?: string | null;
+  error?: string;
+  // Set when the text drafted fine but saving it as a real Gmail draft
+  // didn't — no email on file, or the Google connector is down. The text
+  // is still returned so the operator can copy it and send it another way.
+  gmailError?: string;
+};
 
 export async function generateLeadEmailDraft(
   leadId: string,
@@ -386,7 +395,7 @@ export async function generateLeadEmailDraft(
 ): Promise<DraftEmailState> {
   const result = await draftLeadEmail(leadId, isFollowUp);
   if ("error" in result) return { error: result.error };
-  return { subject: result.subject, body: result.body, email: result.email };
+  return { subject: result.subject, body: result.body, email: result.email, gmailError: result.gmailError };
 }
 
 export type CallScriptState = {

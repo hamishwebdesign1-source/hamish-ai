@@ -1,7 +1,8 @@
 import { revalidatePath } from "next/cache";
 import Link from "next/link";
-import { ExternalLink, Search, X, Clock, Phone, PhoneCall, Mail, MessageCircleReply, Sparkles, FileX } from "lucide-react";
+import { ExternalLink, Search, X, Clock, Phone, PhoneCall, Mail, MessageCircleReply, Sparkles, FileX, AlertTriangle } from "lucide-react";
 import { getSupabaseAdmin } from "@/lib/supabase";
+import { checkGoogleConnection } from "@/lib/check-google-connection";
 import {
   updateLeadStatus,
   deleteLead,
@@ -127,9 +128,14 @@ export default async function LeadsPage({
   const { status: statusFilter, contacted: contactedFilter, concept: conceptFilter, q: searchQuery } = await searchParams;
   const supabase = getSupabaseAdmin();
 
-  const { data: fetchedLeads, error } = supabase
-    ? await supabase.from("prospects").select("*").order("score", { ascending: false })
-    : { data: [], error: null };
+  // Run alongside the leads fetch, not after it — a live Google API call
+  // adds real latency, so it shouldn't be paid twice.
+  const [{ data: fetchedLeads, error }, googleStatus] = await Promise.all([
+    supabase
+      ? supabase.from("prospects").select("*").order("score", { ascending: false })
+      : Promise.resolve({ data: [], error: null }),
+    checkGoogleConnection(),
+  ]);
   if (error) console.error("Failed to fetch leads:", error);
 
   // Leads with a real, built concept page (see /concepts/[slug]) are the
@@ -203,6 +209,27 @@ export default async function LeadsPage({
       <p className="mt-1 text-sm text-muted-foreground">
         Central Belt of Scotland business prospects — researched weekly and worked through to outreach from here.
       </p>
+
+      {!googleStatus.connected && (
+        <Card className="mt-6 border-warning/30 bg-warning/5">
+          <CardContent className="flex flex-wrap items-center justify-between gap-3 py-4">
+            <div className="flex items-start gap-2 text-sm">
+              <AlertTriangle className="mt-0.5 size-4 shrink-0 text-warning" />
+              <span>
+                <strong className="font-medium">Gmail isn&apos;t connected right now</strong> — drafting, &ldquo;Check
+                if sent&rdquo;, and the daily send-check will silently fail until this is fixed. Use the manual
+                &ldquo;Sent&rdquo; checkbox or copy a draft to send some other way in the meantime.
+                <span className="mt-1 block text-xs text-muted-foreground">{googleStatus.reason}</span>
+              </span>
+            </div>
+            <Link href="/admin/google-setup" className="shrink-0">
+              <Button type="button" variant="outline" size="sm">
+                Reconnect
+              </Button>
+            </Link>
+          </CardContent>
+        </Card>
+      )}
 
       {/* GET form, not a client component — keeps this page a plain server
           component like the rest of the file. Hidden inputs carry the

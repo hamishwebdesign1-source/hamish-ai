@@ -110,7 +110,6 @@ export async function draftLeadEmail(leadId: string, isFollowUp = false) {
     .single();
 
   if (leadError || !lead) return { error: "Lead not found." as const };
-  if (!lead.email) return { error: "No email on file for this lead yet — add one first." as const };
 
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return { error: "ANTHROPIC_API_KEY is not configured." as const };
@@ -139,6 +138,19 @@ export async function draftLeadEmail(leadId: string, isFollowUp = false) {
     const subject = stripMarkdownEmphasis(draft.subject);
     const body = stripMarkdownEmphasis(draft.body);
 
+    // Some leads (Facebook-only outreach, no confirmed email) have nowhere
+    // to save a Gmail draft to — return the text anyway so the operator can
+    // copy it and send it some other way, rather than failing the whole
+    // draft over a missing "to" address.
+    if (!lead.email) {
+      return {
+        subject,
+        body,
+        email: null as string | null,
+        gmailError: "No email on file for this lead — copy this and send it another way (e.g. Facebook).",
+      };
+    }
+
     // Creates a real Gmail draft (signature included) instead of the old
     // mail.google.com compose-URL trick — see gmail-draft.ts for why. This
     // does NOT mark the lead contacted: that only happens once the daily
@@ -146,7 +158,12 @@ export async function draftLeadEmail(leadId: string, isFollowUp = false) {
     // sent, not just created. Every draft — including a follow-up —
     // replaces any still-pending one for this lead.
     const created = await createLeadGmailDraft({ to: lead.email, subject, body });
-    if ("error" in created) return { error: created.error };
+    if ("error" in created) {
+      // The text still drafted fine even though saving it to Gmail failed
+      // (e.g. the connector needs reconnecting, see check-google-connection.ts)
+      // — don't throw the draft away, let the operator copy it instead.
+      return { subject, body, email: lead.email as string | null, gmailError: created.error };
+    }
 
     await supabase
       .from("prospects")

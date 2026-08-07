@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useState, useTransition } from "react";
-import { Mail, ExternalLink, RefreshCw, Check } from "lucide-react";
+import { Mail, ExternalLink, RefreshCw, Check, Copy, CopyCheck } from "lucide-react";
 import { generateLeadEmailDraft, checkLeadEmailSent, markLeadEmailSent, type DraftEmailState } from "@/app/admin/actions";
 import { Button } from "@/components/ui/button";
 
@@ -15,6 +15,12 @@ const GMAIL_DRAFTS_URL = "https://mail.google.com/mail/u/0/#drafts";
 // the daily cron sweep, the "Check now" button, or the "Sent" checkbox
 // (for when the automated Gmail check is unavailable/erroring, or the
 // operator just wants to confirm it themselves without waiting).
+//
+// The drafted text is shown and copyable regardless of whether it made it
+// into Gmail — some leads have no email on file (Facebook-only outreach)
+// and some days the Gmail connector itself is down (see
+// check-google-connection.ts); either way the AI-drafted text shouldn't be
+// thrown away, just handed over for the operator to send another way.
 export function EmailLeadButton({
   leadId,
   isFollowUp = false,
@@ -31,9 +37,11 @@ export function EmailLeadButton({
   const [checkResult, setCheckResult] = useState<"sent" | "pending" | "gone" | "no_pending_draft" | null>(null);
   const [isChecking, startChecking] = useTransition();
   const [isMarkingSent, startMarkingSent] = useTransition();
+  const [copied, setCopied] = useState(false);
 
   const draftJustCreated = Boolean(state.subject && !state.error);
-  const showPendingUi = hasPendingDraft || draftJustCreated;
+  const savedToGmail = draftJustCreated && !state.gmailError;
+  const showPendingUi = hasPendingDraft || savedToGmail;
   const sentConfirmed = alreadySent || checkResult === "sent";
 
   function checkNow() {
@@ -46,6 +54,14 @@ export function EmailLeadButton({
   function confirmSentManually() {
     startMarkingSent(async () => {
       await markLeadEmailSent(leadId);
+    });
+  }
+
+  function copyDraft() {
+    const text = `Subject: ${state.subject}\n\n${state.body}`;
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
     });
   }
 
@@ -81,6 +97,12 @@ export function EmailLeadButton({
             </Button>
           </>
         )}
+        {draftJustCreated && (
+          <Button type="button" variant="ghost" size="xs" onClick={copyDraft} className="gap-1 text-muted-foreground">
+            {copied ? <CopyCheck className="size-3 text-success" /> : <Copy className="size-3" />}
+            {copied ? "Copied" : "Copy draft"}
+          </Button>
+        )}
         {/* Manual fallback for when the automated Gmail check is
             unavailable (or the operator already sent it themselves and
             doesn't want to wait) — ticking this sets contacted_at directly,
@@ -97,11 +119,22 @@ export function EmailLeadButton({
         </label>
       </div>
       {state.error && <p className="text-xs text-destructive">{state.error}</p>}
-      {draftJustCreated && (
+      {savedToGmail && (
         <p className="flex items-center gap-1 text-xs text-muted-foreground">
           <Check className="size-3" />
           Draft created in Gmail — review and send it from there.
         </p>
+      )}
+      {draftJustCreated && state.gmailError && (
+        <p className="text-xs text-warning">
+          Drafted, but couldn&apos;t save it to Gmail ({state.gmailError}) — copy it above and send it another way.
+        </p>
+      )}
+      {draftJustCreated && (
+        <div className="mt-1 rounded-lg border border-border bg-secondary/40 p-2.5 text-xs">
+          <p className="font-medium">{state.subject}</p>
+          <p className="mt-1 whitespace-pre-line text-muted-foreground">{state.body}</p>
+        </div>
       )}
       {sentConfirmed && (
         <p className="text-xs text-success">Confirmed sent — marked as contacted.</p>
