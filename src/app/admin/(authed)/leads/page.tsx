@@ -124,6 +124,8 @@ function describeAuditEntry(entry: AuditEntry): string {
       return "Call script drafted";
     case "lead.sales_kit_generated":
       return "Sales kit generated (email, call script, LinkedIn, agenda, proposal)";
+    case "lead.discovered":
+      return `AI-discovered — ${meta.why_suggested ?? "found by the weekly discovery search"}`;
     case "lead.meeting_scheduled":
       return meta.scheduled_start
         ? `Teams meeting scheduled for ${new Date(meta.scheduled_start as string).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" })}`
@@ -422,6 +424,14 @@ export default async function LeadsPage({
 
   const nextActions = pickNextActions(allLeads);
 
+  // Larger Feature #10 — leads the weekly discovery cron added, surfaced
+  // as a fast batch-review queue distinct from "Do this next" above (which
+  // reasons over the whole pipeline, not just what's new). Approve/reject
+  // reuses the existing status buttons already on each card below — no new
+  // interaction pattern, just a shortcut to the right ones.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const newlyDiscovered = (allLeads ?? []).filter((l: any) => l.discovery_source && daysSince(l.found_at ?? l.created_at) <= 7);
+
   const counts = STATUSES.reduce(
     (acc, s) => ({ ...acc, [s]: allLeads?.filter((l) => l.status === s).length ?? 0 }),
     {} as Record<string, number>
@@ -565,6 +575,39 @@ export default async function LeadsPage({
                   <a href={`/admin/leads#lead-${lead.id}`} className="shrink-0">
                     <Button type="button" variant="outline" size="xs" className="gap-1">
                       Jump to it
+                      <ArrowRight className="size-3" />
+                    </Button>
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Leads the weekly discovery cron added — a fast batch-review queue,
+          separate from "Do this next" above. Approve/reject reuses the
+          status buttons already on each card below (Ready for outreach /
+          Not a good fit), not a new interaction to learn. */}
+      {newlyDiscovered.length > 0 && (
+        <Card className="mt-6 border-accent/30 bg-accent/5">
+          <CardContent className="py-4">
+            <p className="flex items-center gap-1.5 text-xs font-semibold tracking-[0.08em] text-accent uppercase">
+              <Sparkles className="size-3.5" />
+              New this week ({newlyDiscovered.length})
+            </p>
+            <ul className="mt-2 divide-y divide-accent/15">
+              {newlyDiscovered.map((lead) => (
+                <li key={lead.id} className="flex flex-wrap items-center justify-between gap-3 py-2 text-sm first:pt-0 last:pb-0">
+                  <span>
+                    {lead.business_name} ({lead.category}, {lead.neighbourhood})
+                    {lead.discovery_source?.why_suggested && (
+                      <span className="text-muted-foreground"> — {lead.discovery_source.why_suggested}</span>
+                    )}
+                  </span>
+                  <a href={`/admin/leads#lead-${lead.id}`} className="shrink-0">
+                    <Button type="button" variant="outline" size="xs" className="gap-1">
+                      Review
                       <ArrowRight className="size-3" />
                     </Button>
                   </a>
