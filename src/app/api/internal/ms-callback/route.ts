@@ -18,11 +18,11 @@ export async function GET(request: Request) {
   if (error) {
     return new NextResponse(
       `<p>Microsoft returned an error: ${error}${errorDescription ? ` — ${errorDescription}` : ""}</p>`,
-      { headers: { "Content-Type": "text/html" } }
+      { headers: { "Content-Type": "text/html; charset=utf-8" } }
     );
   }
   if (!code) {
-    return new NextResponse("<p>Missing authorization code.</p>", { headers: { "Content-Type": "text/html" } });
+    return new NextResponse("<p>Missing authorization code.</p>", { headers: { "Content-Type": "text/html; charset=utf-8" } });
   }
 
   const clientId = process.env.MS_CLIENT_ID;
@@ -30,7 +30,7 @@ export async function GET(request: Request) {
   const tenantId = process.env.MS_TENANT_ID;
   if (!clientId || !clientSecret || !tenantId) {
     return new NextResponse("<p>MS_CLIENT_ID / MS_CLIENT_SECRET / MS_TENANT_ID are not set.</p>", {
-      headers: { "Content-Type": "text/html" },
+      headers: { "Content-Type": "text/html; charset=utf-8" },
     });
   }
 
@@ -53,7 +53,7 @@ export async function GET(request: Request) {
     if (!tokenRes.ok) {
       console.error("Microsoft token exchange failed:", await tokenRes.text());
       return new NextResponse("<p>Failed to exchange the authorization code — check the server logs.</p>", {
-        headers: { "Content-Type": "text/html" },
+        headers: { "Content-Type": "text/html; charset=utf-8" },
       });
     }
 
@@ -61,14 +61,14 @@ export async function GET(request: Request) {
     if (!tokens.refresh_token) {
       return new NextResponse(
         `<p>No refresh token was returned — make sure the app registration requests <code>offline_access</code> and try connecting again.</p>`,
-        { headers: { "Content-Type": "text/html" } }
+        { headers: { "Content-Type": "text/html; charset=utf-8" } }
       );
     }
 
     const supabase = getSupabaseAdmin();
     if (!supabase) {
       return new NextResponse("<p>Supabase is not configured — can't store the token.</p>", {
-        headers: { "Content-Type": "text/html" },
+        headers: { "Content-Type": "text/html; charset=utf-8" },
       });
     }
 
@@ -78,7 +78,7 @@ export async function GET(request: Request) {
     if (dbError) {
       console.error("Failed to store Microsoft refresh token:", dbError);
       return new NextResponse("<p>Token exchange worked but saving it failed — check the server logs.</p>", {
-        headers: { "Content-Type": "text/html" },
+        headers: { "Content-Type": "text/html; charset=utf-8" },
       });
     }
 
@@ -87,12 +87,12 @@ export async function GET(request: Request) {
         <h1>Connected</h1>
         <p>Your Microsoft account is connected — nothing further to copy or configure. <a href="/admin/ms-setup">Back to the connection page</a>.</p>
       </body></html>`,
-      { headers: { "Content-Type": "text/html" } }
+      { headers: { "Content-Type": "text/html; charset=utf-8" } }
     );
   } catch (err) {
     console.error("Microsoft OAuth token exchange failed:", err);
     return new NextResponse("<p>Failed to exchange the authorization code — check the server logs.</p>", {
-      headers: { "Content-Type": "text/html" },
+      headers: { "Content-Type": "text/html; charset=utf-8" },
     });
   }
 }

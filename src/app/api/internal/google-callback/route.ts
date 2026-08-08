@@ -14,13 +14,13 @@ export async function GET(request: Request) {
 
   if (error) {
     return new NextResponse(`<p>Google returned an error: ${error}</p>`, {
-      headers: { "Content-Type": "text/html" },
+      headers: { "Content-Type": "text/html; charset=utf-8" },
     });
   }
 
   if (!code) {
     return new NextResponse("<p>Missing authorization code.</p>", {
-      headers: { "Content-Type": "text/html" },
+      headers: { "Content-Type": "text/html; charset=utf-8" },
     });
   }
 
@@ -28,7 +28,7 @@ export async function GET(request: Request) {
   const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
   if (!clientId || !clientSecret) {
     return new NextResponse("<p>GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET are not set.</p>", {
-      headers: { "Content-Type": "text/html" },
+      headers: { "Content-Type": "text/html; charset=utf-8" },
     });
   }
 
@@ -41,7 +41,7 @@ export async function GET(request: Request) {
     if (!tokens.refresh_token) {
       return new NextResponse(
         `<p>No refresh token was returned. This usually means the account was already authorized before without being disconnected — go to <a href="https://myaccount.google.com/permissions" target="_blank">Google Account permissions</a>, remove access for this app, then try connecting again.</p>`,
-        { headers: { "Content-Type": "text/html" } }
+        { headers: { "Content-Type": "text/html; charset=utf-8" } }
       );
     }
 
@@ -52,12 +52,12 @@ export async function GET(request: Request) {
         <textarea readonly style="width: 100%; height: 4rem; font-family: monospace; padding: 0.5rem;">${tokens.refresh_token}</textarea>
         <p style="color: #666; font-size: 0.9rem;">This page won't show this value again — if you lose it, just reconnect from the Google connection page to get a new one.</p>
       </body></html>`,
-      { headers: { "Content-Type": "text/html" } }
+      { headers: { "Content-Type": "text/html; charset=utf-8" } }
     );
   } catch (err) {
     console.error("Google OAuth token exchange failed:", err);
     return new NextResponse("<p>Failed to exchange the authorization code — check the server logs.</p>", {
-      headers: { "Content-Type": "text/html" },
+      headers: { "Content-Type": "text/html; charset=utf-8" },
     });
   }
 }
