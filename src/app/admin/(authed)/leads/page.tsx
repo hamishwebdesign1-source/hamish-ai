@@ -1,46 +1,24 @@
-import fs from "fs";
-import path from "path";
 import { revalidatePath } from "next/cache";
 import Link from "next/link";
-import { ExternalLink, Search, X, Clock, Phone, PhoneCall, Mail, MessageCircleReply, Sparkles, FileX, AlertTriangle, Zap, ArrowRight, History, TrendingUp, Flame, FileCheck2, Hourglass } from "lucide-react";
+import { ExternalLink, Search, X, Clock, Mail, MessageCircleReply, Sparkles, FileX, AlertTriangle, Zap, ArrowRight, TrendingUp, Flame, FileCheck2, Hourglass, CalendarClock } from "lucide-react";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { checkGoogleConnection } from "@/lib/check-google-connection";
 import { checkMsConnection } from "@/lib/check-ms-connection";
 import { logAuditEvent } from "@/lib/audit-log";
-import {
-  updateLeadStatus,
-  deleteLead,
-  updateLeadEmail,
-  updateLeadPhone,
-  updateLeadConceptSlug,
-  updateLeadNotes,
-  markLeadReplied,
-} from "@/app/admin/actions";
 import { leadNeedsFollowUp as needsFollowUp, getLeadCadenceAction, EMAIL_TO_CALL_DAYS } from "@/lib/lead-status";
-import { timeAgo } from "@/lib/time-ago";
+import { STATUSES, statusMeta, isStaleLead, daysSince, websiteHref } from "@/lib/lead-meta";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { SalesKitButton } from "@/components/admin/sales-kit-button";
-import { ResearchLeadButton } from "@/components/admin/research-lead-button";
-import { ScheduleTeamsMeetingButton } from "@/components/admin/schedule-teams-meeting-button";
+import { ContactBadge } from "@/components/admin/contact-badge";
 import { FilterTabs } from "@/components/admin/filter-tabs";
 import { cn } from "@/lib/utils";
 
 const selectClasses =
   "h-8 w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30";
-
-const STATUSES = ["needs_verification", "ready", "contacted", "not_fit"] as const;
-
-const statusMeta: Record<(typeof STATUSES)[number], { label: string; variant: "warning" | "success" | "accent" | "secondary" }> = {
-  needs_verification: { label: "Needs verification", variant: "warning" },
-  ready: { label: "Ready for outreach", variant: "success" },
-  contacted: { label: "Contacted", variant: "accent" },
-  not_fit: { label: "Not a good fit", variant: "secondary" },
-};
 
 async function addLead(formData: FormData) {
   "use server";
@@ -78,130 +56,6 @@ async function addLead(formData: FormData) {
   }
 
   revalidatePath("/admin/leads");
-}
-
-function websiteHref(website: string) {
-  return website.startsWith("http") ? website : `https://${website.split(" ")[0]}`;
-}
-
-type AuditEntry = { action: string; created_at: string; metadata: Record<string, unknown> | null };
-
-function daysSince(iso: string) {
-  return (Date.now() - new Date(iso).getTime()) / (1000 * 60 * 60 * 24);
-}
-
-// 30+ days with no logged activity, still sitting in one of the two
-// "not yet actioned" statuses — everything past that point is either
-// contacted, not a fit, or moving fast enough that it isn't stale.
-// "Last touched" is the most recent audit_log entry if one exists,
-// falling back to when the row was first found.
-function isStaleLead(lead: { status: string; created_at: string }, entries: AuditEntry[] | undefined) {
-  if (lead.status !== "needs_verification" && lead.status !== "ready") return false;
-  const lastTouched = entries?.[0]?.created_at ?? lead.created_at;
-  return daysSince(lastTouched) >= 30;
-}
-
-// One short, human-readable line per audit_log action — the raw
-// "lead.email_drafted" strings are for filtering/analytics, not for
-// reading, so the timeline renders a translated version instead.
-function describeAuditEntry(entry: AuditEntry): string {
-  const meta = entry.metadata ?? {};
-  switch (entry.action) {
-    case "lead.created":
-      return "Lead added";
-    case "lead.status_changed":
-      return `Status changed to "${statusMeta[meta.to as keyof typeof statusMeta]?.label ?? meta.to}"`;
-    case "lead.called":
-      return "Marked as called";
-    case "lead.email_marked_sent":
-      return "Marked email as sent (manual)";
-    case "lead.email_sent_confirmed":
-      return `Email send confirmed (${meta.via === "cron_sweep" ? "daily check" : "manual check"})`;
-    case "lead.replied":
-      return "Marked as replied";
-    case "lead.email_drafted":
-      return meta.saved_to_gmail ? "Email drafted and saved to Gmail" : "Email drafted (not saved to Gmail)";
-    case "lead.call_script_drafted":
-      return "Call script drafted";
-    case "lead.sales_kit_generated":
-      return "Sales kit generated (email, call script, LinkedIn, agenda, proposal)";
-    case "lead.discovered":
-      return `AI-discovered — ${meta.why_suggested ?? "found by the weekly discovery search"}`;
-    case "lead.meeting_scheduled":
-      return meta.scheduled_start
-        ? `Teams meeting scheduled for ${new Date(meta.scheduled_start as string).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" })}`
-        : "Teams meeting scheduled";
-    case "lead.researched":
-      return `Researched — score set to ${meta.score}, AI fit ${meta.ai_opportunity_fit}`;
-    case "lead.notes_updated":
-      return `Note added: "${meta.notes}"`;
-    case "lead.email_updated":
-      return meta.email ? `Contact email set to ${meta.email}` : "Contact email cleared";
-    case "lead.phone_updated":
-      return meta.phone ? `Contact phone set to ${meta.phone}` : "Contact phone cleared";
-    case "lead.concept_slug_updated":
-      return meta.concept_slug ? `Linked to concept page "${meta.concept_slug}"` : "Concept page link removed";
-    default:
-      return entry.action;
-  }
-}
-
-type LeadRow = {
-  status: string;
-  contacted_at: string | null;
-  last_contact_method: string | null;
-  replied_at: string | null;
-  pending_email_message_id: string | null;
-};
-
-// The single badge that tells Hamish, at a glance, exactly where a lead
-// sits in the email → wait → call cadence — replied, due a call, due a
-// follow-up, or just a quiet "here's the last touch" note.
-function ContactBadge({ lead }: { lead: LeadRow }) {
-  if (lead.replied_at) {
-    return (
-      <Badge variant="success" className="gap-1">
-        <MessageCircleReply className="size-3" />
-        Replied {timeAgo(lead.replied_at)}
-      </Badge>
-    );
-  }
-
-  const action = getLeadCadenceAction(lead);
-  if (action === "call") {
-    return (
-      <Badge variant="warning" className="gap-1">
-        <PhoneCall className="size-3" />
-        Call now
-      </Badge>
-    );
-  }
-  if (action === "follow_up") {
-    return (
-      <Badge variant="warning" className="gap-1">
-        <Clock className="size-3" />
-        Needs follow-up
-      </Badge>
-    );
-  }
-  if (lead.status === "contacted" && lead.contacted_at) {
-    const wasCall = lead.last_contact_method === "call";
-    return (
-      <Badge variant="secondary" className="gap-1">
-        {wasCall ? <PhoneCall className="size-3" /> : <Mail className="size-3" />}
-        {wasCall ? "Called" : "Emailed"} {timeAgo(lead.contacted_at)}
-      </Badge>
-    );
-  }
-  if (lead.pending_email_message_id) {
-    return (
-      <Badge variant="outline" className="gap-1 text-muted-foreground">
-        <Mail className="size-3" />
-        Draft pending — not sent yet
-      </Badge>
-    );
-  }
-  return null;
 }
 
 type NextActionReason = "call" | "follow_up" | "send" | "build_concept" | "verify";
@@ -347,21 +201,6 @@ export default async function LeadsPage({
     sort: sortKey = "priority",
   } = await searchParams;
   const supabase = getSupabaseAdmin();
-
-  // Real, built concept pages only — reading the actual directory instead
-  // of hardcoding a list means this never drifts out of date, and turns
-  // the old free-text slug field (one typo from a dead link) into a
-  // dropdown that can't produce a broken /concepts/<slug> URL.
-  let conceptSlugs: string[] = [];
-  try {
-    conceptSlugs = fs
-      .readdirSync(path.join(process.cwd(), "src/app/concepts"), { withFileTypes: true })
-      .filter((entry) => entry.isDirectory())
-      .map((entry) => entry.name)
-      .sort();
-  } catch (err) {
-    console.error("Failed to list concept pages:", err);
-  }
 
   // Run alongside the leads fetch, not after it — a live Google API call
   // adds real latency, so it shouldn't be paid twice. The audit-log fetch
@@ -587,9 +426,9 @@ export default async function LeadsPage({
       )}
 
       {/* Leads the weekly discovery cron added — a fast batch-review queue,
-          separate from "Do this next" above. Approve/reject reuses the
-          status buttons already on each card below (Ready for outreach /
-          Not a good fit), not a new interaction to learn. */}
+          separate from "Do this next" above. "Review" opens the lead's own
+          page, where status/verify actions now live (portal redesign
+          Stage 4 — the list page is a scan surface, not an edit surface). */}
       {newlyDiscovered.length > 0 && (
         <Card className="mt-6 border-accent/30 bg-accent/5">
           <CardContent className="py-4">
@@ -813,209 +652,101 @@ export default async function LeadsPage({
             </Card>
           )}
           <ul className="space-y-3">
-            {leads?.map((lead) => (
-              <li
-                key={lead.id}
-                id={`lead-${lead.id}`}
-                className="scroll-mt-4 rounded-xl border border-border bg-card p-4"
-              >
-                <div className="flex flex-wrap items-start justify-between gap-2">
-                  <div>
-                    <p className="font-medium">{lead.business_name}</p>
-                    <p className="mt-0.5 text-xs text-muted-foreground">
-                      {[lead.category, lead.neighbourhood].filter(Boolean).join(" · ")}
-                      {lead.website && (
-                        <>
-                          {" · "}
-                          <a
-                            href={websiteHref(lead.website)}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-0.5 text-accent hover:underline"
-                          >
-                            {lead.website}
-                            <ExternalLink className="size-3" />
-                          </a>
-                        </>
+            {leads?.map((lead) => {
+              const meeting = meetingByLead.get(lead.id);
+              return (
+                <li
+                  key={lead.id}
+                  id={`lead-${lead.id}`}
+                  className="group relative scroll-mt-4 rounded-xl border border-border bg-card p-4 transition-colors hover:border-accent/40"
+                >
+                  {/* Stretched-link pattern — the whole card is a click
+                      target for the lead detail page, but it's a sibling
+                      of the content below (not a wrapper), so the website
+                      link inside can still be its own real, separately
+                      clickable anchor. */}
+                  <Link
+                    href={`/admin/leads/${lead.id}`}
+                    className="absolute inset-0 z-0 rounded-xl"
+                    aria-label={`Open ${lead.business_name}`}
+                  />
+
+                  <div className="relative z-10 flex flex-wrap items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="font-medium">{lead.business_name}</p>
+                        {lead.discovery_source && (
+                          <Badge variant="ai" className="gap-1">
+                            <Sparkles className="size-3" />
+                            AI
+                          </Badge>
+                        )}
+                        {isStaleLead(lead, auditByLead.get(lead.id)) && (
+                          <Badge variant="warning" className="gap-1">
+                            <Clock className="size-3" />
+                            Stale — 30+ days
+                          </Badge>
+                        )}
+                      </div>
+                      <p className="mt-0.5 text-xs text-muted-foreground">
+                        {[lead.category, lead.neighbourhood].filter(Boolean).join(" · ")}
+                        {lead.website && (
+                          <>
+                            {" · "}
+                            <a
+                              href={websiteHref(lead.website)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="relative z-10 inline-flex items-center gap-0.5 text-accent hover:underline"
+                            >
+                              {lead.website}
+                              <ExternalLink className="size-3" />
+                            </a>
+                          </>
+                        )}
+                      </p>
+                      {(lead.research?.pursue_because || lead.outreach_note) && (
+                        <p className="mt-1.5 flex items-start gap-1.5 text-xs text-muted-foreground italic">
+                          <Sparkles className="mt-0.5 size-3 shrink-0 text-[var(--gradient-violet)]" />
+                          &ldquo;{lead.research?.pursue_because ?? lead.outreach_note}&rdquo;
+                        </p>
                       )}
-                      {lead.phone && (
-                        <>
-                          {" · "}
-                          <a href={`tel:${lead.phone.replace(/\s+/g, "")}`} className="inline-flex items-center gap-0.5 hover:underline">
-                            <Phone className="size-3" />
-                            {lead.phone}
-                          </a>
-                        </>
-                      )}
-                    </p>
-                  </div>
-                  <div className="flex shrink-0 items-center gap-2">
-                    <ContactBadge lead={lead} />
-                    {isStaleLead(lead, auditByLead.get(lead.id)) && (
-                      <Badge variant="warning" className="gap-1">
-                        <Clock className="size-3" />
-                        Stale — 30+ days
+                    </div>
+                    <div className="flex shrink-0 items-center gap-2">
+                      <Badge variant={statusMeta[lead.status as keyof typeof statusMeta]?.variant ?? "secondary"}>
+                        {statusMeta[lead.status as keyof typeof statusMeta]?.label ?? lead.status}
                       </Badge>
-                    )}
-                    {lead.status === "contacted" && !lead.replied_at && (
-                      <form action={markLeadReplied.bind(null, lead.id)}>
-                        <Button type="submit" variant="ghost" size="xs" className="gap-1 text-muted-foreground">
-                          <MessageCircleReply className="size-3" />
-                          Mark replied
-                        </Button>
-                      </form>
-                    )}
+                      <ContactBadge lead={lead} />
+                    </div>
+                  </div>
+
+                  <div className="relative z-10 mt-3 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
                     {lead.score != null && (
-                      <div className="flex items-center gap-0.5">
+                      <div className="flex items-center gap-0.5" title={`Score: ${lead.score}/5`}>
                         {[1, 2, 3, 4, 5].map((n) => (
                           <span
                             key={n}
-                            className={cn(
-                              "size-1.5 rounded-full",
-                              n <= lead.score ? "bg-accent" : "bg-border"
-                            )}
+                            className={cn("size-1.5 rounded-full", n <= lead.score ? "bg-accent" : "bg-border")}
                           />
                         ))}
                       </div>
                     )}
-                    <form action={deleteLead.bind(null, lead.id)}>
-                      <Button type="submit" variant="ghost" size="icon-xs" className="text-muted-foreground hover:text-destructive">
-                        <X className="size-3.5" />
-                      </Button>
-                    </form>
+                    {lead.research?.estimated_project_value_band && (
+                      <span>Est. {lead.research.estimated_project_value_band}</span>
+                    )}
+                    {lead.research?.conversion_probability_band && (
+                      <span>Conversion: {lead.research.conversion_probability_band}</span>
+                    )}
+                    {meeting && (
+                      <span className="inline-flex items-center gap-1 text-accent">
+                        <CalendarClock className="size-3" />
+                        {new Date(meeting.scheduledStart).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
+                      </span>
+                    )}
                   </div>
-                </div>
-
-                <div className="mt-2">
-                  <ResearchLeadButton leadId={lead.id} initialResearch={lead.research ?? null} initialGeneratedAt={lead.research_generated_at ?? null} />
-                </div>
-
-                <div className="mt-2">
-                  <SalesKitButton
-                    leadId={lead.id}
-                    phone={lead.phone}
-                    isFollowUp={lead.status === "contacted"}
-                    hasPendingDraft={Boolean(lead.pending_email_message_id)}
-                    alreadySent={lead.status === "contacted" && lead.last_contact_method !== "call"}
-                    initialKit={lead.sales_kit ?? null}
-                    initialGeneratedAt={lead.sales_kit_generated_at ?? null}
-                  />
-                </div>
-
-                <div className="mt-2">
-                  <ScheduleTeamsMeetingButton leadId={lead.id} initialMeeting={meetingByLead.get(lead.id) ?? null} />
-                </div>
-
-                <form action={updateLeadEmail.bind(null, lead.id)} className="mt-2 flex items-center gap-1.5">
-                  <Input
-                    name="email"
-                    type="email"
-                    defaultValue={lead.email ?? ""}
-                    placeholder="Add contact email…"
-                    className="h-7 max-w-64 text-xs"
-                  />
-                  <Button type="submit" variant="ghost" size="xs">
-                    Save
-                  </Button>
-                </form>
-
-                <form action={updateLeadPhone.bind(null, lead.id)} className="mt-1.5 flex items-center gap-1.5">
-                  <Input
-                    name="phone"
-                    type="tel"
-                    defaultValue={lead.phone ?? ""}
-                    placeholder="Add contact number…"
-                    className="h-7 max-w-64 text-xs"
-                  />
-                  <Button type="submit" variant="ghost" size="xs">
-                    Save
-                  </Button>
-                </form>
-
-                <form action={updateLeadConceptSlug.bind(null, lead.id)} className="mt-1.5 flex items-center gap-1.5">
-                  <select
-                    name="concept_slug"
-                    defaultValue={lead.concept_slug ?? ""}
-                    className="h-7 max-w-64 min-w-0 rounded-lg border border-input bg-transparent px-2 text-xs outline-none focus-visible:border-ring dark:bg-input/30"
-                  >
-                    <option value="">No concept page</option>
-                    {conceptSlugs.map((slug) => (
-                      <option key={slug} value={slug}>
-                        {slug}
-                      </option>
-                    ))}
-                  </select>
-                  <Button type="submit" variant="ghost" size="xs">
-                    Save
-                  </Button>
-                  {lead.concept_slug && (
-                    <a
-                      href={`/concepts/${lead.concept_slug}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-0.5 text-xs text-accent hover:underline"
-                    >
-                      View <ExternalLink className="size-3" />
-                    </a>
-                  )}
-                </form>
-
-                <form action={updateLeadNotes.bind(null, lead.id)} className="mt-1.5 flex items-start gap-1.5">
-                  <Textarea
-                    name="notes"
-                    defaultValue={lead.notes ?? ""}
-                    placeholder="Notes — called, no answer, try Thursday…"
-                    rows={2}
-                    className="max-w-96 text-xs"
-                  />
-                  <Button type="submit" variant="ghost" size="xs">
-                    Save
-                  </Button>
-                </form>
-
-                {lead.signal && <p className="mt-2 text-sm">{lead.signal}</p>}
-                {lead.outreach_note && (
-                  <p className="mt-1.5 text-xs text-muted-foreground">
-                    <span className="font-medium text-foreground">Outreach: </span>
-                    {lead.outreach_note}
-                  </p>
-                )}
-
-                <div className="mt-3 flex flex-wrap gap-1.5">
-                  {STATUSES.map((s) => (
-                    <form key={s} action={updateLeadStatus.bind(null, lead.id, s)}>
-                      <Button
-                        type="submit"
-                        size="xs"
-                        variant={lead.status === s ? "default" : "outline"}
-                      >
-                        {statusMeta[s].label}
-                      </Button>
-                    </form>
-                  ))}
-                </div>
-
-                {/* Native <details>, not a client component — zero JS for
-                    a per-card collapsible, consistent with this being a
-                    plain server component throughout. */}
-                {(auditByLead.get(lead.id)?.length ?? 0) > 0 && (
-                  <details className="mt-3 text-xs">
-                    <summary className="flex cursor-pointer items-center gap-1 text-muted-foreground select-none hover:text-foreground">
-                      <History className="size-3" />
-                      Timeline ({auditByLead.get(lead.id)!.length})
-                    </summary>
-                    <ul className="mt-2 space-y-1 border-l border-border pl-3">
-                      {auditByLead.get(lead.id)!.map((entry, i) => (
-                        <li key={i} className="text-muted-foreground">
-                          <span className="text-foreground">{describeAuditEntry(entry)}</span> —{" "}
-                          {timeAgo(entry.created_at)}
-                        </li>
-                      ))}
-                    </ul>
-                  </details>
-                )}
-              </li>
-            ))}
+                </li>
+              );
+            })}
           </ul>
         </div>
       </div>

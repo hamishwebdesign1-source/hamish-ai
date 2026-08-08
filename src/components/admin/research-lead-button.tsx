@@ -17,14 +17,21 @@ export function ResearchLeadButton({
   leadId,
   initialResearch,
   initialGeneratedAt,
+  defaultExpanded = false,
 }: {
   leadId: string;
   initialResearch: LeadResearch | null;
   initialGeneratedAt: string | null;
+  // The lead detail page (portal redesign Stage 4) wants AI Intelligence
+  // visible without an extra click, since it's a top-level section there
+  // rather than one of several buttons on a dense list row — the list
+  // page doesn't pass this, so its collapsed-by-default behaviour is
+  // unchanged.
+  defaultExpanded?: boolean;
 }) {
   const boundAction = generateLeadResearch.bind(null, leadId);
   const [state, formAction, isPending] = useActionState<ResearchState, FormData>(boundAction, {});
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(defaultExpanded);
 
   const research = state.research ?? initialResearch;
   const generatedAt = state.generatedAt ?? initialGeneratedAt;

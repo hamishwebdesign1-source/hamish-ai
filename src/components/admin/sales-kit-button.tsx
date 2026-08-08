@@ -236,6 +236,7 @@ export function SalesKitButton({
   alreadySent,
   initialKit,
   initialGeneratedAt,
+  defaultExpanded = false,
 }: {
   leadId: string;
   phone: string | null;
@@ -244,10 +245,13 @@ export function SalesKitButton({
   alreadySent: boolean;
   initialKit: SalesKit | null;
   initialGeneratedAt: string | null;
+  // See the same prop on ResearchLeadButton — the lead detail page wants
+  // this open by default, the list page doesn't.
+  defaultExpanded?: boolean;
 }) {
   const boundAction = generateSalesKit.bind(null, leadId);
   const [state, formAction, isPending] = useActionState<SalesKitState, FormData>(boundAction, {});
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(defaultExpanded);
 
   const kit = state.kit ?? initialKit;
   const generatedAt = state.generatedAt ?? initialGeneratedAt;
