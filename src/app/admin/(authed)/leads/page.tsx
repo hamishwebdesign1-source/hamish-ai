@@ -27,6 +27,7 @@ import { Badge } from "@/components/ui/badge";
 import { SalesKitButton } from "@/components/admin/sales-kit-button";
 import { ResearchLeadButton } from "@/components/admin/research-lead-button";
 import { ScheduleTeamsMeetingButton } from "@/components/admin/schedule-teams-meeting-button";
+import { FilterTabs } from "@/components/admin/filter-tabs";
 import { cn } from "@/lib/utils";
 
 const selectClasses =
@@ -663,85 +664,64 @@ export default async function LeadsPage({
         </Card>
       </div>
 
-      <div className="mt-6 flex flex-wrap gap-2">
-        <Link href={filterHref({ status: undefined })}>
-          <Badge variant={!statusFilter ? "default" : "outline"}>All</Badge>
-        </Link>
-        {STATUSES.map((s) => (
-          <Link key={s} href={filterHref({ status: s })}>
-            <Badge variant={statusFilter === s ? "default" : "outline"}>{statusMeta[s].label}</Badge>
-          </Link>
-        ))}
-        <Link href={filterHref({ status: "needs_followup" })}>
-          <Badge variant={statusFilter === "needs_followup" ? "default" : "outline"} className="gap-1">
-            <Clock className="size-3" />
-            Needs follow-up
-          </Badge>
-        </Link>
+      <div className="mt-6">
+        <FilterTabs
+          activeKey={statusFilter}
+          options={[
+            { key: undefined, label: "All", href: filterHref({ status: undefined }) },
+            ...STATUSES.map((s) => ({ key: s, label: statusMeta[s].label, href: filterHref({ status: s }) })),
+            { key: "needs_followup", label: "Needs follow-up", icon: Clock, href: filterHref({ status: "needs_followup" }) },
+          ]}
+        />
       </div>
 
       {/* Contacted / not contacted — independent of the status pills above,
           so it can combine with them (e.g. "Ready" + "Not contacted"). */}
-      <div className="mt-2 flex flex-wrap items-center gap-2">
-        <span className="text-xs text-muted-foreground">Contact:</span>
-        <Link href={filterHref({ contacted: undefined })}>
-          <Badge variant={!contactedFilter ? "default" : "outline"}>All ({allLeads?.length ?? 0})</Badge>
-        </Link>
-        <Link href={filterHref({ contacted: "no" })}>
-          <Badge variant={contactedFilter === "no" ? "default" : "outline"} className="gap-1">
-            <Mail className="size-3" />
-            Not contacted ({notContactedCount})
-          </Badge>
-        </Link>
-        <Link href={filterHref({ contacted: "yes" })}>
-          <Badge variant={contactedFilter === "yes" ? "default" : "outline"} className="gap-1">
-            <MessageCircleReply className="size-3" />
-            Contacted ({contactedCount})
-          </Badge>
-        </Link>
+      <div className="mt-2">
+        <FilterTabs
+          label="Contact:"
+          activeKey={contactedFilter}
+          options={[
+            { key: undefined, label: "All", count: allLeads?.length ?? 0, href: filterHref({ contacted: undefined }) },
+            { key: "no", label: "Not contacted", count: notContactedCount, icon: Mail, href: filterHref({ contacted: "no" }) },
+            { key: "yes", label: "Contacted", count: contactedCount, icon: MessageCircleReply, href: filterHref({ contacted: "yes" }) },
+          ]}
+        />
       </div>
 
       {/* Concept page built / not — same independence, so you can filter
           e.g. "Ready for outreach" + "No concept yet" to see exactly who
           to build a concept page for next. */}
-      <div className="mt-2 flex flex-wrap items-center gap-2">
-        <span className="text-xs text-muted-foreground">Concept page:</span>
-        <Link href={filterHref({ concept: undefined })}>
-          <Badge variant={!conceptFilter ? "default" : "outline"}>All ({allLeads?.length ?? 0})</Badge>
-        </Link>
-        <Link href={filterHref({ concept: "no" })}>
-          <Badge variant={conceptFilter === "no" ? "default" : "outline"} className="gap-1">
-            <FileX className="size-3" />
-            No concept yet ({noConceptCount})
-          </Badge>
-        </Link>
-        <Link href={filterHref({ concept: "yes" })}>
-          <Badge variant={conceptFilter === "yes" ? "default" : "outline"} className="gap-1">
-            <Sparkles className="size-3" />
-            Concept made ({hasConceptCount})
-          </Badge>
-        </Link>
+      <div className="mt-2">
+        <FilterTabs
+          label="Concept page:"
+          activeKey={conceptFilter}
+          options={[
+            { key: undefined, label: "All", count: allLeads?.length ?? 0, href: filterHref({ concept: undefined }) },
+            { key: "no", label: "No concept yet", count: noConceptCount, icon: FileX, href: filterHref({ concept: "no" }) },
+            { key: "yes", label: "Concept made", count: hasConceptCount, icon: Sparkles, href: filterHref({ concept: "yes" }) },
+          ]}
+        />
       </div>
 
       {/* Pipeline widgets (High Impact #9) — pure JS filters over the
           research/score fields #6-8 added, zero LLM cost. Independent of
           the three dimensions above, same "AND together" pattern. */}
-      <div className="mt-2 flex flex-wrap items-center gap-2">
-        <span className="text-xs text-muted-foreground">Pipeline:</span>
-        <Link href={filterHref({ insight: undefined })}>
-          <Badge variant={!insightFilter ? "default" : "outline"}>All</Badge>
-        </Link>
-        {Object.entries(INSIGHT_LABELS).map(([key, label]) => {
-          const Icon = INSIGHT_ICONS[key];
-          return (
-            <Link key={key} href={filterHref({ insight: key })}>
-              <Badge variant={insightFilter === key ? "default" : "outline"} className="gap-1">
-                <Icon className="size-3" />
-                {label} ({insightCounts[key]})
-              </Badge>
-            </Link>
-          );
-        })}
+      <div className="mt-2">
+        <FilterTabs
+          label="Pipeline:"
+          activeKey={insightFilter}
+          options={[
+            { key: undefined, label: "All", href: filterHref({ insight: undefined }) },
+            ...Object.entries(INSIGHT_LABELS).map(([key, label]) => ({
+              key,
+              label,
+              count: insightCounts[key],
+              icon: INSIGHT_ICONS[key],
+              href: filterHref({ insight: key }),
+            })),
+          ]}
+        />
       </div>
 
       {/* Display order only — doesn't touch the "Do this next" card above,

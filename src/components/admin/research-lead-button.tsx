@@ -34,7 +34,7 @@ export function ResearchLeadButton({
     <div>
       <div className="flex flex-wrap items-center gap-1.5">
         <form action={formAction}>
-          <Button type="submit" variant="outline" size="xs" disabled={isPending} className="gap-1">
+          <Button type="submit" variant="ai" size="xs" disabled={isPending} className="gap-1">
             <Sparkles className="size-3" />
             {isPending ? "Researching…" : hasResearch ? "Re-research" : "Research"}
           </Button>

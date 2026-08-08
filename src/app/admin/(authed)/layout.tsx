@@ -5,6 +5,7 @@ import { LayoutDashboard, Users, BookOpen, Plug, Search, Workflow, ShieldCheck, 
 import { ADMIN_COOKIE_NAME } from "@/lib/admin-auth";
 import { AdminNavLink } from "@/components/admin/nav-link";
 import { AdminMobileNav } from "@/components/admin/mobile-nav";
+import { ThemeToggle, ThemeInitScript } from "@/components/admin/theme-toggle";
 import { Button } from "@/components/ui/button";
 
 async function signOut() {
@@ -17,6 +18,7 @@ async function signOut() {
 export default function AdminAuthedLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen bg-secondary/20">
+      <ThemeInitScript />
       <header className="relative border-b border-border/60 bg-background">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-4">
           <Link href="/admin" className="font-heading text-lg font-semibold">
@@ -62,6 +64,7 @@ export default function AdminAuthedLayout({ children }: { children: React.ReactN
               <History className="size-4" />
               Activity
             </AdminNavLink>
+            <ThemeToggle />
             <form action={signOut}>
               <Button type="submit" variant="ghost" size="sm" className="ml-2 text-muted-foreground">
                 <LogOut className="size-4" />

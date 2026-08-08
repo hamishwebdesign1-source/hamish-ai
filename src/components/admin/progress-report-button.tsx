@@ -36,7 +36,7 @@ export function ProgressReportButton({ clientId }: { clientId: string }) {
     <Card>
       <CardHeader className="flex items-center justify-between gap-3 space-y-0">
         <CardTitle>Progress report</CardTitle>
-        <Button type="button" onClick={generate} disabled={loading} variant="outline" size="sm">
+        <Button type="button" onClick={generate} disabled={loading} variant="ai" size="sm">
           <Sparkles className="size-3.5" />
           {loading ? "Generating…" : "Generate"}
         </Button>

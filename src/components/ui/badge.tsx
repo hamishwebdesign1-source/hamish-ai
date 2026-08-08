@@ -25,6 +25,13 @@ const badgeVariants = cva(
         ghost:
           "hover:bg-muted hover:text-muted-foreground dark:hover:bg-muted/50",
         link: "text-primary underline-offset-4 hover:underline",
+        // The "this came from AI" signal — pairs with the `ai` Button
+        // variant and shares its --gradient-violet token, so both read as
+        // one consistent language for AI-generated content and automated
+        // status (e.g. "AI Recommendation", "Automated", "Needs Review")
+        // rather than reusing `accent`, which already means something
+        // else (the brand's interactive-blue, not "AI-touched").
+        ai: "border-[color-mix(in_oklch,var(--gradient-violet),transparent_75%)] bg-[color-mix(in_oklch,var(--gradient-violet),transparent_88%)] text-[var(--gradient-violet)] dark:bg-[color-mix(in_oklch,var(--gradient-violet),transparent_78%)]",
       },
     },
     defaultVariants: {

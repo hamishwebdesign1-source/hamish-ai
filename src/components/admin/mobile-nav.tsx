@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Menu, X, LayoutDashboard, Users, Search, BookOpen, Plug, Workflow, ShieldCheck, History, LogOut } from "lucide-react";
 import { AdminNavLink } from "@/components/admin/nav-link";
+import { ThemeToggle } from "@/components/admin/theme-toggle";
 import { Button } from "@/components/ui/button";
 
 const NAV_ITEMS = [
@@ -42,12 +43,15 @@ export function AdminMobileNav({ signOutAction }: { signOutAction: () => void })
                 {item.label}
               </AdminNavLink>
             ))}
-            <form action={signOutAction} onSubmit={() => setOpen(false)}>
-              <Button type="submit" variant="ghost" size="sm" className="mt-2 w-full justify-start text-muted-foreground">
-                <LogOut className="size-4" />
-                Sign out
-              </Button>
-            </form>
+            <div className="mt-2 flex items-center justify-between">
+              <form action={signOutAction} onSubmit={() => setOpen(false)}>
+                <Button type="submit" variant="ghost" size="sm" className="text-muted-foreground">
+                  <LogOut className="size-4" />
+                  Sign out
+                </Button>
+              </form>
+              <ThemeToggle />
+            </div>
           </div>
         </nav>
       )}
