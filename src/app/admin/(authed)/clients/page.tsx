@@ -89,7 +89,7 @@ export default async function ClientsPage({
         Add a client, then log requests against them to run the AI triage pipeline.
       </p>
 
-      <div className="mt-8 grid gap-6 lg:grid-cols-[1fr_1.2fr]">
+      <div className="mt-8 grid gap-6 md:grid-cols-[1fr_1.2fr]">
         <Card className="h-fit">
           <CardHeader>
             <CardTitle>Add a client</CardTitle>

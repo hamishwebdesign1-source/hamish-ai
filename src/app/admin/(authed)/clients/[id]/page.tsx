@@ -302,7 +302,7 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
 
       <section id="ai-tools" className="mt-8 scroll-mt-20">
         <h2 className="text-section-title">AI Tools</h2>
-        <div className="mt-3 grid gap-6 lg:grid-cols-2">
+        <div className="mt-3 grid gap-6 md:grid-cols-2">
           <ProgressReportButton clientId={id} />
           {client.website_url && <SiteCheckButton clientId={id} latestCheck={latestCheck} />}
         </div>
@@ -382,7 +382,7 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
 
       <section id="requests" className="mt-8 scroll-mt-20">
         <h2 className="text-section-title">Requests</h2>
-        <div className="mt-3 grid gap-6 lg:grid-cols-[1fr_1.2fr]">
+        <div className="mt-3 grid gap-6 md:grid-cols-[1fr_1.2fr]">
           <Card className="h-fit">
             <CardHeader>
               <CardTitle>Log a new request</CardTitle>
@@ -485,7 +485,7 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
 
       <section id="invoices" className="mt-8 scroll-mt-20">
         <h2 className="text-section-title">Invoices</h2>
-        <div className="mt-3 grid gap-6 lg:grid-cols-[1fr_1.2fr]">
+        <div className="mt-3 grid gap-6 md:grid-cols-[1fr_1.2fr]">
           <Card className="h-fit">
             <CardHeader>
               <CardTitle>Create invoice</CardTitle>

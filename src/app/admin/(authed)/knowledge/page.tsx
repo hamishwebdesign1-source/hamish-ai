@@ -112,7 +112,7 @@ export default async function KnowledgePage({
         </div>
       )}
 
-      <div className="mt-8 grid gap-6 lg:grid-cols-[1fr_1.2fr]">
+      <div className="mt-8 grid gap-6 md:grid-cols-[1fr_1.2fr]">
         <div className="space-y-6">
           <Card>
             <CardHeader>

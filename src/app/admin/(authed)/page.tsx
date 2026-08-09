@@ -247,7 +247,7 @@ export default async function AdminOverviewPage() {
         </Link>
       </div>
 
-      <div className="mt-8 grid gap-8 lg:grid-cols-[1.4fr_1fr]">
+      <div className="mt-8 grid gap-8 md:grid-cols-[1.4fr_1fr]">
         <div id="needs-attention">
           <p className="text-section-title">Needs your attention</p>
           {totalAttentionItems === 0 ? (

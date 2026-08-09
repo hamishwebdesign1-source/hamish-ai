@@ -575,7 +575,7 @@ export default async function LeadsPage({
         ))}
       </div>
 
-      <div className="mt-8 grid gap-6 lg:grid-cols-[1fr_1.4fr]">
+      <div className="mt-8 grid gap-6 md:grid-cols-[1fr_1.4fr]">
         <Card className="h-fit">
           <CardHeader>
             <CardTitle>Add a lead</CardTitle>
