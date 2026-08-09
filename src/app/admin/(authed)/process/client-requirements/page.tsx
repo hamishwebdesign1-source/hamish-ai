@@ -121,8 +121,8 @@ export default function ClientRequirementsPage() {
         Process map
       </Link>
 
-      <h1 className="mt-3 font-heading text-2xl font-semibold">What we'd need from a client</h1>
-      <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
+      <h1 className="text-page-title mt-3">What we&apos;d need from a client</h1>
+      <p className="text-page-subtitle mt-1 max-w-2xl">
         For every offering on the site to be reality rather than a demo, grouped by how hard that ask actually is —
         so the sales conversation can set the right expectation up front.
       </p>
@@ -185,7 +185,7 @@ export default function ClientRequirementsPage() {
           <p className="text-sm text-foreground">
             <span className="font-medium">The one thing worth remembering: </span>
             Tier A is genuinely ready to sell today. Tier B is ready <em>conditionally</em> — only for clients already
-            on the right platform. Tier C is the one where the pitch is ahead of what's buildable for some clients,
+            on the right platform. Tier C is the one where the pitch is ahead of what&apos;s buildable for some clients,
             and probably needs a caveat in the sales conversation rather than a promise.
           </p>
         </CardContent>

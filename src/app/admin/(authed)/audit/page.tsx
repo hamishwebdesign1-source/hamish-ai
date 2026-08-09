@@ -1,10 +1,10 @@
-import Link from "next/link";
 import { ThumbsUp, ThumbsDown, ShieldCheck } from "lucide-react";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { reviewAutoSend } from "@/app/admin/actions";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { FilterTabs } from "@/components/admin/filter-tabs";
 
 type ClientRef = { business_name: string } | null;
 
@@ -45,8 +45,8 @@ export default async function AutoSendAuditPage({
 
   return (
     <div>
-      <h1 className="font-heading text-2xl font-semibold">Auto-send audit</h1>
-      <p className="mt-1 text-sm text-muted-foreground">
+      <h1 className="text-page-title">Auto-send audit</h1>
+      <p className="text-page-subtitle mt-1">
         Periodic sample review of AI-auto-sent replies (Decision 1/2 in the process model) — catches drift in
         triage accuracy as request volume grows.
       </p>
@@ -72,19 +72,16 @@ export default async function AutoSendAuditPage({
         </Card>
       </div>
 
-      <div className="mt-6 flex flex-wrap gap-2">
-        <Link href="/admin/audit">
-          <Badge variant={!filter ? "default" : "outline"}>All ({requests.length})</Badge>
-        </Link>
-        <Link href="/admin/audit?filter=unreviewed">
-          <Badge variant={filter === "unreviewed" ? "default" : "outline"}>Awaiting review ({unreviewed.length})</Badge>
-        </Link>
-        <Link href="/admin/audit?filter=accurate">
-          <Badge variant={filter === "accurate" ? "default" : "outline"}>Accurate ({accurate.length})</Badge>
-        </Link>
-        <Link href="/admin/audit?filter=inaccurate">
-          <Badge variant={filter === "inaccurate" ? "default" : "outline"}>Inaccurate ({inaccurate.length})</Badge>
-        </Link>
+      <div className="mt-6">
+        <FilterTabs
+          activeKey={filter}
+          options={[
+            { key: undefined, label: "All", count: requests.length, href: "/admin/audit" },
+            { key: "unreviewed", label: "Awaiting review", count: unreviewed.length, href: "/admin/audit?filter=unreviewed" },
+            { key: "accurate", label: "Accurate", count: accurate.length, href: "/admin/audit?filter=accurate" },
+            { key: "inaccurate", label: "Inaccurate", count: inaccurate.length, href: "/admin/audit?filter=inaccurate" },
+          ]}
+        />
       </div>
 
       <div className="mt-6">

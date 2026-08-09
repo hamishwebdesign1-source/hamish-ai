@@ -10,15 +10,15 @@ const PDF_HREF = "/docs/HamishAI-Business-Analysis-Documentation-Pack.pdf";
 export default function AdminProcessPage() {
   return (
     <div>
-      <h1 className="font-heading text-2xl font-semibold">Process map</h1>
-      <p className="mt-1 text-sm text-muted-foreground">
+      <h1 className="text-page-title">Process map</h1>
+      <p className="text-page-subtitle mt-1">
         End-to-end view of how a prospect becomes a lead, a client, a request, and an invoice — and where each
         automation feeds the Overview dashboard.
       </p>
 
       <div className="mt-8">
-        <h2 className="font-heading text-lg font-semibold">The 7 stages, in plain English</h2>
-        <p className="mt-1 text-sm text-muted-foreground">
+        <h2 className="text-section-title">The 7 stages, in plain English</h2>
+        <p className="text-page-subtitle mt-1">
           Expand a stage for what actually happens, step by step — no diagram-reading required.
         </p>
         <div className="mt-4">
@@ -27,8 +27,8 @@ export default function AdminProcessPage() {
       </div>
 
       <div className="mt-10">
-        <h2 className="font-heading text-lg font-semibold">The same process, as a flowchart</h2>
-        <p className="mt-1 text-sm text-muted-foreground">
+        <h2 className="text-section-title">The same process, as a flowchart</h2>
+        <p className="text-page-subtitle mt-1">
           Every branch, decision point, and automation trigger behind the stages above.
         </p>
         <div className="mt-4">
@@ -60,7 +60,7 @@ export default function AdminProcessPage() {
 
       <Card className="mt-8">
         <CardHeader>
-          <CardTitle>What we'd need from a client</CardTitle>
+          <CardTitle>What we&apos;d need from a client</CardTitle>
           <CardDescription>
             For every offering on the site to be reality rather than a demo — grouped by how hard that ask actually
             is, so the sales conversation sets the right expectation up front.

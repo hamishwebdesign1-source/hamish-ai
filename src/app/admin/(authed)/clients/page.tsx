@@ -9,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { FilterTabs } from "@/components/admin/filter-tabs";
 
 const packageOptions = [...packages.map((p) => p.name), analyticsPackage.name];
 
@@ -83,8 +84,8 @@ export default async function ClientsPage({
 
   return (
     <div>
-      <h1 className="font-heading text-2xl font-semibold">Clients</h1>
-      <p className="mt-1 text-sm text-muted-foreground">
+      <h1 className="text-page-title">Clients</h1>
+      <p className="text-page-subtitle mt-1">
         Add a client, then log requests against them to run the AI triage pipeline.
       </p>
 
@@ -146,20 +147,17 @@ export default async function ClientsPage({
         </Card>
 
         <div>
-          <h2 className="font-heading text-lg font-medium">All clients</h2>
-          <div className="mt-3 flex flex-wrap gap-2">
-            <Link href="/admin/clients">
-              <Badge variant={!statusFilter ? "default" : "outline"}>All ({allClients?.length ?? 0})</Badge>
-            </Link>
-            <Link href="/admin/clients?status=active">
-              <Badge variant={statusFilter === "active" ? "default" : "outline"}>Active ({activeCount})</Badge>
-            </Link>
-            <Link href="/admin/clients?status=paused">
-              <Badge variant={statusFilter === "paused" ? "default" : "outline"}>Paused ({pausedCount})</Badge>
-            </Link>
-            <Link href="/admin/clients?status=churned">
-              <Badge variant={statusFilter === "churned" ? "default" : "outline"}>Churned ({churnedCount})</Badge>
-            </Link>
+          <h2 className="text-section-title">All clients</h2>
+          <div className="mt-3">
+            <FilterTabs
+              activeKey={statusFilter}
+              options={[
+                { key: undefined, label: "All", count: allClients?.length ?? 0, href: "/admin/clients" },
+                { key: "active", label: "Active", count: activeCount, href: "/admin/clients?status=active" },
+                { key: "paused", label: "Paused", count: pausedCount, href: "/admin/clients?status=paused" },
+                { key: "churned", label: "Churned", count: churnedCount, href: "/admin/clients?status=churned" },
+              ]}
+            />
           </div>
           {!clients?.length && (
             <Card className="mt-3">

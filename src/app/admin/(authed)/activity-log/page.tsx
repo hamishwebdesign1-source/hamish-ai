@@ -55,8 +55,8 @@ export default async function ActivityLogPage({ searchParams }: { searchParams: 
 
   return (
     <div>
-      <h1 className="font-heading text-2xl font-semibold">Activity log</h1>
-      <p className="mt-1 text-sm text-muted-foreground">
+      <h1 className="text-page-title">Activity log</h1>
+      <p className="text-page-subtitle mt-1">
         Who did what, when — client status changes, team access, billing, and settings.
         {clientFilter && (
           <>

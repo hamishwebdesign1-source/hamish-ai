@@ -1,6 +1,6 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { BookOpen, X, TriangleAlert, CircleCheck } from "lucide-react";
+import { BookOpen, X, TriangleAlert, CircleCheck, Sparkles } from "lucide-react";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { deleteKnowledgeEntry } from "@/app/admin/actions";
 import { extractTextFromFile } from "@/lib/document-text";
@@ -93,8 +93,8 @@ export default async function KnowledgePage({
 
   return (
     <div>
-      <h1 className="font-heading text-2xl font-semibold">Knowledge base</h1>
-      <p className="mt-1 text-sm text-muted-foreground">
+      <h1 className="text-page-title">Knowledge base</h1>
+      <p className="text-page-subtitle mt-1">
         What the portal support agent draws on to answer client questions instantly. Leave a client unset for
         answers that apply to everyone.
       </p>
@@ -171,7 +171,8 @@ export default async function KnowledgePage({
                   Business facts only — hours, pricing, policies, FAQs. Don&apos;t upload anything containing a
                   named customer&apos;s personal details.
                 </p>
-                <Button type="submit" variant="outline" className="w-full">
+                <Button type="submit" variant="ai" className="w-full gap-1.5">
+                  <Sparkles className="size-3.5" />
                   Extract entries
                 </Button>
               </form>
@@ -180,7 +181,7 @@ export default async function KnowledgePage({
         </div>
 
         <div>
-          <h2 className="font-heading text-lg font-medium">All entries</h2>
+          <h2 className="text-section-title">All entries</h2>
           {!entries?.length && (
             <Card className="mt-3">
               <CardContent className="flex flex-col items-center gap-2 py-8 text-center text-sm text-muted-foreground">
