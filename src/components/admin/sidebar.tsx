@@ -1,14 +1,13 @@
-import { LayoutDashboard, Users, BookOpen, Plug, Search, Workflow, ShieldCheck, History } from "lucide-react";
+import { LayoutDashboard, Users, BookOpen, Plug, Search, Workflow, ShieldCheck, History, Sparkles, Workflow as Automation } from "lucide-react";
 import { AdminNavLink } from "@/components/admin/nav-link";
 
 // Portal redesign Stage 3 — replaces the old single-row top nav (9 items
 // flat, no grouping) with a grouped sidebar, matching how the business is
-// actually operated rather than a flat page list. Grouping is deliberately
-// narrower than the brief's own example structure (no "AI Activity" /
-// "Automation" / "Lead detail" entries yet) — those pages don't exist
-// until Stage 4/5 build them; a nav entry pointing nowhere is worse than
-// no entry. Shared between desktop (sidebar.tsx) and mobile (drawer in
-// mobile-nav.tsx) so the grouping only has to be defined once.
+// actually operated rather than a flat page list. Intelligence originally
+// had only "Audit" (Stage 4/5 hadn't built the other two pages yet) — "AI
+// Activity" and "Automation" joined it in Stage 5. Shared between desktop
+// (sidebar.tsx) and mobile (drawer in mobile-nav.tsx) so the grouping only
+// has to be defined once.
 export const NAV_SECTIONS: {
   label: string | null;
   items: { href: string; label: string; icon: typeof LayoutDashboard }[];
@@ -16,7 +15,14 @@ export const NAV_SECTIONS: {
   { label: null, items: [{ href: "/admin", label: "Command Centre", icon: LayoutDashboard }] },
   { label: "Sales", items: [{ href: "/admin/leads", label: "Leads", icon: Search }] },
   { label: "Clients", items: [{ href: "/admin/clients", label: "Clients", icon: Users }] },
-  { label: "Intelligence", items: [{ href: "/admin/audit", label: "Audit", icon: ShieldCheck }] },
+  {
+    label: "Intelligence",
+    items: [
+      { href: "/admin/ai-activity", label: "AI Activity", icon: Sparkles },
+      { href: "/admin/automation", label: "Automation", icon: Automation },
+      { href: "/admin/audit", label: "Audit", icon: ShieldCheck },
+    ],
+  },
   { label: null, items: [{ href: "/admin/knowledge", label: "Knowledge", icon: BookOpen }] },
   { label: "Reference", items: [{ href: "/admin/process", label: "Process", icon: Workflow }] },
   {

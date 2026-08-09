@@ -3,6 +3,7 @@ import { getSupabaseAdmin } from "@/lib/supabase";
 import { runSiteCheck } from "@/lib/site-monitor";
 import { sendSiteAlertEmail, type FlaggedClient } from "@/lib/send-site-alert";
 import { sendErrorAlert } from "@/lib/send-error-alert";
+import { recordCronRun } from "@/lib/record-cron-run";
 
 const SSL_WARNING_DAYS = 14;
 
@@ -32,6 +33,7 @@ export async function GET(request: Request) {
   if (error) {
     console.error("Cron: failed to fetch clients:", error);
     await sendErrorAlert("Daily site-check cron", `Failed to fetch clients: ${error.message}`);
+    await recordCronRun("site-checks", "error", { error: error.message });
     return NextResponse.json({ error: "Failed to fetch clients." }, { status: 500 });
   }
 
@@ -79,6 +81,7 @@ export async function GET(request: Request) {
   } catch (err) {
     console.error("Cron: daily site-check run crashed:", err);
     await sendErrorAlert("Daily site-check cron", `The run crashed partway through:\n\n${err}`);
+    await recordCronRun("site-checks", "error", { error: String(err) });
     return NextResponse.json({ error: "Site-check cron crashed." }, { status: 500 });
   }
 
@@ -94,6 +97,10 @@ export async function GET(request: Request) {
   if (flagged.length > 0) {
     await sendSiteAlertEmail(flagged);
   }
+
+  await recordCronRun("site-checks", "success", {
+    summary: { checked: checked.length, flagged: flagged.length, checkFailures: checkFailures.length },
+  });
 
   return NextResponse.json({ checked, flagged: flagged.map((f) => f.businessName) });
 }

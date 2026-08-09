@@ -3,6 +3,7 @@ import { getSupabaseAdmin } from "@/lib/supabase";
 import { stripMarkdownEmphasis } from "@/lib/strip-markdown-emphasis";
 import { sendClientEmail } from "@/lib/send-client-email";
 import { createTaskCalendarEvent } from "@/lib/calendar-sync";
+import { logAuditEvent } from "@/lib/audit-log";
 
 type Client = {
   id: string;
@@ -152,6 +153,27 @@ export async function triageRequest(clientId: string, rawText: string) {
     return { error: "Failed to save the triaged request." as const };
   }
 
+  // Portal redesign Stage 5 — triage previously left no trace in audit_log
+  // at all, which is exactly the "AI activity is invisible" problem the
+  // redesign brief called out. This is the one entry every triaged request
+  // gets; request.auto_sent (below) is a second, separate entry only for
+  // the subset that skip human review entirely.
+  await logAuditEvent({
+    actor: "system",
+    actorType: "system",
+    action: "request.triaged",
+    targetType: "request",
+    targetId: savedRequest.id,
+    clientId,
+    metadata: {
+      category: triage.category,
+      complexity: triage.complexity,
+      priority: triage.priority,
+      covered_by_maintenance: triage.covered_by_maintenance,
+      status,
+    },
+  });
+
   if (triage.suggested_task) {
     const { data: savedTask, error: taskError } = await supabase
       .from("tasks")
@@ -214,6 +236,16 @@ export async function triageRequest(clientId: string, rawText: string) {
       .from("requests")
       .update({ auto_sent: true, responded_at: new Date().toISOString() })
       .eq("id", savedRequest.id);
+
+    await logAuditEvent({
+      actor: "system",
+      actorType: "system",
+      action: "request.auto_sent",
+      targetType: "request",
+      targetId: savedRequest.id,
+      clientId,
+      metadata: { category: triage.category, complexity: triage.complexity },
+    });
 
     const internalTo = process.env.CONTACT_TO_EMAIL;
     if (internalTo) {

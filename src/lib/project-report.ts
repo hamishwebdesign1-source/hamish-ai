@@ -1,6 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { stripMarkdownEmphasis } from "@/lib/strip-markdown-emphasis";
+import { logAuditEvent } from "@/lib/audit-log";
 
 // The "AI Project Manager" writes-progress-reports capability from the
 // HamishAI Operating System roadmap — on-demand rather than a fully
@@ -68,6 +69,16 @@ ${tasksList || "None yet."}`;
         .map((block) => block.text)
         .join("\n")
     );
+
+    // Not persisted anywhere (regenerated fresh each click, same as before)
+    // — this is only a trace that it happened, for the AI Activity feed.
+    await logAuditEvent({
+      actor: "admin",
+      action: "client.progress_report_generated",
+      targetType: "client",
+      targetId: clientId,
+      clientId,
+    });
 
     return { report: text };
   } catch (error) {

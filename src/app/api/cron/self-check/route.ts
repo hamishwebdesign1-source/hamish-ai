@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { checkOwnSite } from "@/lib/self-monitor";
 import { sendErrorAlert } from "@/lib/send-error-alert";
+import { recordCronRun } from "@/lib/record-cron-run";
 
 const SSL_WARNING_DAYS = 14;
 
@@ -30,6 +31,7 @@ export async function GET(request: Request) {
   } catch (err) {
     console.error("Self-check cron crashed:", err);
     await sendErrorAlert("Daily self-check cron", `The run crashed:\n\n${err}`);
+    await recordCronRun("self-check", "error", { error: String(err) });
     return NextResponse.json({ error: "Self-check crashed." }, { status: 500 });
   }
 
@@ -47,6 +49,11 @@ export async function GET(request: Request) {
       `The daily uptime check for hamishai.org found a problem:\n\n${reasons.join("\n")}\n\nResponse time: ${result.responseMs ?? "n/a"}ms`
     );
   }
+
+  // The run itself always "succeeded" here (it executed to completion) —
+  // `reasons` is what tells the Automation page whether it needs attention,
+  // kept separate from whether the cron job itself is broken.
+  await recordCronRun("self-check", "success", { summary: { ok: reasons.length === 0, reasons, ...result } });
 
   return NextResponse.json({ ok: reasons.length === 0, reasons, ...result });
 }

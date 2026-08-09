@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { checkEmailInbox } from "@/lib/email-inbox";
 import { checkPendingLeadSends } from "@/lib/check-lead-sends";
 import { sendErrorAlert } from "@/lib/send-error-alert";
+import { recordCronRun } from "@/lib/record-cron-run";
 
 // Triggered on a schedule by the Vercel Cron job in vercel.json. Same
 // shared-secret bearer-token pattern as the other cron routes.
@@ -21,14 +22,20 @@ export async function GET(request: Request) {
   const result = await checkEmailInbox();
   if ("error" in result) {
     await sendErrorAlert("Daily email-inbox cron", result.error ?? "Unknown error.");
+    await recordCronRun("email-inbox", "error", { error: result.error });
     return NextResponse.json({ error: result.error }, { status: 500 });
   }
 
   const sendsResult = await checkPendingLeadSends();
   if ("error" in sendsResult) {
     await sendErrorAlert("Daily lead-send check", sendsResult.error ?? "Unknown error.");
+    await recordCronRun("email-inbox", "error", { error: sendsResult.error });
     return NextResponse.json({ error: sendsResult.error }, { status: 500 });
   }
+
+  await recordCronRun("email-inbox", "success", {
+    summary: { processed: result.processed, leadsConfirmedSent: sendsResult.confirmed, leadsDraftCleared: sendsResult.cleared },
+  });
 
   return NextResponse.json({
     processed: result.processed,

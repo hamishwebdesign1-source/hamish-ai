@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { discoverLeads } from "@/lib/discover-leads";
 import { sendErrorAlert } from "@/lib/send-error-alert";
+import { recordCronRun } from "@/lib/record-cron-run";
 
 // Triggered weekly by the Vercel Cron job in vercel.json. Same shared-secret
 // pattern as every other cron route (see site-checks/route.ts) — no user
@@ -17,6 +18,7 @@ export async function GET(request: Request) {
     if ("error" in result) {
       console.error("Lead discovery cron failed:", result.error);
       await sendErrorAlert("Weekly lead-discovery cron", result.error);
+      await recordCronRun("lead-discovery", "error", { error: result.error });
       return NextResponse.json({ error: result.error }, { status: 500 });
     }
 
@@ -27,6 +29,15 @@ export async function GET(request: Request) {
       );
     }
 
+    await recordCronRun("lead-discovery", "success", {
+      summary: {
+        inserted: result.inserted.length,
+        skippedDuplicates: result.skippedDuplicates.length,
+        pairsSearched: result.pairsSearched.length,
+        searchFailures: result.searchFailures.length,
+      },
+    });
+
     return NextResponse.json({
       inserted: result.inserted.length,
       insertedNames: result.inserted.map((l) => l.business_name),
@@ -36,6 +47,7 @@ export async function GET(request: Request) {
   } catch (err) {
     console.error("Lead discovery cron crashed:", err);
     await sendErrorAlert("Weekly lead-discovery cron", `The run crashed partway through:\n\n${err}`);
+    await recordCronRun("lead-discovery", "error", { error: String(err) });
     return NextResponse.json({ error: "Lead discovery cron crashed." }, { status: 500 });
   }
 }

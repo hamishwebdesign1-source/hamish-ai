@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { generateMonthlyInvoices } from "@/lib/recurring-invoices";
 import { sendErrorAlert } from "@/lib/send-error-alert";
+import { recordCronRun } from "@/lib/record-cron-run";
 
 // Triggered monthly (1st of the month) by the Vercel Cron job in
 // vercel.json. Same shared-secret bearer-token pattern as the other cron
@@ -15,6 +16,7 @@ export async function GET(request: Request) {
   const result = await generateMonthlyInvoices();
   if ("error" in result) {
     await sendErrorAlert("Recurring invoices cron", result.error ?? "Unknown error.");
+    await recordCronRun("recurring-invoices", "error", { error: result.error });
     return NextResponse.json({ error: result.error }, { status: 500 });
   }
 
@@ -24,6 +26,8 @@ export async function GET(request: Request) {
       `${result.failed.length} recurring invoice(s) failed to create:\n\n${result.failed.join("\n")}`
     );
   }
+
+  await recordCronRun("recurring-invoices", "success", { summary: result });
 
   return NextResponse.json(result);
 }

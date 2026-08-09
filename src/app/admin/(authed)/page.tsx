@@ -16,8 +16,17 @@ import { getSupabaseAdmin } from "@/lib/supabase";
 import { isInvoiceOverdue } from "@/lib/invoice-status";
 import { leadNeedsFollowUp } from "@/lib/lead-status";
 import { timeAgo } from "@/lib/time-ago";
+import { AI_ACTIVITY_ACTIONS, describeAiActivity, aiActivityHref } from "@/lib/ai-activity";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+
+// No searchParams and no dynamic API usage — Next was statically
+// prerendering this at build time and freezing it there (confirmed by
+// comparing Stage 5's build output to Stage 4's; the Automation page just
+// built has the identical gap, fixed alongside this one). A "Command
+// Centre" showing build-time-frozen invoice/lead/AI-activity data is a
+// real correctness bug, not a style nit.
+export const dynamic = "force-dynamic";
 
 type ClientRef = { business_name: string } | null;
 
@@ -57,39 +66,6 @@ function CriticalBadge() {
       Critical
     </Badge>
   );
-}
-
-// A small, curated set — not every audit_log action, just the ones that
-// represent AI doing work rather than a human clicking a status button.
-// Mirrors the "actor_type: system" + AI-generation action convention
-// already established across research-lead.ts, draft-sales-kit.ts,
-// discover-leads.ts, and the Teams-scheduling flow.
-const AI_ACTIVITY_ACTIONS = [
-  "lead.researched",
-  "lead.sales_kit_generated",
-  "lead.discovered",
-  "lead.meeting_scheduled",
-  "lead.email_drafted",
-  "lead.call_script_drafted",
-] as const;
-
-function describeAiActivity(action: string, meta: Record<string, unknown>): string {
-  switch (action) {
-    case "lead.researched":
-      return `AI researched a lead — scored ${meta.score}, AI fit ${meta.ai_opportunity_fit}`;
-    case "lead.sales_kit_generated":
-      return "AI drafted a full sales kit (email, call script, LinkedIn, agenda, proposal)";
-    case "lead.discovered":
-      return `AI discovered a new lead — ${meta.why_suggested ?? "weekly search"}`;
-    case "lead.meeting_scheduled":
-      return "Teams meeting scheduled";
-    case "lead.email_drafted":
-      return "AI drafted an outreach email";
-    case "lead.call_script_drafted":
-      return "AI drafted a call script";
-    default:
-      return action;
-  }
 }
 
 export default async function AdminOverviewPage() {
@@ -143,8 +119,7 @@ export default async function AdminOverviewPage() {
     supabase
       ? supabase
           .from("audit_log")
-          .select("id, action, created_at, metadata, target_id")
-          .eq("target_type", "prospect")
+          .select("id, action, created_at, metadata, target_id, target_type, client_id")
           .in("action", AI_ACTIVITY_ACTIONS as unknown as string[])
           .order("created_at", { ascending: false })
           .limit(8)
@@ -433,7 +408,7 @@ export default async function AdminOverviewPage() {
           <div>
             <div className="flex items-center justify-between">
               <p className="text-section-title">AI activity</p>
-              <Link href="/admin/activity-log" className="flex items-center gap-0.5 text-xs text-accent hover:underline">
+              <Link href="/admin/ai-activity" className="flex items-center gap-0.5 text-xs text-accent hover:underline">
                 View all <ArrowRight className="size-3" />
               </Link>
             </div>
@@ -441,19 +416,31 @@ export default async function AdminOverviewPage() {
               <p className="mt-3 text-sm text-muted-foreground">Nothing yet — AI activity shows up here as it happens.</p>
             ) : (
               <ul className="mt-3 space-y-1 border-l border-border pl-3">
-                {aiActivity.map((entry) => (
-                  <li key={entry.id} className="feed-item-enter">
-                    <Link href={`/admin/leads#lead-${entry.target_id}`} className="group block py-1.5">
+                {aiActivity.map((entry) => {
+                  const href = aiActivityHref(entry);
+                  const body = (
+                    <>
                       <p className="flex items-start gap-1.5 text-sm">
                         <Sparkles className="mt-0.5 size-3 shrink-0 text-[var(--gradient-violet)]" />
-                        <span className="group-hover:text-accent">
+                        <span className={href ? "group-hover:text-accent" : ""}>
                           {describeAiActivity(entry.action, entry.metadata ?? {})}
                         </span>
                       </p>
                       <p className="mt-0.5 pl-[18px] text-xs text-muted-foreground">{timeAgo(entry.created_at)}</p>
-                    </Link>
-                  </li>
-                ))}
+                    </>
+                  );
+                  return (
+                    <li key={entry.id} className="feed-item-enter">
+                      {href ? (
+                        <Link href={href} className="group block py-1.5">
+                          {body}
+                        </Link>
+                      ) : (
+                        <div className="py-1.5">{body}</div>
+                      )}
+                    </li>
+                  );
+                })}
               </ul>
             )}
           </div>
