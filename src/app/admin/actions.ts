@@ -1,7 +1,9 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase";
+import { createResearchJob, runResearchJob } from "@/lib/deep-research-pipeline";
 import { sendClientEmail } from "@/lib/send-client-email";
 import { researchLead, type LeadResearch } from "@/lib/research-lead";
 import { draftSalesKit, type SalesKit } from "@/lib/draft-sales-kit";
@@ -282,6 +284,16 @@ export async function updateLeadConceptSlug(leadId: string, formData: FormData) 
   if (!supabase) return;
 
   const conceptSlug = String(formData.get("concept_slug") || "").trim();
+
+  // Read the previous value first — the deep research pipeline (below)
+  // only fires on the null → set transition, not on every edit, and
+  // never on leads that already had a concept_slug before this shipped
+  // (per docs/deep-research-pipeline-plan.md's "going forward only"
+  // decision — same convention research-lead.ts already follows for not
+  // silently overwriting existing state).
+  const { data: existing } = await supabase.from("prospects").select("concept_slug").eq("id", leadId).single();
+  const previousSlug = existing?.concept_slug ?? null;
+
   const { error } = await supabase
     .from("prospects")
     .update({ concept_slug: conceptSlug || null })
@@ -296,6 +308,17 @@ export async function updateLeadConceptSlug(leadId: string, formData: FormData) 
       targetId: leadId,
       metadata: { concept_slug: conceptSlug || null },
     });
+
+    // Deep research pipeline Phase 1 — concept pages are hand-authored
+    // static files, not something the app "creates" as an event, so this
+    // is the only real "a concept page now exists for this lead" signal
+    // available (see docs/deep-research-pipeline-plan.md §2.1). Runs via
+    // after() so the concept-slug save the admin is waiting on isn't
+    // blocked by it.
+    if (!previousSlug && conceptSlug) {
+      const jobId = await createResearchJob(leadId);
+      if (jobId) after(() => runResearchJob(jobId));
+    }
   }
 
   revalidatePath("/admin/leads");

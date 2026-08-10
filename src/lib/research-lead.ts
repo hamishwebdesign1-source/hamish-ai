@@ -32,6 +32,36 @@ export type SiteCheck = {
   redirect_to: string | null;
 };
 
+// Deep research pipeline Phase 1 — a deeper sales-strategy breakdown on
+// top of suggested_sales_angle/pursue_because, only generated when the
+// lead already has a concept page (see fetchConceptPageText below): a
+// meeting-ready expansion, not a duplicate of the one-line angle.
+export type SalesStrategy = {
+  why_this_lead_matters: string;
+  key_pain_points: string[];
+  discovery_questions: string[];
+  // Each string is one "Objection: … — Response: …" pair, not a nested
+  // {objection, response} object — the array-of-objects shape reliably
+  // confused Haiku's forced tool output (it started emitting pseudo-XML
+  // instead of real JSON for this field specifically, and neighbouring
+  // fields in the same call); a flat string array is the shape every
+  // other field on this call handles correctly.
+  likely_objections: string[];
+  recommended_offer: string;
+};
+
+// Deep research pipeline Phase 1 — compares the concept page Hamish
+// already built against the lead's real current site. `show_them_this` is
+// the sales-demo checklist the brief asks for, in walkthrough order.
+export type ConceptPageAnalysis = {
+  problems_solved: string[];
+  strongest_improvements: string[];
+  show_them_this: string[];
+  features_to_highlight: string[];
+  features_to_avoid_mentioning: string[];
+  suggested_additions: string[];
+};
+
 export type LeadResearch = {
   site_check: SiteCheck;
   business_summary: string;
@@ -48,6 +78,10 @@ export type LeadResearch = {
   conversion_probability_band: "low" | "medium" | "high";
   ai_opportunity_fit: "low" | "medium" | "high";
   pursue_because: string;
+  // Both only present when the lead has a concept page — see
+  // buildSystemPrompt's conceptPageText branch.
+  sales_strategy?: SalesStrategy;
+  concept_page_analysis?: ConceptPageAnalysis;
 };
 
 // Same messy free-text `website` field the rest of the leads page works
@@ -129,6 +163,28 @@ async function runSiteCheck(website: string): Promise<{ siteCheck: SiteCheck; vi
   };
 }
 
+// Deep research pipeline Phase 1 — concept pages are hand-authored static
+// Next.js route files, not something with a readable "content" column
+// anywhere, so the only way to see what one actually says is to fetch the
+// real deployed page and strip it down the same way runSiteCheck() does
+// for the lead's own site. Fetching the live production URL (not a
+// dev/localhost origin — same hardcoded-domain convention as
+// self-monitor.ts's SELF_URL) is also the more honest choice: it's
+// exactly what a prospect would see clicking the link in the drafted
+// outreach email, and by the time an admin links a concept_slug the page
+// has always already been built, committed, and deployed.
+async function fetchConceptPageText(slug: string): Promise<string> {
+  try {
+    const res = await fetch(`https://www.hamishai.org/concepts/${slug}`, { signal: AbortSignal.timeout(8000) });
+    if (!res.ok) return "";
+    const html = await res.text();
+    return stripTags(html).slice(0, 4000);
+  } catch (error) {
+    console.error(`Failed to fetch concept page "${slug}":`, error);
+    return "";
+  }
+}
+
 // v1, deliberately simple and auditable rather than tuned — a transparent
 // formula beats an opaque one until there's real outcome data (which leads
 // actually convert) to fit a better one against. Broken domain is the
@@ -192,6 +248,66 @@ const RESEARCH_TOOL: Anthropic.Tool = {
   },
 };
 
+// Deep research pipeline Phase 1 — sales_strategy/concept_page_analysis
+// were originally one combined call (then one call with two nested
+// required objects). Both were unreliable the same way: whichever of two
+// large required objects shared a single forced tool call, Claude Haiku
+// would reliably fill one and silently drop the other — observed with
+// both pairings, so it isn't one specific object being "harder", it's two
+// large required objects competing in one call. Two fully separate,
+// flat-schema, single-purpose calls fixes it — costs one extra Haiku call
+// on concept-linked leads only (2 total instead of 1), still well inside
+// Phase 1's "a couple of calls, no new web-search cost" budget.
+const SALES_STRATEGY_TOOL: Anthropic.Tool = {
+  name: "submit_sales_strategy",
+  description: "Submit the meeting-ready sales strategy for this lead.",
+  input_schema: {
+    type: "object",
+    properties: {
+      why_this_lead_matters: { type: "string", minLength: 1 },
+      key_pain_points: { type: "array", items: { type: "string" }, minItems: 1 },
+      discovery_questions: {
+        type: "array",
+        items: { type: "string" },
+        description: "Questions to ask this specific business during a meeting.",
+        minItems: 1,
+      },
+      likely_objections: {
+        type: "array",
+        items: { type: "string" },
+        description: "One string per objection, formatted as 'Objection: <text> — Response: <text>'.",
+        minItems: 1,
+      },
+      recommended_offer: { type: "string", description: "The specific Hamish AI service(s) to propose.", minLength: 1 },
+    },
+    required: ["why_this_lead_matters", "key_pain_points", "discovery_questions", "likely_objections", "recommended_offer"],
+  },
+};
+
+const CONCEPT_PAGE_ANALYSIS_TOOL: Anthropic.Tool = {
+  name: "submit_concept_page_analysis",
+  description: "Submit the concept-page analysis, comparing it against the business's real current site.",
+  input_schema: {
+    type: "object",
+    properties: {
+      problems_solved: { type: "array", items: { type: "string" }, minItems: 1 },
+      strongest_improvements: { type: "array", items: { type: "string" }, minItems: 1 },
+      show_them_this: {
+        type: "array",
+        items: { type: "string" },
+        description: "A short sales-demo checklist, in the order to walk through it. Each string is one step — do not prefix them with your own numbers, they're rendered as a numbered list already.",
+        minItems: 1,
+      },
+      features_to_highlight: { type: "array", items: { type: "string" }, minItems: 1 },
+      // Legitimately can be empty (e.g. nothing on the concept page needs
+      // holding back yet) — no minItems on these two.
+      features_to_avoid_mentioning: { type: "array", items: { type: "string" }, description: "Anything not ready or convincing enough to bring up yet." },
+      suggested_additions: { type: "array", items: { type: "string" }, description: "What could be added to the concept page before pitching, if anything." },
+    },
+    required: ["problems_solved", "strongest_improvements", "show_them_this", "features_to_highlight"],
+  },
+};
+
 function buildSystemPrompt(lead: {
   business_name: string;
   category: string | null;
@@ -220,13 +336,190 @@ ${visibleText ? `Visible page text (truncated):\n${visibleText}` : "No page text
 Never invent specific facts (prices, review counts, awards, years trading) beyond what's given above or literally present in the page text. Every estimate (project value, conversion probability, AI opportunity fit) is a rough band for Hamish's own prioritisation, not a claim about the business.`;
 }
 
+// Deep research pipeline Phase 1 — the second, focused call (see
+// CONCEPT_ANALYSIS_TOOL above for why this is separate from the main
+// research call). Passes the main call's own conclusions (weaknesses,
+// AI opportunities, sales angle) as context so this call's sales
+// strategy builds on them instead of re-reasoning from scratch.
+function buildConceptAnalysisPrompt(
+  lead: { business_name: string; category: string | null; neighbourhood: string | null },
+  baseFindings: Pick<LeadResearch, "weaknesses" | "ai_opportunities" | "suggested_sales_angle" | "pursue_because">,
+  conceptPageText: string,
+  conceptSlug: string
+) {
+  return `You are building a meeting-ready sales strategy for Hamish AI, a small Edinburgh-based AI/web consultancy, for one specific lead. Everything you produce is for INTERNAL prioritisation only.
+
+Business: ${lead.business_name} (${lead.category || "unknown category"}, ${lead.neighbourhood || "unknown location"})
+
+Research already done on this business:
+- Weaknesses found: ${baseFindings.weaknesses.join("; ") || "none recorded"}
+- AI opportunities identified: ${baseFindings.ai_opportunities.join("; ") || "none recorded"}
+- Suggested sales angle: ${baseFindings.suggested_sales_angle}
+- Why pursue: ${baseFindings.pursue_because}
+
+Hamish has already built this business a personalised concept page at https://www.hamishai.org/concepts/${conceptSlug} — a live, working preview of what their site could look like, built specifically for them. Its visible content (truncated):
+${conceptPageText}
+
+Compare the concept page directly against the business's real situation above, and build a sales strategy Hamish can walk into a meeting with. Never invent specific facts beyond what's given here or literally present in the concept page text.`;
+}
+
+// Counts how many of `keys` are meaningfully present (non-empty string/
+// array) on a tool-call result — used below to detect when Haiku has
+// silently dropped some of a forced tool call's own required fields.
+// Observed directly: even a single-object, single-purpose forced call
+// sometimes comes back with only 1 of 5 required fields filled — schema
+// `required`/minLength/minItems aren't a hard guarantee with this model,
+// just a strong hint. One retry is cheap insurance against that, not
+// something schema tweaking alone reliably fixes.
+function countPresentKeys(obj: Record<string, unknown> | null, keys: string[]): number {
+  if (!obj) return 0;
+  return keys.filter((k) => {
+    const v = obj[k];
+    return Array.isArray(v) ? v.length > 0 : typeof v === "string" ? v.length > 0 : v != null;
+  }).length;
+}
+
+async function callToolOnce<T extends Record<string, unknown>>(
+  anthropic: Anthropic,
+  model: string,
+  system: string,
+  tool: Anthropic.Tool,
+  userMessage: string
+): Promise<T | null> {
+  const response = await anthropic.messages.create({
+    model,
+    max_tokens: 1000,
+    system,
+    tools: [tool],
+    tool_choice: { type: "tool", name: tool.name },
+    messages: [{ role: "user", content: userMessage }],
+  });
+  const toolUse = response.content.find((block): block is Anthropic.ToolUseBlock => block.type === "tool_use");
+  return (toolUse?.input as T | undefined) ?? null;
+}
+
+async function callToolWithRetry<T extends Record<string, unknown>>(
+  anthropic: Anthropic,
+  model: string,
+  system: string,
+  tool: Anthropic.Tool,
+  userMessage: string,
+  requiredKeys: string[],
+  context: string
+): Promise<T | null> {
+  try {
+    const first = await callToolOnce<T>(anthropic, model, system, tool, userMessage);
+    if (countPresentKeys(first, requiredKeys) >= requiredKeys.length) return first;
+
+    console.warn(`${context} returned incomplete data (${countPresentKeys(first, requiredKeys)}/${requiredKeys.length} fields) — retrying once.`);
+    const retry = await callToolOnce<T>(anthropic, model, system, tool, userMessage);
+    return countPresentKeys(retry, requiredKeys) > countPresentKeys(first, requiredKeys) ? retry : first;
+  } catch (error) {
+    console.error(`${context} failed:`, error);
+    return null;
+  }
+}
+
+// Two separate forced-tool calls sharing one system prompt — see
+// SALES_STRATEGY_TOOL's comment for why these aren't one call. Run in
+// parallel: they're independent of each other, both read-only reasoning
+// over the same context, no reason to pay the latency of running them
+// sequentially.
+async function analyzeConceptPageFit(
+  anthropic: Anthropic,
+  model: string,
+  lead: { business_name: string; category: string | null; neighbourhood: string | null },
+  baseFindings: Pick<LeadResearch, "weaknesses" | "ai_opportunities" | "suggested_sales_angle" | "pursue_because">,
+  conceptPageText: string,
+  conceptSlug: string
+): Promise<Pick<LeadResearch, "sales_strategy" | "concept_page_analysis">> {
+  const system = buildConceptAnalysisPrompt(lead, baseFindings, conceptPageText, conceptSlug);
+
+  const [salesStrategy, conceptPageAnalysis] = await Promise.all([
+    callToolWithRetry<SalesStrategy>(
+      anthropic,
+      model,
+      system,
+      SALES_STRATEGY_TOOL,
+      "Build the sales strategy and submit it.",
+      ["why_this_lead_matters", "key_pain_points", "discovery_questions", "likely_objections", "recommended_offer"],
+      `Sales-strategy call for "${lead.business_name}"`
+    ),
+    callToolWithRetry<ConceptPageAnalysis>(
+      anthropic,
+      model,
+      system,
+      CONCEPT_PAGE_ANALYSIS_TOOL,
+      "Build the concept-page analysis and submit it.",
+      ["problems_solved", "strongest_improvements", "show_them_this", "features_to_highlight"],
+      `Concept-page-analysis call for "${lead.business_name}"`
+    ),
+  ]);
+
+  return {
+    ...(salesStrategy ? { sales_strategy: salesStrategy } : {}),
+    ...(conceptPageAnalysis ? { concept_page_analysis: conceptPageAnalysis } : {}),
+  };
+}
+
+function toStringArray(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((v): v is string => typeof v === "string" && v.length > 0) : [];
+}
+
+function toSafeString(value: unknown): string {
+  return typeof value === "string" ? value : "";
+}
+
+// Final safety net before anything reaches the database or the UI —
+// even with the retry-once layer above, a field can still come back the
+// wrong JS type (an array field as a plain string, observed directly in
+// testing). Coercing here means every consumer of LeadResearch — the DB,
+// the lead detail page, research-lead-button.tsx — can trust its
+// TypeScript types are actually true, instead of each one needing its
+// own defensive checks against a `.map()` crash on a string.
+function sanitizeSalesStrategy(raw: SalesStrategy | undefined): SalesStrategy | undefined {
+  if (!raw) return undefined;
+  const sanitized: SalesStrategy = {
+    why_this_lead_matters: toSafeString(raw.why_this_lead_matters),
+    key_pain_points: toStringArray(raw.key_pain_points),
+    discovery_questions: toStringArray(raw.discovery_questions),
+    likely_objections: toStringArray(raw.likely_objections),
+    recommended_offer: toSafeString(raw.recommended_offer),
+  };
+  // If most of it came back empty after coercion, it's not worth saving
+  // at all — an almost-blank card is worse than no card.
+  const filledCount =
+    [sanitized.why_this_lead_matters, sanitized.recommended_offer].filter(Boolean).length +
+    [sanitized.key_pain_points, sanitized.discovery_questions, sanitized.likely_objections].filter((a) => a.length > 0).length;
+  return filledCount >= 3 ? sanitized : undefined;
+}
+
+function sanitizeConceptPageAnalysis(raw: ConceptPageAnalysis | undefined): ConceptPageAnalysis | undefined {
+  if (!raw) return undefined;
+  const sanitized: ConceptPageAnalysis = {
+    problems_solved: toStringArray(raw.problems_solved),
+    strongest_improvements: toStringArray(raw.strongest_improvements),
+    show_them_this: toStringArray(raw.show_them_this),
+    features_to_highlight: toStringArray(raw.features_to_highlight),
+    features_to_avoid_mentioning: toStringArray(raw.features_to_avoid_mentioning),
+    suggested_additions: toStringArray(raw.suggested_additions),
+  };
+  const filledCount = [
+    sanitized.problems_solved,
+    sanitized.strongest_improvements,
+    sanitized.show_them_this,
+    sanitized.features_to_highlight,
+  ].filter((a) => a.length > 0).length;
+  return filledCount >= 3 ? sanitized : undefined;
+}
+
 export async function researchLead(leadId: string) {
   const supabase = getSupabaseAdmin();
   if (!supabase) return { error: "Supabase is not configured." as const };
 
   const { data: lead, error: leadError } = await supabase
     .from("prospects")
-    .select("business_name, category, neighbourhood, website, signal, outreach_note")
+    .select("business_name, category, neighbourhood, website, signal, outreach_note, concept_slug")
     .eq("id", leadId)
     .single();
 
@@ -237,6 +530,10 @@ export async function researchLead(leadId: string) {
   if (!apiKey) return { error: "ANTHROPIC_API_KEY is not configured." as const };
 
   const { siteCheck, visibleText } = await runSiteCheck(lead.website);
+  // Best-effort — a concept page that fails to fetch just means
+  // sales_strategy/concept_page_analysis get omitted this run, not a
+  // reason to fail the whole research pass.
+  const conceptPageText = lead.concept_slug ? await fetchConceptPageText(lead.concept_slug) : "";
 
   const anthropic = new Anthropic({ apiKey });
   const model = process.env.ANTHROPIC_MODEL || "claude-haiku-4-5-20251001";
@@ -254,8 +551,24 @@ export async function researchLead(leadId: string) {
     const toolUse = response.content.find((block): block is Anthropic.ToolUseBlock => block.type === "tool_use");
     if (!toolUse) return { error: "The AI did not return research." as const };
 
-    const findings = toolUse.input as Omit<LeadResearch, "site_check">;
-    const research: LeadResearch = { site_check: siteCheck, ...findings };
+    const findings = toolUse.input as Omit<LeadResearch, "site_check" | "sales_strategy" | "concept_page_analysis">;
+    let research: LeadResearch = { site_check: siteCheck, ...findings };
+
+    // Two more calls, only when a concept page exists — see
+    // SALES_STRATEGY_TOOL's comment for why these are split out rather
+    // than folded into one bigger call. Best-effort: either or both
+    // failing still leaves a complete, useful base research result saved.
+    if (conceptPageText && lead.concept_slug) {
+      const conceptAnalysis = await analyzeConceptPageFit(anthropic, model, lead, findings, conceptPageText, lead.concept_slug);
+      const salesStrategy = sanitizeSalesStrategy(conceptAnalysis.sales_strategy);
+      const conceptPageAnalysis = sanitizeConceptPageAnalysis(conceptAnalysis.concept_page_analysis);
+      research = {
+        ...research,
+        ...(salesStrategy ? { sales_strategy: salesStrategy } : {}),
+        ...(conceptPageAnalysis ? { concept_page_analysis: conceptPageAnalysis } : {}),
+      };
+    }
+
     const score = computeLeadScore(siteCheck, findings.ai_opportunity_fit);
     const generatedAt = new Date().toISOString();
 

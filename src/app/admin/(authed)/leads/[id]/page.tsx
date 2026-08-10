@@ -13,6 +13,11 @@ import {
   Sparkles,
   Send,
   Users,
+  Clock,
+  Loader2,
+  CheckCircle2,
+  XCircle,
+  AlertTriangle,
 } from "lucide-react";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import {
@@ -56,6 +61,30 @@ function isFuture(iso: string) {
   return new Date(iso).getTime() > Date.now();
 }
 
+// Deep research pipeline Phase 1 — the six statuses the brief asked for
+// (Queued/Researching/Analysing/Completed/Failed/Needs Review), mapped
+// onto the existing Badge variant vocabulary the rest of the portal uses.
+const RESEARCH_JOB_META: Record<string, { label: string; variant: "outline" | "warning" | "success" | "destructive"; icon: typeof Clock }> = {
+  queued: { label: "Queued", variant: "outline", icon: Clock },
+  researching: { label: "Researching", variant: "warning", icon: Loader2 },
+  analysing: { label: "Analysing", variant: "warning", icon: Loader2 },
+  completed: { label: "Complete", variant: "success", icon: CheckCircle2 },
+  failed: { label: "Failed", variant: "destructive", icon: XCircle },
+  needs_review: { label: "Needs review", variant: "warning", icon: AlertTriangle },
+};
+
+function researchStatusBadge(status: string) {
+  const meta = RESEARCH_JOB_META[status] ?? RESEARCH_JOB_META.queued;
+  const Icon = meta.icon;
+  const spinning = status === "researching" || status === "analysing";
+  return (
+    <Badge variant={meta.variant} className="gap-1">
+      <Icon className={`size-3 ${spinning ? "animate-spin" : ""}`} />
+      {meta.label}
+    </Badge>
+  );
+}
+
 // Portal redesign Stage 4 — the "complete AI account workspace" the brief
 // asks for. Every section reuses an existing component or server action
 // as-is (ResearchLeadButton, SalesKitButton, ScheduleTeamsMeetingButton,
@@ -66,7 +95,7 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
   const supabase = getSupabaseAdmin();
   if (!supabase) notFound();
 
-  const [{ data: lead }, { data: auditRows }, { data: meetingRows }] = await Promise.all([
+  const [{ data: lead }, { data: auditRows }, { data: meetingRows }, { data: researchJobRows }] = await Promise.all([
     supabase.from("prospects").select("*").eq("id", id).single(),
     supabase
       .from("audit_log")
@@ -75,6 +104,16 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
       .eq("target_id", id)
       .order("created_at", { ascending: false }),
     supabase.from("lead_meetings").select("*").eq("prospect_id", id).order("scheduled_start", { ascending: false }),
+    // Deep research pipeline Phase 1 — the latest run's status, so the
+    // "Research status" indicator in the sidebar reflects reality even
+    // while a background job triggered by concept_slug being set is still
+    // in flight (see deep-research-pipeline.ts).
+    supabase
+      .from("research_jobs")
+      .select("status, error, completed_at, created_at")
+      .eq("prospect_id", id)
+      .order("created_at", { ascending: false })
+      .limit(1),
   ]);
 
   if (!lead) notFound();
@@ -91,6 +130,7 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
   }
 
   const audit: AuditEntry[] = auditRows ?? [];
+  const latestResearchJob = researchJobRows?.[0] ?? null;
   const meetings = meetingRows ?? [];
   const upcomingMeetings = meetings.filter((m) => m.status === "scheduled" && isFuture(m.scheduled_start));
   const pastMeetings = meetings.filter((m) => !upcomingMeetings.includes(m));
@@ -394,6 +434,17 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
                 <span className="text-muted-foreground">Found</span>
                 <span>{lead.found_at ? new Date(lead.found_at).toLocaleDateString("en-GB") : "—"}</span>
               </div>
+              {latestResearchJob && (
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">Research status</span>
+                  {researchStatusBadge(latestResearchJob.status)}
+                </div>
+              )}
+              {latestResearchJob?.status === "needs_review" && latestResearchJob.error && (
+                <p className="rounded-lg border border-warning/30 bg-warning/5 px-2 py-1.5 text-warning">
+                  {latestResearchJob.error}
+                </p>
+              )}
               {research?.estimated_project_value_band && (
                 <div className="flex items-center justify-between">
                   <span className="text-muted-foreground">Est. value</span>

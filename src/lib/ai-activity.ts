@@ -11,6 +11,7 @@ export const AI_ACTIVITY_ACTIONS = [
   "lead.discovered",
   "lead.meeting_scheduled",
   "lead.email_drafted",
+  "lead.deep_research_completed",
   "request.triaged",
   "request.auto_sent",
   "client.progress_report_generated",
@@ -42,6 +43,8 @@ export function describeAiActivity(action: string, meta: Record<string, unknown>
       return "Teams meeting scheduled";
     case "lead.email_drafted":
       return "AI drafted an outreach email";
+    case "lead.deep_research_completed":
+      return `AI completed deep research after the concept page was linked — score ${meta.score}`;
     case "request.triaged":
       return `AI triaged a client request — ${meta.category ?? "uncategorised"} (${meta.complexity ?? "?"}, ${meta.priority ?? "no"} priority)${meta.status === "awaiting_info" ? ", needs more info from the client" : ""}`;
     case "request.auto_sent":
@@ -59,7 +62,14 @@ export function describeAiActivity(action: string, meta: Record<string, unknown>
 export const AI_ACTIVITY_GROUPS: Record<string, { label: string; actions: readonly string[] }> = {
   leads: {
     label: "Sales & leads",
-    actions: ["lead.researched", "lead.sales_kit_generated", "lead.discovered", "lead.meeting_scheduled", "lead.email_drafted"],
+    actions: [
+      "lead.researched",
+      "lead.sales_kit_generated",
+      "lead.discovered",
+      "lead.meeting_scheduled",
+      "lead.email_drafted",
+      "lead.deep_research_completed",
+    ],
   },
   clients: {
     label: "Client operations",

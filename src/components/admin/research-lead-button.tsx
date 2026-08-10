@@ -96,6 +96,48 @@ export function ResearchLeadButton({
             {research.suggested_sales_angle}
           </p>
 
+          {research.concept_page_analysis && research.concept_page_analysis.show_them_this.length > 0 && (
+            <div className="rounded-lg border border-[color-mix(in_oklch,var(--gradient-violet),transparent_75%)] bg-[color-mix(in_oklch,var(--gradient-violet),transparent_92%)] p-2.5">
+              <p className="font-medium text-foreground">Show them this</p>
+              <ol className="mt-1 list-decimal space-y-0.5 pl-4">
+                {research.concept_page_analysis.show_them_this.map((s, i) => (
+                  // The model sometimes writes its own "1. "/"2. " prefix
+                  // into the string despite the prompt asking it not to —
+                  // stripped defensively so it never doubles up with the
+                  // <ol>'s own numbering ("1. 1. Live demo…").
+                  <li key={i}>{s.replace(/^\d+[.)]\s*/, "")}</li>
+                ))}
+              </ol>
+            </div>
+          )}
+
+          {research.sales_strategy && (
+            <div className="space-y-2">
+              {research.sales_strategy.why_this_lead_matters && (
+                <p>
+                  <span className="font-medium text-foreground">Why this lead matters: </span>
+                  {research.sales_strategy.why_this_lead_matters}
+                </p>
+              )}
+              {research.sales_strategy.discovery_questions.length > 0 && (
+                <div>
+                  <p className="font-medium text-foreground">Discovery questions</p>
+                  <ul className="list-disc space-y-0.5 pl-4">
+                    {research.sales_strategy.discovery_questions.map((q, i) => <li key={i}>{q}</li>)}
+                  </ul>
+                </div>
+              )}
+              {research.sales_strategy.likely_objections.length > 0 && (
+                <div>
+                  <p className="font-medium text-foreground">Likely objections</p>
+                  <ul className="list-disc space-y-1 pl-4">
+                    {research.sales_strategy.likely_objections.map((o, i) => <li key={i}>{o}</li>)}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )}
+
           <details>
             <summary className="cursor-pointer text-muted-foreground select-none">More findings</summary>
             <div className="mt-1.5 space-y-2">
@@ -130,6 +172,52 @@ export function ResearchLeadButton({
                     {research.missing_conversion_opportunities.map((s, i) => <li key={i}>{s}</li>)}
                   </ul>
                 </div>
+              )}
+              {research.concept_page_analysis && (
+                <>
+                  {research.concept_page_analysis.problems_solved.length > 0 && (
+                    <div>
+                      <p className="font-medium text-foreground">Concept page — problems it solves</p>
+                      <ul className="list-disc space-y-0.5 pl-4">
+                        {research.concept_page_analysis.problems_solved.map((s, i) => <li key={i}>{s}</li>)}
+                      </ul>
+                    </div>
+                  )}
+                  {research.concept_page_analysis.features_to_avoid_mentioning.length > 0 && (
+                    <div>
+                      <p className="font-medium text-foreground">Concept page — don&apos;t mention yet</p>
+                      <ul className="list-disc space-y-0.5 pl-4">
+                        {research.concept_page_analysis.features_to_avoid_mentioning.map((s, i) => <li key={i}>{s}</li>)}
+                      </ul>
+                    </div>
+                  )}
+                  {research.concept_page_analysis.suggested_additions.length > 0 && (
+                    <div>
+                      <p className="font-medium text-foreground">Concept page — worth adding before pitching</p>
+                      <ul className="list-disc space-y-0.5 pl-4">
+                        {research.concept_page_analysis.suggested_additions.map((s, i) => <li key={i}>{s}</li>)}
+                      </ul>
+                    </div>
+                  )}
+                </>
+              )}
+              {research.sales_strategy && (
+                <>
+                  {research.sales_strategy.key_pain_points.length > 0 && (
+                    <div>
+                      <p className="font-medium text-foreground">Key pain points</p>
+                      <ul className="list-disc space-y-0.5 pl-4">
+                        {research.sales_strategy.key_pain_points.map((s, i) => <li key={i}>{s}</li>)}
+                      </ul>
+                    </div>
+                  )}
+                  {research.sales_strategy.recommended_offer && (
+                    <p>
+                      <span className="font-medium text-foreground">Recommended offer: </span>
+                      {research.sales_strategy.recommended_offer}
+                    </p>
+                  )}
+                </>
               )}
               <p className="text-muted-foreground">
                 Site check: {research.site_check.resolves ? "resolves" : "does not resolve"}

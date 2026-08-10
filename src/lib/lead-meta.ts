@@ -65,6 +65,8 @@ export function describeAuditEntry(entry: AuditEntry): string {
         : "Teams meeting scheduled";
     case "lead.researched":
       return `Researched — score set to ${meta.score}, AI fit ${meta.ai_opportunity_fit}`;
+    case "lead.deep_research_completed":
+      return `Deep research completed automatically after concept page linked — score ${meta.score}`;
     case "lead.notes_updated":
       return `Note added: "${meta.notes}"`;
     case "lead.email_updated":
