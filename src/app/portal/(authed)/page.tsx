@@ -12,7 +12,6 @@ import {
 import { createServerSupabaseClient } from "@/lib/supabase-server-auth";
 import { getPortalMembership } from "@/lib/portal-membership";
 import { isInvoiceOverdue } from "@/lib/invoice-status";
-import { AskSupportAgent } from "@/components/portal/ask-support-agent";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { RequestStatusBadge } from "@/components/status-badges";
@@ -202,7 +201,23 @@ export default async function PortalHomePage() {
       )}
 
       <div className="mt-8 grid gap-6 lg:grid-cols-2">
-        <AskSupportAgent clientId={client.id} />
+        <Card className="flex flex-col justify-between">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-1.5">
+              <Sparkles className="size-4 text-[var(--gradient-violet)]" />
+              Ask HamishAI
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-1 flex-col justify-between gap-4">
+            <p className="text-sm text-muted-foreground">
+              Ask about your requests, spend, or site health — answered from your real account data.
+            </p>
+            <Button variant="ai" className="w-full gap-1.5" render={<Link href="/portal/ask" />}>
+              <Sparkles className="size-3.5" />
+              Ask a question
+            </Button>
+          </CardContent>
+        </Card>
 
         <Card>
           <CardHeader>

@@ -26,6 +26,14 @@ No literal project/milestone UI, per the confirmed decision — progress is comm
 
 Typecheck, lint, and production build all clean. Live-verified against the real dev server with the same generated test session: Home renders the real 7-item Your Actions list, the real in-progress task and auto-reply-count lines, in both light and dark mode with no regressions. The empty ("all caught up") state is a simple, low-risk ternary using the same pattern already proven elsewhere in the portal — not independently live-tested, since the only client with portal access set up (Craigie & Sons Joinery) currently has real outstanding items, and forcing the empty path would have meant mutating real test data.
 
+## Phase 3 — what actually shipped
+
+The real AI Copilot promoted to its own page (`/portal/ask`), reachable from a new sidebar entry — no code rewritten, `CopilotTab`'s exact chat logic extracted verbatim out of `insights-centre.tsx` into a standalone `AiCopilot` component (`src/components/portal/ai-copilot.tsx`), still talking to the same `/api/portal/copilot` → `answerAccountQuestion` backend as before. The Insights page's own "AI Copilot" tab was removed rather than kept as a second copy — a duplicate chat surface would mean two independent, un-synced conversations (the brief's "one clear AI entry point" problem all over again, just with the strong version instead of the weak one this time) — replaced with a small "Have a question about this data? Ask HamishAI →" link to the same page instead.
+
+The weaker duplicate retired for real, per the confirmed decision: `AskSupportAgent` (the knowledge-base-only, no-conversation-history Q&A box) removed from both Home and Help, along with its entire call chain — `askQuestion`/`AskState` (`src/app/portal/actions.ts`, now deleted) and `answerQuestion()` (`src/lib/answer-question.ts`, now deleted). Home's old box is now a compact "Ask HamishAI" promo card linking to `/portal/ask`. Help keeps only its FAQ accordion, with a "Still stuck? Ask HamishAI" link at the bottom for anything the FAQ doesn't cover.
+
+Typecheck, lint (targeted files plus a full sweep of every portal page/component and the four `portal-*`/`answer-account-question` lib files), and production build all clean. Live-verified end to end against the real dev server with the same generated test session: sent a real message ("How many requests do I have open?") from the new `/portal/ask` page and got back a correct, real-data answer ("You've got 9 requests open right now: 7 waiting for your input and 2 that are in progress"); confirmed Insights now shows only 3 tabs with a working link to `/portal/ask`; confirmed Home's and Help's new promo cards render and link correctly, in dark mode throughout.
+
 ---
 
 ## 1. Audit of the existing client portal
@@ -192,7 +200,7 @@ Mirrors how both other redesigns this session were run — staged, verified and 
 
 - **Phase 1 — Design system + nav. ✅ Shipped.** See the write-up at the top of this doc, including the two real bugs found and fixed while verifying it live (an RLS infinite-recursion login bug, and the Insights panel's dark-mode instability).
 - **Phase 2 — Home. ✅ Shipped.** See the write-up above.
-- **Phase 3 — Ask HamishAI promoted.** Surface the real copilot prominently; retire the duplicate `AskSupportAgent` box (Help page keeps its FAQ accordion only).
+- **Phase 3 — Ask HamishAI promoted. ✅ Shipped.** See the write-up above.
 - **Phase 4 — Requests + Billing + Help + Settings design-system pass.** Same data, same functionality, visual/IA elevation only — matches the internal admin's Stage 6 approach exactly.
 - **Phase 5 (later, gated) — Documents.** New schema + storage, only once scoped and confirmed worth building for 2 real clients today.
 - **Phase 6 (later, blocked) — Meetings.** Stays blocked on the same M365 licensing decision as the internal Teams work; revisit together if Hamish revisits that.

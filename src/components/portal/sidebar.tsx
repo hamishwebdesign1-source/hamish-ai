@@ -1,19 +1,25 @@
-import { LayoutDashboard, MessagesSquare, LineChart, Receipt, LifeBuoy, Settings } from "lucide-react";
+import { LayoutDashboard, Sparkles, MessagesSquare, LineChart, Receipt, LifeBuoy, Settings } from "lucide-react";
 import { PortalNavLink } from "@/components/portal/nav-link";
 
 // Client portal redesign Phase 1 — replaces the old single-row flat top
 // nav (6 items, no grouping) with a grouped sidebar, same pattern as the
 // internal admin's Stage 3 (src/components/admin/sidebar.tsx). Deliberately
-// lighter grouping than the admin's (7 items total vs. 13) — this portal
-// is meant to be significantly simpler, not a smaller copy of the same
-// density. "Ask HamishAI" isn't listed yet — that page doesn't exist
-// until Phase 3 (see docs/client-portal-redesign-plan.md), same discipline
-// the admin sidebar followed: no nav entry for a page that isn't built.
+// lighter grouping than the admin's — this portal is meant to be
+// significantly simpler, not a smaller copy of the same density.
+// "Ask HamishAI" joined in Phase 3 once /portal/ask existed — same
+// discipline the admin sidebar followed: no nav entry for a page that
+// isn't built yet.
 export const NAV_SECTIONS: {
   label: string | null;
   items: { href: string; label: string; icon: typeof LayoutDashboard }[];
 }[] = [
-  { label: null, items: [{ href: "/portal", label: "Home", icon: LayoutDashboard }] },
+  {
+    label: null,
+    items: [
+      { href: "/portal", label: "Home", icon: LayoutDashboard },
+      { href: "/portal/ask", label: "Ask HamishAI", icon: Sparkles },
+    ],
+  },
   {
     label: "Work",
     items: [
