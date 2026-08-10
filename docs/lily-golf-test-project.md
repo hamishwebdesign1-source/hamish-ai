@@ -1,6 +1,6 @@
 # Lily Golf — HamishAI End-to-End Test Project
 
-**Status: Phases 1–5 complete. Phases 6–8 not started.**
+**Status: Phases 1–6 complete. Phases 7–8 not started.**
 
 ## What this is
 
@@ -29,7 +29,7 @@ strategic recommendation.
 | 3 | Product strategy — 8–15 hero product launch collection | ✅ Done — this doc |
 | 4 | Visual identity direction | ✅ Done — this doc + `docs/lily-golf/visual-identity.html` |
 | 5 | Concept website + live run through the real HamishAI admin/portal pipeline | ✅ Done — this doc |
-| 6 | AI opportunities + community/social strategy | Not started |
+| 6 | AI opportunities + community/social strategy | ✅ Done — this doc |
 | 7 | Commercial reality (manufacturing/MOQ/margin, real sources only) + launch roadmap | Not started |
 | 8 | HamishAI platform findings — what broke, what's missing, what should be automated | Not started |
 
@@ -621,5 +621,113 @@ real, operating business.
 
 ---
 
-*Next: Phase 6 — AI opportunities mapped against what HamishAI's existing
-infrastructure can already do, plus community and social strategy.*
+## Phase 6 — AI Opportunities + Community & Social Strategy
+
+### AI opportunities, mapped against what HamishAI actually has today
+
+The brief's six AI ideas aren't equally hypothetical — Phase 5 already proved two of
+them live. Rating each honestly against HamishAI's real infrastructure (not what
+would be nice to assume):
+
+| AI opportunity | Reality |
+|---|---|
+| **AI Golf Assistant** (beginner Q&A) | **Already built and demonstrated live** — the `/concepts/gowf` chat *is* this, running today. Tested with "I'm new to golf — where do I start?" in Phase 5. |
+| **AI Business Intelligence** | **Already built, already running for Gowf** — the portal's Insights/"AI Business Analytics" page is real, account-scoped, live infrastructure, verified in Phase 5 showing a correct empty state for Gowf's zero sales history. This is the single most mature AI feature in the whole platform relative to the brief's ask. |
+| **AI Content Engine** | **One click away from existing infrastructure** — the sales kit generator (`SalesKitButton`) is exactly this pattern (draft → human review → approve) already proven reliable in Phase 5. A "draft this week's Journal post" or "write this product's Instagram caption" button is the same component shape pointed at a different prompt, not new architecture. |
+| **AI Customer Service** | **The pattern exists, the audience doesn't yet** — the portal's AI Copilot (account-scoped, grounded in real data, proven in Phase 5) is architecturally the same thing, but it's built for HamishAI's own B2B clients checking their account, not Gowf's B2C shoppers asking about a return. Same wiring, genuinely different product surface — a storefront-facing chat doesn't exist anywhere in HamishAI today. |
+| **AI Shopping Assistant** (recommend products from a described need) | **Net new.** Every existing chat in HamishAI (concept pages, portal copilot) is freeform Q&A grounded in a static system prompt, not structured retrieval against a real product catalogue with filters (price, weather, category). Gowf's `/concepts/gowf` chat can *talk about* the collection because I wrote the whole collection into its prompt — it can't yet actually filter or recommend from a real catalogue table. Buildable on the same Claude-wiring pattern, but the catalogue + tool-use layer is genuinely new work. |
+| **AI Size Assistant** (height/weight/fit preference → size recommendation) | **Fully net new.** Nothing in HamishAI today takes structured intake and returns a reasoned recommendation — every existing AI feature is either freeform chat or read-only analytics. Would need its own small schema (a size chart + fit notes per garment, which Phase 3's per-product "differentiator" fields already partially provide) and a dedicated reasoning prompt. |
+
+The honest read: HamishAI is much further along on *account intelligence for its own
+B2B clients* (copilot, analytics, sales kits) than it is on *commerce AI for a
+client's own end customers* (shopping/sizing assistants). That's a real, useful
+finding in its own right — Section 12/13 of the brief asked to prove the platform
+can take an idea to a "sophisticated digital business," and the honest gap is that
+today it proves that much more convincingly for the *agency-to-client* relationship
+than the *client-to-shopper* one. Worth HamishAI's own product roadmap knowing that
+directly, not just inferring it.
+
+### Community strategy
+
+The brief is explicit that this shouldn't just be "sell golf clothing" — and Phase 1
+already found the real opening: none of Gowf's direct comparables (CSARA, Birdie &
+Ace) are community-first the way the brand needs to be to win the beginner segment.
+
+**Real, named partnership targets (found via research, not invented):**
+- **Scottish Golf's Women and Girls Strategy (2025–2035)** — the exact tailwind
+  Phase 1 found. Scottish Golf funds "Get into Golf" starter grants (£400 per club)
+  to clubs running girls'/women's starter programmes — a concrete, fundable reason
+  for Gowf to approach Scottish Golf directly and offer to kit out starter-programme
+  participants, not a cold pitch. ([Get into Golf funding](https://thegolfbusiness.co.uk/2026/06/record-scottish-club-sign-ups-for-junior-golf-programmes/))
+- **Women On Course** — a real, national (not Scotland-specific, but active and
+  established) women's golf community organisation running a "year-round calendar of
+  local and travel events" for total beginners through to existing players — a
+  natural events/co-marketing partner rather than a competitor, since they're
+  community-first and don't sell apparel.
+- **University of Edinburgh Golf Club** — hyper-local, and already runs exactly the
+  "no experience needed" recreational membership + weekly beginner range sessions
+  model Gowf's target customer wants. A realistic first real-world pilot partner
+  given Hamish AI's own Edinburgh base — sponsor kit for one term, get direct access
+  to exactly the target segment.
+- **Girls-Only GolfSixes** — a real, growing (76 girls at the Scottish Open week
+  event alone) Scottish Golf junior initiative. Not Gowf's direct customer (product
+  targets 20-29-year-olds, not juniors), but the pipeline Gowf's *future* customer is
+  currently inside — worth a long-horizon brand-awareness relationship, not a sales
+  one.
+
+**Content, not just partnerships:**
+- A recurring **"First Round"** guide series — what to actually expect (not generic
+  etiquette-shaming), what to wear (genuinely useful, not just a product plug), how
+  tee times/handicaps/scoring work explained once, plainly, without condescension.
+- **Beginner meetups**, run the same low-stakes way as the "Do this next"/"jump to
+  it" pattern HamishAI's own admin uses internally for reducing decision friction —
+  a monthly 9-hole social round, explicitly no-pressure, explicitly not about score.
+- **Ambassador programme deliberately not chasing LPGA names first** — every
+  researched competitor (Malbon, G/FORE, Lululemon) signs a tour pro. Gowf's honest
+  differentiator is partnering with #GolfTok creators *at* the "just started, posting
+  the journey" stage identified in Phase 1 (e.g. the Haley Bookholdt/Cailyn
+  Henderson tier, not tour pros) — cheaper, more attainable, and more credible to the
+  exact customer being targeted, since the creator's own beginner arc mirrors the
+  customer's.
+
+### Social strategy
+
+**Priority call, stated honestly rather than pretending four platforms can be run
+equally well from day one:** TikTok and Instagram first (where Phase 1's research
+shows the actual #GolfTok activity and the target customer's own discovery
+behaviour lives), Pinterest second (a real, lower-effort channel — outfit boards
+have long organic search life and fashion-golf crossover is a genuinely underused
+niche there), YouTube deferred until there's an actual video-production budget
+rather than committed to as a fourth equal channel with no resourcing behind it.
+
+**Content pillars** (the same 3×3 grid rhythm already built into Phase 4's visual
+identity page):
+
+| Pillar | What it is | Not what it is |
+|---|---|---|
+| Golf | Product in use, on-course | Not swing tips — Gowf sells clothing, not coaching |
+| Fashion | Styling, outfit builds, on/off-course crossover | Not generic golf-fashion round-ups of other brands |
+| Off-course | The same pieces worn away from golf | The category proof-point competitors under-use |
+| Beginner golf | "First Round" series, etiquette, what to expect | Never condescending — assume intelligence, not experience |
+| Community | Meetup recaps, partner clubs, real customers | Not stock UGC — real faces, real rounds |
+| Behind the brand | Process, fabric, the Gowf/Scotland name story | Not founder-worship — the brand, not a personality cult |
+
+**Example content concepts** (illustrative starting points, not a content calendar):
+- TikTok: "Rating my golf fits by how many holes I'd actually survive in them" —
+  self-aware, product-adjacent, native to the platform's humour.
+- TikTok: a real "First Round" — filming an actual beginner's first 9 holes,
+  unscripted, in Gowf kit.
+- Instagram Reels: the Half-Zip Sweatshirt + Wide-Leg Jogger set, shot identically
+  on-course and at a coffee shop, cut together — the crossover pitch made visually
+  in one 15-second cut rather than explained.
+- Pinterest: "Golf date outfit," "first golf lesson outfit," "what to wear golfing
+  when you don't own golf clothes yet" boards — built around search terms a
+  beginner actually types, not brand-first boards.
+- Instagram static: the Phase 4 colour-swatch/packaging aesthetic reused directly as
+  a real content format ("this month's palette"), so the visual identity system pays
+  for itself twice.
+
+---
+
+*Next: Phase 7 — commercial reality (real manufacturing/MOQ/supplier research, no
+fabricated figures) and a phased launch roadmap.*
