@@ -1,6 +1,6 @@
 # Lily Golf — HamishAI End-to-End Test Project
 
-**Status: Phases 1–4 complete. Phases 5–8 not started.**
+**Status: Phases 1–5 complete. Phases 6–8 not started.**
 
 ## What this is
 
@@ -28,7 +28,7 @@ strategic recommendation.
 | 2 | Brand strategy, target customer, naming (incl. real domain/trademark checks) | ✅ Done — this doc |
 | 3 | Product strategy — 8–15 hero product launch collection | ✅ Done — this doc |
 | 4 | Visual identity direction | ✅ Done — this doc + `docs/lily-golf/visual-identity.html` |
-| 5 | Concept website + live run through the real HamishAI admin/portal pipeline | Not started |
+| 5 | Concept website + live run through the real HamishAI admin/portal pipeline | ✅ Done — this doc |
 | 6 | AI opportunities + community/social strategy | Not started |
 | 7 | Commercial reality (manufacturing/MOQ/margin, real sources only) + launch roadmap | Not started |
 | 8 | HamishAI platform findings — what broke, what's missing, what should be automated | Not started |
@@ -523,5 +523,103 @@ a visual system in prose alone.
 
 ---
 
-*Next: Phase 5 — a real concept website, built on this system, run through
-HamishAI's own live lead → research → concept → client → portal pipeline.*
+## Phase 5 — Concept Website + Live Platform Run
+
+This phase had two deliverables that turned out to be inseparable: a real concept
+website for Gowf, and a genuine end-to-end run through HamishAI's actual lead →
+research → concept → client → portal pipeline — not a simulation of it. Every step
+below happened in the real live admin tool and portal against the real database,
+using the real "add lead" / "invite by email" / magic-link forms, not direct SQL.
+
+### The concept website
+
+**[`/concepts/gowf`](../src/app/concepts/gowf/page.tsx)** — built using the same
+conventions as every other HamishAI concept page (`Reveal`-animated sections, a
+bespoke Google-font pairing via `next/font/google`, a working embedded AI chat wired
+to its own `/api/concepts/gowf/chat` route), carrying the Phase 4 visual system
+through exactly (Fraunces/Archivo, the colour tokens, the flag-and-pin motif). Six of
+the 13 launch pieces are previewed as colour-block cards rather than product
+photography, captioned explicitly as such — no fabricated product shots for a brand
+that's never had a shoot. The live AI assistant is grounded only in the brand facts
+documented in Phases 1-4 (positioning, collection, pricing, name story) and correctly
+refuses to claim it's a real store when asked. Verified live: hero, stat chips,
+positioning pull-quote, collection grid, and the chat (tested with "Why is it called
+Gowf?" — answered correctly, on-brand, and only from documented facts) all render and
+work correctly. Both the page and disclaimer banner ("a HamishAI test project… not a
+real company") were checked to make sure nothing on the page could be mistaken for a
+real, operating business.
+
+### The live pipeline run
+
+1. **Lead created** via the real `/admin/leads` "Add a lead" form — business name,
+   category, neighbourhood filled in; email/phone deliberately left blank and the
+   signal field explicitly states "not a real prospect; do not contact," so nothing
+   in this record can trigger real outreach automation.
+2. **AI research triggered** via the lead detail page's Research button —
+   **immediately surfaced a real platform gap**: *"This lead has no website on file
+   to research."* The tool hard-requires an existing website before it can research
+   a business at all.
+3. **Concept page linked** to the lead via the `concept_slug` dropdown (which reads
+   `src/app/concepts/` directly off disk — confirming, in the codebase's own comment,
+   that *"concept pages are hand-authored static files, not something the app
+   'creates' as an event"* — there is no in-app concept-generation feature; building
+   `/concepts/gowf` above **was** the real, correct way to do this step). Setting the
+   slug correctly auto-fired the deep research pipeline (confirmed via the
+   `research_jobs` table) — which hit the identical website-required gap and
+   resolved itself cleanly to a `needs_review` status with the same clear error,
+   rather than failing silently.
+4. **AI sales kit generated** — worked well even with no website or contact email:
+   produced a genuinely good, contextually correct outreach email referencing the
+   real concept URL. Not saved or sent anywhere, per the plan agreed before starting
+   this phase. Minor, harmless quirk worth noting: it addressed the email "Hi Lily,"
+   — inferring a person's name from the business name "Lily Golf" with no contact
+   name on file.
+5. **Client created** via the real `/admin/clients` "Add a Client" form — a fully
+   manual re-entry (business name, email, package) with **zero data carried over**
+   from the lead record above. **Confirms a second real platform gap**: there is no
+   lead → client conversion anywhere in the product.
+6. **Portal access invited** via the client detail page's real "Invite by email"
+   team flow — this is the correct, working path (a separate, well-built feature
+   from the vestigial "Email" field on the client-creation form itself, which is
+   stored but never checked by portal auth — worth flagging as a confusing
+   near-duplicate, see Phase 8).
+7. **Portal tested as a real magic-link session** (same technique as the client
+   portal redesign work): Home correctly greeted the right contact name and showed
+   an accurate empty state ("You're all caught up"); Ask HamishAI's AI Copilot
+   correctly answered "0 requests" for this brand-new client rather than leaking
+   another client's data; Insights rendered a clean "Not enough data yet" state
+   instead of crashing on an account with zero history.
+8. **A real data-isolation edge case was hit and worked around during this
+   process**: inviting the same test email (`hamishwebdesign1@gmail.com`, already a
+   member of the Craigie & Sons Joinery test client from earlier session work) to
+   Gowf silently would never have worked — `getPortalMembership()`'s own code
+   comment confirms *"this product doesn't support one email belonging to more than
+   one client's portal today."* Removed that invite and used a `+gowf` Gmail alias
+   instead so the portal side could actually be tested — but a real admin doing this
+   for two genuine clients sharing a contact would hit exactly the same wall with no
+   workaround available to them.
+
+### Summary of platform findings from this phase (full writeup in Phase 8)
+
+- **Gap:** AI research requires an existing website — can't research the exact
+  pre-launch/no-website businesses that most need HamishAI.
+- **Gap:** No self-service or AI-assisted concept-page generation — every concept
+  page is hand-coded and deployed by a developer.
+- **Gap:** No lead → client conversion — converting a prospect to a client means
+  retyping everything from scratch.
+- **Gap:** The client-creation form's "Email" field is vestigial for portal
+  access — the real invite flow lives separately on the client detail page, and nothing
+  warns an admin filling in the creation form that it won't grant login access.
+- **Gap:** One email can only ever belong to one client's portal — no error or
+  warning when inviting an email already attached elsewhere, it just silently
+  resolves to the wrong (oldest) account.
+- **Working well:** the deep research pipeline's auto-trigger on `concept_slug`
+  being set worked exactly as designed; the sales kit tool produced strong output
+  even from a sparse lead; portal data isolation between clients is correctly
+  enforced end-to-end; empty/zero-data states are handled gracefully everywhere
+  tested rather than erroring.
+
+---
+
+*Next: Phase 6 — AI opportunities mapped against what HamishAI's existing
+infrastructure can already do, plus community and social strategy.*
