@@ -1,6 +1,6 @@
 # Lily Golf — HamishAI End-to-End Test Project
 
-**Status: Phase 1 (research) complete. Phases 2–8 not started.**
+**Status: Phases 1–2 complete. Phases 3–8 not started.**
 
 ## What this is
 
@@ -25,7 +25,7 @@ strategic recommendation.
 | Phase | Covers | Status |
 |---|---|---|
 | 1 | Market & competitor research | ✅ Done — this doc |
-| 2 | Brand strategy, target customer, naming (incl. real domain/trademark checks) | Not started |
+| 2 | Brand strategy, target customer, naming (incl. real domain/trademark checks) | ✅ Done — this doc |
 | 3 | Product strategy — 8–15 hero product launch collection | Not started |
 | 4 | Visual identity direction | Not started |
 | 5 | Concept website + live run through the real HamishAI admin/portal pipeline | Not started |
@@ -195,5 +195,147 @@ matching one exactly.
 
 ---
 
-*Next: Phase 2 — brand strategy, target customer definition, and a real naming
-assessment of "Lily Golf" including domain/trademark checks.*
+## Phase 2 — Brand Strategy, Target Customer & Naming
+
+### Target customer
+
+**Primary: "The social beginner," 20–29.** Entered golf in the last 0–3 years, most
+likely through a short/social format — Topgolf, a corporate outing, a friend's
+invite to a 9-hole round — rather than junior competitive golf. Lives in or near a
+city. Already fluent in athleisure (owns Lululemon, follows the "old money"/quiet-
+luxury aesthetic on TikTok) and treats golf as one of several social-fitness
+activities — alongside padel, pilates, run clubs — not a singular identity. Discovers
+brands on TikTok/Instagram via creator content, not search or golf retail, and
+(per the Gen Z data in Phase 1) sits on a cart 2+ days before buying — she is
+persuaded over time by repeated, trusted content, not a single ad. She spends more
+per golf-specific purchase than an experienced golfer would (42% more per occasion,
+per Phase 1), precisely because she golfs occasionally and wants the one outfit she
+owns to be right. She buys not just to perform on the course but to feel like she
+belongs in a space that can still feel intimidating — and to get cost-per-wear value
+by wearing the same pieces off the course.
+
+**Secondary: "The stylish improver," 25–35.** A year or more into golf, plays more
+regularly, increasingly frustrated that the brands built for her (Röhnisch, Daily
+Sports, mainstream Nike/Adidas/Puma) read as "golf-first" rather than "her-first."
+Buys Lily Golf once she's already golfing more seriously, as an upgrade from her
+starter kit.
+
+Both segments matter, but every early decision (Phase 3 product mix, Phase 4 visual
+identity, Phase 6 content) should be built for the primary segment first — the
+secondary segment converts once the brand exists, the primary segment is who decides
+whether it should.
+
+### Brand positioning
+
+**Working statement:** *A golf brand for women who didn't grow up playing golf —
+clothing built to move from the first tee to the first round of drinks after, and a
+community that makes getting good at golf feel as fun as getting dressed for it.*
+
+This deliberately sits in the gap Phase 1 identified: not mainstream-performance
+(Nike/Adidas/Lululemon — technically excellent, no lifestyle identity of their own),
+not fashion-led-but-men's-brand-first (Malbon/G/FORE — arrived at womenswear second,
+after building a men's identity), not heritage-specialist (Röhnisch/Daily Sports —
+built for people who already golf), and distinct from the closest true comparables
+(CSARA, Birdie & Ace, Featherie — see below) by being community-first rather than
+product-first: the product exists to fund and equip the community, not the other way
+round.
+
+### Brand personality
+
+Confident, not competitive. Encouraging, not gatekeeping. Social — the brand voice
+should default to "we/us," never a lone-athlete voice. A knowing wink rather than
+reverence for tradition (golf's stuffiness is material to have fun with, not to
+inherit). Style-first in tone, sport-second — closer to how a fashion brand talks
+than how a sports brand talks. Explicitly not: twee, apologetic, over-explained, or
+"cute" in a way that undersells the product's technical seriousness.
+
+### Naming assessment — "Lily Golf" has real, verifiable problems
+
+Checked rather than assumed, per the brief. Four separate, independent issues:
+
+1. **Direct confusion risk with an established, dominant competitor.** Lilly
+   Pulitzer is *already* one of the best-known names in women's golf apparel —
+   vibrant florals, resort-preppy, sold at PGA Tour Superstore, Nordstrom, Dick's.
+   "Lily Golf" and "Lilly Pulitzer['s] Golf[wear]" are phonetically close enough to
+   invite real confusion in retail and search contexts, and — worse for the brand
+   strategically — Lilly Pulitzer *is* the floral, stereotypically-feminine
+   aesthetic Phase 1's research and this brief explicitly want Lily Golf to avoid.
+   Sharing a near-identical name with the brand you're positioning against undercuts
+   the positioning before a single product ships. ([Lilly Pulitzer golf](https://www.lillypulitzer.com/active/golf/))
+2. **The generic term is already saturated.** Search results for "Lily Golf" surface
+   a golf course in Taiwan (lilygolf.com.tw), a golf-coaching site
+   (lilygolfcoach.com), and — most damaging for discoverability — LPGA Tour
+   professional Muni "Lily" He, who has 2 million+ Instagram followers and is
+   routinely referred to as "Lily" in golf media. A new apparel brand would be
+   fighting an established professional athlete for the same search real estate
+   indefinitely. ([@lilymhe](https://www.instagram.com/lilymhe/?hl=en))
+3. **A real, if narrow, US trademark precedent exists in the exact category.**
+   LilyBeth Golf LLC holds registered US trademarks for "LILYBETH GOLF" covering golf
+   accessories (balls, headcovers, gloves, tees, club covers) — not apparel, but
+   close enough in the same "LILY + GOLF" construction and the same broad goods
+   category that it's a real risk factor a trademark attorney would flag, not a
+   dealbreaker on its own. ([Justia Trademarks](https://trademark.justia.com/owners/lilybeth-golf-llc-2176978))
+4. **Both direct domains are unavailable, and the obvious social handle is taken.**
+   `lilygolf.com` and `lilygolf.co.uk` are both registered and parked for resale via
+   Sedo (checked live) — buyable in theory, at an unknown and likely inflated price,
+   never guaranteed. `@lilygolf` on Instagram is an active, unrelated personal
+   account, not a squatted placeholder. None of this is fatal individually. Together,
+   it's a brand that would spend its first year fighting its own name for
+   visibility. ([whois.com/lilygolf.com](https://www.whois.com/whois/lilygolf.com))
+
+**Recommendation: change the name.** Not because "Lily" is a bad word, but because
+this specific combination collides with an established competitor, a working
+professional athlete, and a registered trademark, all in the same category.
+
+### What was explored as alternatives, and what was learned
+
+The obvious next move — a golf-culture-slang name paired with a lifestyle angle — was
+tried first and rejected on evidence, which is itself a useful finding: **this
+naming territory is far more crowded than it looks.**
+
+| Candidate | Verdict | Evidence |
+|---|---|---|
+| Front Nine (Golf) | Taken | Front Nine Golf, an existing premium Irish golf apparel brand with near-identical "understated luxury, on-and-off-course" positioning to what's proposed here. ([frontninegolf.eu](https://frontninegolf.eu/)) |
+| The Nineteenth / Nineteenth Club | Taken (multiple times) | Nineteenth Clothing Co., Club Nineteen, and Nineteenth Golf Collective are all existing golf-lifestyle apparel brands built on the same "19th hole" concept. |
+| Iron & Ivy | Taken | Iron & Ivy Golf Co and Iron & Ivy Activewear both already trade on almost exactly this "fairway to streetwear" positioning. |
+| Cleek | Risky | LIV Golf's "Cleeks GC" team owns real brand attention here, and "CLEEKMARK" is a registered US trademark for golf apparel (shirts, pants, jackets, polos) specifically — a direct category conflict. |
+| Isla (Golf) | Not clean | No brand trades on the exact phrase, but "Isla" alone is an existing general fashion label, and Island Green Golf is a real, established UK women's/men's golf apparel brand close enough in sound to raise the same category of risk as the Lilly Pulitzer problem, just smaller. |
+| Featherie *(found while checking "Feathery")* | Taken — and notable | An actual existing brand, not a naming collision to route around but a **competitor that should be added to the Phase 1 landscape**: founded by then-14-year-old Kate Korngold specifically because she couldn't find golf clothing between "kids'" and "adult women's," now sold at wholesale via RepSpark and exhibiting at the PGA Show. Different exact age band (teen girls) to Lily Golf's 20–29 primary target, but close enough that it belongs in any future competitor deck. ([Golf.com](https://golf.com/lifestyle/kate-korngold-featherie-girls-golf-attire/)) |
+
+### The strongest verified candidate: **Gowf**
+
+The archaic Scots spelling of "golf" (pronounced the same). No apparel brand, no
+Companies House registration, no live trademark, and no meaningful search-result
+collision found in this pass. It carries a genuine, ownable story none of the
+researched competitors have — Malbon is LA streetwear, G/FORE is LA design-world,
+J.Lindeberg and Röhnisch are Scandinavian, CSARA is unspecified-UK — while Lily Golf
+would be **from the actual home of golf**, made explicit rather than left as an
+address on an invoice. That's a real differentiator, not just a nicer name.
+
+Honest caveats, exactly as the brief asked for:
+- `gowf.com` and `gowf.co.uk` are *also* both registered and parked (checked live) —
+  ordinary for any short, dictionary-adjacent word, and evidence that no name in this
+  category comes with a free clean `.com` waiting. A realistic domain strategy is
+  `wearegowf.com` / `gowfgolf.com` (also currently parked, checked) / `.golf` or
+  `.co` TLDs / or a Sedo offer on the parked domain — this needs a real domain
+  strategy decision, not an assumption that any name "just works."
+- This pass checked live search results, Companies House—adjacent search, and US
+  trademark search coverage — it did **not** run a formal UK IPO or EUIPO trademark
+  clearance search (those tools are interactive/JS-driven and weren't reachable by
+  this pass's tools). Before any money is spent on branding, packaging, or a
+  trademark filing, a proper clearance search (or five minutes with a trademark
+  agent) is a hard prerequisite, not optional due diligence.
+
+### Recommendation
+
+Treat "Gowf" as the front-running placeholder to design against for Phases 3–5
+(cheap to change later, and having *a* real name makes the visual identity and
+product naming work concrete rather than abstract), while flagging clearly to
+whoever signs off the brand that final naming needs a proper UK trademark clearance
+search before anything is locked in or spent against. Continuing to call the project
+"Lily Golf" internally for now is fine — it's the working name for *this test
+project*, not a claim that it's the launch name.
+
+---
+
+*Next: Phase 3 — product strategy and an 8–15 piece launch collection.*
