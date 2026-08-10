@@ -16,6 +16,16 @@ Also fixed in the same pass: the Insights page's hero panel (`InsightsCentre`) h
 
 Typecheck, lint (`src/app/portal/**`, `src/components/portal/**`), and production build all clean. Live-verified end to end against the real dev server with a real generated test session: sidebar renders and groups correctly, dark mode toggles cleanly across every page (Home, Requests, Billing, Insights, Help, Settings) with no regressions, the Insights panel now stays visually stable in both themes, and Settings' Team list (the RLS fix's own test case) renders real data correctly.
 
+## Phase 2 — what actually shipped
+
+The Home page rebuilt as the personalised dashboard the brief asks for, per §5/§6: a time-of-day greeting + an honest one-line status ("You have N things that need your attention" / "We're working on N things for you" / "You're all caught up"), a real **Your Actions** list (every `awaiting_info` request and every overdue invoice, each linking straight to where it's actioned — not just a stat-card count), and a **HamishAI is working on** section (real in-progress tasks, a real auto-reply count, a real "last checked" site-monitoring line) — replacing the old 4-card KPI grid with the narrative-plus-actions shape the brief explicitly asked for instead of it.
+
+Deliberately does **not** call `buildPortalInsights()` (the function the Insights page uses) — that function re-fetches requests/tasks/invoices/site_checks itself and computes a full 12-month trend + demand-pattern pass; paying for that twice on the single most-loaded page in the portal just to reuse a couple of counts isn't worth it. Home does its own light, targeted queries instead — the same "deliberately lean, not the full computation" principle `getRecentPortalEvents()` already established for the header's notification bell, applied a second time rather than introduced fresh.
+
+No literal project/milestone UI, per the confirmed decision — progress is communicated honestly through real request/task state instead.
+
+Typecheck, lint, and production build all clean. Live-verified against the real dev server with the same generated test session: Home renders the real 7-item Your Actions list, the real in-progress task and auto-reply-count lines, in both light and dark mode with no regressions. The empty ("all caught up") state is a simple, low-risk ternary using the same pattern already proven elsewhere in the portal — not independently live-tested, since the only client with portal access set up (Craigie & Sons Joinery) currently has real outstanding items, and forcing the empty path would have meant mutating real test data.
+
 ---
 
 ## 1. Audit of the existing client portal
@@ -181,7 +191,7 @@ Already strong — RLS on every table, session-scoped Supabase clients throughou
 Mirrors how both other redesigns this session were run — staged, verified and checked in at each boundary, not one giant change.
 
 - **Phase 1 — Design system + nav. ✅ Shipped.** See the write-up at the top of this doc, including the two real bugs found and fixed while verifying it live (an RLS infinite-recursion login bug, and the Insights panel's dark-mode instability).
-- **Phase 2 — Home.** The personalised dashboard: narrative header, "Your Actions," AI activity summary — all from existing data.
+- **Phase 2 — Home. ✅ Shipped.** See the write-up above.
 - **Phase 3 — Ask HamishAI promoted.** Surface the real copilot prominently; retire the duplicate `AskSupportAgent` box (Help page keeps its FAQ accordion only).
 - **Phase 4 — Requests + Billing + Help + Settings design-system pass.** Same data, same functionality, visual/IA elevation only — matches the internal admin's Stage 6 approach exactly.
 - **Phase 5 (later, gated) — Documents.** New schema + storage, only once scoped and confirmed worth building for 2 real clients today.
