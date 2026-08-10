@@ -1,6 +1,6 @@
 # Lily Golf — HamishAI End-to-End Test Project
 
-**Status: Phases 1–3 complete. Phases 4–8 not started.**
+**Status: Phases 1–4 complete. Phases 5–8 not started.**
 
 ## What this is
 
@@ -27,7 +27,7 @@ strategic recommendation.
 | 1 | Market & competitor research | ✅ Done — this doc |
 | 2 | Brand strategy, target customer, naming (incl. real domain/trademark checks) | ✅ Done — this doc |
 | 3 | Product strategy — 8–15 hero product launch collection | ✅ Done — this doc |
-| 4 | Visual identity direction | Not started |
+| 4 | Visual identity direction | ✅ Done — this doc + `docs/lily-golf/visual-identity.html` |
 | 5 | Concept website + live run through the real HamishAI admin/portal pipeline | Not started |
 | 6 | AI opportunities + community/social strategy | Not started |
 | 7 | Commercial reality (manufacturing/MOQ/margin, real sources only) + launch roadmap | Not started |
@@ -476,4 +476,52 @@ apparel — a genuine Phase 7 commercial consideration, not an oversight.
 
 ---
 
-*Next: Phase 4 — visual identity direction.*
+## Phase 4 — Visual Identity Direction
+
+The full system — colour, typography, logo lockups and usage rules, photography
+direction, packaging, and a social grid rhythm — is built as an actual page, not just
+described: **[`docs/lily-golf/visual-identity.html`](./lily-golf/visual-identity.html)**.
+Open it directly (self-contained, works offline, fonts embedded) or ask to have it
+reopened as an artifact.
+
+Highlights and the reasoning behind them:
+
+- **Wordmark set lowercase, in Fraunces** (a soft-shouldered editorial serif that
+  hardens up at display size) — a capitalised wordmark reads corporate, and this
+  brand's whole point is that it isn't. Body/UI text runs in Archivo, a grotesque
+  sans with enough personality not to default to Inter or Space Grotesk, which the
+  brief's own instruction to avoid generic, templated design was taken seriously on.
+- **Colour system carried forward exactly from Phase 3** (Stone/Ecru/Charcoal/Black/
+  Chalk White neutrals, Thistle signature accent, Fairway secondary, Clay seasonal-
+  only) — with an explicit usage rule that Thistle never appears as a background
+  larger than a swatch or a button, so the one bold colour in the system stays bold
+  by staying rare.
+- **The mark** is a minimal line-drawn flag-and-pin, reduced to two strokes and a
+  circle — no golfer silhouettes, no crossed clubs, no crest/shield (which reads as
+  a country-club badge, the opposite of the brief's instruction).
+- **Photography direction is presented as direction, not photography** — four
+  art-directed mood panels with specific notes ("mid-stride, not mid-swing," "skin
+  and fabric texture kept, not retouched smooth") rather than fabricated stock
+  images standing in for a shoot that hasn't happened. Said so explicitly on the
+  page, per the brief's instruction not to fabricate what isn't real.
+- **Packaging** uses the actual golf term "swing tag" rather than a generic hangtag,
+  uncoated recycled card, no printed tissue — reasoned as a premium-and-cheaper
+  choice together, not premium-because-more.
+- Both light and dark themes are fully designed (not just inverted) and verified live
+  in the browser at both a narrow and a full desktop width — a real layout bug (the
+  cover section's meta row overlapping the tagline at certain viewport heights,
+  caused by absolute positioning) was caught and fixed during that verification
+  pass, not left in.
+
+A genuine tooling note for Phase 8: the plan was to generate real logo concept
+images (`nano-banana`/Gemini image generation is available in this environment), but
+the underlying model (`gemini-2.5-flash-image-preview`) returned a 404 as
+unavailable. Built the identity page without raster images instead — real inlined
+web fonts (Fraunces + Archivo, fetched and embedded as base64 so the page works
+offline) and CSS/SVG for the mark, mood panels, and mockups, rather than describing
+a visual system in prose alone.
+
+---
+
+*Next: Phase 5 — a real concept website, built on this system, run through
+HamishAI's own live lead → research → concept → client → portal pipeline.*
