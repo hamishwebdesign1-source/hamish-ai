@@ -40,6 +40,12 @@ Each phase gets its own section appended below as it ships, same pattern as
 
 ## Phase 1 — Market & Competitor Research
 
+**Customer-facing version:** this phase's findings (below) are the working
+research notes — internal, cited, but mixed in with roadmap tracking. For anything
+actually shown to a customer, investor, manufacturer, or partner, use the polished
+standalone page instead: **[`docs/lily-golf/market-research.html`](./lily-golf/market-research.html)**
+(self-contained, same visual system as the Phase 4 identity page).
+
 ### Why women are taking up golf right now (research-backed)
 
 - **The demographic shift is real and recent.** 37% of golfers 18 and under were female
