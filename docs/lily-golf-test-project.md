@@ -1,6 +1,6 @@
 # Lily Golf — HamishAI End-to-End Test Project
 
-**Status: Phases 1–2 complete. Phases 3–8 not started.**
+**Status: Phases 1–3 complete. Phases 4–8 not started.**
 
 ## What this is
 
@@ -26,7 +26,7 @@ strategic recommendation.
 |---|---|---|
 | 1 | Market & competitor research | ✅ Done — this doc |
 | 2 | Brand strategy, target customer, naming (incl. real domain/trademark checks) | ✅ Done — this doc |
-| 3 | Product strategy — 8–15 hero product launch collection | Not started |
+| 3 | Product strategy — 8–15 hero product launch collection | ✅ Done — this doc |
 | 4 | Visual identity direction | Not started |
 | 5 | Concept website + live run through the real HamishAI admin/portal pipeline | Not started |
 | 6 | AI opportunities + community/social strategy | Not started |
@@ -338,4 +338,142 @@ project*, not a claim that it's the launch name.
 
 ---
 
-*Next: Phase 3 — product strategy and an 8–15 piece launch collection.*
+## Phase 3 — Product Strategy: The Launch Collection
+
+### Pricing calibration (real reference points, not invented)
+
+Checked live rather than guessed, to anchor target prices in the actual market
+Phase 1 mapped:
+
+| Brand | Tier | Real price range found |
+|---|---|---|
+| Lululemon (UK) | Mainstream | Polos £44–78, skirts £44–108 ([lululemon.co.uk](https://www.lululemon.co.uk/en-gb/c/womens/sports/golf)) |
+| CSARA | New women-founder challenger | $42–91 (≈£33–72) ([csaraofficial.com](https://csaraofficial.com/collections/golf)) |
+| G/FORE | Fashion-led premium | Tops from $89.99 (≈£71) ([Haven Golf](https://havengolfcompany.com/blogs/news/is-g-fore-worth-it-in-2026-an-honest-review-2)) |
+| Malbon Women | Fashion-led premium/hype | Polos $68–240 (≈£54–190) ([Lyst](https://www.lyst.com/shop/malbon-golf-tops/)) |
+
+Gowf's target prices below sit just above Lululemon's core and roughly level with
+CSARA — a genuine debut brand can't yet charge Malbon's hype premium, but pricing at
+Lululemon-basic would undersell design intent and make the unit economics in
+Phase 7 very hard to hit. All prices below are **targets, not confirmed costings** —
+real prices depend on the manufacturing decisions in Phase 7.
+
+### Colour direction (carried through into Phase 4)
+
+Deliberately not pink or floral, per the brief. Two neutral bases plus one signature
+accent that nods to Scotland without being literal tartan or thistle-print:
+
+- **Neutrals:** Stone, Ecru, Charcoal, Black, Chalk White
+- **Signature accent — "Thistle":** a dusty heather-mauve, closer to a Scottish
+  hillside in late summer than to any "girls' golf" pastel pink
+- **Secondary accent — "Fairway":** a deep bottle green
+- Seasonal only: **"Clay"** — a warm terracotta, used sparingly
+
+### The launch collection — 13 pieces
+
+Deliberately tight rather than sprawling. A debut collection that tries to cover
+every category thinly is a worse first impression than a small collection that's
+fully resolved — and a narrower SKU count is a real MOQ/cash-flow advantage covered
+properly in Phase 7.
+
+**On-course (6)**
+
+1. **The Signature Polo** — £58. Description: the wordmark piece; fitted-but-not-tight
+   through the body, slightly cropped hem so it sits right over both a skort and
+   tailored trousers. Material: recycled polyester/elastane pique (four-way stretch),
+   quick-dry finish. Colours: Stone, Charcoal, Thistle. Purpose: the entry point —
+   the one piece most people buy first. Differentiator: no chest logo; the wordmark
+   sits small on the left cuff, not the chest — deliberately the opposite of
+   logo-forward mainstream golf polos.
+2. **The Fairway Skort** — £68. Description: bias-cut with a soft wrap-front seam
+   line instead of the standard box-pleat tennis-skirt silhouette every mainstream
+   brand uses. Built-in performance short underneath. Material: matte stretch twill,
+   elastane blend. Colours: Stone, Black, Fairway. Purpose: the category-standard
+   piece, redesigned. Differentiator: the wrap seamline reads as a fashion skirt at
+   a glance, not instantly identifiable as "golf" — directly answers the brief's
+   "wear it off the course too" test.
+3. **The Clubhouse Dress** — £85. Description: sheath-cut golf dress with the same
+   built-in short as the skort, designed to go straight from the 18th green to
+   dinner without changing. Material: matte stretch twill, four-way stretch.
+   Colours: Charcoal, Thistle. Purpose: the "hero" photography piece and the
+   highest-margin item in the launch range. Differentiator: no other researched
+   competitor at this price tier photographs their golf dress as convincingly
+   off-course as on it — this is designed to be shot both ways from day one.
+4. **The Tailored Trouser** — £78. Description: a wide-leg, ankle-grazer trouser —
+   deliberately not the skinny/legging-style trouser most golf brands default to.
+   Material: brushed stretch twill, four-way stretch waistband. Colours: Stone,
+   Charcoal, Black. Purpose: answers the "modern silhouette, not generic golf-with-a-
+   female-palette" brief requirement directly — this is the piece most likely to be
+   photographed by fashion press rather than golf press.
+5. **The Featherweight Quarter-Zip** — £92. Description: a fine-gauge technical
+   knit midlayer, feels like cashmere, performs like a base layer. Material:
+   merino-blend technical knit, moisture-wicking, temperature-regulating.
+   Colours: Ecru, Fairway, Charcoal. Purpose: the "investment piece" — the one
+   likely to be worn most often off-course. Differentiator: the fine-gauge knit
+   avoids the boxy, quilted look of most golf midlayers.
+6. **The Windshirt** — £110. Description: packable, water-resistant lightweight
+   jacket that folds into its own pocket small enough for a golf bag or a handbag.
+   Material: recycled ripstop nylon shell, DWR finish. Colours: Stone, Black.
+   Purpose: the practical, weather-driven purchase (genuinely necessary for a
+   Scottish course). Differentiator: cut as a fashion jacket, not a branded
+   golf-tour-style shell — no oversized back logo.
+
+**Off-course (3) — the crossover pieces the brief specifically asked for**
+
+7. **The Half-Zip Sweatshirt** — £75. Description: works as an early-tee-time layer
+   over the polo, or on its own off-course. Material: brushed-back technical fleece,
+   four-way stretch. Colours: Stone, Charcoal, Thistle. Purpose: the single piece
+   most likely to be worn by someone who has never picked up a golf club — the
+   "gateway" product. Differentiator: cut oversized, matching the 2026 "technical
+   lifestyle" athleisure direction (Phase 1) rather than a fitted golf silhouette.
+8. **The Wide-Leg Jogger** — £70. Description: a tailored, cropped-ankle jogger —
+   travel-to-course-to-brunch piece. Material: same brushed technical fleece as the
+   half-zip, for a matching-set option. Colours: Stone, Charcoal. Purpose: extends
+   the on-course wardrobe into pure lifestyle wear, increasing cost-per-wear value.
+   Differentiator: designed explicitly as a matching set with item 7, a merchandising
+   lever most golf-specific brands don't use.
+9. **The Boyfriend Tee** — £38. Description: oversized, dropped-shoulder tee with a
+   small embroidered wordmark. Material: heavyweight organic cotton/elastane blend.
+   Colours: Chalk White, Charcoal, Thistle. Purpose: the accessible entry price
+   point and the most "wear literally anywhere" piece — the one most likely to be
+   gifted or bought as a first purchase before someone's tried the brand's golf
+   pieces at all.
+
+**Technical accessory (1)**
+
+10. **The Sunday Long-Sleeve** — £52. Description: a UPF50+ base layer built for the
+    4–5 hours of direct sun exposure a round of golf actually involves (real figure
+    from Phase 1 fabric research, not assumed) — designed to be worn alone or under
+    the polo, addressing sun protection without defaulting to a bulky layer or a
+    floppy hat. Material: UPF50+ treated technical jersey, four-way stretch, flat-lock
+    seams. Colours: Ecru, Charcoal. Purpose: a genuine functional gap-filler — most
+    competitors treat sun protection as an afterthought rather than a design brief.
+    Differentiator: this is the one piece in the range that leads with a stated
+    technical claim (UPF50+) rather than style, deliberately, to build fabric-tech
+    credibility for the whole range.
+
+**Accessories (3)**
+
+11. **The Structured Cap** — £32. Six-panel, mid-crown, embroidered wordmark on the
+    side (not centred) — Stone, Black, Thistle.
+12. **The Course Bucket Hat** — £30. A deliberate alternative to the golf visor,
+    which reads as an older, more traditional silhouette — bucket hats are an
+    active streetwear/festival crossover trend among the target age group, and this
+    doubles as sun coverage. Stone, Fairway.
+13. **The Ribbed Crew Sock (2-pack)** — £18. Ribbed, mid-calf, a small jacquard
+    wordmark at the ankle. Stone/Charcoal pack, Thistle/Ecru pack. Purpose: the
+    lowest-price entry point in the whole range and a natural gift/add-to-cart item.
+
+### What's deliberately not in the launch range
+
+No golf glove, despite being on the brief's own list of options — gloves are a
+highly technical, fit-critical, low-margin category dominated by specialists
+(FootJoy, Callaway) that a debut apparel brand has no credibility advantage in yet;
+better to earn a right to that category later once the brand exists, not in the
+first 13 SKUs. No dedicated golf shoe for the same reason, plus real footwear
+manufacturing is a materially different (and much more expensive) supply chain than
+apparel — a genuine Phase 7 commercial consideration, not an oversight.
+
+---
+
+*Next: Phase 4 — visual identity direction.*
