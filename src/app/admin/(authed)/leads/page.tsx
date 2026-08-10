@@ -14,7 +14,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ContactBadge } from "@/components/admin/contact-badge";
-import { FilterTabs } from "@/components/admin/filter-tabs";
+import { FilterTabs } from "@/components/ui/filter-tabs";
 import { cn } from "@/lib/utils";
 
 const selectClasses =

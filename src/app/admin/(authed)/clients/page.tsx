@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { FilterTabs } from "@/components/admin/filter-tabs";
+import { FilterTabs } from "@/components/ui/filter-tabs";
 
 const packageOptions = [...packages.map((p) => p.name), analyticsPackage.name];
 

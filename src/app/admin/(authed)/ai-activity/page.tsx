@@ -4,7 +4,7 @@ import { getSupabaseAdmin } from "@/lib/supabase";
 import { AI_ACTIVITY_ACTIONS, AI_ACTIVITY_GROUPS, describeAiActivity, aiActivityHref } from "@/lib/ai-activity";
 import { timeAgo } from "@/lib/time-ago";
 import { Card, CardContent } from "@/components/ui/card";
-import { FilterTabs } from "@/components/admin/filter-tabs";
+import { FilterTabs } from "@/components/ui/filter-tabs";
 
 type ClientRef = { business_name: string } | null;
 

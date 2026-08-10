@@ -117,9 +117,11 @@ export default async function PortalBillingPage({ searchParams }: { searchParams
         </div>
       </div>
 
-      {!invoices?.length && <p className="mt-8 text-sm text-muted-foreground">No invoices yet.</p>}
+      <h2 className="text-section-title mt-8">Invoice history</h2>
 
-      <ul className="mt-8 space-y-3">
+      {!invoices?.length && <p className="mt-3 text-sm text-muted-foreground">No invoices yet.</p>}
+
+      <ul className="mt-3 space-y-3">
         {invoices?.map((inv) => {
           const meta = getInvoiceDisplay(inv);
           const isPaid = inv.status === "paid";

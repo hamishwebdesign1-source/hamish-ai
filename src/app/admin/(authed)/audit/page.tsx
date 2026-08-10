@@ -4,7 +4,7 @@ import { reviewAutoSend } from "@/app/admin/actions";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { FilterTabs } from "@/components/admin/filter-tabs";
+import { FilterTabs } from "@/components/ui/filter-tabs";
 
 type ClientRef = { business_name: string } | null;
 

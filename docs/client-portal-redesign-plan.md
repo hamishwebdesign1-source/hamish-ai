@@ -1,6 +1,6 @@
 # Client Portal Redesign: Audit + Plan
 
-Status: **Phase 1 shipped and live-verified.** The audit + 10 deliverables the brief asked for are below, written before any code changed. Written the same way `portal-redesign-plan.md` (the internal admin redesign) and `deep-research-pipeline-plan.md` were: grounded in what's actually in the codebase, not a hypothetical rebuild.
+Status: **All 4 roadmap phases shipped and live-verified.** The audit + 10 deliverables the brief asked for are below, written before any code changed. Written the same way `portal-redesign-plan.md` (the internal admin redesign) and `deep-research-pipeline-plan.md` were: grounded in what's actually in the codebase, not a hypothetical rebuild. Documents and Meetings (Phases 5/6) remain deliberately out of scope — see §10 and the Phase 4 write-up for why.
 
 Scope: `/portal/*` only — the standalone, client-facing self-service area at `hamishai.org/portal`, entirely separate code from `/admin`. Confirmed not confusing the two.
 
@@ -33,6 +33,18 @@ The real AI Copilot promoted to its own page (`/portal/ask`), reachable from a n
 The weaker duplicate retired for real, per the confirmed decision: `AskSupportAgent` (the knowledge-base-only, no-conversation-history Q&A box) removed from both Home and Help, along with its entire call chain — `askQuestion`/`AskState` (`src/app/portal/actions.ts`, now deleted) and `answerQuestion()` (`src/lib/answer-question.ts`, now deleted). Home's old box is now a compact "Ask HamishAI" promo card linking to `/portal/ask`. Help keeps only its FAQ accordion, with a "Still stuck? Ask HamishAI" link at the bottom for anything the FAQ doesn't cover.
 
 Typecheck, lint (targeted files plus a full sweep of every portal page/component and the four `portal-*`/`answer-account-question` lib files), and production build all clean. Live-verified end to end against the real dev server with the same generated test session: sent a real message ("How many requests do I have open?") from the new `/portal/ask` page and got back a correct, real-data answer ("You've got 9 requests open right now: 7 waiting for your input and 2 that are in progress"); confirmed Insights now shows only 3 tabs with a working link to `/portal/ask`; confirmed Home's and Help's new promo cards render and link correctly, in dark mode throughout.
+
+## Phase 4 — what actually shipped
+
+Requests, Billing, and Settings brought fully in line with the design system — same data, same functionality, matching the internal admin's Stage 6 approach exactly.
+
+Requests' hand-rolled status filter (`Badge` + `Link`, its own active-state comparison) replaced with `FilterTabs` — the same component the internal admin uses. That meant relocating it first: `FilterTabs` had lived under `src/components/admin/` despite having no admin-specific coupling (confirmed by its own file comment, which already listed "Overview, Clients, Leads, Audit" as 4 separate hand-rolled copies it replaced — one more hand-rolled copy about to appear in the portal was the signal it belonged somewhere genuinely shared). Moved to `src/components/ui/filter-tabs.tsx`; all 4 existing internal-admin import sites updated to match, behaviour unchanged.
+
+Billing gained an "Invoice history" section heading (`.text-section-title`) above its invoice list — every other list on both portals has one, Billing's was the one page missing it. Settings was reviewed and left as-is: already fully on the design system from Phase 1, nothing to change.
+
+Typecheck, lint (targeted files plus every internal-admin page importing `FilterTabs`), and production build all clean. Live-verified against the real dev server: Requests' filter tabs render with correct counts and correctly filter the list on click (confirmed "Needs your input" both highlights as active and narrows the list to exactly those requests); all 4 internal-admin pages using the relocated `FilterTabs` (`/admin/leads`, `/admin/clients`, `/admin/audit`, `/admin/ai-activity`) confirmed still returning 200 with real filter content rendering; Billing's new heading confirmed rendering correctly in dark mode alongside the real Stripe invoice data.
+
+**All 4 phases from the original roadmap are now complete.** Documents (needs new schema + storage) and Meetings (blocked on the same M365 licensing decision as the internal Teams work) remain deliberately out of scope — flagged in the original audit as real gaps, not silently built as stubs that couldn't actually work.
 
 ---
 
@@ -201,7 +213,7 @@ Mirrors how both other redesigns this session were run — staged, verified and 
 - **Phase 1 — Design system + nav. ✅ Shipped.** See the write-up at the top of this doc, including the two real bugs found and fixed while verifying it live (an RLS infinite-recursion login bug, and the Insights panel's dark-mode instability).
 - **Phase 2 — Home. ✅ Shipped.** See the write-up above.
 - **Phase 3 — Ask HamishAI promoted. ✅ Shipped.** See the write-up above.
-- **Phase 4 — Requests + Billing + Help + Settings design-system pass.** Same data, same functionality, visual/IA elevation only — matches the internal admin's Stage 6 approach exactly.
+- **Phase 4 — Requests + Billing + Settings design-system pass. ✅ Shipped.** (Help's own pass — retiring `AskSupportAgent`, adding the Ask HamishAI link — happened as part of Phase 3.) See the write-up above.
 - **Phase 5 (later, gated) — Documents.** New schema + storage, only once scoped and confirmed worth building for 2 real clients today.
 - **Phase 6 (later, blocked) — Meetings.** Stays blocked on the same M365 licensing decision as the internal Teams work; revisit together if Hamish revisits that.
 

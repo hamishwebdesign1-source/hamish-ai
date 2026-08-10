@@ -1,5 +1,4 @@
 import { redirect } from "next/navigation";
-import Link from "next/link";
 import { revalidatePath } from "next/cache";
 import { createServerSupabaseClient } from "@/lib/supabase-server-auth";
 import { getPortalMembership } from "@/lib/portal-membership";
@@ -7,7 +6,7 @@ import { triageRequest } from "@/lib/triage-request";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+import { FilterTabs } from "@/components/ui/filter-tabs";
 import { RequestStatusBadge, TaskStatusBadge } from "@/components/status-badges";
 
 async function submitRequest(clientId: string, formData: FormData) {
@@ -25,7 +24,6 @@ async function submitRequest(clientId: string, formData: FormData) {
 }
 
 const STATUS_FILTERS = [
-  { id: "all", label: "All" },
   { id: "awaiting_info", label: "Needs your input" },
   { id: "triaged", label: "In progress" },
   { id: "new", label: "Received" },
@@ -54,8 +52,7 @@ export default async function PortalRequestsPage({
     .eq("client_id", clientId)
     .order("created_at", { ascending: false });
 
-  const requests =
-    statusFilter && statusFilter !== "all" ? allRequests?.filter((r) => r.status === statusFilter) : allRequests;
+  const requests = statusFilter ? allRequests?.filter((r) => r.status === statusFilter) : allRequests;
 
   const requestIds = (allRequests ?? []).map((r) => r.id);
   const { data: tasks } = requestIds.length
@@ -84,24 +81,24 @@ export default async function PortalRequestsPage({
         </CardContent>
       </Card>
 
-      <div className="mt-8 flex flex-wrap gap-2">
-        {STATUS_FILTERS.map((f) => {
-          const count =
-            f.id === "all" ? allRequests?.length ?? 0 : allRequests?.filter((r) => r.status === f.id).length ?? 0;
-          const active = (statusFilter ?? "all") === f.id;
-          return (
-            <Link key={f.id} href={f.id === "all" ? "/portal/requests" : `/portal/requests?status=${f.id}`}>
-              <Badge variant={active ? "default" : "outline"}>
-                {f.label} ({count})
-              </Badge>
-            </Link>
-          );
-        })}
+      <div className="mt-8">
+        <FilterTabs
+          activeKey={statusFilter}
+          options={[
+            { key: undefined, label: "All", count: allRequests?.length ?? 0, href: "/portal/requests" },
+            ...STATUS_FILTERS.map((f) => ({
+              key: f.id,
+              label: f.label,
+              count: allRequests?.filter((r) => r.status === f.id).length ?? 0,
+              href: `/portal/requests?status=${f.id}`,
+            })),
+          ]}
+        />
       </div>
 
       {!requests?.length && (
         <p className="mt-6 text-sm text-muted-foreground">
-          {statusFilter && statusFilter !== "all" ? "No requests in this category." : "Nothing yet — submit your first request above."}
+          {statusFilter ? "No requests in this category." : "Nothing yet — submit your first request above."}
         </p>
       )}
 
