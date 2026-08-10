@@ -1,6 +1,6 @@
 # Lily Golf — HamishAI End-to-End Test Project
 
-**Status: Phases 1–6 complete. Phases 7–8 not started.**
+**Status: Phases 1–7 complete. Phase 8 not started.**
 
 ## What this is
 
@@ -30,7 +30,7 @@ strategic recommendation.
 | 4 | Visual identity direction | ✅ Done — this doc + `docs/lily-golf/visual-identity.html` |
 | 5 | Concept website + live run through the real HamishAI admin/portal pipeline | ✅ Done — this doc |
 | 6 | AI opportunities + community/social strategy | ✅ Done — this doc |
-| 7 | Commercial reality (manufacturing/MOQ/margin, real sources only) + launch roadmap | Not started |
+| 7 | Commercial reality (manufacturing/MOQ/margin, real sources only) + launch roadmap | ✅ Done — this doc |
 | 8 | HamishAI platform findings — what broke, what's missing, what should be automated | Not started |
 
 Each phase gets its own section appended below as it ships, same pattern as
@@ -729,5 +729,89 @@ identity page):
 
 ---
 
-*Next: Phase 7 — commercial reality (real manufacturing/MOQ/supplier research, no
-fabricated figures) and a phased launch roadmap.*
+## Phase 7 — Commercial Reality & Launch Roadmap
+
+### Manufacturing — real, named options, real MOQs
+
+**UK options** (fits the "actual home of golf" brand story directly, and several
+offer genuinely small first-run quantities):
+- **Hook & Eye UK** — fully custom cut-and-sew activewear, MOQ 50 units per style,
+  fabric/fit/trims/branding developed from scratch. ([hookandeyeuk.com](https://hookandeyeuk.com/en-us/pages/activewear-manufacturers))
+- **Blue Associates Sportswear** — UK factory at Silverstone Technology Park;
+  MOQs as low as 5 units per style scaling to monthly drip-feed production,
+  in-house flatlock/overlock/bonding/sublimation. ([blueassociatessportswear.com](https://blueassociatessportswear.com/post/made-in-england-sportswear-production-in-our-brand-new-uk-activewear-factory/))
+- **CanvasWhisper** — no-MOQ custom apparel manufacturing, technical activewear
+  capability, single-unit production available for sampling. ([canvaswhisper.co.uk](https://www.canvaswhisper.co.uk/))
+
+**Portugal (EU) options** — better unit economics at real scale, still low-MOQ
+friendly, strong technical-fabric and OEKO-TEX credentials:
+- **White Cotton** (Barcelos) — MOQ 50 units, OEKO-TEX certified performance
+  fabrics. ([whitecotton.pt](https://www.whitecotton.pt/activewear-manufacturer-portugal))
+- **Create Fashion Brand** — vertical production, MOQ 100 units per colour/style.
+  ([createfashionbrand.com](https://createfashionbrand.com/clothing-manufacturer-portugal-small-quantity/))
+- General Portuguese low-MOQ activewear production is available from as low as
+  70pcs per style/colour with 3–5 week turnaround via aggregator networks like
+  Athleisure Basics. ([athleisurebasics.com](https://athleisurebasics.com/blogs/news/trusted-low-moq-clothing-manufacturers-in-portugal-for-2025))
+
+**Recommendation:** sample and validate (Phase 3 of the launch roadmap below)
+through a UK low-MOQ specialist — Blue Associates' sub-10-unit flexibility in
+particular makes real fit-sampling affordable before committing to anything — both
+because the quantities genuinely match a first-run's real needs and because "cut and
+sewn in Britain" is a stronger, truer story for a brand built on "the actual home of
+golf" than a Portugal credit line would be. Revisit Portugal for the *scaled-up*
+production run once the launch collection validates real demand and unit cost starts
+to matter more than story.
+
+### Margins — a real worked example, clearly labelled as an estimate
+
+DTC apparel brands typically run 50–65% gross margin (COGS 35–50% of retail),
+with public apparel/DTC comparables clustering around 55–60%. ([Eightx](https://eightx.co/blog/average-dtc-gross-margin-public-companies), [True Margin](https://truemargin.ai/blog/clothing-brand-profit-margins))
+Applying that real benchmark range to a real Phase 3 price — **not** inventing a
+brand-new number:
+
+| | The Signature Polo, £58 retail |
+|---|---|
+| COGS (fabric, construction, trims, freight-in) at 35–40% of retail | **£20–23** (estimate, industry benchmark applied — not a real supplier quote) |
+| Packaging (swing tag + mailer) | **~£0.80** — the tag alone is a real, cited figure (~30p each); the mailer cost is an unverified rough estimate, flagged as such |
+| Payment processing (Shopify, ~2%) | **~£1.16** |
+| Outbound shipping (Evri small parcel, under 1kg) | **£2.62–3.29** |
+| **Gross margin before returns** | **~50–55%**, in line with the real benchmark range |
+
+**The number that actually matters more than gross margin: returns.** UK clothing
+returns run ~23.6% (UK online overall is 19.5%; clothing is the worst category),
+and fashion ecommerce broadly sees 25–40% — driven substantially by "bracketing"
+(63% of shoppers admit to buying multiple sizes intending to return the rest).
+([Eightx UK return benchmark](https://eightx.co/blog/uk-ecommerce-return-rate-benchmark), [bestcolorfulsocks.com stats roundup](https://bestcolorfulsocks.com/blogs/news/online-vs-offline-clothing-return-statistics))
+Roughly 1 in 4 Gowf orders coming back — each one costing a second shipping leg plus
+reprocessing — is a bigger real threat to margin than any single line item above,
+and it's the one lever genuinely inside Gowf's control: **this is exactly what
+Phase 6 flagged the AI Size Assistant as net-new, unbuilt work for** — it stops
+being a "nice AI feature" and becomes the single most direct unit-economics lever
+available, worth prioritising ahead of the shopping assistant for that reason alone.
+
+### Platform & ongoing costs (real, current pricing)
+
+- **Shopify**: Basic plan £19–25/month; Shopify Payments card rate 1.5–2.0% + 25p
+  depending on plan tier. ([avada.io Shopify UK pricing](https://avada.io/blog/shopify-price-uk/))
+- **Shipping**: Evri small parcel (under 1kg — covers most Phase 3 pieces except
+  outerwear) from £2.62–3.29; Royal Mail 2nd class small parcel £4.25 up to 2kg as
+  a tracked-delivery alternative. ([ShippyPro](https://www.shippypro.com/blog/en/how-much-does-it-cost-to-ship-a-package-in-the-uk), [Evri pricing](https://www.evri.com/our-services/our-prices))
+- **Packaging**: swing tags ~30p each in small quantities, no-minimum-order
+  printers exist for brands this size. ([UK swing tag pricing roundup](https://www.solopress.com/swing-tags/)) Mailer cost is not independently sourced in
+  this pass — flagged as an assumption, not a researched figure.
+
+### Launch roadmap
+
+| Phase | Focus | What must be validated before spending real money |
+|---|---|---|
+| **1. Brand validation** | Finalise naming (real UK trademark clearance search — Phase 2's naming work checked live search/domain/US-trademark signals but explicitly not a formal UK IPO search), pricing sense-check against Phase 3 targets | Don't spend on packaging, samples, or a company name filing until naming is actually cleared, not just researched-and-looking-clean |
+| **2. Audience building** | Start the Phase 6 content pillars and Instagram/TikTok presence *before* any product exists — waitlist signup, "First Round" content, first outreach to Women On Course / Edinburgh Uni Golf Club | Real signal (waitlist size, engagement, community response) before committing to a production run sized on guesswork |
+| **3. Prototype products** | Sample 2–3 hero pieces only (not all 13) — The Signature Polo, The Fairway Skort, The Sunday Long-Sleeve are the highest-signal choices, covering the brand's clearest differentiators — via a UK low-MOQ partner (Blue Associates' sub-10-unit flexibility fits this exactly) | Real fit-testing on real bodies from the actual target segment, not just an internal review — this is where the 23.6% return-rate risk either gets designed out or doesn't |
+| **4. Launch collection** | Full 13-piece range, manufactured at validated MOQs once Phase 3 fit feedback is in, Shopify storefront live | — |
+| **5. Community growth** | Partnerships from Phase 6 become real once there's product to put in people's hands — club sponsorships, meetups, Get into Golf co-marketing | — |
+| **6. Product expansion** | Gloves, footwear, deeper size range — deliberately excluded from the Phase 3 launch range; revisit only once the initial collection has proven real demand | Don't build category #14 until category #1–13 has sold through |
+
+---
+
+*Next: Phase 8 — the HamishAI platform findings report, consolidating everything
+surfaced across all seven phases into a concrete improvements list.*
