@@ -1,6 +1,6 @@
 # Lily Golf — HamishAI End-to-End Test Project
 
-**Status: Phases 1–7 complete. Phase 8 not started.**
+**Status: All 8 phases complete.**
 
 ## What this is
 
@@ -31,7 +31,7 @@ strategic recommendation.
 | 5 | Concept website + live run through the real HamishAI admin/portal pipeline | ✅ Done — this doc |
 | 6 | AI opportunities + community/social strategy | ✅ Done — this doc |
 | 7 | Commercial reality (manufacturing/MOQ/margin, real sources only) + launch roadmap | ✅ Done — this doc |
-| 8 | HamishAI platform findings — what broke, what's missing, what should be automated | Not started |
+| 8 | HamishAI platform findings — what broke, what's missing, what should be automated | ✅ Done — this doc |
 
 Each phase gets its own section appended below as it ships, same pattern as
 `client-portal-redesign-plan.md`.
@@ -813,5 +813,85 @@ available, worth prioritising ahead of the shopping assistant for that reason al
 
 ---
 
-*Next: Phase 8 — the HamishAI platform findings report, consolidating everything
-surfaced across all seven phases into a concrete improvements list.*
+## Phase 8 — HamishAI Platform Findings Report
+
+The point of running Gowf through the real platform instead of just designing a
+brand concept was to find out where HamishAI itself is stronger or weaker than it
+looks from the outside. Every finding below happened live, in this test project,
+against the real product — nothing here is hypothetical.
+
+### What this proved HamishAI can already do
+
+Worth stating plainly before the gaps list, because it's easy for a findings report
+to read as more negative than the evidence supports:
+
+- **A real, working, on-brand AI assistant was live within one phase of research
+  existing** — `/concepts/gowf`'s chat answered real questions correctly and
+  refused to overclaim, using nothing but the brand facts documented in Phases 1-4.
+- **The deep research pipeline's automation fired exactly as designed**, unprompted,
+  the moment a concept page was linked to a lead — real event-driven automation,
+  not a manual step someone has to remember.
+- **The sales kit generator produced genuinely good, contextually accurate output**
+  from a lead with no website and no contact name — the weakest possible input —
+  and still referenced the real concept URL correctly.
+- **Portal data isolation is correctly enforced.** Gowf's AI Copilot reported "0
+  requests" for Gowf and never leaked another test client's data, and every page
+  tested handled a brand-new, zero-history account with a proper empty state
+  instead of an error.
+- **The AI Business Intelligence panel the brief asked to prove is real, not a
+  concept** — it's the portal's actual Insights page, already running for Gowf.
+
+That's five of the brief's own success criteria (Section 12: research → strategy →
+branding → concept → website → AI → analytics) demonstrated with a real account,
+not a mockup.
+
+### Gaps found, with concrete recommendations
+
+| # | Finding | Where it surfaced | Recommendation | Effort |
+|---|---|---|---|---|
+| 1 | AI research (`ResearchLeadButton` and the deep research pipeline) hard-requires an existing `website` field — refuses to run at all without one. | Phase 5, step 2 and step 3 — hit identically by both the manual button and the automated pipeline | Add a "no website" research mode that works from business name, category, and the signal/notes text instead of failing outright — arguably the businesses without a site yet are exactly the ones HamishAI should be best at researching, not worst. | Medium |
+| 2 | No lead → client conversion exists anywhere. Converting a real prospect into a client means retyping business name, email, and notes from scratch on a completely separate form. | Phase 5, step 5 | Add a "Convert to client" action on the lead detail page that pre-fills `/admin/clients`'s Add a Client form (or creates the row directly) from the prospect's existing data. | Small–Medium |
+| 3 | The "Add a Client" form's `email` field is stored but never checked by portal auth (`getPortalMembership` only reads `client_members`) — an admin filling it in reasonably expects it to grant login access, and nothing tells them it doesn't. | Phase 5, step 5–6, confirmed by reading `portal-membership.ts` and `addClient()` side by side | Either wire `addClient()` to also insert a `client_members` row from the same email (removes the trap entirely, one extra insert), or remove the field from the create form and point straight at the real invite flow. | Small |
+| 4 | One email can only ever belong to one client's portal (`getPortalMembership` resolves to the oldest invite, silently). Inviting an email already used elsewhere just doesn't work, with no error. | Phase 5, step 8 — hit with my own test email, had to work around it with a `+alias` | At minimum, check for an existing membership on invite and surface a clear error ("this email already has portal access to \[other client\]") rather than silently creating a dead invite. | Small |
+| 5 | No self-service or AI-assisted concept-page generation exists — every concept page is a fully hand-authored React file, confirmed by the codebase's own comment. With ~19 pages now built this way, a lot of chat-widget/hero/reveal-animation boilerplate is copy-pasted per page rather than shared. | Phase 5 (using the real, only path to build `/concepts/gowf`) | Two separable improvements: (a) extract the repeated `ConceptChat` component and the chat-route system-prompt pattern into shared code so a new concept page needs a fraction of the current boilerplate; (b) the bigger, roadmap-level idea — an AI-assisted first draft of a concept page from a lead's research data, with a human doing final design/copy passes rather than starting from a blank file every time. | (a) Small · (b) Large |
+
+### What this means for HamishAI's own roadmap
+
+Pulling Phase 6 and 7's findings back in alongside the above: HamishAI today is
+demonstrably strong at **AI for its own agency↔client relationship** — research,
+outreach drafting, account copilot, analytics — and has a real, proven gap at
+**commerce AI for a client's own end customers** (shopping assistant, size
+assistant). That gap isn't just a feature checklist item — Phase 7's real UK return-
+rate data (23.6%, driven mostly by sizing uncertainty) means the size assistant
+specifically is the single highest-leverage AI feature HamishAI could build for a
+client like Gowf, ahead of anything flashier.
+
+If HamishAI's roadmap has room for one investment coming out of this whole test
+project, the evidence points at #2 and #5(a) above as the pair worth doing
+together: they're both small-to-medium effort, and together they close the exact
+gap this test project had to work around by hand at every single handoff point in
+the pipeline — lead to concept, concept to client, client to portal access.
+
+### A note on tooling, not the HamishAI product
+
+Separate from the above (this is about the environment this session ran in, not a
+gap in HamishAI itself): Phase 4 attempted to generate real logo concept images via
+the `nano-banana`/Gemini image tool available in this environment, and the backing
+model (`gemini-2.5-flash-image-preview`) returned a 404 as unavailable. Worked
+around it with real embedded web fonts and CSS/SVG instead of raster images — worth
+recording here only because it's the reason Phase 4 doesn't include generated logo
+imagery, not because it says anything about HamishAI.
+
+---
+
+## Closing
+
+All 8 phases are complete. Lily Golf/Gowf went from a one-line brief to: cited
+market research, an honest naming decision (with a name change recommended and
+justified, not just validated), a brand strategy and 13-piece priced launch
+collection, a full visual identity system, a real working concept website with a
+live AI assistant, a genuine end-to-end run through HamishAI's actual admin and
+portal — not a simulation of one — real UK/EU manufacturing options and margin
+modelling, a launch roadmap with explicit validation gates, and this findings
+report. Every number either has a citation or is explicitly flagged as an estimate;
+every platform finding happened live against the real product.
