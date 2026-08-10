@@ -30,7 +30,8 @@ export function AskSupportAgent({ clientId }: { clientId: string }) {
             rows={2}
             placeholder="e.g. How do I update my opening hours myself?"
           />
-          <Button type="submit" disabled={isPending} className="w-full">
+          <Button type="submit" variant="ai" disabled={isPending} className="w-full gap-1.5">
+            <Sparkles className="size-3.5" />
             {isPending ? "Thinking…" : "Ask"}
           </Button>
         </form>

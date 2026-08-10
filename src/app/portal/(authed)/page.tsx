@@ -33,7 +33,7 @@ function StatCard({
         <span className={`flex size-7 items-center justify-center rounded-lg ${toneClasses}`}>
           <Icon className="size-4" />
         </span>
-        <p className="font-mono text-[11px] font-medium tracking-wide text-muted-foreground uppercase">{label}</p>
+        <p className="text-eyebrow">{label}</p>
       </div>
       <p className="mt-3 font-heading text-2xl font-semibold">{value}</p>
       {sub && <p className="mt-0.5 text-xs text-muted-foreground">{sub}</p>}
@@ -92,8 +92,8 @@ export default async function PortalHomePage() {
 
   return (
     <div>
-      <h1 className="font-heading text-2xl font-semibold">Hi {client.name || client.business_name}</h1>
-      <p className="mt-1 text-sm text-muted-foreground">{client.business_name}</p>
+      <h1 className="text-page-title">Hi {client.name || client.business_name}</h1>
+      <p className="text-page-subtitle mt-1">{client.business_name}</p>
 
       <div className="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <StatCard

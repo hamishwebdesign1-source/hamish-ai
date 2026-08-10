@@ -22,7 +22,7 @@ export default async function PortalInsightsPage() {
   if ("error" in insights) {
     return (
       <div>
-        <h1 className="font-heading text-2xl font-semibold">Insights</h1>
+        <h1 className="text-page-title">Insights</h1>
         <p className="mt-4 text-sm text-destructive">{insights.error}</p>
       </div>
     );
@@ -30,8 +30,8 @@ export default async function PortalInsightsPage() {
 
   return (
     <div>
-      <h1 className="font-heading text-2xl font-semibold">Insights</h1>
-      <p className="mt-1 max-w-xl text-sm text-muted-foreground">
+      <h1 className="text-page-title">Insights</h1>
+      <p className="text-page-subtitle mt-1 max-w-xl">
         Your AI Business Analytics, built from your own account — request activity, site health, and spend. No
         fabricated revenue or booking figures — this is the same Command Centre experience, running on your data.
       </p>

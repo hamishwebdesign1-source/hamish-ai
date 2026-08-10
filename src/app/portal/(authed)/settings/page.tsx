@@ -62,8 +62,8 @@ export default async function PortalSettingsPage() {
 
   return (
     <div>
-      <h1 className="font-heading text-2xl font-semibold">Settings</h1>
-      <p className="mt-1 text-sm text-muted-foreground">Your organisation, notifications, and who has access.</p>
+      <h1 className="text-page-title">Settings</h1>
+      <p className="text-page-subtitle mt-1">Your organisation, notifications, and who has access.</p>
 
       <div className="mt-6 grid gap-6">
         <Card>

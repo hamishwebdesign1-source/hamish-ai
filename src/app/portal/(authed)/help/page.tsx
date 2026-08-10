@@ -25,8 +25,8 @@ export default async function PortalHelpPage() {
 
   return (
     <div>
-      <h1 className="font-heading text-2xl font-semibold">Help</h1>
-      <p className="mt-1 text-sm text-muted-foreground">
+      <h1 className="text-page-title">Help</h1>
+      <p className="text-page-subtitle mt-1">
         Answers to common questions. Anything not covered here, just ask below or submit a request.
       </p>
 
@@ -35,7 +35,7 @@ export default async function PortalHelpPage() {
       </div>
 
       <div className="mt-8">
-        <h2 className="font-heading text-lg font-medium">Frequently asked</h2>
+        <h2 className="text-section-title">Frequently asked</h2>
         {!entries?.length && (
           <Card className="mt-3">
             <CardContent className="flex flex-col items-center gap-2 py-8 text-center text-sm text-muted-foreground">

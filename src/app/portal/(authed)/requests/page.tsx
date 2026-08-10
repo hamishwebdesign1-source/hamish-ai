@@ -66,8 +66,8 @@ export default async function PortalRequestsPage({
 
   return (
     <div>
-      <h1 className="font-heading text-2xl font-semibold">Requests</h1>
-      <p className="mt-1 text-sm text-muted-foreground">Everything you&apos;ve sent us, and what&apos;s happening with it.</p>
+      <h1 className="text-page-title">Requests</h1>
+      <p className="text-page-subtitle mt-1">Everything you&apos;ve sent us, and what&apos;s happening with it.</p>
 
       <Card className="mt-6">
         <CardHeader>

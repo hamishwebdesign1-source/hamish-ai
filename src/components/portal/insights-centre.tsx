@@ -404,7 +404,21 @@ export function InsightsCentre({ data }: { data: PortalInsights }) {
   const [tab, setTab] = useState<TabId>("overview");
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-white/10 bg-primary text-primary-foreground shadow-2xl shadow-accent/20">
+    <div
+      className="overflow-hidden rounded-2xl border border-white/10 bg-primary text-primary-foreground shadow-2xl shadow-accent/20"
+      // Client portal redesign Phase 1 — this panel is deliberately an
+      // always-dark hero, independent of the portal's own light/dark
+      // toggle (added this stage). --primary/--primary-foreground are
+      // semantic tokens that intentionally invert under .dark (so a
+      // button stays readable against its own background) — fine for a
+      // button, wrong for a panel whose whole design is "always reads as
+      // a dark console." Pinned here to their light-mode values (dark
+      // navy / near-white) so every existing bg-primary /
+      // text-primary-foreground / primary-foreground/NN% usage below
+      // keeps working unchanged, regardless of the surrounding page's
+      // theme.
+      style={{ "--primary": "oklch(0.22 0.035 260)", "--primary-foreground": "oklch(0.98 0.004 250)" } as React.CSSProperties}
+    >
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 px-5 py-4">
         <div className="flex items-center gap-2">
           <span className="relative flex size-2">

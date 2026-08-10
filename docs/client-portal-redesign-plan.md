@@ -1,10 +1,20 @@
 # Client Portal Redesign: Audit + Plan
 
-Status: **Audit complete, no code written yet.** Per the brief's own "Implementation Approach" — the 10 deliverables it asks for are all below, before any implementation starts. Written the same way `portal-redesign-plan.md` (the internal admin redesign) and `deep-research-pipeline-plan.md` were: grounded in what's actually in the codebase, not a hypothetical rebuild.
+Status: **Phase 1 shipped and live-verified.** The audit + 10 deliverables the brief asked for are below, written before any code changed. Written the same way `portal-redesign-plan.md` (the internal admin redesign) and `deep-research-pipeline-plan.md` were: grounded in what's actually in the codebase, not a hypothetical rebuild.
 
 Scope: `/portal/*` only — the standalone, client-facing self-service area at `hamishai.org/portal`, entirely separate code from `/admin`. Confirmed not confusing the two.
 
-**Current real-world scale: 2 live clients** (Craigie & Sons Joinery, Ellis Home Bakery). Worth knowing up front — there's real freedom to redesign boldly here; this isn't migrating a large existing user base.
+**Current real-world scale: 2 test clients** (Craigie & Sons Joinery, Ellis Home Bakery) — no real paying clients using the portal yet. Worth knowing up front — there's real freedom to redesign boldly here.
+
+## Phase 1 — what actually shipped
+
+Design system + dark mode + nav, ported from the internal admin's Stage 2/3 exactly as planned: `.text-page-title`/`-subtitle`/`-section-title`/`-eyebrow` type scale applied across every page header, the `ai` Button variant on the AI-calling "Ask" button, a portal-scoped dark mode (`PortalThemeToggle`/`PortalThemeInitScript`, own `localStorage` key so it's independent of the admin's), and the flat 6-item top-nav replaced with a grouped sidebar (`Home` / `Work` → Requests, Insights / `Account` → Billing, Help, Settings) — "Ask HamishAI" deliberately not in the nav yet, same discipline the admin sidebar followed: no entry for a page Phase 3 hasn't built.
+
+**A real, severe, pre-existing bug found and fixed while verifying this live** — unrelated to the redesign itself. `client_members_select_team` (`schema-portal-settings.sql`, added for the Settings page's team list) is a Postgres RLS policy on `client_members` whose own `USING` clause queries `client_members` again — infinite recursion (Postgres error `42P17`), on every single session-scoped read of that table. Since `getPortalMembership()` (the function every portal page calls to resolve a signed-in session to a client) depends on exactly that read, **no one could sign into the portal at all** until this was fixed. Found by generating a real test session via `supabase.auth.admin.generateLink()` to verify Phase 1's changes, and confirmed root-cause via a temporary debug route (deleted after use) that surfaced the raw Postgres error. Fixed in `supabase/schema-fix-client-members-recursion.sql` — moves the "which client_ids does this email belong to" lookup into a `SECURITY DEFINER` function (bypasses RLS for its own internal query, breaking the recursion cycle), with `search_path` explicitly pinned per Postgres's own guidance for that function type. Applied and confirmed working — a real test login now succeeds, and the Settings page's Team list (which depends on the exact policy that was broken) renders correctly.
+
+Also fixed in the same pass: the Insights page's hero panel (`InsightsCentre`) hardcodes `bg-primary`/`text-primary-foreground` to stay "always a dark console," which worked by coincidence when the portal had no dark mode — `--primary` is a semantic token that deliberately inverts under `.dark` (correct for a button, wrong for a panel meant to always read as dark). Adding dark mode exposed this immediately: toggling dark mode turned the Insights panel into a jarring light rectangle on a dark page. Fixed by pinning `--primary`/`--primary-foreground` to their light-mode values via an inline style scoped to just that component's subtree, so every existing `bg-primary`/`text-primary-foreground`/`primary-foreground/NN%` usage inside it keeps working unchanged, in both portal themes.
+
+Typecheck, lint (`src/app/portal/**`, `src/components/portal/**`), and production build all clean. Live-verified end to end against the real dev server with a real generated test session: sidebar renders and groups correctly, dark mode toggles cleanly across every page (Home, Requests, Billing, Insights, Help, Settings) with no regressions, the Insights panel now stays visually stable in both themes, and Settings' Team list (the RLS fix's own test case) renders real data correctly.
 
 ---
 
@@ -170,7 +180,7 @@ Already strong — RLS on every table, session-scoped Supabase clients throughou
 
 Mirrors how both other redesigns this session were run — staged, verified and checked in at each boundary, not one giant change.
 
-- **Phase 1 — Design system + nav.** Port the internal admin's Stage 2 tokens and dark mode into the portal. Replace the flat top-nav with the grouped nav from §3.
+- **Phase 1 — Design system + nav. ✅ Shipped.** See the write-up at the top of this doc, including the two real bugs found and fixed while verifying it live (an RLS infinite-recursion login bug, and the Insights panel's dark-mode instability).
 - **Phase 2 — Home.** The personalised dashboard: narrative header, "Your Actions," AI activity summary — all from existing data.
 - **Phase 3 — Ask HamishAI promoted.** Surface the real copilot prominently; retire the duplicate `AskSupportAgent` box (Help page keeps its FAQ accordion only).
 - **Phase 4 — Requests + Billing + Help + Settings design-system pass.** Same data, same functionality, visual/IA elevation only — matches the internal admin's Stage 6 approach exactly.

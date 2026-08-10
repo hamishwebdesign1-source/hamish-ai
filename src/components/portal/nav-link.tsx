@@ -8,10 +8,12 @@ export function PortalNavLink({
   href,
   children,
   onClick,
+  className,
 }: {
   href: string;
   children: React.ReactNode;
   onClick?: () => void;
+  className?: string;
 }) {
   const pathname = usePathname();
   const isActive = pathname === href || (href !== "/portal" && pathname.startsWith(`${href}/`));
@@ -21,10 +23,11 @@ export function PortalNavLink({
       href={href}
       onClick={onClick}
       className={cn(
-        "flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm font-medium transition-colors",
+        "flex items-center gap-2.5 rounded-md px-2.5 py-1.5 text-sm font-medium transition-colors",
         isActive
           ? "bg-secondary text-foreground"
-          : "text-muted-foreground hover:bg-secondary/60 hover:text-foreground"
+          : "text-muted-foreground hover:bg-secondary/60 hover:text-foreground",
+        className
       )}
     >
       {children}
