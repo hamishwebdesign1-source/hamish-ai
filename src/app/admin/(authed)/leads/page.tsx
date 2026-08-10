@@ -503,7 +503,12 @@ export default async function LeadsPage({
         </Card>
       </div>
 
-      <div className="mt-6">
+      {/* One grouped panel instead of five loose, independently-floating
+          filter rows — same four independent "AND together" dimensions
+          (status, contacted, concept page, pipeline) plus sort, but framed
+          as a single filter control instead of a stack of unrelated-looking
+          chip rows. */}
+      <div className="mt-6 space-y-2 rounded-xl border border-border bg-card/50 p-3">
         <FilterTabs
           activeKey={statusFilter}
           options={[
@@ -512,13 +517,12 @@ export default async function LeadsPage({
             { key: "needs_followup", label: "Needs follow-up", icon: Clock, href: filterHref({ status: "needs_followup" }) },
           ]}
         />
-      </div>
 
-      {/* Contacted / not contacted — independent of the status pills above,
-          so it can combine with them (e.g. "Ready" + "Not contacted"). */}
-      <div className="mt-2">
+        {/* Contacted / not contacted — independent of the status pills
+            above, so it can combine with them (e.g. "Ready" + "Not
+            contacted"). */}
         <FilterTabs
-          label="Contact:"
+          label="Contact"
           activeKey={contactedFilter}
           options={[
             { key: undefined, label: "All", count: allLeads?.length ?? 0, href: filterHref({ contacted: undefined }) },
@@ -526,14 +530,12 @@ export default async function LeadsPage({
             { key: "yes", label: "Contacted", count: contactedCount, icon: MessageCircleReply, href: filterHref({ contacted: "yes" }) },
           ]}
         />
-      </div>
 
-      {/* Concept page built / not — same independence, so you can filter
-          e.g. "Ready for outreach" + "No concept yet" to see exactly who
-          to build a concept page for next. */}
-      <div className="mt-2">
+        {/* Concept page built / not — same independence, so you can filter
+            e.g. "Ready for outreach" + "No concept yet" to see exactly who
+            to build a concept page for next. */}
         <FilterTabs
-          label="Concept page:"
+          label="Concept"
           activeKey={conceptFilter}
           options={[
             { key: undefined, label: "All", count: allLeads?.length ?? 0, href: filterHref({ concept: undefined }) },
@@ -541,14 +543,12 @@ export default async function LeadsPage({
             { key: "yes", label: "Concept made", count: hasConceptCount, icon: Sparkles, href: filterHref({ concept: "yes" }) },
           ]}
         />
-      </div>
 
-      {/* Pipeline widgets (High Impact #9) — pure JS filters over the
-          research/score fields #6-8 added, zero LLM cost. Independent of
-          the three dimensions above, same "AND together" pattern. */}
-      <div className="mt-2">
+        {/* Pipeline widgets (High Impact #9) — pure JS filters over the
+            research/score fields #6-8 added, zero LLM cost. Independent of
+            the three dimensions above, same "AND together" pattern. */}
         <FilterTabs
-          label="Pipeline:"
+          label="Pipeline"
           activeKey={insightFilter}
           options={[
             { key: undefined, label: "All", href: filterHref({ insight: undefined }) },
@@ -561,18 +561,21 @@ export default async function LeadsPage({
             })),
           ]}
         />
-      </div>
 
-      {/* Display order only — doesn't touch the "Do this next" card above,
-          which always reasons over the default priority order regardless
-          of how the list below is currently sorted. */}
-      <div className="mt-2 flex flex-wrap items-center gap-2">
-        <span className="text-xs text-muted-foreground">Sort:</span>
-        {Object.entries(SORT_LABELS).map(([key, label]) => (
-          <Link key={key} href={filterHref({ sort: key === "priority" ? undefined : key })}>
-            <Badge variant={sortKey === key ? "default" : "outline"}>{label}</Badge>
-          </Link>
-        ))}
+        {/* Display order only — doesn't touch the "Do this next" card
+            above, which always reasons over the default priority order
+            regardless of how the list below is currently sorted. Now the
+            same FilterTabs control as everything else in this panel,
+            rather than a differently-styled hand-rolled row. */}
+        <FilterTabs
+          label="Sort"
+          activeKey={sortKey === "priority" ? undefined : sortKey}
+          options={Object.entries(SORT_LABELS).map(([key, label]) => ({
+            key: key === "priority" ? undefined : key,
+            label,
+            href: filterHref({ sort: key === "priority" ? undefined : key }),
+          }))}
+        />
       </div>
 
       <div className="mt-8 grid gap-6 md:grid-cols-[1fr_1.4fr]">
