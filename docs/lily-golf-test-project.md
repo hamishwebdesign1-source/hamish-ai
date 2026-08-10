@@ -377,6 +377,13 @@ accent that nods to Scotland without being literal tartan or thistle-print:
 
 ### The launch collection — 13 pieces
 
+**Actual designs:** technical flat sketches for all 13 pieces —
+**[`docs/lily-golf/collection-flats.html`](./lily-golf/collection-flats.html)** —
+added after this phase originally shipped, once it was clear that price/material/
+colour text alone wasn't the same as seeing the garments. Real technical flats (the
+schematic line drawings a design tech pack uses before a sample exists), not
+AI-generated photography standing in for a shoot that hasn't happened.
+
 Deliberately tight rather than sprawling. A debut collection that tries to cover
 every category thinly is a worse first impression than a small collection that's
 fully resolved — and a narrower SKU count is a real MOQ/cash-flow advantage covered
