@@ -4,6 +4,7 @@ import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import {
   ArrowLeft,
+  ArrowRight,
   ExternalLink,
   Phone,
   Mail,
@@ -117,6 +118,16 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
   ]);
 
   if (!lead) notFound();
+
+  // "Convert to client" (Phase 8 finding #2 in docs/lily-golf-test-project.md)
+  // — real, queryable link via clients.source_lead_id, not just a one-time
+  // copy. Checked here so this page can offer "already converted" instead
+  // of letting the same lead be converted twice into two separate clients.
+  const { data: convertedClient } = await supabase
+    .from("clients")
+    .select("id, business_name")
+    .eq("source_lead_id", id)
+    .maybeSingle();
 
   let conceptSlugs: string[] = [];
   try {
@@ -304,6 +315,34 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
                       </Button>
                     </form>
                   </div>
+                </div>
+
+                {/* Convert to client — real, not a re-typing exercise.
+                    Carries business_name/email/website/concept_slug/notes
+                    across via searchParams pre-fill on the Add a Client
+                    form, and clients.source_lead_id makes the link real
+                    and queryable afterward, not a one-time copy. */}
+                <div className="flex items-center justify-between gap-2 border-t border-border pt-4">
+                  <span className="text-xs text-muted-foreground">
+                    {convertedClient
+                      ? "This lead has already been converted to a client."
+                      : "Ready to take this lead on as a client?"}
+                  </span>
+                  {convertedClient ? (
+                    <Link href={`/admin/clients/${convertedClient.id}`}>
+                      <Button type="button" variant="outline" size="xs" className="gap-1">
+                        <ArrowRight className="size-3" />
+                        View {convertedClient.business_name}
+                      </Button>
+                    </Link>
+                  ) : (
+                    <Link href={`/admin/clients?from_lead=${lead.id}`}>
+                      <Button type="button" size="xs" className="gap-1">
+                        Convert to client
+                        <ArrowRight className="size-3" />
+                      </Button>
+                    </Link>
+                  )}
                 </div>
               </CardContent>
             </Card>

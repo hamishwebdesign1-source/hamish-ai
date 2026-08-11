@@ -55,6 +55,13 @@ async function addClient(formData: FormData) {
     }
   }
 
+  // Phase 8 finding #2 — when this form was reached via "Convert to
+  // client" on a lead, these hidden fields carry the lead's concept page
+  // and the real link back across, so the two records are actually
+  // related afterward, not just copied once and forgotten.
+  const sourceLeadId = String(formData.get("source_lead_id") || "").trim() || null;
+  const conceptSlug = String(formData.get("concept_slug") || "").trim() || null;
+
   const { data: client, error } = await supabase
     .from("clients")
     .insert({
@@ -66,31 +73,48 @@ async function addClient(formData: FormData) {
       website_url: String(formData.get("website_url") || "") || null,
       tech_stack: String(formData.get("tech_stack") || "") || null,
       brand_notes: String(formData.get("brand_notes") || "") || null,
+      source_lead_id: sourceLeadId,
+      concept_slug: conceptSlug,
     })
     .select("id")
     .single();
 
   if (error) {
     console.error("Failed to insert client:", error);
-  } else if (client && email) {
-    const { error: memberError } = await supabase
-      .from("client_members")
-      .insert({ client_id: client.id, email, role: "owner", invited_by: "admin" });
-    if (memberError) {
-      console.error("Failed to grant portal access on client creation:", memberError);
-    } else {
+  } else if (client) {
+    if (email) {
+      const { error: memberError } = await supabase
+        .from("client_members")
+        .insert({ client_id: client.id, email, role: "owner", invited_by: "admin" });
+      if (memberError) {
+        console.error("Failed to grant portal access on client creation:", memberError);
+      } else {
+        await logAuditEvent({
+          actor: "admin",
+          action: "client_member.invited",
+          targetType: "client_member",
+          clientId: client.id,
+          metadata: { email, role: "owner", via: "client_creation" },
+        });
+        await sendClientEmail(
+          email,
+          `You've been added to ${businessName}'s Hamish AI portal`,
+          `Hi,\n\nYou now have access to ${businessName}'s Hamish AI client portal.\n\nSign in any time at https://hamishai.org/portal/login with this email address (${email}) — we'll send you a one-time login link, no password needed.\n\n— Hamish AI`
+        );
+      }
+    }
+
+    if (sourceLeadId) {
       await logAuditEvent({
         actor: "admin",
-        action: "client_member.invited",
-        targetType: "client_member",
+        action: "lead.converted_to_client",
+        targetType: "prospect",
+        targetId: sourceLeadId,
         clientId: client.id,
-        metadata: { email, role: "owner", via: "client_creation" },
+        metadata: { business_name: businessName },
       });
-      await sendClientEmail(
-        email,
-        `You've been added to ${businessName}'s Hamish AI portal`,
-        `Hi,\n\nYou now have access to ${businessName}'s Hamish AI client portal.\n\nSign in any time at https://hamishai.org/portal/login with this email address (${email}) — we'll send you a one-time login link, no password needed.\n\n— Hamish AI`
-      );
+      revalidatePath(`/admin/leads/${sourceLeadId}`);
+      redirect(`/admin/clients/${client.id}`);
     }
   }
 
@@ -128,14 +152,27 @@ const clientStatusVariant: Record<string, "success" | "warning" | "secondary"> =
 export default async function ClientsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; member_error?: string }>;
+  searchParams: Promise<{ status?: string; member_error?: string; from_lead?: string }>;
 }) {
-  const { status: statusFilter, member_error: memberError } = await searchParams;
+  const { status: statusFilter, member_error: memberError, from_lead: fromLeadId } = await searchParams;
   const supabase = getSupabaseAdmin();
   const { data: allClients, error: clientsError } = supabase
     ? await supabase.from("clients").select("*").order("created_at", { ascending: false })
     : { data: [], error: null };
   if (clientsError) console.error("Failed to fetch clients:", clientsError);
+
+  // "Convert to client" pre-fill — real data carried across from the lead
+  // instead of retyping it, per Phase 8 finding #2 in
+  // docs/lily-golf-test-project.md. Still a real form the admin reviews
+  // and submits, not a silent one-click conversion.
+  const { data: fromLead } =
+    fromLeadId && supabase
+      ? await supabase
+          .from("prospects")
+          .select("business_name, email, website, concept_slug, notes")
+          .eq("id", fromLeadId)
+          .maybeSingle()
+      : { data: null };
 
   const clients = statusFilter ? allClients?.filter((c) => (c.status ?? "active") === statusFilter) : allClients;
   const activeCount = allClients?.filter((c) => (c.status ?? "active") === "active").length ?? 0;
@@ -158,18 +195,38 @@ export default async function ClientsPage({
             {memberError && (
               <p className="mb-3 rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{memberError}</p>
             )}
+            {fromLead && (
+              <p className="mb-3 rounded-lg bg-accent/10 px-3 py-2 text-sm text-accent">
+                Pre-filled from the lead &ldquo;{fromLead.business_name}&rdquo; — review and edit before saving.
+                {fromLead.concept_slug && ` Its concept page (${fromLead.concept_slug}) will carry over too.`}
+              </p>
+            )}
             <form action={addClient} className="mt-2 space-y-3">
+              {fromLeadId && <input type="hidden" name="source_lead_id" value={fromLeadId} />}
+              {fromLead?.concept_slug && <input type="hidden" name="concept_slug" value={fromLead.concept_slug} />}
               <div className="space-y-1.5">
                 <Label htmlFor="name">Contact name</Label>
                 <Input id="name" name="name" placeholder="Chris Munro" required />
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="business_name">Business name</Label>
-                <Input id="business_name" name="business_name" placeholder="Craigie & Sons Joinery" required />
+                <Input
+                  id="business_name"
+                  name="business_name"
+                  placeholder="Craigie & Sons Joinery"
+                  defaultValue={fromLead?.business_name ?? ""}
+                  required
+                />
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="email">Email — grants portal access</Label>
-                <Input id="email" name="email" type="email" placeholder="chris@example.com" />
+                <Input
+                  id="email"
+                  name="email"
+                  type="email"
+                  placeholder="chris@example.com"
+                  defaultValue={fromLead?.email ?? ""}
+                />
                 <p className="text-[11px] text-muted-foreground">
                   If set, this email can sign in at /portal/login immediately as the owner — same as inviting them
                   from the client&apos;s Team tab. Leave blank to add portal access later instead.
@@ -196,7 +253,13 @@ export default async function ClientsPage({
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="website_url">Website URL</Label>
-                <Input id="website_url" name="website_url" type="url" placeholder="https://example.com" />
+                <Input
+                  id="website_url"
+                  name="website_url"
+                  type="url"
+                  placeholder="https://example.com"
+                  defaultValue={fromLead?.website ?? ""}
+                />
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="tech_stack">Tech stack</Label>
@@ -204,10 +267,16 @@ export default async function ClientsPage({
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="brand_notes">Brand / tone notes</Label>
-                <Textarea id="brand_notes" name="brand_notes" placeholder="Optional context for the AI triage agent." rows={3} />
+                <Textarea
+                  id="brand_notes"
+                  name="brand_notes"
+                  placeholder="Optional context for the AI triage agent."
+                  rows={3}
+                  defaultValue={fromLead?.notes ?? ""}
+                />
               </div>
               <Button type="submit" className="w-full">
-                Add client
+                {fromLead ? "Convert to client" : "Add client"}
               </Button>
             </form>
           </CardContent>
