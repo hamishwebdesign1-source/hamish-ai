@@ -220,11 +220,17 @@ export function ResearchLeadButton({
                 </>
               )}
               <p className="text-muted-foreground">
-                Site check: {research.site_check.resolves ? "resolves" : "does not resolve"}
-                {research.site_check.ssl_ok === false && ", SSL invalid"}
-                {!research.site_check.has_booking_form && ", no booking/contact form detected"}
-                {!research.site_check.mobile_friendly && ", no mobile viewport tag detected"}
-                {research.site_check.redirect_to && `, redirects to ${research.site_check.redirect_to}`}
+                {research.site_check ? (
+                  <>
+                    Site check: {research.site_check.resolves ? "resolves" : "does not resolve"}
+                    {research.site_check.ssl_ok === false && ", SSL invalid"}
+                    {!research.site_check.has_booking_form && ", no booking/contact form detected"}
+                    {!research.site_check.mobile_friendly && ", no mobile viewport tag detected"}
+                    {research.site_check.redirect_to && `, redirects to ${research.site_check.redirect_to}`}
+                  </>
+                ) : (
+                  "No website on file — researched from business name, category, and notes only."
+                )}
               </p>
             </div>
           </details>

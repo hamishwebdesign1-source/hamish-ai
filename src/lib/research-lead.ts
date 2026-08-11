@@ -63,7 +63,12 @@ export type ConceptPageAnalysis = {
 };
 
 export type LeadResearch = {
-  site_check: SiteCheck;
+  // Absent, not a placeholder "checked and failed" object, when the lead
+  // has no website at all — see researchLead()'s no-website branch. A
+  // real distinction: "we tried to check this domain and it's broken" and
+  // "there is no domain to check" are different findings, not the same
+  // one with a missing value.
+  site_check?: SiteCheck;
   business_summary: string;
   services: string[];
   strengths: string[];
@@ -190,10 +195,13 @@ async function fetchConceptPageText(slug: string): Promise<string> {
 // actually convert) to fit a better one against. Broken domain is the
 // single strongest signal (mirrors what the manual research process has
 // been treating as the strongest opener all along); everything else is
-// one point each, capped at 5.
-export function computeLeadScore(siteCheck: SiteCheck, aiOpportunityFit: LeadResearch["ai_opportunity_fit"]): number {
+// one point each, capped at 5. No website at all (siteCheck === null)
+// scores the same as a domain that doesn't resolve — both mean "nothing
+// online to point to," the strongest version of this signal, not a weaker
+// one just because there was no domain to even attempt.
+export function computeLeadScore(siteCheck: SiteCheck | null, aiOpportunityFit: LeadResearch["ai_opportunity_fit"]): number {
   let points = 0;
-  if (!siteCheck.resolves) {
+  if (!siteCheck || !siteCheck.resolves) {
     points += 2;
   } else {
     if (siteCheck.ssl_ok === false) points += 1;
@@ -314,14 +322,16 @@ function buildSystemPrompt(lead: {
   neighbourhood: string | null;
   signal: string | null;
   outreach_note: string | null;
-}, siteCheck: SiteCheck, visibleText: string) {
+}, siteCheck: SiteCheck | null, visibleText: string) {
   return `You are researching a small business as a lead-qualification step for Hamish AI, a small Edinburgh-based AI/web consultancy. Everything you produce is for INTERNAL prioritisation only — estimated figures must never be treated as fact or quoted to the business itself; only concrete, sourced observations belong in actual outreach copy.
 
 Business: ${lead.business_name} (${lead.category || "unknown category"}, ${lead.neighbourhood || "unknown location"})
 ${lead.signal ? `Previously recorded signal: ${lead.signal}` : ""}
 ${lead.outreach_note ? `Previously recorded outreach note: ${lead.outreach_note}` : ""}
 
-Deterministic site-check results (already run, don't re-derive):
+${
+  siteCheck
+    ? `Deterministic site-check results (already run, don't re-derive):
 - Domain resolves: ${siteCheck.resolves}
 - SSL valid: ${siteCheck.ssl_ok === null ? "n/a" : siteCheck.ssl_ok}
 - Response time: ${siteCheck.response_ms ?? "n/a"}ms
@@ -331,7 +341,9 @@ Deterministic site-check results (already run, don't re-derive):
 - Meta description: ${siteCheck.meta_description ?? "none found"}
 ${siteCheck.redirect_to ? `- Redirects to a different domain: ${siteCheck.redirect_to}` : ""}
 
-${visibleText ? `Visible page text (truncated):\n${visibleText}` : "No page text could be fetched — base findings on the site-check results and business name/category only, and say so honestly rather than inventing content."}
+${visibleText ? `Visible page text (truncated):\n${visibleText}` : "No page text could be fetched — base findings on the site-check results and business name/category only, and say so honestly rather than inventing content."}`
+    : `This business has no website on file at all — there is nothing to site-check, and that absence is itself the strongest, most concrete finding here: a business with zero online presence is a business that cannot be found, booked, or verified by a prospective customer today. Treat "no website" as the primary weakness and the primary AI/web opportunity, not as missing data to work around. Base every other finding on the business name, category, neighbourhood, and any recorded signal/outreach note only — say so honestly rather than inventing specifics a real site might have shown.`
+}
 
 Never invent specific facts (prices, review counts, awards, years trading) beyond what's given above or literally present in the page text. Every estimate (project value, conversion probability, AI opportunity fit) is a rough band for Hamish's own prioritisation, not a claim about the business.`;
 }
@@ -524,12 +536,20 @@ export async function researchLead(leadId: string) {
     .single();
 
   if (leadError || !lead) return { error: "Lead not found." as const };
-  if (!lead.website) return { error: "This lead has no website on file to research." as const };
 
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return { error: "ANTHROPIC_API_KEY is not configured." as const };
 
-  const { siteCheck, visibleText } = await runSiteCheck(lead.website);
+  // Phase 8 finding #1 (docs/lily-golf-test-project.md): this used to hard-
+  // refuse any lead with no website on file — exactly the businesses that
+  // most need Hamish AI (no online presence at all) were the ones this
+  // tool was worst at researching. siteCheck/visibleText are null/empty
+  // rather than skipped-with-a-placeholder — buildSystemPrompt() and
+  // computeLeadScore() both branch on that explicitly rather than being
+  // handed a fake "checked and it's broken" result.
+  const { siteCheck, visibleText } = lead.website
+    ? await runSiteCheck(lead.website)
+    : { siteCheck: null, visibleText: "" };
   // Best-effort — a concept page that fails to fetch just means
   // sales_strategy/concept_page_analysis get omitted this run, not a
   // reason to fail the whole research pass.
@@ -552,7 +572,7 @@ export async function researchLead(leadId: string) {
     if (!toolUse) return { error: "The AI did not return research." as const };
 
     const findings = toolUse.input as Omit<LeadResearch, "site_check" | "sales_strategy" | "concept_page_analysis">;
-    let research: LeadResearch = { site_check: siteCheck, ...findings };
+    let research: LeadResearch = { ...(siteCheck ? { site_check: siteCheck } : {}), ...findings };
 
     // Two more calls, only when a concept page exists — see
     // SALES_STRATEGY_TOOL's comment for why these are split out rather
