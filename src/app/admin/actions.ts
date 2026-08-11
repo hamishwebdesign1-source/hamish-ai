@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { after } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { createResearchJob, runResearchJob } from "@/lib/deep-research-pipeline";
@@ -469,6 +470,32 @@ export async function inviteClientMember(clientId: string, revalidate: string, f
   const email = String(formData.get("email") || "").trim().toLowerCase();
   const role = String(formData.get("role") || "member") === "owner" ? "owner" : "member";
   if (!email) return;
+
+  // getPortalMembership resolves one email to exactly one client (oldest
+  // invite wins) — the portal doesn't support one email having access to
+  // two organisations. Inviting an email already attached elsewhere
+  // wouldn't hit the (client_id, email) unique constraint below (different
+  // client_id), so without this check it would silently create a dead
+  // invite that can never actually sign in to *this* client. Found by
+  // hitting exactly this while testing the Lily Golf / Gowf project — see
+  // docs/lily-golf-test-project.md Phase 8 — surfacing it here instead.
+  const { data: existingElsewhere } = await supabase
+    .from("client_members")
+    .select("client_id, clients(business_name)")
+    .eq("email", email)
+    .neq("client_id", clientId)
+    .limit(1)
+    .maybeSingle();
+
+  if (existingElsewhere) {
+    const otherBusinessName =
+      (existingElsewhere.clients as unknown as { business_name?: string } | null)?.business_name ?? "another client";
+    redirect(
+      `${revalidate}?member_error=${encodeURIComponent(
+        `${email} already has portal access to ${otherBusinessName} — one email can only belong to one client's portal today, so inviting it here won't work.`
+      )}`
+    );
+  }
 
   const { data: client } = await supabase.from("clients").select("business_name").eq("id", clientId).single();
 

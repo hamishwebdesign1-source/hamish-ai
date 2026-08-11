@@ -1,7 +1,10 @@
 import Link from "next/link";
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { Users } from "lucide-react";
 import { getSupabaseAdmin } from "@/lib/supabase";
+import { sendClientEmail } from "@/lib/send-client-email";
+import { logAuditEvent } from "@/lib/audit-log";
 import { packages, analyticsPackage } from "@/lib/site-config";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -21,18 +24,75 @@ async function addClient(formData: FormData) {
   const supabase = getSupabaseAdmin();
   if (!supabase) return;
 
-  const { error } = await supabase.from("clients").insert({
-    name: String(formData.get("name") || ""),
-    business_name: String(formData.get("business_name") || ""),
-    email: String(formData.get("email") || "") || null,
-    package: String(formData.get("package") || "") || null,
-    maintenance_plan: String(formData.get("maintenance_plan") || "none"),
-    website_url: String(formData.get("website_url") || "") || null,
-    tech_stack: String(formData.get("tech_stack") || "") || null,
-    brand_notes: String(formData.get("brand_notes") || "") || null,
-  });
+  const email = String(formData.get("email") || "").trim().toLowerCase() || null;
+  const businessName = String(formData.get("business_name") || "");
 
-  if (error) console.error("Failed to insert client:", error);
+  // This "Email" field used to be stored on the client and silently do
+  // nothing else — portal login is decided entirely by client_members
+  // (see lib/portal-membership.ts), which nothing here ever wrote to. An
+  // admin filling this in reasonably expects it to grant the client portal
+  // access; it didn't, with no warning. Found and documented in
+  // docs/lily-golf-test-project.md Phase 8. Fixed here by having this
+  // field do what it looks like it does: also invite that email as the
+  // client's owner, same as the real "Invite by email" flow on the client
+  // detail page — one thing, not a second dead-looking copy of it.
+  if (email) {
+    const { data: existingElsewhere } = await supabase
+      .from("client_members")
+      .select("client_id, clients(business_name)")
+      .eq("email", email)
+      .limit(1)
+      .maybeSingle();
+
+    if (existingElsewhere) {
+      const otherBusinessName =
+        (existingElsewhere.clients as unknown as { business_name?: string } | null)?.business_name ?? "another client";
+      redirect(
+        `/admin/clients?member_error=${encodeURIComponent(
+          `${email} already has portal access to ${otherBusinessName} — one email can only belong to one client's portal today. The client was not created with this email attached.`
+        )}`
+      );
+    }
+  }
+
+  const { data: client, error } = await supabase
+    .from("clients")
+    .insert({
+      name: String(formData.get("name") || ""),
+      business_name: businessName,
+      email,
+      package: String(formData.get("package") || "") || null,
+      maintenance_plan: String(formData.get("maintenance_plan") || "none"),
+      website_url: String(formData.get("website_url") || "") || null,
+      tech_stack: String(formData.get("tech_stack") || "") || null,
+      brand_notes: String(formData.get("brand_notes") || "") || null,
+    })
+    .select("id")
+    .single();
+
+  if (error) {
+    console.error("Failed to insert client:", error);
+  } else if (client && email) {
+    const { error: memberError } = await supabase
+      .from("client_members")
+      .insert({ client_id: client.id, email, role: "owner", invited_by: "admin" });
+    if (memberError) {
+      console.error("Failed to grant portal access on client creation:", memberError);
+    } else {
+      await logAuditEvent({
+        actor: "admin",
+        action: "client_member.invited",
+        targetType: "client_member",
+        clientId: client.id,
+        metadata: { email, role: "owner", via: "client_creation" },
+      });
+      await sendClientEmail(
+        email,
+        `You've been added to ${businessName}'s Hamish AI portal`,
+        `Hi,\n\nYou now have access to ${businessName}'s Hamish AI client portal.\n\nSign in any time at https://hamishai.org/portal/login with this email address (${email}) — we'll send you a one-time login link, no password needed.\n\n— Hamish AI`
+      );
+    }
+  }
 
   revalidatePath("/admin/clients");
 }
@@ -68,9 +128,9 @@ const clientStatusVariant: Record<string, "success" | "warning" | "secondary"> =
 export default async function ClientsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string }>;
+  searchParams: Promise<{ status?: string; member_error?: string }>;
 }) {
-  const { status: statusFilter } = await searchParams;
+  const { status: statusFilter, member_error: memberError } = await searchParams;
   const supabase = getSupabaseAdmin();
   const { data: allClients, error: clientsError } = supabase
     ? await supabase.from("clients").select("*").order("created_at", { ascending: false })
@@ -95,6 +155,9 @@ export default async function ClientsPage({
             <CardTitle>Add a client</CardTitle>
           </CardHeader>
           <CardContent>
+            {memberError && (
+              <p className="mb-3 rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{memberError}</p>
+            )}
             <form action={addClient} className="mt-2 space-y-3">
               <div className="space-y-1.5">
                 <Label htmlFor="name">Contact name</Label>
@@ -105,8 +168,12 @@ export default async function ClientsPage({
                 <Input id="business_name" name="business_name" placeholder="Craigie & Sons Joinery" required />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="email">Email</Label>
+                <Label htmlFor="email">Email — grants portal access</Label>
                 <Input id="email" name="email" type="email" placeholder="chris@example.com" />
+                <p className="text-[11px] text-muted-foreground">
+                  If set, this email can sign in at /portal/login immediately as the owner — same as inviting them
+                  from the client&apos;s Team tab. Leave blank to add portal access later instead.
+                </p>
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="package">Package</Label>

@@ -108,8 +108,15 @@ const SECTIONS = [
   { id: "invoices", label: "Invoices" },
 ];
 
-export default async function ClientDetailPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function ClientDetailPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ member_error?: string }>;
+}) {
   const { id } = await params;
+  const { member_error: memberError } = await searchParams;
   const supabase = getSupabaseAdmin();
   if (!supabase) notFound();
 
@@ -379,6 +386,9 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
             </CardDescription>
           </CardHeader>
           <CardContent>
+            {memberError && (
+              <p className="mb-3 rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{memberError}</p>
+            )}
             {!members?.length && <p className="text-sm text-muted-foreground">No portal access set up yet.</p>}
             {!!members?.length && (
               <ul className="space-y-2">
