@@ -15,6 +15,12 @@ export const AI_ACTIVITY_ACTIONS = [
   "request.triaged",
   "request.auto_sent",
   "client.progress_report_generated",
+  // Content Factory MVP (docs/content-factory-plan.md) — Phase A only
+  // (idea discovery/research/reject); script/video/approval actions join
+  // this list as later build phases land.
+  "content.idea_discovered",
+  "content.idea_researched",
+  "content.idea_rejected",
 ] as const;
 
 export type AiActivityAction = (typeof AI_ACTIVITY_ACTIONS)[number];
@@ -51,6 +57,12 @@ export function describeAiActivity(action: string, meta: Record<string, unknown>
       return "AI auto-sent a reply — covered by plan, small scope, no review needed";
     case "client.progress_report_generated":
       return "AI generated a progress report";
+    case "content.idea_discovered":
+      return `AI discovered a new content idea — ${meta.why_suggested ?? "weekly trend search"}`;
+    case "content.idea_researched":
+      return `AI researched a content idea — scored ${meta.score}/5${meta.rejected ? " (auto-rejected)" : ""}`;
+    case "content.idea_rejected":
+      return "Content idea rejected";
     default:
       return action;
   }
@@ -75,6 +87,10 @@ export const AI_ACTIVITY_GROUPS: Record<string, { label: string; actions: readon
     label: "Client operations",
     actions: ["request.triaged", "request.auto_sent", "client.progress_report_generated"],
   },
+  content: {
+    label: "Content Factory",
+    actions: ["content.idea_discovered", "content.idea_researched", "content.idea_rejected"],
+  },
 };
 
 // Where each action's detail actually lives, so the feed can link through
@@ -84,5 +100,6 @@ export function aiActivityHref(entry: Pick<AiActivityEntry, "target_type" | "tar
   if ((entry.target_type === "request" || entry.target_type === "client") && entry.client_id) {
     return `/admin/clients/${entry.client_id}`;
   }
+  if (entry.target_type === "content_idea" && entry.target_id) return `/admin/content-factory/${entry.target_id}`;
   return null;
 }

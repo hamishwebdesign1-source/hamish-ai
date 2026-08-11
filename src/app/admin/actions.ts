@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { after } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { createResearchJob, runResearchJob } from "@/lib/deep-research-pipeline";
+import { researchContentIdea, type ContentIdeaResearch } from "@/lib/research-content-idea";
 import { sendClientEmail } from "@/lib/send-client-email";
 import { researchLead, type LeadResearch } from "@/lib/research-lead";
 import { draftSalesKit, type SalesKit } from "@/lib/draft-sales-kit";
@@ -692,4 +693,89 @@ export async function scheduleLeadMeeting(
 
   revalidatePath("/admin/leads");
   return { joinUrl: created.joinUrl, scheduledStart: created.startIso, meetingId: inserted.id };
+}
+
+// --- Content Factory MVP (docs/content-factory-plan.md) — Phase A ---
+// Idea Discovery / Research / Scoring only. Script generation, video
+// generation, and approval actions join this section as later build
+// phases land.
+
+export async function addContentIdea(formData: FormData) {
+  const supabase = getSupabaseAdmin();
+  if (!supabase) return;
+
+  const title = String(formData.get("title") || "");
+  const concept = String(formData.get("concept") || "");
+  const { data: inserted, error } = await supabase
+    .from("content_ideas")
+    .insert({
+      title,
+      concept,
+      topic: String(formData.get("topic") || "") || null,
+      platform_target: String(formData.get("platform_target") || "shorts"),
+      status: "new",
+      source: "manual",
+    })
+    .select("id")
+    .single();
+
+  if (error) {
+    console.error("Failed to insert content idea:", error);
+  } else if (inserted) {
+    await logAuditEvent({
+      actor: "admin",
+      action: "content.idea_created",
+      targetType: "content_idea",
+      targetId: inserted.id,
+      metadata: { title },
+    });
+  }
+
+  revalidatePath("/admin/content-factory");
+}
+
+export type ContentIdeaResearchState = {
+  research?: ContentIdeaResearch;
+  score?: number;
+  rejected?: boolean;
+  generatedAt?: string;
+  error?: string;
+};
+
+export async function generateIdeaResearch(
+  ideaId: string,
+  _prevState: ContentIdeaResearchState,
+  _formData: FormData
+): Promise<ContentIdeaResearchState> {
+  const result = await researchContentIdea(ideaId);
+  revalidatePath("/admin/content-factory");
+  revalidatePath(`/admin/content-factory/${ideaId}`);
+  if ("error" in result) return { error: result.error };
+  return { research: result.research, score: result.score, rejected: result.rejected, generatedAt: result.generatedAt };
+}
+
+export async function rejectContentIdea(ideaId: string, formData: FormData) {
+  const supabase = getSupabaseAdmin();
+  if (!supabase) return;
+
+  const reason = String(formData.get("reason") || "") || "Rejected manually.";
+  const { error } = await supabase
+    .from("content_ideas")
+    .update({ status: "rejected", rejected_reason: reason, rejected_at: new Date().toISOString() })
+    .eq("id", ideaId);
+
+  if (error) {
+    console.error("Failed to reject content idea:", error);
+  } else {
+    await logAuditEvent({
+      actor: "admin",
+      action: "content.idea_rejected",
+      targetType: "content_idea",
+      targetId: ideaId,
+      metadata: { reason },
+    });
+  }
+
+  revalidatePath("/admin/content-factory");
+  revalidatePath(`/admin/content-factory/${ideaId}`);
 }

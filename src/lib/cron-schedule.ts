@@ -68,6 +68,13 @@ export const CRON_SPECS: CronSpec[] = [
     nextRun: () => nextWeekly(1, 7),
   },
   {
+    name: "content-idea-discovery",
+    label: "Content idea discovery",
+    description: "Searches for new short-form video ideas across the topic rotation, researching and scoring each one.",
+    schedule: "0 7 * * 3",
+    nextRun: () => nextWeekly(3, 7),
+  },
+  {
     name: "email-inbox",
     label: "Email inbox triage",
     description: "Triages incoming client emails into requests, and checks which drafted lead-outreach emails were actually sent.",

@@ -17,6 +17,10 @@
       "schedule": "0 7 * * 1"
     },
     {
+      "path": "/api/cron/content-idea-discovery",
+      "schedule": "0 7 * * 3"
+    },
+    {
       "path": "/api/cron/email-inbox",
       "schedule": "0 12 * * *"
     },

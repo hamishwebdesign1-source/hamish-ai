@@ -1,4 +1,4 @@
-import { LayoutDashboard, Users, BookOpen, Plug, Search, Workflow, ShieldCheck, History, Sparkles, Workflow as Automation } from "lucide-react";
+import { LayoutDashboard, Users, BookOpen, Plug, Search, Workflow, ShieldCheck, History, Sparkles, Clapperboard, Workflow as Automation } from "lucide-react";
 import { AdminNavLink } from "@/components/admin/nav-link";
 
 // Portal redesign Stage 3 — replaces the old single-row top nav (9 items
@@ -15,6 +15,7 @@ export const NAV_SECTIONS: {
   { label: null, items: [{ href: "/admin", label: "Command Centre", icon: LayoutDashboard }] },
   { label: "Sales", items: [{ href: "/admin/leads", label: "Leads", icon: Search }] },
   { label: "Clients", items: [{ href: "/admin/clients", label: "Clients", icon: Users }] },
+  { label: "Content", items: [{ href: "/admin/content-factory", label: "Content Factory", icon: Clapperboard }] },
   {
     label: "Intelligence",
     items: [
