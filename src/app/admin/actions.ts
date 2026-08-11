@@ -347,6 +347,34 @@ export async function updateClientStatus(clientId: string, status: string, reval
   revalidatePath("/admin/clients");
 }
 
+// Clients have no link back to whichever lead (if any) originally became
+// them — see docs/lily-golf-test-project.md Phase 8 — so a concept page
+// linked on the prospect record is invisible from the client's own admin
+// view with no way to see or change it. This gives the client its own,
+// independent concept_slug rather than trying to solve full lead-to-client
+// linking here.
+export async function updateClientConceptSlug(clientId: string, revalidate: string, formData: FormData) {
+  const supabase = getSupabaseAdmin();
+  if (!supabase) return;
+
+  const conceptSlug = String(formData.get("concept_slug") || "").trim();
+  const { error } = await supabase.from("clients").update({ concept_slug: conceptSlug || null }).eq("id", clientId);
+  if (error) {
+    console.error("Failed to update client concept slug:", error);
+  } else {
+    await logAuditEvent({
+      actor: "admin",
+      action: "client.concept_slug_updated",
+      targetType: "client",
+      targetId: clientId,
+      clientId,
+      metadata: { concept_slug: conceptSlug || null },
+    });
+  }
+
+  revalidatePath(revalidate);
+}
+
 export async function toggleAnalyticsEnabled(clientId: string, enabled: boolean, revalidate: string) {
   const supabase = getSupabaseAdmin();
   if (!supabase) return;

@@ -1,3 +1,5 @@
+import fs from "fs";
+import path from "path";
 import Link from "next/link";
 import { revalidatePath } from "next/cache";
 import { notFound, redirect } from "next/navigation";
@@ -10,6 +12,7 @@ import {
   sendInvoiceReminderAction,
   updateMaintenanceRate,
   updateClientStatus,
+  updateClientConceptSlug,
   toggleAnalyticsEnabled,
   inviteClientMember,
   removeClientMember,
@@ -112,6 +115,20 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
 
   const { data: client } = await supabase.from("clients").select("*").eq("id", id).single();
   if (!client) notFound();
+
+  // Same directory listing the lead detail page uses — concept pages are
+  // hand-authored files under src/app/concepts/, not rows in a table, so
+  // this is the only real source of truth for "which concept pages exist."
+  let conceptSlugs: string[] = [];
+  try {
+    conceptSlugs = fs
+      .readdirSync(path.join(process.cwd(), "src/app/concepts"), { withFileTypes: true })
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => entry.name)
+      .sort();
+  } catch (err) {
+    console.error("Failed to list concept pages:", err);
+  }
 
   const { data: requests } = await supabase
     .from("requests")
@@ -281,6 +298,42 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
                 </span>
               </div>
             ) : null}
+
+            <form
+              action={updateClientConceptSlug.bind(null, id, revalidatePath)}
+              className="flex flex-wrap items-center gap-1.5"
+            >
+              <Globe className="size-3.5 text-muted-foreground" />
+              <Label htmlFor="concept_slug" className="text-xs text-muted-foreground">
+                Concept page:
+              </Label>
+              <select
+                id="concept_slug"
+                name="concept_slug"
+                defaultValue={client.concept_slug ?? ""}
+                className="h-8 max-w-64 rounded-md border border-input bg-background px-2 text-sm dark:bg-input/30"
+              >
+                <option value="">No concept page</option>
+                {conceptSlugs.map((slug) => (
+                  <option key={slug} value={slug}>
+                    {slug}
+                  </option>
+                ))}
+              </select>
+              <Button type="submit" variant="ghost" size="xs">
+                Save
+              </Button>
+              {client.concept_slug && (
+                <a
+                  href={`/concepts/${client.concept_slug}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-0.5 text-xs text-accent hover:underline"
+                >
+                  View <ExternalLink className="size-3" />
+                </a>
+              )}
+            </form>
 
             <div className="flex flex-wrap items-center gap-1.5">
               <LineChart className="size-3.5 text-muted-foreground" />
