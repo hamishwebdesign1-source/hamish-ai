@@ -1,6 +1,6 @@
 import { revalidatePath } from "next/cache";
 import Link from "next/link";
-import { ExternalLink, Search, X, Clock, Mail, MessageCircleReply, Sparkles, FileX, AlertTriangle, Zap, ArrowRight, TrendingUp, Flame, FileCheck2, Hourglass, CalendarClock } from "lucide-react";
+import { ExternalLink, Search, X, Clock, Mail, Phone, MessageCircleReply, Sparkles, FileX, AlertTriangle, Zap, ArrowRight, TrendingUp, Flame, FileCheck2, Hourglass, CalendarClock } from "lucide-react";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { checkGoogleConnection } from "@/lib/check-google-connection";
 import { checkMsConnection } from "@/lib/check-ms-connection";
@@ -708,10 +708,52 @@ export default async function LeadsPage({
                           </>
                         )}
                       </p>
+                      {/* Actual contact details, not just the cadence badge
+                          (ContactBadge says *when* you last touched them,
+                          not *how to reach them* — brought back after
+                          feedback that the card had gone too scan-only to
+                          be useful on its own). */}
+                      {(lead.email || lead.phone) && (
+                        <p className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
+                          {lead.email && (
+                            <a
+                              href={`mailto:${lead.email}`}
+                              className="relative z-10 inline-flex items-center gap-1 hover:text-accent hover:underline"
+                            >
+                              <Mail className="size-3" />
+                              {lead.email}
+                            </a>
+                          )}
+                          {lead.phone && (
+                            <a
+                              href={`tel:${lead.phone.replace(/\s+/g, "")}`}
+                              className="relative z-10 inline-flex items-center gap-1 hover:text-accent hover:underline"
+                            >
+                              <Phone className="size-3" />
+                              {lead.phone}
+                            </a>
+                          )}
+                        </p>
+                      )}
                       {(lead.research?.pursue_because || lead.outreach_note) && (
                         <p className="mt-1.5 flex items-start gap-1.5 text-xs text-muted-foreground italic">
                           <Sparkles className="mt-0.5 size-3 shrink-0 text-[var(--gradient-violet)]" />
                           &ldquo;{lead.research?.pursue_because ?? lead.outreach_note}&rdquo;
+                        </p>
+                      )}
+                      {/* A one-line taste of the research findings, not the
+                          full breakdown (that stays on the detail page) —
+                          enough to judge relevance without a click. */}
+                      {lead.research?.weaknesses && lead.research.weaknesses.length > 0 && (
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          <span className="font-medium text-foreground/70">Weak spots: </span>
+                          {lead.research.weaknesses.slice(0, 2).join(" · ")}
+                        </p>
+                      )}
+                      {lead.research?.ai_opportunities && lead.research.ai_opportunities.length > 0 && (
+                        <p className="mt-1 flex items-start gap-1.5 text-xs text-muted-foreground">
+                          <Zap className="mt-0.5 size-3 shrink-0 text-accent" />
+                          {lead.research.ai_opportunities[0]}
                         </p>
                       )}
                     </div>
