@@ -10,18 +10,19 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ContentIdeaResearchButton } from "@/components/admin/content-idea-research-button";
+import { ContentScriptPanel, type ScriptRow } from "@/components/admin/content-script-panel";
 
-// Content Factory MVP Phase A (docs/content-factory-plan.md) — the
-// idea/research workspace, same single-stage-aware-page shape as
-// leads/[id]/page.tsx. This page grows new sections (Script Review, Video
-// Prompt + ViewMax job, Human Approval) as later build phases land — see
-// the plan doc's Phase B/C/D sequencing.
+// Content Factory MVP Phase A+B (docs/content-factory-plan.md) — the
+// idea/research/script workspace, same single-stage-aware-page shape as
+// leads/[id]/page.tsx. This page grows new sections (ViewMax job status,
+// Human Approval) as later build phases land — see the plan doc's Phase
+// C/D sequencing.
 export default async function ContentIdeaDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const supabase = getSupabaseAdmin();
   if (!supabase) notFound();
 
-  const [{ data: idea }, { data: auditRows }] = await Promise.all([
+  const [{ data: idea }, { data: auditRows }, { data: scriptRows }] = await Promise.all([
     supabase.from("content_ideas").select("*").eq("id", id).single(),
     supabase
       .from("audit_log")
@@ -29,9 +30,16 @@ export default async function ContentIdeaDetailPage({ params }: { params: Promis
       .eq("target_type", "content_idea")
       .eq("target_id", id)
       .order("created_at", { ascending: false }),
+    supabase
+      .from("content_scripts")
+      .select("id, style, status, hook, beats, scene_breakdown, score, score_rationale, video_prompt, prompt_generated_at, edited, created_at")
+      .eq("idea_id", id)
+      .order("created_at", { ascending: false }),
   ]);
 
   if (!idea) notFound();
+
+  const scripts = (scriptRows ?? []) as ScriptRow[];
 
   const audit = auditRows ?? [];
   const statusMeta = contentIdeaStatusMeta[idea.status as keyof typeof contentIdeaStatusMeta];
@@ -107,6 +115,18 @@ export default async function ContentIdeaDetailPage({ params }: { params: Promis
             </div>
           </section>
 
+          {scripts.length > 0 && (
+            <section>
+              <p className="text-section-title">Script</p>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                AI writes 3 variants and picks the strongest — you can override which one&apos;s used, or hand-edit it, at any point.
+              </p>
+              <div className="mt-3">
+                <ContentScriptPanel ideaId={idea.id} scripts={scripts} />
+              </div>
+            </section>
+          )}
+
           <section>
             <p className="flex items-center gap-1.5 text-section-title">
               <History className="size-4" />
@@ -179,6 +199,12 @@ function describeContentAuditEntry(entry: { action: string; metadata: Record<str
       return `AI researched — scored ${meta.score}/5${meta.rejected ? " (auto-rejected)" : ""}`;
     case "content.idea_rejected":
       return `Rejected${meta.reason ? ` — ${meta.reason}` : ""}`;
+    case "content.scripts_generated":
+      return `AI wrote 3 script variants — auto-selected "${meta.selected_style ?? "?"}" (${meta.selected_score ?? "?"}/10)`;
+    case "content.script_selected":
+      return meta.edited ? "Script hand-edited" : `Script switched to "${meta.style ?? "?"}"${meta.manual ? " (manual)" : ""}`;
+    case "content.video_prompt_generated":
+      return `AI wrote the ViewMax prompt — ${meta.duration_s ?? "?"}s`;
     default:
       return entry.action;
   }

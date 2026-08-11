@@ -1,6 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { logAuditEvent } from "@/lib/audit-log";
+import { generateContentScripts } from "@/lib/generate-content-scripts";
 
 // Content Factory MVP Phase A (docs/content-factory-plan.md) — the
 // research + scoring stage, modeled directly on research-lead.ts's shape:
@@ -30,16 +31,41 @@ export type IdeaScoreBreakdown = {
   evergreen_points: number;
 };
 
+// Real reliability finding, confirmed via a live test run (two ideas both
+// scored 0/5 regardless of actual quality): despite the tool schema
+// declaring `enum: ["low","medium","high"]`, Haiku routinely returns a
+// qualified phrase instead of the bare word — e.g.
+// "medium-to-high (the general concept is old; but this specific case is
+// genuinely underexplored)" — which fails a strict `=== "high"` check and
+// silently fell through to 0 for every band, systematically killing the
+// score gate. Same category of issue research-lead.ts already documents
+// for this model (schema `enum`/`required` are a strong hint, not a
+// guarantee) — same fix shape: sanitize before trusting it, rather than
+// assume the schema was honoured.
+function normaliseBand(value: unknown): "low" | "medium" | "high" {
+  const text = String(value ?? "").toLowerCase();
+  const mentions = [...text.matchAll(/\b(low|medium|high)\b/g)].map((m) => m[1]);
+  // A hedge like "low-to-medium (no direct saturation on this story, but
+  // moderate noise in the broader category)" reads, in full, as leaning
+  // toward whichever band comes last — take the final mention rather than
+  // the first.
+  const last = mentions[mentions.length - 1];
+  return last === "high" || last === "medium" || last === "low" ? last : "medium"; // neutral, not 0-scoring, default when nothing parses
+}
+
 // v1, deliberately simple and auditable rather than tuned — same
 // philosophy as computeLeadScore in research-lead.ts: a transparent
 // formula beats an opaque one until there's real published-video outcome
 // data to fit a better one against. Four 0-2 bands summed then rescaled
-// onto the same familiar 0-5 scale prospects.score already uses.
+// onto the same familiar 0-5 scale prospects.score already uses. Accepts
+// unnormalised band values directly (the raw model output before
+// sanitizeResearch runs) so this stays a pure function callable on its
+// own, same as computeLeadScore.
 export function computeIdeaScore(research: ContentIdeaResearch): { score: number; breakdown: IdeaScoreBreakdown } {
-  const highMedLow = (band: "low" | "medium" | "high") => (band === "high" ? 2 : band === "medium" ? 1 : 0);
+  const highMedLow = (band: string) => (normaliseBand(band) === "high" ? 2 : normaliseBand(band) === "medium" ? 1 : 0);
   // Inverted — low competition and low production difficulty are the good
   // outcomes here, unlike novelty/evergreen where high is good.
-  const lowIsGood = (band: "low" | "medium" | "high") => (band === "low" ? 2 : band === "medium" ? 1 : 0);
+  const lowIsGood = (band: string) => (normaliseBand(band) === "low" ? 2 : normaliseBand(band) === "medium" ? 1 : 0);
 
   const breakdown: IdeaScoreBreakdown = {
     novelty_points: highMedLow(research.novelty),
@@ -49,6 +75,37 @@ export function computeIdeaScore(research: ContentIdeaResearch): { score: number
   };
   const total = breakdown.novelty_points + breakdown.competition_points + breakdown.production_points + breakdown.evergreen_points;
   return { score: Math.max(0, Math.min(5, Math.round((total / 8) * 5))), breakdown };
+}
+
+// Second reliability finding from the same live test run: despite
+// `type: "array", items: {type: "string"}`, Haiku sometimes collapses the
+// whole array into one plain string (competitor_examples came back as a
+// single paragraph, not a list) — crashed ContentIdeaResearchButton's
+// `.map()` outright. Unlike a strict filter-only coercion (which would
+// silently discard that entire paragraph), wrapping a lone string as a
+// single-element array preserves it — the content itself was fine, only
+// the shape was wrong.
+function toStringArray(value: unknown): string[] {
+  if (Array.isArray(value)) return value.filter((v): v is string => typeof v === "string" && v.length > 0);
+  if (typeof value === "string" && value.length > 0) return [value];
+  return [];
+}
+
+// Cleans the four band fields to their strict enum value and the two
+// array fields to a real array before anything is saved or rendered — the
+// Badge chips and `.map()` calls on the review UI assume these shapes. No
+// nuance is actually lost: the qualifying detail the band hedges carried
+// already lives in trend_validation/differentiation, which stay untouched.
+function sanitizeResearch(raw: ContentIdeaResearch): ContentIdeaResearch {
+  return {
+    ...raw,
+    novelty: normaliseBand(raw.novelty),
+    competition_level: normaliseBand(raw.competition_level),
+    production_difficulty: normaliseBand(raw.production_difficulty),
+    evergreen_value: normaliseBand(raw.evergreen_value),
+    competitor_examples: toStringArray(raw.competitor_examples),
+    risk_notes: toStringArray(raw.risk_notes),
+  };
 }
 
 // Below this, an idea is auto-rejected right after research — the primary
@@ -72,10 +129,18 @@ const RESEARCH_TOOL: Anthropic.Tool = {
       differentiation: { type: "string", description: "What would make this specific take stand out from what's already out there." },
       risk_notes: { type: "array", items: { type: "string" }, description: "Anything that could flop, mislead, or needs a factual-accuracy warning." },
       suggested_angle: { type: "string", description: "The single strongest, most specific angle to script this from." },
-      novelty: { type: "string", enum: ["low", "medium", "high"] },
-      competition_level: { type: "string", enum: ["low", "medium", "high"], description: "How saturated this angle already is." },
-      production_difficulty: { type: "string", enum: ["low", "medium", "high"] },
-      evergreen_value: { type: "string", enum: ["low", "medium", "high"], description: "Still relevant in 6 months, or a one-week trend?" },
+      novelty: { type: "string", enum: ["low", "medium", "high"], description: "EXACTLY the single word low, medium, or high — no qualifiers, no parentheses. Put any nuance in trend_validation or differentiation instead." },
+      competition_level: {
+        type: "string",
+        enum: ["low", "medium", "high"],
+        description: "How saturated this angle already is. EXACTLY the single word low, medium, or high — no qualifiers, no parentheses.",
+      },
+      production_difficulty: { type: "string", enum: ["low", "medium", "high"], description: "EXACTLY the single word low, medium, or high — no qualifiers, no parentheses." },
+      evergreen_value: {
+        type: "string",
+        enum: ["low", "medium", "high"],
+        description: "Still relevant in 6 months, or a one-week trend? EXACTLY the single word low, medium, or high — no qualifiers, no parentheses.",
+      },
     },
     required: [
       "trend_validation",
@@ -99,7 +164,9 @@ Idea title: ${idea.title}
 Concept/hook: ${idea.concept}
 ${idea.topic ? `Topic: ${idea.topic}` : ""}
 
-Assess this idea on its real merits: is the trend/angle actually live right now or already stale, who specifically it would resonate with, what's already been done in this space (competitor_examples is your best general inference, not a verified fact — describe patterns rather than naming specific creators/videos you can't be confident are real), what would make this specific take stand out, and anything genuinely risky (factually shaky claims, an over-used format, easy to get wrong). Never invent specific statistics, sources, or named creators/videos you can't be confident about.`;
+Assess this idea on its real merits: is the trend/angle actually live right now or already stale, who specifically it would resonate with, what's already been done in this space (competitor_examples is your best general inference, not a verified fact — describe patterns rather than naming specific creators/videos you can't be confident are real), what would make this specific take stand out, and anything genuinely risky (factually shaky claims, an over-used format, easy to get wrong). Never invent specific statistics, sources, or named creators/videos you can't be confident about.
+
+For novelty, competition_level, production_difficulty, and evergreen_value: answer with EXACTLY one word — low, medium, or high. Never write a hedge like "medium-to-high" or add a parenthetical justification in those four fields specifically — any nuance belongs in trend_validation or differentiation instead, where there's room for it.`;
 }
 
 export async function researchContentIdea(ideaId: string) {
@@ -132,7 +199,7 @@ export async function researchContentIdea(ideaId: string) {
     const toolUse = response.content.find((block): block is Anthropic.ToolUseBlock => block.type === "tool_use");
     if (!toolUse) return { error: "The AI did not return research." as const };
 
-    const research = toolUse.input as ContentIdeaResearch;
+    const research = sanitizeResearch(toolUse.input as ContentIdeaResearch);
     const { score, breakdown } = computeIdeaScore(research);
     const generatedAt = new Date().toISOString();
     const rejected = score < MIN_SCORE_TO_PROCEED;
@@ -162,6 +229,19 @@ export async function researchContentIdea(ideaId: string) {
       targetId: ideaId,
       metadata: { score, novelty: research.novelty, competition_level: research.competition_level, rejected },
     });
+
+    // Best-effort — a researched idea that clears the score gate chains
+    // straight into script generation, same "one bad downstream call
+    // shouldn't undo a good upstream result" reasoning as
+    // discover-content-ideas.ts chaining into research. Rejected ideas
+    // never reach this — the primary cost gate (see MIN_SCORE_TO_PROCEED).
+    if (!rejected) {
+      try {
+        await generateContentScripts(ideaId);
+      } catch (error) {
+        console.error(`Post-research script generation failed for idea ${ideaId}:`, error);
+      }
+    }
 
     return { research, score, breakdown, rejected, generatedAt };
   } catch (error) {

@@ -15,12 +15,15 @@ export const AI_ACTIVITY_ACTIONS = [
   "request.triaged",
   "request.auto_sent",
   "client.progress_report_generated",
-  // Content Factory MVP (docs/content-factory-plan.md) — Phase A only
-  // (idea discovery/research/reject); script/video/approval actions join
-  // this list as later build phases land.
+  // Content Factory MVP (docs/content-factory-plan.md) — Phase A+B (idea
+  // discovery/research/reject, script generation/selection, video-prompt
+  // generation); video/approval actions join this list as Phase C/D land.
   "content.idea_discovered",
   "content.idea_researched",
   "content.idea_rejected",
+  "content.scripts_generated",
+  "content.script_selected",
+  "content.video_prompt_generated",
 ] as const;
 
 export type AiActivityAction = (typeof AI_ACTIVITY_ACTIONS)[number];
@@ -63,6 +66,14 @@ export function describeAiActivity(action: string, meta: Record<string, unknown>
       return `AI researched a content idea — scored ${meta.score}/5${meta.rejected ? " (auto-rejected)" : ""}`;
     case "content.idea_rejected":
       return "Content idea rejected";
+    case "content.scripts_generated":
+      return `AI wrote 3 script variants and auto-selected the "${meta.selected_style ?? "?"}" version (scored ${meta.selected_score ?? "?"}/10)`;
+    case "content.script_selected":
+      return meta.edited
+        ? "Script hand-edited"
+        : `Script variant switched to "${meta.style ?? "?"}"${meta.manual ? " (manual override)" : ""}`;
+    case "content.video_prompt_generated":
+      return `AI wrote the ViewMax video prompt — ${meta.duration_s ?? "?"}s`;
     default:
       return action;
   }
@@ -89,7 +100,14 @@ export const AI_ACTIVITY_GROUPS: Record<string, { label: string; actions: readon
   },
   content: {
     label: "Content Factory",
-    actions: ["content.idea_discovered", "content.idea_researched", "content.idea_rejected"],
+    actions: [
+      "content.idea_discovered",
+      "content.idea_researched",
+      "content.idea_rejected",
+      "content.scripts_generated",
+      "content.script_selected",
+      "content.video_prompt_generated",
+    ],
   },
 };
 

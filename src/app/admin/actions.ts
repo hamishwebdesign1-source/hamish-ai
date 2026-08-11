@@ -6,6 +6,8 @@ import { after } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { createResearchJob, runResearchJob } from "@/lib/deep-research-pipeline";
 import { researchContentIdea, type ContentIdeaResearch } from "@/lib/research-content-idea";
+import { generateContentScripts, type ScriptVariant } from "@/lib/generate-content-scripts";
+import { generateVideoPrompt } from "@/lib/generate-video-prompt";
 import { sendClientEmail } from "@/lib/send-client-email";
 import { researchLead, type LeadResearch } from "@/lib/research-lead";
 import { draftSalesKit, type SalesKit } from "@/lib/draft-sales-kit";
@@ -774,6 +776,130 @@ export async function rejectContentIdea(ideaId: string, formData: FormData) {
       targetId: ideaId,
       metadata: { reason },
     });
+  }
+
+  revalidatePath("/admin/content-factory");
+  revalidatePath(`/admin/content-factory/${ideaId}`);
+}
+
+// --- Content Factory MVP Phase B (docs/content-factory-plan.md) ---
+// Scripts auto-generate and auto-select via research-content-idea.ts's
+// chain — these are the manual override paths: regenerate (with a
+// confirm step if it would clobber a hand-edit), switch which variant is
+// selected, or hand-edit the selected one directly.
+
+export type ContentScriptsState = {
+  variants?: (ScriptVariant & { id: string })[];
+  selectedId?: string;
+  error?: string;
+  needsConfirm?: boolean;
+};
+
+export async function generateIdeaScripts(
+  ideaId: string,
+  _prevState: ContentScriptsState,
+  formData: FormData
+): Promise<ContentScriptsState> {
+  const supabase = getSupabaseAdmin();
+  if (supabase) {
+    const { data: selected } = await supabase
+      .from("content_scripts")
+      .select("edited")
+      .eq("idea_id", ideaId)
+      .eq("status", "selected")
+      .maybeSingle();
+    const force = formData.get("force") === "1";
+    if (selected?.edited && !force) {
+      return {
+        error: "The current script has a manual edit — regenerating replaces all three variants, including that edit. Submit again to confirm.",
+        needsConfirm: true,
+      };
+    }
+  }
+
+  const result = await generateContentScripts(ideaId);
+  revalidatePath("/admin/content-factory");
+  revalidatePath(`/admin/content-factory/${ideaId}`);
+  if ("error" in result) return { error: result.error };
+  return { variants: result.variants, selectedId: result.selectedId };
+}
+
+// Manual override of the auto-selected variant — flips status on both
+// sides (chosen -> selected, every sibling -> rejected) and re-chains
+// video-prompt generation onto the newly-chosen script, same shape as the
+// auto-select path in generate-content-scripts.ts itself.
+export async function selectContentScript(scriptId: string, ideaId: string) {
+  const supabase = getSupabaseAdmin();
+  if (!supabase) return;
+
+  const { data: chosen } = await supabase.from("content_scripts").select("style").eq("id", scriptId).single();
+
+  const { error } = await supabase
+    .from("content_scripts")
+    .update({ status: "selected", reviewed_at: new Date().toISOString() })
+    .eq("id", scriptId);
+  if (error) {
+    console.error("Failed to select content script:", error);
+    return;
+  }
+  await supabase.from("content_scripts").update({ status: "rejected" }).eq("idea_id", ideaId).neq("id", scriptId);
+
+  await logAuditEvent({
+    actor: "admin",
+    action: "content.script_selected",
+    targetType: "content_idea",
+    targetId: ideaId,
+    metadata: { style: chosen?.style, manual: true },
+  });
+
+  try {
+    await generateVideoPrompt(scriptId);
+  } catch (error) {
+    console.error(`Video-prompt generation failed after manual script selection (script ${scriptId}):`, error);
+  }
+
+  revalidatePath("/admin/content-factory");
+  revalidatePath(`/admin/content-factory/${ideaId}`);
+}
+
+// Hand-edit the selected script's hook/beats directly — sets edited=true
+// so generateIdeaScripts' regenerate path knows to ask before clobbering
+// it. Re-chains video-prompt generation so the ViewMax prompt reflects the
+// edited text rather than going stale.
+export async function editContentScript(scriptId: string, ideaId: string, formData: FormData) {
+  const supabase = getSupabaseAdmin();
+  if (!supabase) return;
+
+  const hook = String(formData.get("hook") || "");
+  const beats = {
+    setup: String(formData.get("setup") || ""),
+    escalation: String(formData.get("escalation") || ""),
+    payoff: String(formData.get("payoff") || ""),
+    ending: String(formData.get("ending") || ""),
+  };
+  const fullScript = [hook, beats.setup, beats.escalation, beats.payoff, beats.ending].join(" ");
+
+  const { error } = await supabase
+    .from("content_scripts")
+    .update({ hook, beats, full_script: fullScript, edited: true })
+    .eq("id", scriptId);
+  if (error) {
+    console.error("Failed to edit content script:", error);
+    return;
+  }
+
+  await logAuditEvent({
+    actor: "admin",
+    action: "content.script_selected",
+    targetType: "content_idea",
+    targetId: ideaId,
+    metadata: { manual: true, edited: true },
+  });
+
+  try {
+    await generateVideoPrompt(scriptId);
+  } catch (error) {
+    console.error(`Video-prompt generation failed after manual script edit (script ${scriptId}):`, error);
   }
 
   revalidatePath("/admin/content-factory");
