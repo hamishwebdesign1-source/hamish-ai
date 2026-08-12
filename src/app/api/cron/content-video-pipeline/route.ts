@@ -35,8 +35,13 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: pollResult.error }, { status: 500 });
     }
 
-    const lowCreditsSkip = submitResult.skipped.find((s) => s.startsWith("low_credits:"));
-    const lowCredits = lowCreditsSkip ? Number(lowCreditsSkip.split(":")[1]) : undefined;
+    // Skip reasons look like "<ideaId>:insufficient_credits:need_20_have_10"
+    // — per-idea now (see content-video-pipeline.ts's submitIdeaForVideo),
+    // since affordability depends on which model/duration/resolution combo
+    // that specific idea's video actually needs, not a single account-wide
+    // threshold.
+    const lowCreditsSkip = submitResult.skipped.find((s) => s.includes("insufficient_credits:"));
+    const lowCredits = lowCreditsSkip ? Number(lowCreditsSkip.match(/have_(\d+)/)?.[1]) : undefined;
 
     await sendContentReviewAlert({ readyForReview: pollResult.completed, failed: pollResult.failed, lowCredits });
 

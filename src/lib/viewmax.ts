@@ -5,11 +5,15 @@
 // VIEWMAX_API_KEY is unset, so nothing else in the pipeline needs to
 // special-case "not configured" — it just gets a clean failure result.
 //
-// Confirmed from ViewMax's public docs: base URL, auth header, the
-// {code, message, data} envelope, the five error codes below, and that
-// GET /api/v1/models is the one endpoint that doesn't require auth.
-// NOT independently confirmed (no ViewMax account exists yet to test
-// against — see the plan doc): the exact field names on a real task
+// Confirmed against a real account and a real API key (2026-08-12): base
+// URL, auth header, the {code, message, data} envelope, GET
+// /api/v1/models needing no auth, the full model catalog shape (each
+// model's per-mode durations/resolutions/aspect_ratios/cost table — see
+// pickCheapestVideoOption below), and GET /api/v1/credits's real field
+// name (`remainingCredits`, not the originally-guessed `credits`).
+// NOT yet confirmed — no video has actually been submitted yet, since
+// credits were too low to afford one at verification time: the exact
+// field names on a POST /api/v1/videos or GET /api/v1/tasks/{id}
 // response. Their own marketing example shows `{task_id, status,
 // video_urls}`; their docs page separately says `data.taskUrls`. Both are
 // checked defensively below rather than assumed — verify against a real
@@ -59,7 +63,30 @@ async function viewmaxRequest<T>(path: string, init: RequestInit = {}, requireAu
   }
 }
 
-export type ViewMaxModel = { id: string; name?: string; [key: string]: unknown };
+// Confirmed against the real endpoint — each model exposes per-mode
+// (text-to-video, image-to-video, ...) arrays of the *exact* duration/
+// resolution/aspect_ratio strings it accepts, plus a cost table keyed by
+// those same strings (either a flat {resolution:{duration:credits}}
+// grid, or a credits_per_second rate per resolution). There is no
+// free-form duration/resolution — a value outside these arrays gets
+// rejected, so submission must pick from what a model actually lists,
+// never pass through an arbitrary AI-generated value.
+export type ViewMaxModelMode = {
+  durations: string[];
+  resolutions: string[];
+  aspect_ratios: string[];
+  credits?: Record<string, Record<string, number>>; // credits[resolution][duration]
+  credits_per_second?: Record<string, number>; // rate[resolution], multiply by parseInt(duration)
+};
+
+export type ViewMaxModel = {
+  id: string;
+  label?: string;
+  vendor?: string;
+  coming_soon?: boolean;
+  modes?: Record<string, ViewMaxModelMode>;
+  [key: string]: unknown;
+};
 
 // Always called live at submission time — never hardcode a model ID, per
 // the explicit requirement (models go obsolete, new ones ship, and this
@@ -74,10 +101,88 @@ export async function listViewMaxModels(type: "video" | "image" | "music" = "vid
   return Array.isArray(data) ? data : (data.models ?? []);
 }
 
+function modeCost(mode: ViewMaxModelMode, resolution: string, duration: string): number | null {
+  if (mode.credits) return mode.credits[resolution]?.[duration] ?? null;
+  if (mode.credits_per_second) {
+    const rate = mode.credits_per_second[resolution];
+    if (rate == null) return null;
+    const seconds = Number.parseInt(duration, 10);
+    return Number.isFinite(seconds) ? Math.round(rate * seconds) : null;
+  }
+  return null;
+}
+
+// The smallest available duration at-or-above the target, or null if
+// every duration this model offers falls short — a real bug caught
+// during live testing: an earlier version of this function fell back to
+// a model's longest duration even when that duration was *shorter* than
+// the target, and because short-duration models tend to be the cheapest
+// ones in the catalog, "pick the cheapest option" ended up silently
+// selecting a video half the requested length. Returning null here lets
+// pickCheapestVideoOption exclude a too-short model from the primary
+// pass instead of letting it win purely on price.
+function nearestDurationAtOrAbove(available: string[], targetSeconds: number): string | null {
+  const parsed = available.map((d) => ({ raw: d, s: Number.parseInt(d, 10) })).filter((d) => Number.isFinite(d.s));
+  const atOrAbove = parsed.filter((d) => d.s >= targetSeconds).sort((a, b) => a.s - b.s);
+  return atOrAbove[0]?.raw ?? null;
+}
+
+function longestDuration(available: string[]): string | null {
+  const parsed = available.map((d) => ({ raw: d, s: Number.parseInt(d, 10) })).filter((d) => Number.isFinite(d.s));
+  return parsed.sort((a, b) => b.s - a.s)[0]?.raw ?? available[0] ?? null;
+}
+
+export type VideoOption = { model: string; duration: string; resolution: string; aspectRatio: string; credits: number };
+
+function cheapestAcross(
+  models: ViewMaxModel[],
+  aspectRatio: string,
+  chooseDuration: (durations: string[]) => string | null
+): VideoOption | null {
+  let best: VideoOption | null = null;
+  for (const model of models) {
+    if (model.coming_soon) continue;
+    const mode = model.modes?.["text-to-video"];
+    if (!mode || !mode.durations?.length || !mode.resolutions?.length || !mode.aspect_ratios?.length) continue;
+    if (!mode.aspect_ratios.includes(aspectRatio)) continue;
+
+    const duration = chooseDuration(mode.durations);
+    if (!duration) continue;
+
+    for (const resolution of mode.resolutions) {
+      const credits = modeCost(mode, resolution, duration);
+      if (credits == null) continue;
+      if (!best || credits < best.credits) best = { model: model.id, duration, resolution, aspectRatio, credits };
+    }
+  }
+  return best;
+}
+
+// Picks the cheapest (model, duration, resolution) combination that
+// supports the requested aspect ratio and, in a first pass, only
+// considers models that can meet or exceed the target duration — so cost
+// is never optimised at the expense of silently truncating the video.
+// Only if literally no model can reach the target duration does it fall
+// back to each model's own longest option and pick the cheapest of those
+// (a real content-length compromise, logged via the caller, not hidden).
+// Rather than blindly using models[0] (the original, wrong approach: the
+// first model in the list is not necessarily compatible or affordable).
+// Returns null if nothing qualifies at all (e.g. a brand-new aspect
+// ratio no model supports yet).
+export function pickCheapestVideoOption(models: ViewMaxModel[], targetDurationS: number, aspectRatio: string): VideoOption | null {
+  const meetsTarget = cheapestAcross(models, aspectRatio, (durations) => nearestDurationAtOrAbove(durations, targetDurationS));
+  if (meetsTarget) return meetsTarget;
+  return cheapestAcross(models, aspectRatio, longestDuration);
+}
+
+// Confirmed against a real key: the field is `remainingCredits`, not
+// `credits` — the earlier guess was wrong (see the module header's note
+// on unconfirmed field names). Checked defensively against both anyway,
+// same tolerance-for-drift approach as the task-status URL fields below.
 export async function getViewMaxCredits(): Promise<number | null> {
-  const result = await viewmaxRequest<{ credits: number }>("/api/v1/credits", { method: "GET" });
+  const result = await viewmaxRequest<{ remainingCredits?: number; credits?: number }>("/api/v1/credits", { method: "GET" });
   if ("error" in result) return null;
-  return result.data.credits;
+  return result.data.remainingCredits ?? result.data.credits ?? null;
 }
 
 // The cheapest possible real call — distinguishes "key is set" from "key

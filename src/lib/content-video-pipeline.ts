@@ -1,5 +1,13 @@
 import { getSupabaseAdmin } from "@/lib/supabase";
-import { checkViewMaxConnection, listViewMaxModels, getViewMaxCredits, submitVideoGeneration, getViewMaxTaskStatus } from "@/lib/viewmax";
+import {
+  checkViewMaxConnection,
+  listViewMaxModels,
+  getViewMaxCredits,
+  submitVideoGeneration,
+  getViewMaxTaskStatus,
+  pickCheapestVideoOption,
+  type ViewMaxModel,
+} from "@/lib/viewmax";
 import { recordContentUsage } from "@/lib/content-ai-usage";
 import { storeGeneratedVideo } from "@/lib/content-video-storage";
 import { computeQualityFlags } from "@/lib/content-quality-check";
@@ -15,6 +23,13 @@ import type { VideoPromptSpec } from "@/lib/generate-video-prompt";
 
 const MAX_SUBMISSIONS_PER_RUN = 3; // safety valve — mirrors MAX_NEW_LEADS_PER_RUN/MAX_NEW_IDEAS_PER_RUN elsewhere in this codebase
 const MAX_INFLIGHT_PER_RUN = 5;
+// A small safety margin kept back *on top of* whatever the chosen video
+// actually costs (see pickCheapestVideoOption in viewmax.ts) — not a
+// flat "minimum balance to do anything" check on its own. Real per-video
+// costs run from ~13 credits (cheapest model, shortest 9:16 clip) up
+// into the hundreds for premium models, confirmed against ViewMax's live
+// model catalog — a fixed threshold with no cost awareness would either
+// block affordable videos or let the account run to zero.
 const VIEWMAX_MIN_CREDIT_BUFFER = Number(process.env.VIEWMAX_MIN_CREDIT_BUFFER) || 5;
 
 // ViewMax's docs say poll every 5s, but a multi-minute generation can't
@@ -37,13 +52,16 @@ type SupabaseAdmin = NonNullable<ReturnType<typeof getSupabaseAdmin>>;
 // The actual per-idea ViewMax submission — pulled out of submitReadyIdeas
 // so Phase D's manual "Regenerate" action (see admin/actions.ts) can
 // reuse the exact same logic instead of a second, drifting copy. Caller
-// owns the connection/credit-buffer check and the model lookup (batched
-// once per cron tick in submitReadyIdeas; done once per call in
-// content-video-pipeline.ts's exported single-idea wrapper below).
+// owns the connection check and the model-catalog lookup (batched once
+// per cron tick in submitReadyIdeas; done once per call in
+// content-video-pipeline.ts's exported single-idea wrapper below) — this
+// function picks the cheapest compatible (model, duration, resolution)
+// combo for THIS idea's specific target duration/aspect ratio from that
+// catalog and checks it's actually affordable before spending anything.
 async function submitIdeaForVideo(
   supabase: SupabaseAdmin,
   idea: { id: string; score: number | null },
-  model: string
+  models: ViewMaxModel[]
 ): Promise<{ ok: true } | { ok: false; reason: string }> {
   if ((idea.score ?? 0) < MIN_SCORE_TO_PROCEED) return { ok: false, reason: "below_threshold" };
 
@@ -56,15 +74,29 @@ async function submitIdeaForVideo(
   if (!script?.video_prompt) return { ok: false, reason: "no_video_prompt" };
 
   const videoPrompt = script.video_prompt as VideoPromptSpec;
-  const requestPayload = {
-    model,
-    prompt: videoPrompt.prompt,
-    duration: `${videoPrompt.duration_s}s`,
-    resolution: videoPrompt.resolution,
-    aspect_ratio: videoPrompt.aspect_ratio,
-  };
+
+  // Never pass the AI-generated duration/resolution straight through —
+  // ViewMax models each accept only their own exact enumerated duration/
+  // resolution strings (confirmed against the live catalog: there is no
+  // free-form value), so this picks the cheapest real combination that
+  // actually supports the target duration and aspect ratio.
+  const option = pickCheapestVideoOption(models, videoPrompt.duration_s, videoPrompt.aspect_ratio);
+  if (!option) return { ok: false, reason: `no_model_supports_${videoPrompt.aspect_ratio}` };
 
   const creditsBefore = await getViewMaxCredits();
+  if (creditsBefore == null) return { ok: false, reason: "credits_check_failed" };
+  if (creditsBefore < option.credits + VIEWMAX_MIN_CREDIT_BUFFER) {
+    return { ok: false, reason: `insufficient_credits:need_${option.credits}_have_${creditsBefore}` };
+  }
+
+  const requestPayload = {
+    model: option.model,
+    prompt: videoPrompt.prompt,
+    duration: option.duration,
+    resolution: option.resolution,
+    aspect_ratio: option.aspectRatio,
+  };
+
   const result = await submitVideoGeneration(requestPayload);
 
   if ("error" in result) {
@@ -72,7 +104,7 @@ async function submitIdeaForVideo(
       idea_id: idea.id,
       script_id: script.id,
       status: "failed",
-      viewmax_model: model,
+      viewmax_model: option.model,
       request_payload: requestPayload,
       error: result.error,
     });
@@ -93,23 +125,21 @@ async function submitIdeaForVideo(
   }
 
   const creditsAfter = await getViewMaxCredits();
-  const creditsSpent = creditsBefore != null && creditsAfter != null ? Math.max(0, creditsBefore - creditsAfter) : null;
+  const creditsSpent = creditsAfter != null ? Math.max(0, creditsBefore - creditsAfter) : option.credits; // fall back to the catalog's declared cost if the follow-up credits check itself fails
 
   await supabase.from("content_videos").insert({
     idea_id: idea.id,
     script_id: script.id,
     status: "submitted",
     viewmax_task_id: result.taskId,
-    viewmax_model: model,
+    viewmax_model: option.model,
     request_payload: requestPayload,
     credits_spent: creditsSpent,
     started_at: new Date().toISOString(),
   });
   await supabase.from("content_ideas").update({ status: "generating_video" }).eq("id", idea.id);
 
-  if (creditsSpent != null) {
-    await recordContentUsage({ ideaId: idea.id, stage: "viewmax_video", provider: "viewmax", units: creditsSpent, unitType: "credits", metadata: { model } });
-  }
+  await recordContentUsage({ ideaId: idea.id, stage: "viewmax_video", provider: "viewmax", units: creditsSpent, unitType: "credits", metadata: { model: option.model } });
 
   await logAuditEvent({
     actor: "system",
@@ -117,7 +147,7 @@ async function submitIdeaForVideo(
     action: "content.video_submitted",
     targetType: "content_idea",
     targetId: idea.id,
-    metadata: { model, task_id: result.taskId },
+    metadata: { model: option.model, task_id: result.taskId, credits: creditsSpent },
   });
 
   return { ok: true };
@@ -126,8 +156,11 @@ async function submitIdeaForVideo(
 // Finds ideas sitting at 'ready_for_video' and submits their selected
 // script's video_prompt to ViewMax. Re-checks the score gate defensively
 // (the primary check already happened in research-content-idea.ts —
-// this guards against the threshold or a score changing between stages)
-// and checks the credit buffer before spending anything.
+// this guards against the threshold or a score changing between stages).
+// The credit check itself now happens per-idea inside submitIdeaForVideo
+// against that idea's actual chosen-option cost — a single flat balance
+// check up front here would say nothing about whether any given idea's
+// specific video is actually affordable.
 export async function submitReadyIdeas(): Promise<SubmitReadyIdeasResult> {
   const supabase = getSupabaseAdmin();
   if (!supabase) return { error: "Supabase is not configured." };
@@ -136,10 +169,6 @@ export async function submitReadyIdeas(): Promise<SubmitReadyIdeasResult> {
   if (!connection.connected) {
     console.log(`ViewMax not configured or unreachable — skipping video submission (${connection.reason}).`);
     return { submitted: 0, skipped: [] };
-  }
-  if (connection.credits < VIEWMAX_MIN_CREDIT_BUFFER) {
-    console.warn(`ViewMax credits (${connection.credits}) below the buffer (${VIEWMAX_MIN_CREDIT_BUFFER}) — skipping submission this run.`);
-    return { submitted: 0, skipped: [`low_credits:${connection.credits}`] };
   }
 
   const { data: ideas, error } = await supabase
@@ -156,13 +185,12 @@ export async function submitReadyIdeas(): Promise<SubmitReadyIdeasResult> {
     console.error("No ViewMax models returned — skipping submission this run.");
     return { submitted: 0, skipped: ["no_models_available"] };
   }
-  const model = models[0].id;
 
   let submitted = 0;
   const skipped: string[] = [];
 
   for (const idea of ideas) {
-    const result = await submitIdeaForVideo(supabase, idea, model);
+    const result = await submitIdeaForVideo(supabase, idea, models);
     if (result.ok) submitted++;
     else skipped.push(`${idea.id}:${result.reason}`);
   }
@@ -172,17 +200,17 @@ export async function submitReadyIdeas(): Promise<SubmitReadyIdeasResult> {
 
 // Phase D — the manual "Regenerate" action's entry point (see
 // regenerateContentVideo in admin/actions.ts): does its own connection/
-// credit-buffer/model lookup (there's no batch to share it across) then
-// reuses submitIdeaForVideo for the actual submission, so a human-
-// triggered regenerate and the cron's automatic submission can never
-// drift into two different code paths.
+// model-catalog lookup (there's no batch to share it across) then reuses
+// submitIdeaForVideo for the actual submission (including its per-idea
+// cost/affordability check) — so a human-triggered regenerate and the
+// cron's automatic submission can never drift into two different code
+// paths.
 export async function submitSingleIdeaForVideo(ideaId: string): Promise<{ ok: true } | { ok: false; reason: string }> {
   const supabase = getSupabaseAdmin();
   if (!supabase) return { ok: false, reason: "Supabase is not configured." };
 
   const connection = await checkViewMaxConnection();
   if (!connection.connected) return { ok: false, reason: connection.reason };
-  if (connection.credits < VIEWMAX_MIN_CREDIT_BUFFER) return { ok: false, reason: `Low ViewMax credits (${connection.credits}).` };
 
   const { data: idea, error } = await supabase.from("content_ideas").select("id, score").eq("id", ideaId).single();
   if (error || !idea) return { ok: false, reason: "Idea not found." };
@@ -190,7 +218,7 @@ export async function submitSingleIdeaForVideo(ideaId: string): Promise<{ ok: tr
   const models = await listViewMaxModels("video");
   if (!models?.length) return { ok: false, reason: "No ViewMax models available." };
 
-  return submitIdeaForVideo(supabase, idea, models[0].id);
+  return submitIdeaForVideo(supabase, idea, models);
 }
 
 export type PollInFlightResult = { completed: number; failed: number; stillProcessing: number } | { error: string };
