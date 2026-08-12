@@ -1,14 +1,22 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { CheckCircle2, XCircle, Pencil, RefreshCw, AlertTriangle, X, Check } from "lucide-react";
-import { approveContentVideo, rejectContentVideo, regenerateContentVideo, editContentVideoCopy } from "@/app/admin/actions";
+import { useActionState, useState, useTransition } from "react";
+import { CheckCircle2, XCircle, Pencil, RefreshCw, AlertTriangle, X, Check, Upload, ExternalLink } from "lucide-react";
+import {
+  approveContentVideo,
+  rejectContentVideo,
+  regenerateContentVideo,
+  editContentVideoCopy,
+  publishVideoToYouTube,
+  type PublishYouTubeState,
+} from "@/app/admin/actions";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { timeAgo } from "@/lib/time-ago";
 import type { QualityFlags } from "@/lib/content-quality-check";
+import type { YouTubePrivacyStatus } from "@/lib/youtube";
 
 export type PlatformCopy = { title: string; caption: string; hashtags: string[] };
 
@@ -142,24 +150,116 @@ export function ContentVideoApproval({
         </form>
       </div>
       <p className="text-xs text-muted-foreground">
-        &ldquo;Approve &amp; Schedule&rdquo; marks this ready — actual publishing to YouTube/TikTok is a later phase, not built yet.
+        &ldquo;Approve &amp; Schedule&rdquo; marks this ready — publish to YouTube from the approved state below. TikTok publishing isn&apos;t built yet.
       </p>
+    </div>
+  );
+}
+
+export type PlatformPost = {
+  id: string;
+  status: "pending" | "uploading" | "published" | "failed";
+  privacy_status: YouTubePrivacyStatus;
+  external_url: string | null;
+  error: string | null;
+  published_at: string | null;
+};
+
+const PRIVACY_OPTIONS: { value: YouTubePrivacyStatus; label: string }[] = [
+  { value: "private", label: "Private (only you)" },
+  { value: "unlisted", label: "Unlisted (link only)" },
+  { value: "public", label: "Public" },
+];
+
+// The actual "one click does the whole job" upload — fetches the video
+// out of storage, uploads with the AI-drafted title/caption/hashtags,
+// server-side, in one server action. Shown once a video is approved
+// (see ContentVideoDecided below), separate from the approve/reject
+// decision itself so publishing stays an explicit second step even
+// after approval, not bundled into the same click.
+function YouTubePublishPanel({ videoId, ideaId, latestPost }: { videoId: string; ideaId: string; latestPost: PlatformPost | null }) {
+  const [privacyStatus, setPrivacyStatus] = useState<YouTubePrivacyStatus>(latestPost?.privacy_status ?? "private");
+  const boundAction = publishVideoToYouTube.bind(null, videoId, ideaId, privacyStatus);
+  const [state, formAction, isPending] = useActionState<PublishYouTubeState, FormData>(boundAction, {});
+
+  const publishedUrl = state.url ?? (latestPost?.status === "published" ? latestPost.external_url : null);
+
+  if (publishedUrl) {
+    return (
+      <div className="mt-3 flex items-center gap-2 rounded-lg border border-success/30 bg-success/5 p-3 text-xs">
+        <Upload className="size-4 shrink-0 text-success" />
+        <span className="text-foreground">Published to YouTube.</span>
+        <a href={publishedUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-0.5 text-accent hover:underline">
+          Watch <ExternalLink className="size-3" />
+        </a>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-3 space-y-2 rounded-lg border border-border bg-card p-3 text-xs">
+      <p className="flex items-center gap-1.5 font-medium text-foreground">
+        <Upload className="size-3.5" />
+        Publish to YouTube
+      </p>
+      <div className="flex flex-wrap items-center gap-2">
+        <select
+          value={privacyStatus}
+          onChange={(e) => setPrivacyStatus(e.target.value as YouTubePrivacyStatus)}
+          disabled={isPending}
+          className="h-8 rounded-lg border border-input bg-transparent px-2 text-xs outline-none focus-visible:border-ring"
+        >
+          {PRIVACY_OPTIONS.map((opt) => (
+            <option key={opt.value} value={opt.value}>
+              {opt.label}
+            </option>
+          ))}
+        </select>
+        <form action={formAction}>
+          <Button type="submit" size="xs" disabled={isPending} className="gap-1">
+            <Upload className="size-3" />
+            {isPending ? "Uploading…" : "Upload to YouTube"}
+          </Button>
+        </form>
+      </div>
+      {(state.error || latestPost?.status === "failed") && (
+        <p className="text-destructive">{state.error || latestPost?.error || "The last upload attempt failed — try again."}</p>
+      )}
     </div>
   );
 }
 
 // Terminal states — approved/rejected — shown instead of the interactive
 // panel once a decision's been made, so re-visiting an already-decided
-// video doesn't invite a second decision.
-export function ContentVideoDecided({ status, reason, decidedAt }: { status: "approved" | "rejected"; reason?: string | null; decidedAt?: string | null }) {
+// video doesn't invite a second decision. Once approved, the YouTube
+// publish panel appears here — a deliberate second step, not bundled
+// into the approve click itself.
+export function ContentVideoDecided({
+  status,
+  reason,
+  decidedAt,
+  videoId,
+  ideaId,
+  latestPost,
+}: {
+  status: "approved" | "rejected";
+  reason?: string | null;
+  decidedAt?: string | null;
+  videoId: string;
+  ideaId: string;
+  latestPost?: PlatformPost | null;
+}) {
   return (
-    <div className={`flex items-start gap-2 rounded-lg border p-3 text-xs ${status === "approved" ? "border-success/30 bg-success/5" : "border-border bg-muted/30"}`}>
-      {status === "approved" ? <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-success" /> : <X className="mt-0.5 size-4 shrink-0 text-muted-foreground" />}
-      <div>
-        <p className="font-medium text-foreground">{status === "approved" ? "Approved" : "Rejected"}</p>
-        {reason && <p className="mt-0.5 text-muted-foreground">{reason}</p>}
-        {decidedAt && <p className="mt-0.5 text-muted-foreground">{timeAgo(decidedAt)}</p>}
+    <div>
+      <div className={`flex items-start gap-2 rounded-lg border p-3 text-xs ${status === "approved" ? "border-success/30 bg-success/5" : "border-border bg-muted/30"}`}>
+        {status === "approved" ? <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-success" /> : <X className="mt-0.5 size-4 shrink-0 text-muted-foreground" />}
+        <div>
+          <p className="font-medium text-foreground">{status === "approved" ? "Approved" : "Rejected"}</p>
+          {reason && <p className="mt-0.5 text-muted-foreground">{reason}</p>}
+          {decidedAt && <p className="mt-0.5 text-muted-foreground">{timeAgo(decidedAt)}</p>}
+        </div>
       </div>
+      {status === "approved" && <YouTubePublishPanel videoId={videoId} ideaId={ideaId} latestPost={latestPost ?? null} />}
     </div>
   );
 }

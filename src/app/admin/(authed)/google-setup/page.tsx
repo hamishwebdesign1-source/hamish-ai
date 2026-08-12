@@ -9,6 +9,12 @@ import { timeAgo } from "@/lib/time-ago";
 const SCOPES = [
   "https://www.googleapis.com/auth/gmail.modify",
   "https://www.googleapis.com/auth/calendar.events",
+  // Content Factory YouTube publishing (src/lib/youtube.ts) — added to
+  // the same shared OAuth client rather than a second connector. An
+  // account connected before this scope existed needs one reconnect to
+  // pick it up; Google only re-issues the full scope set on a fresh
+  // consent, not incrementally.
+  "https://www.googleapis.com/auth/youtube.upload",
 ];
 
 export default async function GoogleSetupPage() {
@@ -53,7 +59,7 @@ export default async function GoogleSetupPage() {
     <div>
       <h1 className="font-heading text-2xl font-semibold">Google connection</h1>
       <p className="mt-1 text-sm text-muted-foreground">
-        Powers automatic email-inbox triage and calendar sync for new tasks.
+        Powers automatic email-inbox triage, calendar sync for new tasks, and Content Factory&apos;s YouTube publishing.
       </p>
 
       <Card className="mt-8">

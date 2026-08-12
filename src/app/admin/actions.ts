@@ -9,6 +9,7 @@ import { researchContentIdea, type ContentIdeaResearch } from "@/lib/research-co
 import { generateContentScripts, type ScriptVariant } from "@/lib/generate-content-scripts";
 import { generateVideoPrompt } from "@/lib/generate-video-prompt";
 import { submitSingleIdeaForVideo } from "@/lib/content-video-pipeline";
+import { uploadVideoToYouTube, type YouTubePrivacyStatus } from "@/lib/youtube";
 import { sendClientEmail } from "@/lib/send-client-email";
 import { researchLead, type LeadResearch } from "@/lib/research-lead";
 import { draftSalesKit, type SalesKit } from "@/lib/draft-sales-kit";
@@ -1047,4 +1048,93 @@ export async function editContentVideoCopy(videoId: string, ideaId: string, form
 
   revalidatePath("/admin/content-factory");
   revalidatePath(`/admin/content-factory/${ideaId}`);
+}
+
+// --- Content Factory — YouTube publishing (brought forward from
+// docs/content-factory-plan.md's "Phase 2") ---
+// One click does the whole job: fetch the approved video's bytes out of
+// Supabase Storage, upload to YouTube with the AI-drafted title/caption/
+// hashtags as metadata, record the result. Never throws — a failed
+// upload leaves a `platform_posts` row with status='failed' and the real
+// error, same "every failure path resolves into a terminal row"
+// convention as the rest of this pipeline, rather than losing the
+// attempt or crashing the approval screen.
+export type PublishYouTubeState = { url?: string; error?: string };
+
+export async function publishVideoToYouTube(
+  videoId: string,
+  ideaId: string,
+  privacyStatus: YouTubePrivacyStatus,
+  _prevState: PublishYouTubeState,
+  _formData: FormData
+): Promise<PublishYouTubeState> {
+  const supabase = getSupabaseAdmin();
+  if (!supabase) return { error: "Supabase is not configured." };
+
+  const { data: video, error: videoError } = await supabase
+    .from("content_videos")
+    .select("storage_path, platform_copy")
+    .eq("id", videoId)
+    .single();
+  if (videoError || !video?.storage_path) return { error: "Video not found or has no stored file." };
+
+  const { data: fileBlob, error: downloadError } = await supabase.storage.from("content-videos").download(video.storage_path);
+  if (downloadError || !fileBlob) {
+    console.error("Failed to download video from storage for YouTube upload:", downloadError);
+    return { error: "Failed to fetch the video file from storage." };
+  }
+
+  const copy = video.platform_copy as { title?: string; caption?: string; hashtags?: string[] } | null;
+  const title = copy?.title || "Untitled";
+  const description = [copy?.caption, (copy?.hashtags ?? []).map((h) => `#${h}`).join(" ")].filter(Boolean).join("\n\n");
+
+  const result = await uploadVideoToYouTube({
+    videoBytes: await fileBlob.arrayBuffer(),
+    title,
+    description,
+    tags: copy?.hashtags ?? [],
+    privacyStatus,
+  });
+
+  if ("error" in result) {
+    await supabase.from("platform_posts").insert({
+      video_id: videoId,
+      idea_id: ideaId,
+      platform: "youtube",
+      status: "failed",
+      privacy_status: privacyStatus,
+      title,
+      description,
+      tags: copy?.hashtags ?? [],
+      error: result.error,
+    });
+    await logAuditEvent({ actor: "admin", action: "content.youtube_publish_failed", targetType: "content_idea", targetId: ideaId, metadata: { video_id: videoId, error: result.error } });
+    return { error: result.error };
+  }
+
+  await supabase.from("platform_posts").insert({
+    video_id: videoId,
+    idea_id: ideaId,
+    platform: "youtube",
+    status: "published",
+    privacy_status: privacyStatus,
+    title,
+    description,
+    tags: copy?.hashtags ?? [],
+    external_post_id: result.videoId,
+    external_url: result.url,
+    published_at: new Date().toISOString(),
+  });
+
+  await logAuditEvent({
+    actor: "admin",
+    action: "content.youtube_published",
+    targetType: "content_idea",
+    targetId: ideaId,
+    metadata: { video_id: videoId, youtube_video_id: result.videoId, url: result.url, privacy_status: privacyStatus },
+  });
+
+  revalidatePath("/admin/content-factory");
+  revalidatePath(`/admin/content-factory/${ideaId}`);
+  return { url: result.url };
 }

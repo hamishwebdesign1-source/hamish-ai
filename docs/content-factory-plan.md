@@ -107,8 +107,19 @@ Command Centre summary card, a cost rollup card on the list page.
 VIEWMAX_API_KEY=            # optional — unset means content-video-pipeline logs "not configured" and skips; ideas/scripts work fully without it
 VIEWMAX_MIN_CREDIT_BUFFER=5 # optional, defaults in code if unset
 ```
-No changes to `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`/`GOOGLE_REFRESH_TOKEN` in the MVP — YouTube upload scope is added there only when publishing (phase 2) is built.
+## YouTube publishing — brought forward from Phase 2 (2026-08-12)
+
+Built on request, ahead of the original phase order: a real "Upload to YouTube" button on the approval screen, shown once a video is approved.
+
+- `supabase/schema-platform-posts.sql` — `platform_posts` (one row per publish attempt; `platform` is already multi-valued so TikTok can join this same table later without a schema change). Not yet applied — paste before this does anything.
+- `src/lib/youtube.ts` — `uploadVideoToYouTube()` (fetches the video's bytes, calls `youtube.videos.insert` with the AI-drafted title/caption/hashtags as metadata) and `checkYouTubeConnection()`. Reuses the *same* shared Google OAuth2 client every other Google integration in this codebase uses (`google-auth.ts`) — one refresh token now covers Gmail + Calendar + YouTube, not a separate connector.
+- `google-setup/page.tsx`'s `SCOPES` gained `youtube.upload`. **An account connected before this scope existed needs one manual reconnect** at `/admin/google-setup` — Google only re-issues the full scope set on a fresh consent, not incrementally, so the existing Gmail/Calendar connection alone won't cover YouTube uploads.
+- `publishVideoToYouTube()` in `admin/actions.ts` — one server action does the whole job (download from Supabase Storage → upload to YouTube → record the result), same "one click, no manual steps" shape as everything else in this pipeline. Never throws; a failed upload leaves a `platform_posts` row with `status='failed'` and the real error.
+- `ContentVideoDecided` (the approval screen) grew a `YouTubePublishPanel` — a privacy-status picker (private/unlisted/public, defaults to private) plus the upload button, shown only once a video is approved and kept as a deliberate second step rather than bundled into the Approve click itself.
+- `content.youtube_published`/`content.youtube_publish_failed` are audit-log-only (human-triggered publish, not AI activity) — same convention as `content.video_approved`/`rejected`, not added to `AI_ACTIVITY_ACTIONS`.
+
+**Not yet live-tested** — no real video exists yet (ViewMax credits still pending), so the upload path is code-complete and typechecked but unexercised against a real file. Verify end to end once a real approved video exists: reconnect Google for the new scope, paste the SQL, click Upload.
 
 ## Phase 2 (not built, schema stays open)
 
-`platform_posts` (`video_id` → `content_videos.id`, platform, scheduled_at, external_post_id, published_at, status) covers YouTube/TikTok publishing without touching any table above. `platform_post_metrics` (child of `platform_posts`) covers analytics. The learning loop and content-fatigue/series detection are read models over `content_ai_usage`/`content_ideas`/`platform_post_metrics` — no schema changes needed to what's built now. Autonomous mode is a single flag bypassing the existing `approveContentVideo` gate; the gate and everything upstream stays exactly as built.
+`platform_post_metrics` (child of `platform_posts`) covers analytics, once posts actually exist to measure. The learning loop and content-fatigue/series detection are read models over `content_ai_usage`/`content_ideas`/`platform_post_metrics` — no schema changes needed to what's built now. Autonomous mode is a single flag bypassing the existing `approveContentVideo` gate; the gate and everything upstream stays exactly as built. TikTok publishing follows the same `platform_posts` shape YouTube now uses, once TikTok's Content Posting API access is set up.

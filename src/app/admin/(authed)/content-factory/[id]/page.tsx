@@ -35,7 +35,7 @@ export default async function ContentIdeaDetailPage({ params }: { params: Promis
   const supabase = getSupabaseAdmin();
   if (!supabase) notFound();
 
-  const [{ data: idea }, { data: auditRows }, { data: scriptRows }, { data: videoRows }] = await Promise.all([
+  const [{ data: idea }, { data: auditRows }, { data: scriptRows }, { data: videoRows }, { data: postRows }] = await Promise.all([
     supabase.from("content_ideas").select("*").eq("id", id).single(),
     supabase
       .from("audit_log")
@@ -56,12 +56,20 @@ export default async function ContentIdeaDetailPage({ params }: { params: Promis
       .eq("idea_id", id)
       .order("created_at", { ascending: false })
       .limit(1),
+    supabase
+      .from("platform_posts")
+      .select("id, status, privacy_status, external_url, error, published_at")
+      .eq("idea_id", id)
+      .eq("platform", "youtube")
+      .order("created_at", { ascending: false })
+      .limit(1),
   ]);
 
   if (!idea) notFound();
 
   const scripts = (scriptRows ?? []) as ScriptRow[];
   const latestVideo = videoRows?.[0] ?? null;
+  const latestPost = postRows?.[0] ?? null;
   const videoUrl = latestVideo?.status === "succeeded" && latestVideo.storage_path ? await getSignedVideoUrl(latestVideo.storage_path) : null;
 
   const audit = auditRows ?? [];
@@ -193,9 +201,9 @@ export default async function ContentIdeaDetailPage({ params }: { params: Promis
               <p className="mt-0.5 text-xs text-muted-foreground">Watch it, check the caption, then Approve, Regenerate, or Reject.</p>
               <div className="mt-3">
                 {latestVideo.approval_status === "approved" ? (
-                  <ContentVideoDecided status="approved" decidedAt={latestVideo.approved_at} />
+                  <ContentVideoDecided status="approved" decidedAt={latestVideo.approved_at} videoId={latestVideo.id} ideaId={idea.id} latestPost={latestPost} />
                 ) : latestVideo.approval_status === "rejected" ? (
-                  <ContentVideoDecided status="rejected" reason={latestVideo.rejection_reason} />
+                  <ContentVideoDecided status="rejected" reason={latestVideo.rejection_reason} videoId={latestVideo.id} ideaId={idea.id} />
                 ) : (
                   <ContentVideoApproval
                     videoId={latestVideo.id}
@@ -306,6 +314,10 @@ function describeContentAuditEntry(entry: { action: string; metadata: Record<str
       return meta.ok ? "Regenerate requested — new attempt submitted to ViewMax" : `Regenerate requested — failed (${meta.reason ?? "unknown reason"})`;
     case "content.copy_edited":
       return "Title/caption/hashtags hand-edited";
+    case "content.youtube_published":
+      return `Published to YouTube — ${meta.url ?? ""}`;
+    case "content.youtube_publish_failed":
+      return `YouTube upload failed — ${meta.error ?? "unknown error"}`;
     default:
       return entry.action;
   }
