@@ -36,18 +36,24 @@ const MAX_INFLIGHT_PER_RUN = 5;
 // model catalog — a fixed threshold with no cost awareness would either
 // block affordable videos or let the account run to zero.
 const VIEWMAX_MIN_CREDIT_BUFFER = Number(process.env.VIEWMAX_MIN_CREDIT_BUFFER) || 5;
-// Real economics, confirmed 2026-08-12 against Hamish's actual plan
-// (£15/mo for 200 ViewMax credits): with scripts capped at <=12s (see
-// generate-content-scripts.ts and generate-video-prompt.ts's
-// MAX_DURATION_S), the cheapest real per-video cost is ~15-21 credits,
-// so 200 credits is genuinely ~9-13 videos/month — but only if spend is
-// paced across the month rather than front-loaded. This is a hard stop
-// once this calendar month's ViewMax spend (summed from
-// content_ai_usage, see getMonthlyViewMaxSpend below) would be exceeded,
-// independent of the account's live credit balance — the two checks
-// answer different questions ("can we afford this specific video right
-// now" vs. "should we, given the budget for the whole month").
-const VIEWMAX_MONTHLY_CREDIT_BUDGET = Number(process.env.VIEWMAX_MONTHLY_CREDIT_BUDGET) || 200;
+// Real economics, corrected 2026-08-12 — Hamish's actual plan is
+// ViewMax's Lite tier: $19/mo for 1,300 credits/month (an earlier "£15
+// for 200 credits" figure quoted before he'd actually subscribed was
+// wrong; fixed once the real plan was confirmed live against the
+// account). With scripts capped at <=12s (see generate-content-scripts.ts
+// and generate-video-prompt.ts's MAX_DURATION_S), the cheapest real
+// per-video cost is ~15-21 credits — but the pipeline paces itself to
+// ~1 video/day regardless (MAX_SUBMISSIONS_PER_RUN below), so real
+// monthly usage lands around 450-630 credits even on the full 1,300
+// budget; this cap is a backstop against a genuine runaway, not the
+// thing actually limiting output day to day. Set with headroom under
+// the plan's 1,300, not right up against it. This is a hard stop once
+// this calendar month's ViewMax spend (summed from content_ai_usage,
+// see getMonthlyViewMaxSpend below) would be exceeded, independent of
+// the account's live credit balance — the two checks answer different
+// questions ("can we afford this specific video right now" vs. "should
+// we, given the budget for the whole month").
+const VIEWMAX_MONTHLY_CREDIT_BUDGET = Number(process.env.VIEWMAX_MONTHLY_CREDIT_BUDGET) || 1200;
 
 // ViewMax's docs say poll every 5s, but a multi-minute generation can't
 // be tracked by one Vercel invocation, and this codebase deliberately has

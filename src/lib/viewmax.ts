@@ -5,20 +5,16 @@
 // VIEWMAX_API_KEY is unset, so nothing else in the pipeline needs to
 // special-case "not configured" — it just gets a clean failure result.
 //
-// Confirmed against a real account and a real API key (2026-08-12): base
-// URL, auth header, the {code, message, data} envelope, GET
-// /api/v1/models needing no auth, the full model catalog shape (each
-// model's per-mode durations/resolutions/aspect_ratios/cost table — see
-// pickCheapestVideoOption below), and GET /api/v1/credits's real field
-// name (`remainingCredits`, not the originally-guessed `credits`).
-// NOT yet confirmed — no video has actually been submitted yet, since
-// credits were too low to afford one at verification time: the exact
-// field names on a POST /api/v1/videos or GET /api/v1/tasks/{id}
-// response. Their own marketing example shows `{task_id, status,
-// video_urls}`; their docs page separately says `data.taskUrls`. Both are
-// checked defensively below rather than assumed — verify against a real
-// response the first time a video actually generates, and simplify once
-// confirmed.
+// Confirmed against a real account, a real API key, and a real paid
+// submission (2026-08-12): base URL, auth header, the {code, message,
+// data} envelope, GET /api/v1/models needing no auth, the full model
+// catalog shape (each model's per-mode durations/resolutions/
+// aspect_ratios/cost table — see pickCheapestVideoOption below), GET
+// /api/v1/credits's real field name (`remainingCredits`), and — the one
+// that actually mattered — the real POST /api/v1/videos response shape,
+// including a genuine bug this surfaced: see RawViewMaxTask's comment
+// for why `id`, not `taskId`, is the field that must be used to poll
+// GET /api/v1/tasks/{id} afterward.
 
 const VIEWMAX_BASE_URL = "https://viewmax.studio";
 
@@ -204,10 +200,22 @@ export type SubmitVideoPayload = {
   aspect_ratio?: string;
 };
 
+// Confirmed against a real submission (2026-08-12) — the response has
+// TWO different ID-shaped fields, and they are NOT interchangeable:
+// `id` (a UUID) is the record ViewMax's own API expects for
+// GET /api/v1/tasks/{id}; `taskId` is a separate, internal reference to
+// whatever upstream provider (Kie, per the raw response's callback URL)
+// actually renders the video — passing `taskId` to /tasks/{id} returns
+// "task not found" even seconds after a real, successfully-charged
+// submission. A real bug here, not a defensive guess: the original
+// version of this function preferred `task_id`/`taskId` over `id`,
+// which meant every submission's task became permanently unpollable —
+// found by submitting a real job, watching it "process" forever, and
+// re-querying with every ID-shaped field in the raw response until one
+// actually worked. `id` is now the only field trusted for polling.
 type RawViewMaxTask = {
-  task_id?: string;
-  taskId?: string;
-  id?: string;
+  id?: string; // the one that actually works for GET /api/v1/tasks/{id}
+  taskId?: string; // present but NOT the polling ID — an internal upstream reference, kept here for logging only
   status?: string;
   taskUrls?: string[];
   video_urls?: string[];
@@ -218,8 +226,8 @@ type RawViewMaxTask = {
 export async function submitVideoGeneration(payload: SubmitVideoPayload): Promise<{ taskId: string } | { error: string }> {
   const result = await viewmaxRequest<RawViewMaxTask>("/api/v1/videos", { method: "POST", body: JSON.stringify(payload) });
   if ("error" in result) return { error: result.error };
-  const taskId = result.data.task_id ?? result.data.taskId ?? result.data.id;
-  if (!taskId) return { error: "ViewMax accepted the job but returned no task ID." };
+  const taskId = result.data.id;
+  if (!taskId) return { error: "ViewMax accepted the job but returned no usable task ID." };
   return { taskId };
 }
 
