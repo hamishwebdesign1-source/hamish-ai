@@ -20,24 +20,26 @@ import type { ScriptBeats, SceneBeat } from "@/lib/generate-content-scripts";
 // TikTok/Reels) is vertical 9:16, and duration is the sum of the
 // script's own scene durations, clamped to MIN/MAX_DURATION_S.
 //
-// The clamp exists because of a real cost-cliff finding (2026-08-12,
-// see docs/content-factory-plan.md's cost section): ViewMax's real model
+// The clamp exists because of a real cost-cliff finding (2026-08-12, see
+// docs/content-factory-plan.md's cost section): ViewMax's real model
 // catalog has a hard tier jump around 15s — most affordable models offer
-// a duration at or near 12s, then skip straight to 30s, so a video
-// landing at even 16-25s costs roughly double what a 12s-or-under video
-// does, for barely any extra content. generate-content-scripts.ts's
-// prompt already asks for <=12s scenes, but this clamp is the backstop
-// in case a script variant still comes back longer.
-//
-// ViewMax's documented prompt limit is 2000 characters (see their MCP
-// docs) — enforced defensively here with a hard truncate, same "final
-// sanitizer before anything reaches storage" convention as
-// research-lead.ts's sanitizeSalesStrategy.
-
+// a duration at or near 12s, then skip straight to 30s, so anything
+// landing in the 13-19s range costs exactly the same as a full 30s video
+// for less content. generate-content-scripts.ts's prompt already asks
+// for one of two efficient targets (TIGHT 8-12s or FULL 20-30s, never
+// in between); this clamp is the backstop in case a script variant still
+// comes back somewhere in the dead zone — it snaps to whichever tier the
+// raw sum is closer to, rather than a single flat ceiling (an earlier
+// version capped everything at 12s regardless of how much story the
+// script actually needed, which just moved the "crammed" problem from
+// duration mismatch to over-stuffed scenes — see the plan doc).
 const MAX_PROMPT_CHARS = 2000;
 const ASPECT_RATIO = "9:16"; // every MVP platform target (shorts/tiktok/reels) is vertical
-const MIN_DURATION_S = 8;
-const MAX_DURATION_S = 12; // the real cost-cliff boundary — see module header
+const TIGHT_MIN_S = 8;
+const TIGHT_MAX_S = 12;
+const FULL_MIN_S = 20;
+const FULL_MAX_S = 30;
+const DEAD_ZONE_MIDPOINT_S = (TIGHT_MAX_S + FULL_MIN_S) / 2; // 16 — raw sums at or below this snap to TIGHT, above snap to FULL
 
 export type VideoPromptSpec = {
   prompt: string;
@@ -110,7 +112,13 @@ export async function generateVideoPrompt(scriptId: string) {
   const model = process.env.ANTHROPIC_MODEL || "claude-haiku-4-5-20251001";
   const sceneBreakdown = (script.scene_breakdown ?? []) as SceneBeat[];
   const rawDurationS = Math.round(sceneBreakdown.reduce((sum, s) => sum + (s.duration_s || 0), 0));
-  const durationS = Math.min(MAX_DURATION_S, Math.max(MIN_DURATION_S, rawDurationS));
+  // Snap to whichever efficient tier the raw sum is closer to — never
+  // land in the 13-19s dead zone, which costs the same as FULL for less
+  // content (see the module header).
+  const durationS =
+    rawDurationS <= DEAD_ZONE_MIDPOINT_S
+      ? Math.min(TIGHT_MAX_S, Math.max(TIGHT_MIN_S, rawDurationS))
+      : Math.min(FULL_MAX_S, Math.max(FULL_MIN_S, rawDurationS));
 
   try {
     const response = await anthropic.messages.create({

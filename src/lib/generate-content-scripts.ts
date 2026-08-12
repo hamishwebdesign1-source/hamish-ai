@@ -73,7 +73,12 @@ ${researchContext(idea.research)}
 
 Writing standards, all variants: the hook must create genuine curiosity or tension in its first 1-3 seconds — no throat-clearing, no "let's talk about", no "did you know". Write the way a specific person would actually talk out loud, not marketing copy — contractions, short sentences, real rhythm. Never use generic AI-sounding phrasing ("in today's fast-paced world", "unlock the power of", "game-changer"). The ending should give a genuine reason to watch again or think about this later — a twist, an open question, a loop back to the hook, or a concrete takeaway — never a generic "like and subscribe".
 
-For each variant also write a scene_breakdown: 4-6 short entries covering hook through ending, each with what's visually on screen (visual_description), any on-screen text overlay (on_screen_text, can be empty), and a rough duration in seconds (duration_s). Durations across all entries MUST sum to 12 seconds or less — this is a hard cost constraint of the video generation platform this pipeline uses (going even slightly over a short-clip threshold there roughly doubles the cost per video), not a stylistic preference, so favour a tight 2-4 beat arc over a padded one. A strong hook-payoff pair told in 8-12 seconds beats a meandering 20-second version every time anyway.
+For each variant also write a scene_breakdown covering hook through ending, each entry with what's visually on screen (visual_description), any on-screen text overlay (on_screen_text, can be empty), and a rough duration in seconds (duration_s). Total duration is a real cost constraint of the video generation platform this pipeline uses, but not a flat one — pick ONE of these two efficient targets, never something in between:
+- TIGHT (8-12s total): for a punchy single-image hook-payoff idea. Use only 2-3 scenes.
+- FULL (20-30s total): for an idea that genuinely needs a real setup/escalation/payoff arc to land. Use 3-5 scenes.
+Anything in the 13-19s range costs exactly the same as the full 30s option for less content, so never land there — round down to TIGHT or up to FULL, whichever the story actually needs.
+
+Whichever target you pick, every scene must get real screen time — never go below ~3 seconds per scene. That means TIGHT never needs more than 3 scenes and FULL never needs more than 5; if you're tempted to add a 6th scene, merge it into a neighbour instead. A visual scene does not need to map 1:1 onto every narrative beat — if escalation and payoff are one continuous visual moment, show them in a single scene rather than forcing an artificial cut. Cramming 5-6 scenes into a TIGHT 10-12s runtime is the single most common mistake — it reads as rushed and crowds on-screen text into overlapping fragments no matter how well the voiceover paces it. If the concept needs more visual complexity than TIGHT can hold, use FULL rather than cramming; if it doesn't need that much room, use TIGHT rather than padding.
 
 Finally, score each variant 0-10 on its own real strength (hook impact, pacing, payoff satisfaction, novelty) with one honest sentence of rationale — these scores decide which variant gets produced, so be genuinely discriminating rather than scoring everything an 8.`;
 }
@@ -116,8 +121,10 @@ const SCRIPTS_TOOL: Anthropic.Tool = {
                 },
                 required: ["order", "beat", "visual_description", "on_screen_text", "duration_s"],
               },
-              minItems: 4,
-              maxItems: 6,
+              minItems: 2,
+              maxItems: 5,
+              description:
+                "As few scenes as the story genuinely needs — 2-3 for a TIGHT (8-12s) variant, up to 5 for a FULL (20-30s) one. A visual scene can cover more than one narrative beat (e.g. escalation+payoff in one continuous shot) rather than forcing a cut per beat.",
             },
             score: { type: "number", description: "0-10, this variant's own real strength." },
             score_rationale: { type: "string" },
@@ -220,9 +227,16 @@ export async function generateContentScripts(ideaId: string): Promise<GenerateSc
     // candidate). Auto-selected, not human-gated — see the file header.
     const winner = insertedRows.reduce((best, row) => ((row.score ?? 0) > (best.score ?? 0) ? row : best), insertedRows[0]);
 
+    // Real bug, found 2026-08-12: on a regenerate, a script from an
+    // earlier round could still be sitting at status='selected' from
+    // that round's own auto-selection — this update only ever demoted
+    // the new batch's own losers, leaving TWO rows 'selected' for the
+    // same idea at once, which silently broke every downstream
+    // .eq("status","selected") lookup (submitIdeaForVideo's
+    // .maybeSingle() included). Every non-winning script for this idea,
+    // old or new, is demoted here — not just this batch's siblings.
+    await supabase.from("content_scripts").update({ status: "rejected" }).eq("idea_id", ideaId).neq("id", winner.id);
     await supabase.from("content_scripts").update({ status: "selected", reviewed_at: new Date().toISOString() }).eq("id", winner.id);
-    const loserIds = insertedRows.filter((r) => r.id !== winner.id).map((r) => r.id);
-    if (loserIds.length) await supabase.from("content_scripts").update({ status: "rejected" }).in("id", loserIds);
 
     await supabase.from("content_ideas").update({ status: "script_review" }).eq("id", ideaId);
 
