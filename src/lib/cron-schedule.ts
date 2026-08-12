@@ -1,10 +1,18 @@
 // Static metadata for the jobs in vercel.json, plus deterministic
-// "next run" math — no cron-parsing library, because almost every real
-// schedule is one of three fixed shapes (daily / weekly-on-a-weekday /
-// monthly-on-a-day), and a tiny bespoke calculator for those shapes is
-// simpler and more honest than a general parser. content-video-pipeline
-// added a fourth shape (every N minutes) — see nextEveryNMinutes. All
-// times are UTC, matching how Vercel Cron interprets vercel.json.
+// "next run" math — no cron-parsing library, because every real schedule
+// is one of three fixed shapes (daily / weekly-on-a-weekday / monthly-on-
+// a-day), and a tiny bespoke calculator for those shapes is simpler and
+// more honest than a general parser. All times are UTC, matching how
+// Vercel Cron interprets vercel.json.
+//
+// content-video-pipeline was originally every 5 minutes (a bounded poll
+// burst per tick — see that route's own comment) but Vercel's Hobby plan
+// only allows daily cron jobs; a */5 schedule fails deployment outright
+// ("Hobby accounts are limited to daily cron jobs"), discovered when a
+// real deploy attempt failed with exactly that error. Reverted to daily
+// — a video still stuck processing after that run's bounded burst now
+// waits until the next day's run rather than the next 5-minute tick.
+// Upgrading to Vercel Pro would restore the original cadence.
 export type CronSpec = {
   name: string; // matches the /api/cron/<name> route folder and cron_runs.cron_name
   label: string;
@@ -35,15 +43,6 @@ function nextMonthly(dayOfMonth: number, hour: number): Date {
   if (next.getTime() <= now.getTime()) {
     next = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, dayOfMonth, hour, 0));
   }
-  return next;
-}
-
-function nextEveryNMinutes(minutes: number): Date {
-  const now = new Date();
-  const next = new Date(now);
-  next.setUTCSeconds(0, 0);
-  const remainder = next.getUTCMinutes() % minutes;
-  next.setUTCMinutes(next.getUTCMinutes() + (remainder === 0 ? minutes : minutes - remainder));
   return next;
 }
 
@@ -86,9 +85,9 @@ export const CRON_SPECS: CronSpec[] = [
   {
     name: "content-video-pipeline",
     label: "Content video pipeline",
-    description: "Submits ready ideas to ViewMax and polls in-flight video generations, every 5 minutes.",
-    schedule: "*/5 * * * *",
-    nextRun: () => nextEveryNMinutes(5),
+    description: "Submits ready ideas to ViewMax and polls in-flight video generations, daily (Hobby plan limit — see file header).",
+    schedule: "0 10 * * *",
+    nextRun: () => nextDaily(10),
   },
   {
     name: "email-inbox",

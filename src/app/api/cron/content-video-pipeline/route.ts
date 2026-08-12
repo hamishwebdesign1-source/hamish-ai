@@ -4,11 +4,15 @@ import { sendContentReviewAlert } from "@/lib/send-content-alert";
 import { sendErrorAlert } from "@/lib/send-error-alert";
 import { recordCronRun } from "@/lib/record-cron-run";
 
-// Triggered every 5 minutes by the Vercel Cron job in vercel.json — see
-// content-video-pipeline.ts's module header for why 5 minutes (a bounded
-// inline poll burst per tick, not true 5-second polling). maxDuration
-// gives the poll burst (up to 6 x 5s per video) headroom within Vercel's
-// per-route execution limit.
+// Triggered once daily by the Vercel Cron job in vercel.json — was
+// originally every 5 minutes, but Vercel's Hobby plan only allows daily
+// cron jobs (a real deploy attempt failed outright on the */5 schedule;
+// see cron-schedule.ts's file header). Each run still does a bounded
+// inline poll burst per in-flight video (see content-video-pipeline.ts),
+// so a video that finishes within that burst is picked up immediately —
+// only one still processing after it waits until the next day's run.
+// maxDuration gives the poll burst (up to 6 x 5s per video) headroom
+// within Vercel's per-route execution limit.
 export const maxDuration = 60;
 
 export async function GET(request: Request) {

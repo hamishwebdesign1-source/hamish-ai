@@ -38,6 +38,10 @@ const VIEWMAX_MIN_CREDIT_BUFFER = Number(process.env.VIEWMAX_MIN_CREDIT_BUFFER) 
 // interval decision"). Each cron tick does a short bounded burst — up to
 // 6 polls, 5s apart (~30s), matching ViewMax's documented interval within
 // the burst — then leaves the row for the next tick if still not done.
+// The cron itself only ticks once a day (Vercel Hobby plan limit, see
+// cron-schedule.ts) rather than the originally-intended every 5 minutes,
+// so "the next tick" in practice means "tomorrow" unless a video finishes
+// within this run's own 30s burst.
 const POLL_BURST_ATTEMPTS = 6;
 const POLL_BURST_INTERVAL_MS = 5000;
 
