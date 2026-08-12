@@ -67,11 +67,21 @@ async function viewmaxRequest<T>(path: string, init: RequestInit = {}, requireAu
 // free-form duration/resolution — a value outside these arrays gets
 // rejected, so submission must pick from what a model actually lists,
 // never pass through an arbitrary AI-generated value.
+//
+// A third shape exists too, confirmed 2026-08-12 on the entire Veo 3.1
+// family: `durations: []` (genuinely empty — the model doesn't accept a
+// duration parameter at all, it generates its own fixed length) with a
+// flat per-resolution `{"per_generation": N}` cost instead of a
+// duration-keyed grid. The original version of this file's selection
+// logic silently skipped every such model (it checked
+// `durations?.length`, which is falsy for an empty array) — meaning Veo
+// could never be picked even though it's a perfectly valid, real option.
+export const PER_GENERATION_KEY = "per_generation";
 export type ViewMaxModelMode = {
   durations: string[];
   resolutions: string[];
   aspect_ratios: string[];
-  credits?: Record<string, Record<string, number>>; // credits[resolution][duration]
+  credits?: Record<string, Record<string, number>>; // credits[resolution][duration], or credits[resolution]["per_generation"] for fixed-duration models
   credits_per_second?: Record<string, number>; // rate[resolution], multiply by parseInt(duration)
 };
 
@@ -108,6 +118,10 @@ function modeCost(mode: ViewMaxModelMode, resolution: string, duration: string):
   return null;
 }
 
+function modeCostFixed(mode: ViewMaxModelMode, resolution: string): number | null {
+  return mode.credits?.[resolution]?.[PER_GENERATION_KEY] ?? null;
+}
+
 // The smallest available duration at-or-above the target, or null if
 // every duration this model offers falls short — a real bug caught
 // during live testing: an earlier version of this function fell back to
@@ -128,19 +142,56 @@ function longestDuration(available: string[]): string | null {
   return parsed.sort((a, b) => b.s - a.s)[0]?.raw ?? available[0] ?? null;
 }
 
-export type VideoOption = { model: string; duration: string; resolution: string; aspectRatio: string; credits: number };
+// `duration: null` means the model doesn't accept a duration parameter
+// at all (the Veo 3.1 family — see ViewMaxModelMode's comment) — the
+// request payload omits the field entirely for these rather than
+// guessing a value the API would reject.
+export type VideoOption = { model: string; duration: string | null; resolution: string; aspectRatio: string; credits: number };
+
+// Excluded from selection on real evidence, not speculation (2026-08-12):
+// two separate submissions to grok-imagine, requesting 30s and then 20s,
+// both delivered exactly 6.04s and charged exactly 10 credits either
+// way — it does not appear to honor the requested duration at all, it
+// just generates its own fixed short output regardless of what's asked.
+// Revisit if ViewMax fixes this or confirms it's expected behaviour for
+// this model specifically.
+const UNRELIABLE_MODELS = new Set(["grok-imagine"]);
+
+// Hamish's explicit choice (2026-08-12) after comparing real output:
+// grok-imagine/grok-imagine-1-5's cheap-tier results looked "rushed,
+// unfinished, clearly AI" even once duration was accounted for — a
+// quality-of-the-model problem, not something fixable by prompt
+// engineering. Rather than keep optimising purely for lowest cost across
+// the whole catalog, cheapestAcross now tries this preferred set FIRST
+// (still picking the cheapest option *within* it) and only falls back to
+// the full catalog if nothing in the preferred set can serve the
+// request at all (e.g. an aspect ratio it doesn't support).
+const PREFERRED_MODELS = ["veo-3-1-fast"];
 
 function cheapestAcross(
   models: ViewMaxModel[],
   aspectRatio: string,
-  chooseDuration: (durations: string[]) => string | null
+  chooseDuration: (durations: string[]) => string | null,
+  restrictTo?: Set<string>
 ): VideoOption | null {
   let best: VideoOption | null = null;
   for (const model of models) {
-    if (model.coming_soon) continue;
+    if (model.coming_soon || UNRELIABLE_MODELS.has(model.id)) continue;
+    if (restrictTo && !restrictTo.has(model.id)) continue;
     const mode = model.modes?.["text-to-video"];
-    if (!mode || !mode.durations?.length || !mode.resolutions?.length || !mode.aspect_ratios?.length) continue;
+    if (!mode || !mode.resolutions?.length || !mode.aspect_ratios?.length) continue;
     if (!mode.aspect_ratios.includes(aspectRatio)) continue;
+
+    if (!mode.durations?.length) {
+      // Fixed-duration model (e.g. Veo 3.1) — no duration to choose, one
+      // flat per_generation rate per resolution.
+      for (const resolution of mode.resolutions) {
+        const credits = modeCostFixed(mode, resolution);
+        if (credits == null) continue;
+        if (!best || credits < best.credits) best = { model: model.id, duration: null, resolution, aspectRatio, credits };
+      }
+      continue;
+    }
 
     const duration = chooseDuration(mode.durations);
     if (!duration) continue;
@@ -155,18 +206,23 @@ function cheapestAcross(
 }
 
 // Picks the cheapest (model, duration, resolution) combination that
-// supports the requested aspect ratio and, in a first pass, only
-// considers models that can meet or exceed the target duration — so cost
-// is never optimised at the expense of silently truncating the video.
-// Only if literally no model can reach the target duration does it fall
-// back to each model's own longest option and pick the cheapest of those
-// (a real content-length compromise, logged via the caller, not hidden).
-// Rather than blindly using models[0] (the original, wrong approach: the
-// first model in the list is not necessarily compatible or affordable).
-// Returns null if nothing qualifies at all (e.g. a brand-new aspect
-// ratio no model supports yet).
+// supports the requested aspect ratio — preferring PREFERRED_MODELS
+// first (see its comment), then within that, a model that can meet or
+// exceed the target duration so cost is never optimised at the expense
+// of silently truncating the video. Only if literally nothing in the
+// preferred set (or, failing that, the whole catalog) can reach the
+// target duration does it fall back to each candidate's own longest
+// option (a real content-length compromise, logged via the caller, not
+// hidden). Returns null if nothing qualifies at all.
 export function pickCheapestVideoOption(models: ViewMaxModel[], targetDurationS: number, aspectRatio: string): VideoOption | null {
-  const meetsTarget = cheapestAcross(models, aspectRatio, (durations) => nearestDurationAtOrAbove(durations, targetDurationS));
+  const preferred = new Set(PREFERRED_MODELS);
+  const meetsTargetPreferred = cheapestAcross(models, aspectRatio, (d) => nearestDurationAtOrAbove(d, targetDurationS), preferred);
+  if (meetsTargetPreferred) return meetsTargetPreferred;
+
+  const longestPreferred = cheapestAcross(models, aspectRatio, longestDuration, preferred);
+  if (longestPreferred) return longestPreferred;
+
+  const meetsTarget = cheapestAcross(models, aspectRatio, (d) => nearestDurationAtOrAbove(d, targetDurationS));
   if (meetsTarget) return meetsTarget;
   return cheapestAcross(models, aspectRatio, longestDuration);
 }

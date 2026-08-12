@@ -141,10 +141,13 @@ async function submitIdeaForVideo(
     return { ok: false, reason: `insufficient_credits:need_${option.credits}_have_${creditsBefore}` };
   }
 
+  // option.duration is null for fixed-duration models (Veo 3.1 family —
+  // see viewmax.ts's ViewMaxModelMode comment) — omitted entirely rather
+  // than sent as an empty/guessed value the API would likely reject.
   const requestPayload = {
     model: option.model,
     prompt: videoPrompt.prompt,
-    duration: option.duration,
+    ...(option.duration ? { duration: option.duration } : {}),
     resolution: option.resolution,
     aspect_ratio: option.aspectRatio,
   };
