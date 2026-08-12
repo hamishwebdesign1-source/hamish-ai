@@ -11,12 +11,12 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ContentIdeaResearchButton } from "@/components/admin/content-idea-research-button";
 import { ContentScriptPanel, type ScriptRow } from "@/components/admin/content-script-panel";
+import { ContentVideoApproval, ContentVideoDecided, type PlatformCopy } from "@/components/admin/content-video-approval";
+import { getSignedVideoUrl } from "@/lib/content-video-storage";
 
-// Content Factory MVP Phase A+B (docs/content-factory-plan.md) — the
-// idea/research/script workspace, same single-stage-aware-page shape as
-// leads/[id]/page.tsx. This page grows new sections (ViewMax job status,
-// Human Approval) as later build phases land — see the plan doc's Phase
-// C/D sequencing.
+// Content Factory MVP Phase A-D (docs/content-factory-plan.md) — the
+// full idea/research/script/video/approval workspace, same single-
+// stage-aware-page shape as leads/[id]/page.tsx.
 // Same badge-vocabulary mapping approach as RESEARCH_JOB_META on
 // leads/[id]/page.tsx — content_videos.status onto the existing Badge
 // variants, so a new job-status table doesn't need a new visual language.
@@ -50,7 +50,9 @@ export default async function ContentIdeaDetailPage({ params }: { params: Promis
       .order("created_at", { ascending: false }),
     supabase
       .from("content_videos")
-      .select("id, status, viewmax_task_id, viewmax_model, poll_attempts, last_polled_at, error, created_at")
+      .select(
+        "id, status, viewmax_task_id, viewmax_model, poll_attempts, last_polled_at, error, created_at, storage_path, quality_flags, platform_copy, platform_copy_generated_at, approval_status, approved_at, rejection_reason"
+      )
       .eq("idea_id", id)
       .order("created_at", { ascending: false })
       .limit(1),
@@ -60,6 +62,7 @@ export default async function ContentIdeaDetailPage({ params }: { params: Promis
 
   const scripts = (scriptRows ?? []) as ScriptRow[];
   const latestVideo = videoRows?.[0] ?? null;
+  const videoUrl = latestVideo?.status === "succeeded" && latestVideo.storage_path ? await getSignedVideoUrl(latestVideo.storage_path) : null;
 
   const audit = auditRows ?? [];
   const statusMeta = contentIdeaStatusMeta[idea.status as keyof typeof contentIdeaStatusMeta];
@@ -179,13 +182,31 @@ export default async function ContentIdeaDetailPage({ params }: { params: Promis
                       </Button>
                     </form>
                   )}
-                  {latestVideo.status === "succeeded" && (
-                    <p className="text-muted-foreground">
-                      Video ready — the full approval screen (preview, caption, Approve/Reject) lands in Phase D.
-                    </p>
-                  )}
                 </CardContent>
               </Card>
+            </section>
+          )}
+
+          {latestVideo?.status === "succeeded" && (
+            <section>
+              <p className="text-section-title">Review</p>
+              <p className="mt-0.5 text-xs text-muted-foreground">Watch it, check the caption, then Approve, Regenerate, or Reject.</p>
+              <div className="mt-3">
+                {latestVideo.approval_status === "approved" ? (
+                  <ContentVideoDecided status="approved" decidedAt={latestVideo.approved_at} />
+                ) : latestVideo.approval_status === "rejected" ? (
+                  <ContentVideoDecided status="rejected" reason={latestVideo.rejection_reason} />
+                ) : (
+                  <ContentVideoApproval
+                    videoId={latestVideo.id}
+                    ideaId={idea.id}
+                    videoUrl={videoUrl}
+                    qualityFlags={latestVideo.quality_flags}
+                    platformCopy={latestVideo.platform_copy as PlatformCopy | null}
+                    platformCopyGeneratedAt={latestVideo.platform_copy_generated_at}
+                  />
+                )}
+              </div>
             </section>
           )}
 
@@ -274,9 +295,17 @@ function describeContentAuditEntry(entry: { action: string; metadata: Record<str
     case "content.video_failed":
       return `Video generation failed${meta.stage ? ` (${meta.stage})` : ""}`;
     case "content.video_retry_requested":
-      return "Retry requested — will resubmit on the next pipeline run";
+      return meta.ok ? "Retry requested — resubmitted to ViewMax" : `Retry requested — failed again (${meta.reason ?? "unknown reason"})`;
     case "content.copy_generated":
       return `AI wrote the title/caption/hashtags — "${meta.title ?? "?"}"`;
+    case "content.video_approved":
+      return "Video approved";
+    case "content.video_rejected":
+      return `Video rejected${meta.reason ? ` — ${meta.reason}` : ""}`;
+    case "content.video_regenerate_requested":
+      return meta.ok ? "Regenerate requested — new attempt submitted to ViewMax" : `Regenerate requested — failed (${meta.reason ?? "unknown reason"})`;
+    case "content.copy_edited":
+      return "Title/caption/hashtags hand-edited";
     default:
       return entry.action;
   }

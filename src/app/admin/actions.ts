@@ -8,6 +8,7 @@ import { createResearchJob, runResearchJob } from "@/lib/deep-research-pipeline"
 import { researchContentIdea, type ContentIdeaResearch } from "@/lib/research-content-idea";
 import { generateContentScripts, type ScriptVariant } from "@/lib/generate-content-scripts";
 import { generateVideoPrompt } from "@/lib/generate-video-prompt";
+import { submitSingleIdeaForVideo } from "@/lib/content-video-pipeline";
 import { sendClientEmail } from "@/lib/send-client-email";
 import { researchLead, type LeadResearch } from "@/lib/research-lead";
 import { draftSalesKit, type SalesKit } from "@/lib/draft-sales-kit";
@@ -906,29 +907,142 @@ export async function editContentScript(scriptId: string, ideaId: string, formDa
   revalidatePath(`/admin/content-factory/${ideaId}`);
 }
 
-// --- Content Factory MVP Phase C (docs/content-factory-plan.md) ---
+// --- Content Factory MVP Phase C/D (docs/content-factory-plan.md) ---
 // Submission/polling itself is fully automatic (content-video-pipeline.ts,
-// the content-video-pipeline cron) — this is the one manual fallback: an
-// idea stuck at 'failed'/'video_review' with no succeeded video can be
-// sent back to 'ready_for_video' so the next cron tick resubmits it,
-// rather than requiring a brand-new idea.
-export async function retryVideoSubmission(ideaId: string) {
-  const supabase = getSupabaseAdmin();
-  if (!supabase) return;
+// the content-video-pipeline cron) — these are the manual fallbacks, all
+// routed through submitSingleIdeaForVideo() so a human-triggered
+// (re)submission and the cron's automatic one are always the exact same
+// code path, never two that can drift.
 
-  const { error } = await supabase.from("content_ideas").update({ status: "ready_for_video" }).eq("id", ideaId);
-  if (error) {
-    console.error("Failed to reset idea for video retry:", error);
-    return;
-  }
+export async function retryVideoSubmission(ideaId: string) {
+  const result = await submitSingleIdeaForVideo(ideaId);
 
   // Not added to AI_ACTIVITY_ACTIONS — a human-initiated retry, not AI
   // activity, same reasoning as "lead.status_changed" being audit-only.
+  // content.video_submitted/content.video_failed (logged inside
+  // submitIdeaForVideo itself on success/hard-failure) already cover the
+  // AI-visible half of this; this entry is just "a human asked for it".
   await logAuditEvent({
     actor: "admin",
     action: "content.video_retry_requested",
     targetType: "content_idea",
     targetId: ideaId,
+    metadata: { ok: result.ok, reason: "reason" in result ? result.reason : undefined },
+  });
+
+  revalidatePath("/admin/content-factory");
+  revalidatePath(`/admin/content-factory/${ideaId}`);
+}
+
+// --- Content Factory MVP Phase D (docs/content-factory-plan.md) ---
+// The Human Approval checkpoint — the objective's "human involvement
+// should primarily be Approve/Reject/Edit/Override" made real.
+
+export async function approveContentVideo(videoId: string, ideaId: string) {
+  const supabase = getSupabaseAdmin();
+  if (!supabase) return;
+
+  const { error } = await supabase
+    .from("content_videos")
+    .update({ approval_status: "approved", approved_at: new Date().toISOString() })
+    .eq("id", videoId);
+  if (error) {
+    console.error("Failed to approve video:", error);
+    return;
+  }
+
+  // 'approved' is a terminal state for this MVP — phase 2 (publishing/
+  // scheduling) picks up from here; nothing downstream exists yet.
+  await supabase.from("content_ideas").update({ status: "approved" }).eq("id", ideaId);
+
+  await logAuditEvent({
+    actor: "admin",
+    action: "content.video_approved",
+    targetType: "content_idea",
+    targetId: ideaId,
+    metadata: { video_id: videoId },
+  });
+
+  revalidatePath("/admin/content-factory");
+  revalidatePath(`/admin/content-factory/${ideaId}`);
+}
+
+export async function rejectContentVideo(videoId: string, ideaId: string, formData: FormData) {
+  const supabase = getSupabaseAdmin();
+  if (!supabase) return;
+
+  const reason = String(formData.get("reason") || "") || "Rejected manually.";
+  const { error } = await supabase.from("content_videos").update({ approval_status: "rejected", rejection_reason: reason }).eq("id", videoId);
+  if (error) {
+    console.error("Failed to reject video:", error);
+    return;
+  }
+
+  await supabase.from("content_ideas").update({ status: "rejected", rejected_reason: reason, rejected_at: new Date().toISOString() }).eq("id", ideaId);
+
+  await logAuditEvent({
+    actor: "admin",
+    action: "content.video_rejected",
+    targetType: "content_idea",
+    targetId: ideaId,
+    metadata: { video_id: videoId, reason },
+  });
+
+  revalidatePath("/admin/content-factory");
+  revalidatePath(`/admin/content-factory/${ideaId}`);
+}
+
+// "The video worked but I want a different one" — distinct from
+// retryVideoSubmission ("the submission itself failed"), though both end
+// up calling the same submitSingleIdeaForVideo(). Marks the current video
+// rejected (kept for history, never deleted) rather than touching it
+// further, then submits a fresh one against the same selected script.
+export async function regenerateContentVideo(videoId: string, ideaId: string) {
+  const supabase = getSupabaseAdmin();
+  if (!supabase) return;
+
+  await supabase.from("content_videos").update({ approval_status: "rejected", rejection_reason: "Regenerated — a new attempt was requested." }).eq("id", videoId);
+
+  const result = await submitSingleIdeaForVideo(ideaId);
+  if (!result.ok) console.error(`Regenerate video failed for idea ${ideaId}: ${result.reason}`);
+
+  await logAuditEvent({
+    actor: "admin",
+    action: "content.video_regenerate_requested",
+    targetType: "content_idea",
+    targetId: ideaId,
+    metadata: { previous_video_id: videoId, ok: result.ok, reason: "reason" in result ? result.reason : undefined },
+  });
+
+  revalidatePath("/admin/content-factory");
+  revalidatePath(`/admin/content-factory/${ideaId}`);
+}
+
+// Hand-edit the AI-drafted title/caption/hashtags before approving —
+// the "Edit" half of Approve/Edit/Regenerate/Reject.
+export async function editContentVideoCopy(videoId: string, ideaId: string, formData: FormData) {
+  const supabase = getSupabaseAdmin();
+  if (!supabase) return;
+
+  const title = String(formData.get("title") || "");
+  const caption = String(formData.get("caption") || "");
+  const hashtags = String(formData.get("hashtags") || "")
+    .split(",")
+    .map((h) => h.trim())
+    .filter(Boolean);
+
+  const { error } = await supabase.from("content_videos").update({ platform_copy: { title, caption, hashtags } }).eq("id", videoId);
+  if (error) {
+    console.error("Failed to edit content copy:", error);
+    return;
+  }
+
+  await logAuditEvent({
+    actor: "admin",
+    action: "content.copy_edited",
+    targetType: "content_idea",
+    targetId: ideaId,
+    metadata: { video_id: videoId },
   });
 
   revalidatePath("/admin/content-factory");

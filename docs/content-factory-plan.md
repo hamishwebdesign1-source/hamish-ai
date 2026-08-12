@@ -1,6 +1,6 @@
 # Content Factory: Plan
 
-Status: **Phase A live and verified. Phase B built, not yet live** — `supabase/schema-content-scripts.sql` has not been run yet (see "Pause point" under Phase B). Everything in this doc describes the MVP scope only: Idea Discovery → Research → Scoring → Script → ViewMax video → Human Approval. Publishing to YouTube/TikTok, performance analytics, the AI learning loop, content-fatigue/series detection, and autonomous mode are explicitly out of scope for the MVP — see "Phase 2" at the bottom.
+Status: **MVP complete, Phases A-D all built and live-verified.** The only thing not yet live-tested is an actual ViewMax video generation, since no ViewMax account exists yet — everything up to and including the ViewMax API call is built, degrades safely without a key, and has been proven correct against real Anthropic calls and (for Phase D) a synthetic test video. Everything in this doc describes the MVP scope only: Idea Discovery → Research → Scoring → Script → ViewMax video → Human Approval. Publishing to YouTube/TikTok, performance analytics, the AI learning loop, content-fatigue/series detection, and autonomous mode are explicitly out of scope for the MVP — see "Phase 2" at the bottom.
 
 **A deliberate change from the original plan, confirmed with Hamish**: there is no mandatory "pick one of three scripts" human gate. `generate-content-scripts.ts` scores all three variants itself and auto-selects the strongest, auto-chaining straight into video-prompt generation — Hamish reviews/overrides at his discretion (`selectContentScript`/`editContentScript`), but the pipeline never blocks waiting for that. The only two things that ever require deliberate human action are rejecting an idea and the eventual video approval (Phase D).
 
@@ -60,11 +60,19 @@ Built: `schema-content-storage.sql` (private `content-videos` bucket), `schema-c
 
 **Pause point — not yet done:** `schema-content-storage.sql`, `schema-content-videos.sql`, and `schema-content-usage.sql` need to be run (in that order — see above) before ViewMax submission can do anything, and `VIEWMAX_API_KEY` needs to be set once Hamish has signed up at viewmax.studio. Until then the pipeline is fully safe to leave deployed — it just does nothing on the video-generation side.
 
-## Phase D — not started (Human Approval + notifications)
+## Phase D — built and live-verified (Human Approval)
 
-`approveContentVideo` / `rejectContentVideo` / `regenerateContentVideo` actions, the approval panel on `[id]/page.tsx` (video preview via signed URL, script, research, quality flags, editable platform copy, Approve/Edit/Regenerate/Reject — "review a whole video in under 30 seconds"), `send-content-alert.ts` (one consolidated email per pipeline run, skipped entirely if nothing's actionable).
+The MVP's last piece: `approveContentVideo` / `rejectContentVideo` / `regenerateContentVideo` / `editContentVideoCopy` actions, and a `ContentVideoApproval` panel on `[id]/page.tsx` — video preview via signed URL, quality flags, editable title/caption/hashtags, and Approve & Schedule / Regenerate / Reject, shown as soon as a video reaches `succeeded`. Once a decision's made, `ContentVideoDecided` replaces the panel with a plain terminal state so a decided video never invites a second decision. `send-content-alert.ts` (one consolidated email per pipeline run) was actually built alongside Phase C rather than deferred here, since the cron needed it immediately.
 
-## Phase E — optional polish
+`submitReadyIdeas()`'s per-idea ViewMax-submission logic was pulled out into a shared `submitIdeaForVideo()` in `content-video-pipeline.ts`, reused by a new `submitSingleIdeaForVideo(ideaId)` export — so `regenerateContentVideo` and the reworked `retryVideoSubmission` (now resubmits immediately via this shared path instead of just flagging status and waiting up to 5 minutes for the next cron tick) can never drift into a second, different submission code path from the cron's own.
+
+**Live-verified 2026-08-12** (ViewMax still not signed up, so this was tested by inserting a synthetic `succeeded` `content_videos` row directly — a real fake-data-in, real-code-path-out test of the UI and actions, not a mock): the approval panel rendered correctly (Approve & Schedule / Regenerate / Reject buttons, graceful "preview isn't available" message for the nonexistent test video file), clicking **Approve & Schedule** for real set `content_videos.approval_status = 'approved'`, `content_ideas.status = 'approved'`, and logged `content.video_approved` to the audit trail — then the panel correctly swapped to the terminal "Approved" state on reload. Synthetic test data was deleted afterward and the idea reset to `ready_for_video`, its real state before ViewMax exists to actually generate a video for it.
+
+`tsc --noEmit` and `npm run lint` are both clean (zero new issues). `npm run build` remains blocked by the same pre-existing, unrelated Google Fonts network-fetch issue seen in Phase C (now observed failing on a *different* concept page too, confirming it's a sandbox network restriction, not a file-specific problem) — worth a real `npm run build` once that's available.
+
+**This completes the Content Factory MVP as scoped**: Idea Discovery → Research → Scoring → Script → Video Prompt → ViewMax Generation → Human Approval, fully autonomous end to end except the two deliberate human checkpoints (reject an idea; approve/reject/regenerate a video). The only thing standing between this and actually producing a real video is Hamish signing up at viewmax.studio and setting `VIEWMAX_API_KEY`.
+
+## Phase E — optional polish (not built)
 
 Command Centre summary card, a cost rollup card on the list page.
 

@@ -32,6 +32,97 @@ function sleep(ms: number) {
 
 export type SubmitReadyIdeasResult = { submitted: number; skipped: string[] } | { error: string };
 
+type SupabaseAdmin = NonNullable<ReturnType<typeof getSupabaseAdmin>>;
+
+// The actual per-idea ViewMax submission — pulled out of submitReadyIdeas
+// so Phase D's manual "Regenerate" action (see admin/actions.ts) can
+// reuse the exact same logic instead of a second, drifting copy. Caller
+// owns the connection/credit-buffer check and the model lookup (batched
+// once per cron tick in submitReadyIdeas; done once per call in
+// content-video-pipeline.ts's exported single-idea wrapper below).
+async function submitIdeaForVideo(
+  supabase: SupabaseAdmin,
+  idea: { id: string; score: number | null },
+  model: string
+): Promise<{ ok: true } | { ok: false; reason: string }> {
+  if ((idea.score ?? 0) < MIN_SCORE_TO_PROCEED) return { ok: false, reason: "below_threshold" };
+
+  const { data: script } = await supabase
+    .from("content_scripts")
+    .select("id, video_prompt")
+    .eq("idea_id", idea.id)
+    .eq("status", "selected")
+    .maybeSingle();
+  if (!script?.video_prompt) return { ok: false, reason: "no_video_prompt" };
+
+  const videoPrompt = script.video_prompt as VideoPromptSpec;
+  const requestPayload = {
+    model,
+    prompt: videoPrompt.prompt,
+    duration: `${videoPrompt.duration_s}s`,
+    resolution: videoPrompt.resolution,
+    aspect_ratio: videoPrompt.aspect_ratio,
+  };
+
+  const creditsBefore = await getViewMaxCredits();
+  const result = await submitVideoGeneration(requestPayload);
+
+  if ("error" in result) {
+    await supabase.from("content_videos").insert({
+      idea_id: idea.id,
+      script_id: script.id,
+      status: "failed",
+      viewmax_model: model,
+      request_payload: requestPayload,
+      error: result.error,
+    });
+    // 'failed', not 'video_review' — nothing was ever generated, so
+    // there's nothing to review yet. 'video_review' is reserved for
+    // "a human should look at this" outcomes (success, or an ambiguous
+    // needs_review case), not a clean submission failure.
+    await supabase.from("content_ideas").update({ status: "failed" }).eq("id", idea.id);
+    await logAuditEvent({
+      actor: "system",
+      actorType: "system",
+      action: "content.video_failed",
+      targetType: "content_idea",
+      targetId: idea.id,
+      metadata: { error: result.error, stage: "submit" },
+    });
+    return { ok: false, reason: "submit_failed" };
+  }
+
+  const creditsAfter = await getViewMaxCredits();
+  const creditsSpent = creditsBefore != null && creditsAfter != null ? Math.max(0, creditsBefore - creditsAfter) : null;
+
+  await supabase.from("content_videos").insert({
+    idea_id: idea.id,
+    script_id: script.id,
+    status: "submitted",
+    viewmax_task_id: result.taskId,
+    viewmax_model: model,
+    request_payload: requestPayload,
+    credits_spent: creditsSpent,
+    started_at: new Date().toISOString(),
+  });
+  await supabase.from("content_ideas").update({ status: "generating_video" }).eq("id", idea.id);
+
+  if (creditsSpent != null) {
+    await recordContentUsage({ ideaId: idea.id, stage: "viewmax_video", provider: "viewmax", units: creditsSpent, unitType: "credits", metadata: { model } });
+  }
+
+  await logAuditEvent({
+    actor: "system",
+    actorType: "system",
+    action: "content.video_submitted",
+    targetType: "content_idea",
+    targetId: idea.id,
+    metadata: { model, task_id: result.taskId },
+  });
+
+  return { ok: true };
+}
+
 // Finds ideas sitting at 'ready_for_video' and submits their selected
 // script's video_prompt to ViewMax. Re-checks the score gate defensively
 // (the primary check already happened in research-content-idea.ts —
@@ -71,92 +162,35 @@ export async function submitReadyIdeas(): Promise<SubmitReadyIdeasResult> {
   const skipped: string[] = [];
 
   for (const idea of ideas) {
-    if ((idea.score ?? 0) < MIN_SCORE_TO_PROCEED) {
-      skipped.push(`${idea.id}:below_threshold`);
-      continue;
-    }
-
-    const { data: script } = await supabase
-      .from("content_scripts")
-      .select("id, video_prompt")
-      .eq("idea_id", idea.id)
-      .eq("status", "selected")
-      .maybeSingle();
-    if (!script?.video_prompt) {
-      skipped.push(`${idea.id}:no_video_prompt`);
-      continue;
-    }
-
-    const videoPrompt = script.video_prompt as VideoPromptSpec;
-    const requestPayload = {
-      model,
-      prompt: videoPrompt.prompt,
-      duration: `${videoPrompt.duration_s}s`,
-      resolution: videoPrompt.resolution,
-      aspect_ratio: videoPrompt.aspect_ratio,
-    };
-
-    const creditsBefore = await getViewMaxCredits();
-    const result = await submitVideoGeneration(requestPayload);
-
-    if ("error" in result) {
-      await supabase.from("content_videos").insert({
-        idea_id: idea.id,
-        script_id: script.id,
-        status: "failed",
-        viewmax_model: model,
-        request_payload: requestPayload,
-        error: result.error,
-      });
-      // 'failed', not 'video_review' — nothing was ever generated, so
-      // there's nothing to review yet. 'video_review' is reserved for
-      // "a human should look at this" outcomes (success, or an ambiguous
-      // needs_review case), not a clean submission failure.
-      await supabase.from("content_ideas").update({ status: "failed" }).eq("id", idea.id);
-      await logAuditEvent({
-        actor: "system",
-        actorType: "system",
-        action: "content.video_failed",
-        targetType: "content_idea",
-        targetId: idea.id,
-        metadata: { error: result.error, stage: "submit" },
-      });
-      skipped.push(`${idea.id}:submit_failed`);
-      continue;
-    }
-
-    const creditsAfter = await getViewMaxCredits();
-    const creditsSpent = creditsBefore != null && creditsAfter != null ? Math.max(0, creditsBefore - creditsAfter) : null;
-
-    await supabase.from("content_videos").insert({
-      idea_id: idea.id,
-      script_id: script.id,
-      status: "submitted",
-      viewmax_task_id: result.taskId,
-      viewmax_model: model,
-      request_payload: requestPayload,
-      credits_spent: creditsSpent,
-      started_at: new Date().toISOString(),
-    });
-    await supabase.from("content_ideas").update({ status: "generating_video" }).eq("id", idea.id);
-
-    if (creditsSpent != null) {
-      await recordContentUsage({ ideaId: idea.id, stage: "viewmax_video", provider: "viewmax", units: creditsSpent, unitType: "credits", metadata: { model } });
-    }
-
-    await logAuditEvent({
-      actor: "system",
-      actorType: "system",
-      action: "content.video_submitted",
-      targetType: "content_idea",
-      targetId: idea.id,
-      metadata: { model, task_id: result.taskId },
-    });
-
-    submitted++;
+    const result = await submitIdeaForVideo(supabase, idea, model);
+    if (result.ok) submitted++;
+    else skipped.push(`${idea.id}:${result.reason}`);
   }
 
   return { submitted, skipped };
+}
+
+// Phase D — the manual "Regenerate" action's entry point (see
+// regenerateContentVideo in admin/actions.ts): does its own connection/
+// credit-buffer/model lookup (there's no batch to share it across) then
+// reuses submitIdeaForVideo for the actual submission, so a human-
+// triggered regenerate and the cron's automatic submission can never
+// drift into two different code paths.
+export async function submitSingleIdeaForVideo(ideaId: string): Promise<{ ok: true } | { ok: false; reason: string }> {
+  const supabase = getSupabaseAdmin();
+  if (!supabase) return { ok: false, reason: "Supabase is not configured." };
+
+  const connection = await checkViewMaxConnection();
+  if (!connection.connected) return { ok: false, reason: connection.reason };
+  if (connection.credits < VIEWMAX_MIN_CREDIT_BUFFER) return { ok: false, reason: `Low ViewMax credits (${connection.credits}).` };
+
+  const { data: idea, error } = await supabase.from("content_ideas").select("id, score").eq("id", ideaId).single();
+  if (error || !idea) return { ok: false, reason: "Idea not found." };
+
+  const models = await listViewMaxModels("video");
+  if (!models?.length) return { ok: false, reason: "No ViewMax models available." };
+
+  return submitIdeaForVideo(supabase, idea, models[0].id);
 }
 
 export type PollInFlightResult = { completed: number; failed: number; stillProcessing: number } | { error: string };
