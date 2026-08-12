@@ -1,10 +1,10 @@
-// Static metadata for the 6 jobs in vercel.json, plus deterministic
-// "next run" math — no cron-parsing library, because all 6 real schedules
-// are one of exactly three fixed shapes (daily / weekly-on-a-weekday /
-// monthly-on-a-day), and a tiny bespoke calculator for those three shapes
-// is simpler and more honest than a general parser for six patterns that
-// never change. All times are UTC, matching how Vercel Cron interprets
-// vercel.json.
+// Static metadata for the jobs in vercel.json, plus deterministic
+// "next run" math — no cron-parsing library, because almost every real
+// schedule is one of three fixed shapes (daily / weekly-on-a-weekday /
+// monthly-on-a-day), and a tiny bespoke calculator for those shapes is
+// simpler and more honest than a general parser. content-video-pipeline
+// added a fourth shape (every N minutes) — see nextEveryNMinutes. All
+// times are UTC, matching how Vercel Cron interprets vercel.json.
 export type CronSpec = {
   name: string; // matches the /api/cron/<name> route folder and cron_runs.cron_name
   label: string;
@@ -35,6 +35,15 @@ function nextMonthly(dayOfMonth: number, hour: number): Date {
   if (next.getTime() <= now.getTime()) {
     next = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, dayOfMonth, hour, 0));
   }
+  return next;
+}
+
+function nextEveryNMinutes(minutes: number): Date {
+  const now = new Date();
+  const next = new Date(now);
+  next.setUTCSeconds(0, 0);
+  const remainder = next.getUTCMinutes() % minutes;
+  next.setUTCMinutes(next.getUTCMinutes() + (remainder === 0 ? minutes : minutes - remainder));
   return next;
 }
 
@@ -73,6 +82,13 @@ export const CRON_SPECS: CronSpec[] = [
     description: "Searches for new short-form video ideas across the topic rotation, researching and scoring each one.",
     schedule: "0 7 * * 3",
     nextRun: () => nextWeekly(3, 7),
+  },
+  {
+    name: "content-video-pipeline",
+    label: "Content video pipeline",
+    description: "Submits ready ideas to ViewMax and polls in-flight video generations, every 5 minutes.",
+    schedule: "*/5 * * * *",
+    nextRun: () => nextEveryNMinutes(5),
   },
   {
     name: "email-inbox",

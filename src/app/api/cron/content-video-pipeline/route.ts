@@ -1,0 +1,54 @@
+import { NextResponse } from "next/server";
+import { submitReadyIdeas, pollInFlightVideos } from "@/lib/content-video-pipeline";
+import { sendContentReviewAlert } from "@/lib/send-content-alert";
+import { sendErrorAlert } from "@/lib/send-error-alert";
+import { recordCronRun } from "@/lib/record-cron-run";
+
+// Triggered every 5 minutes by the Vercel Cron job in vercel.json — see
+// content-video-pipeline.ts's module header for why 5 minutes (a bounded
+// inline poll burst per tick, not true 5-second polling). maxDuration
+// gives the poll burst (up to 6 x 5s per video) headroom within Vercel's
+// per-route execution limit.
+export const maxDuration = 60;
+
+export async function GET(request: Request) {
+  const authHeader = request.headers.get("authorization");
+  const expected = `Bearer ${process.env.CRON_SECRET}`;
+  if (!process.env.CRON_SECRET || authHeader !== expected) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  try {
+    const submitResult = await submitReadyIdeas();
+    if ("error" in submitResult) {
+      console.error("Content video pipeline (submit) failed:", submitResult.error);
+      await sendErrorAlert("Content video pipeline cron", submitResult.error);
+      await recordCronRun("content-video-pipeline", "error", { error: submitResult.error });
+      return NextResponse.json({ error: submitResult.error }, { status: 500 });
+    }
+
+    const pollResult = await pollInFlightVideos();
+    if ("error" in pollResult) {
+      console.error("Content video pipeline (poll) failed:", pollResult.error);
+      await sendErrorAlert("Content video pipeline cron", pollResult.error);
+      await recordCronRun("content-video-pipeline", "error", { error: pollResult.error });
+      return NextResponse.json({ error: pollResult.error }, { status: 500 });
+    }
+
+    const lowCreditsSkip = submitResult.skipped.find((s) => s.startsWith("low_credits:"));
+    const lowCredits = lowCreditsSkip ? Number(lowCreditsSkip.split(":")[1]) : undefined;
+
+    await sendContentReviewAlert({ readyForReview: pollResult.completed, failed: pollResult.failed, lowCredits });
+
+    await recordCronRun("content-video-pipeline", "success", {
+      summary: { submitted: submitResult.submitted, skipped: submitResult.skipped.length, ...pollResult },
+    });
+
+    return NextResponse.json({ submitted: submitResult.submitted, ...pollResult });
+  } catch (err) {
+    console.error("Content video pipeline cron crashed:", err);
+    await sendErrorAlert("Content video pipeline cron", `The run crashed partway through:\n\n${err}`);
+    await recordCronRun("content-video-pipeline", "error", { error: String(err) });
+    return NextResponse.json({ error: "Content video pipeline cron crashed." }, { status: 500 });
+  }
+}

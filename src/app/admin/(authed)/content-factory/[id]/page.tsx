@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Sparkles, History, X, Users } from "lucide-react";
+import { ArrowLeft, Sparkles, History, X, Users, Clock, Loader2, CheckCircle2, XCircle, AlertTriangle, RefreshCw } from "lucide-react";
 import { getSupabaseAdmin } from "@/lib/supabase";
-import { rejectContentIdea } from "@/app/admin/actions";
+import { rejectContentIdea, retryVideoSubmission } from "@/app/admin/actions";
 import { contentIdeaStatusMeta } from "@/lib/content-idea-meta";
 import { timeAgo } from "@/lib/time-ago";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -17,12 +17,25 @@ import { ContentScriptPanel, type ScriptRow } from "@/components/admin/content-s
 // leads/[id]/page.tsx. This page grows new sections (ViewMax job status,
 // Human Approval) as later build phases land — see the plan doc's Phase
 // C/D sequencing.
+// Same badge-vocabulary mapping approach as RESEARCH_JOB_META on
+// leads/[id]/page.tsx — content_videos.status onto the existing Badge
+// variants, so a new job-status table doesn't need a new visual language.
+const VIDEO_STATUS_META: Record<string, { label: string; variant: "outline" | "warning" | "success" | "destructive"; icon: typeof Clock }> = {
+  queued: { label: "Queued", variant: "outline", icon: Clock },
+  submitted: { label: "Submitted to ViewMax", variant: "warning", icon: Loader2 },
+  processing: { label: "Generating", variant: "warning", icon: Loader2 },
+  succeeded: { label: "Ready for review", variant: "success", icon: CheckCircle2 },
+  failed: { label: "Failed", variant: "destructive", icon: XCircle },
+  canceled: { label: "Canceled", variant: "destructive", icon: XCircle },
+  needs_review: { label: "Needs review", variant: "warning", icon: AlertTriangle },
+};
+
 export default async function ContentIdeaDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const supabase = getSupabaseAdmin();
   if (!supabase) notFound();
 
-  const [{ data: idea }, { data: auditRows }, { data: scriptRows }] = await Promise.all([
+  const [{ data: idea }, { data: auditRows }, { data: scriptRows }, { data: videoRows }] = await Promise.all([
     supabase.from("content_ideas").select("*").eq("id", id).single(),
     supabase
       .from("audit_log")
@@ -35,11 +48,18 @@ export default async function ContentIdeaDetailPage({ params }: { params: Promis
       .select("id, style, status, hook, beats, scene_breakdown, score, score_rationale, video_prompt, prompt_generated_at, edited, created_at")
       .eq("idea_id", id)
       .order("created_at", { ascending: false }),
+    supabase
+      .from("content_videos")
+      .select("id, status, viewmax_task_id, viewmax_model, poll_attempts, last_polled_at, error, created_at")
+      .eq("idea_id", id)
+      .order("created_at", { ascending: false })
+      .limit(1),
   ]);
 
   if (!idea) notFound();
 
   const scripts = (scriptRows ?? []) as ScriptRow[];
+  const latestVideo = videoRows?.[0] ?? null;
 
   const audit = auditRows ?? [];
   const statusMeta = contentIdeaStatusMeta[idea.status as keyof typeof contentIdeaStatusMeta];
@@ -127,6 +147,48 @@ export default async function ContentIdeaDetailPage({ params }: { params: Promis
             </section>
           )}
 
+          {latestVideo && (
+            <section>
+              <p className="text-section-title">Video generation</p>
+              <Card className="mt-3">
+                <CardContent className="space-y-3 pt-6 text-xs">
+                  <div className="flex flex-wrap items-center gap-2">
+                    {(() => {
+                      const meta = VIDEO_STATUS_META[latestVideo.status] ?? VIDEO_STATUS_META.queued;
+                      const Icon = meta.icon;
+                      const spinning = latestVideo.status === "submitted" || latestVideo.status === "processing";
+                      return (
+                        <Badge variant={meta.variant} className="gap-1">
+                          <Icon className={`size-3 ${spinning ? "animate-spin" : ""}`} />
+                          {meta.label}
+                        </Badge>
+                      );
+                    })()}
+                    {latestVideo.viewmax_model && <span className="text-muted-foreground">Model: {latestVideo.viewmax_model}</span>}
+                    {latestVideo.poll_attempts > 0 && <span className="text-muted-foreground">Checked {latestVideo.poll_attempts}×</span>}
+                    {latestVideo.last_polled_at && <span className="text-muted-foreground">Last checked {timeAgo(latestVideo.last_polled_at)}</span>}
+                  </div>
+                  {latestVideo.error && (
+                    <p className="rounded-lg border border-warning/30 bg-warning/5 px-3 py-2 text-warning">{latestVideo.error}</p>
+                  )}
+                  {(latestVideo.status === "failed" || latestVideo.status === "needs_review") && (
+                    <form action={retryVideoSubmission.bind(null, idea.id)}>
+                      <Button type="submit" variant="outline" size="xs" className="gap-1">
+                        <RefreshCw className="size-3" />
+                        Retry submission
+                      </Button>
+                    </form>
+                  )}
+                  {latestVideo.status === "succeeded" && (
+                    <p className="text-muted-foreground">
+                      Video ready — the full approval screen (preview, caption, Approve/Reject) lands in Phase D.
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
+            </section>
+          )}
+
           <section>
             <p className="flex items-center gap-1.5 text-section-title">
               <History className="size-4" />
@@ -205,6 +267,16 @@ function describeContentAuditEntry(entry: { action: string; metadata: Record<str
       return meta.edited ? "Script hand-edited" : `Script switched to "${meta.style ?? "?"}"${meta.manual ? " (manual)" : ""}`;
     case "content.video_prompt_generated":
       return `AI wrote the ViewMax prompt — ${meta.duration_s ?? "?"}s`;
+    case "content.video_submitted":
+      return `Submitted to ViewMax (${meta.model ?? "?"})`;
+    case "content.video_completed":
+      return "Video generation complete — ready for review";
+    case "content.video_failed":
+      return `Video generation failed${meta.stage ? ` (${meta.stage})` : ""}`;
+    case "content.video_retry_requested":
+      return "Retry requested — will resubmit on the next pipeline run";
+    case "content.copy_generated":
+      return `AI wrote the title/caption/hashtags — "${meta.title ?? "?"}"`;
     default:
       return entry.action;
   }

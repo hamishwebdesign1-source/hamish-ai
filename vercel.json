@@ -21,6 +21,10 @@
       "schedule": "0 7 * * 3"
     },
     {
+      "path": "/api/cron/content-video-pipeline",
+      "schedule": "*/5 * * * *"
+    },
+    {
       "path": "/api/cron/email-inbox",
       "schedule": "0 12 * * *"
     },

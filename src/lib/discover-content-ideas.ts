@@ -2,6 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { researchContentIdea } from "@/lib/research-content-idea";
 import { logAuditEvent } from "@/lib/audit-log";
+import { recordContentUsage } from "@/lib/content-ai-usage";
 
 // Content Factory MVP Phase A (docs/content-factory-plan.md) — the
 // discovery stage, modeled directly on discover-leads.ts: Haiku (forced by
@@ -90,6 +91,7 @@ Find 2-4 genuinely strong ideas — real trending angles, questions people are a
     tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 5 }, SUBMIT_CANDIDATES_TOOL],
     messages: [{ role: "user", content: "Find ideas matching the brief above." }],
   });
+  let totalTokens = response.usage.input_tokens + response.usage.output_tokens;
 
   // Server-side web search can hit its internal iteration cap and pause
   // mid-task rather than finish — resend once, unmodified, so the server
@@ -106,7 +108,10 @@ Find 2-4 genuinely strong ideas — real trending angles, questions people are a
         { role: "assistant", content: response.content },
       ],
     });
+    totalTokens += response.usage.input_tokens + response.usage.output_tokens;
   }
+
+  await recordContentUsage({ stage: "idea_discovery", provider: "anthropic", units: totalTokens, unitType: "tokens", metadata: { topic } });
 
   const toolUse = response.content.find(
     (block): block is Anthropic.ToolUseBlock => block.type === "tool_use" && block.name === "submit_candidates"

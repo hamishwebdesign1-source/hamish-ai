@@ -15,15 +15,20 @@ export const AI_ACTIVITY_ACTIONS = [
   "request.triaged",
   "request.auto_sent",
   "client.progress_report_generated",
-  // Content Factory MVP (docs/content-factory-plan.md) — Phase A+B (idea
-  // discovery/research/reject, script generation/selection, video-prompt
-  // generation); video/approval actions join this list as Phase C/D land.
+  // Content Factory MVP (docs/content-factory-plan.md) — Phase A+B+C
+  // (idea discovery/research/reject, script generation/selection,
+  // video-prompt generation, ViewMax submission/completion/failure,
+  // caption generation); approval actions join this list as Phase D lands.
   "content.idea_discovered",
   "content.idea_researched",
   "content.idea_rejected",
   "content.scripts_generated",
   "content.script_selected",
   "content.video_prompt_generated",
+  "content.video_submitted",
+  "content.video_completed",
+  "content.video_failed",
+  "content.copy_generated",
 ] as const;
 
 export type AiActivityAction = (typeof AI_ACTIVITY_ACTIONS)[number];
@@ -74,6 +79,14 @@ export function describeAiActivity(action: string, meta: Record<string, unknown>
         : `Script variant switched to "${meta.style ?? "?"}"${meta.manual ? " (manual override)" : ""}`;
     case "content.video_prompt_generated":
       return `AI wrote the ViewMax video prompt — ${meta.duration_s ?? "?"}s`;
+    case "content.video_submitted":
+      return `Submitted to ViewMax (${meta.model ?? "?"})`;
+    case "content.video_completed":
+      return "Video generation complete — ready for review";
+    case "content.video_failed":
+      return `Video generation failed${meta.stage ? ` (${meta.stage})` : ""}${meta.error ? ` — ${meta.error}` : ""}`;
+    case "content.copy_generated":
+      return `AI wrote the title/caption/hashtags — "${meta.title ?? "?"}"`;
     default:
       return action;
   }
@@ -107,6 +120,10 @@ export const AI_ACTIVITY_GROUPS: Record<string, { label: string; actions: readon
       "content.scripts_generated",
       "content.script_selected",
       "content.video_prompt_generated",
+      "content.video_submitted",
+      "content.video_completed",
+      "content.video_failed",
+      "content.copy_generated",
     ],
   },
 };

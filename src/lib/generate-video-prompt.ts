@@ -2,6 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { stripMarkdownEmphasis } from "@/lib/strip-markdown-emphasis";
 import { logAuditEvent } from "@/lib/audit-log";
+import { recordContentUsage } from "@/lib/content-ai-usage";
 import type { ScriptBeats, SceneBeat } from "@/lib/generate-content-scripts";
 
 // Content Factory MVP Phase B (docs/content-factory-plan.md) — the video
@@ -107,6 +108,14 @@ export async function generateVideoPrompt(scriptId: string) {
       tools: [VIDEO_PROMPT_TOOL],
       tool_choice: { type: "tool", name: "submit_video_prompt" },
       messages: [{ role: "user", content: "Write the video generation prompt and submit it." }],
+    });
+
+    await recordContentUsage({
+      ideaId: script.idea_id,
+      stage: "video_prompt",
+      provider: "anthropic",
+      units: response.usage.input_tokens + response.usage.output_tokens,
+      unitType: "tokens",
     });
 
     const toolUse = response.content.find((block): block is Anthropic.ToolUseBlock => block.type === "tool_use");

@@ -1,8 +1,9 @@
 import Link from "next/link";
-import { Sparkles, Film } from "lucide-react";
+import { Sparkles, Film, AlertTriangle, Coins } from "lucide-react";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { addContentIdea } from "@/app/admin/actions";
 import { CONTENT_IDEA_STATUSES, contentIdeaStatusMeta } from "@/lib/content-idea-meta";
+import { checkViewMaxConnection } from "@/lib/viewmax";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -11,12 +12,13 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { FilterTabs } from "@/components/ui/filter-tabs";
 
-// Content Factory MVP Phase A (docs/content-factory-plan.md) — Idea
-// Discovery/Research/Scoring only. Follows the exact list-page shape of
-// /admin/leads: server component, one Promise.all fetch, filter counts
-// computed client-side over the already-fetched array, force-dynamic
-// (Next silently statically-freezes pages that don't read a dynamic API
-// otherwise — a real bug hit twice elsewhere in this codebase already).
+// Content Factory MVP (docs/content-factory-plan.md) — Idea Discovery/
+// Research/Scoring/Scripts/ViewMax pipeline. Follows the exact list-page
+// shape of /admin/leads: server component, one Promise.all fetch, filter
+// counts computed client-side over the already-fetched array,
+// force-dynamic (Next silently statically-freezes pages that don't read
+// a dynamic API otherwise — a real bug hit twice elsewhere in this
+// codebase already).
 export const dynamic = "force-dynamic";
 
 const selectClasses =
@@ -30,9 +32,12 @@ export default async function ContentFactoryPage({
   const { status: statusFilter } = await searchParams;
   const supabase = getSupabaseAdmin();
 
-  const { data: allIdeas, error } = supabase
-    ? await supabase.from("content_ideas").select("*").order("created_at", { ascending: false })
-    : { data: [], error: null };
+  const [{ data: allIdeas, error }, viewMaxStatus] = await Promise.all([
+    supabase
+      ? supabase.from("content_ideas").select("*").order("created_at", { ascending: false })
+      : Promise.resolve({ data: [], error: null }),
+    checkViewMaxConnection(),
+  ]);
   if (error) console.error("Failed to fetch content ideas:", error);
 
   const counts = CONTENT_IDEA_STATUSES.reduce(
@@ -59,10 +64,20 @@ export default async function ContentFactoryPage({
       </div>
       <p className="text-page-subtitle mt-1">
         Idea discovery → research → scoring → script → ViewMax video → your approval. See docs/content-factory-plan.md for the full
-        pipeline and what&apos;s built so far (Phase A: discovery, research, scoring).
+        pipeline and what&apos;s built so far.
       </p>
 
-      <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
+      {!viewMaxStatus.connected && (
+        <Card className="mt-6 border-border bg-muted/30">
+          <CardContent className="flex flex-wrap items-center gap-2 py-3 text-sm text-muted-foreground">
+            <AlertTriangle className="size-4 shrink-0" />
+            ViewMax isn&apos;t connected yet ({viewMaxStatus.reason}) — ideas, research, and scripts all work fully without it; video
+            generation stays paused until <code className="rounded bg-muted px-1 py-0.5 text-xs">VIEWMAX_API_KEY</code> is set.
+          </CardContent>
+        </Card>
+      )}
+
+      <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-5">
         <Card className="p-4">
           <p className="font-heading text-2xl font-semibold">{allIdeas?.length ?? 0}</p>
           <p className="text-xs text-muted-foreground">Total ideas</p>
@@ -78,6 +93,13 @@ export default async function ContentFactoryPage({
         <Card className="p-4">
           <p className="font-heading text-2xl font-semibold">{awaitingReview}</p>
           <p className="text-xs text-muted-foreground">Awaiting your review</p>
+        </Card>
+        <Card className="p-4">
+          <p className="flex items-center gap-1 font-heading text-2xl font-semibold">
+            <Coins className="size-4 text-muted-foreground" />
+            {viewMaxStatus.connected ? viewMaxStatus.credits : "—"}
+          </p>
+          <p className="text-xs text-muted-foreground">ViewMax credits</p>
         </Card>
       </div>
 

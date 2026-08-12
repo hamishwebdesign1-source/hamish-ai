@@ -3,6 +3,7 @@ import { getSupabaseAdmin } from "@/lib/supabase";
 import { stripMarkdownEmphasis } from "@/lib/strip-markdown-emphasis";
 import { logAuditEvent } from "@/lib/audit-log";
 import { generateVideoPrompt } from "@/lib/generate-video-prompt";
+import { recordContentUsage } from "@/lib/content-ai-usage";
 import type { ContentIdeaResearch } from "@/lib/research-content-idea";
 
 // Content Factory MVP Phase B (docs/content-factory-plan.md) — the script
@@ -176,6 +177,14 @@ export async function generateContentScripts(ideaId: string): Promise<GenerateSc
       tools: [SCRIPTS_TOOL],
       tool_choice: { type: "tool", name: "submit_script_variants" },
       messages: [{ role: "user", content: "Write the three script variants and submit them." }],
+    });
+
+    await recordContentUsage({
+      ideaId,
+      stage: "script_generation",
+      provider: "anthropic",
+      units: response.usage.input_tokens + response.usage.output_tokens,
+      unitType: "tokens",
     });
 
     const toolUse = response.content.find((block): block is Anthropic.ToolUseBlock => block.type === "tool_use");

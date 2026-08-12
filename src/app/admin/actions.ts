@@ -905,3 +905,32 @@ export async function editContentScript(scriptId: string, ideaId: string, formDa
   revalidatePath("/admin/content-factory");
   revalidatePath(`/admin/content-factory/${ideaId}`);
 }
+
+// --- Content Factory MVP Phase C (docs/content-factory-plan.md) ---
+// Submission/polling itself is fully automatic (content-video-pipeline.ts,
+// the content-video-pipeline cron) — this is the one manual fallback: an
+// idea stuck at 'failed'/'video_review' with no succeeded video can be
+// sent back to 'ready_for_video' so the next cron tick resubmits it,
+// rather than requiring a brand-new idea.
+export async function retryVideoSubmission(ideaId: string) {
+  const supabase = getSupabaseAdmin();
+  if (!supabase) return;
+
+  const { error } = await supabase.from("content_ideas").update({ status: "ready_for_video" }).eq("id", ideaId);
+  if (error) {
+    console.error("Failed to reset idea for video retry:", error);
+    return;
+  }
+
+  // Not added to AI_ACTIVITY_ACTIONS — a human-initiated retry, not AI
+  // activity, same reasoning as "lead.status_changed" being audit-only.
+  await logAuditEvent({
+    actor: "admin",
+    action: "content.video_retry_requested",
+    targetType: "content_idea",
+    targetId: ideaId,
+  });
+
+  revalidatePath("/admin/content-factory");
+  revalidatePath(`/admin/content-factory/${ideaId}`);
+}

@@ -2,6 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { logAuditEvent } from "@/lib/audit-log";
 import { generateContentScripts } from "@/lib/generate-content-scripts";
+import { recordContentUsage } from "@/lib/content-ai-usage";
 
 // Content Factory MVP Phase A (docs/content-factory-plan.md) — the
 // research + scoring stage, modeled directly on research-lead.ts's shape:
@@ -194,6 +195,14 @@ export async function researchContentIdea(ideaId: string) {
       tools: [RESEARCH_TOOL],
       tool_choice: { type: "tool", name: "submit_idea_research" },
       messages: [{ role: "user", content: "Research this idea and submit your findings." }],
+    });
+
+    await recordContentUsage({
+      ideaId,
+      stage: "idea_research",
+      provider: "anthropic",
+      units: response.usage.input_tokens + response.usage.output_tokens,
+      unitType: "tokens",
     });
 
     const toolUse = response.content.find((block): block is Anthropic.ToolUseBlock => block.type === "tool_use");
