@@ -374,7 +374,16 @@ async function handleVideoSuccess(
 
   const { data: script } = await supabase.from("content_scripts").select("video_prompt").eq("id", video.script_id).single();
   const videoPrompt = script?.video_prompt as VideoPromptSpec | null;
-  const qualityFlags = computeQualityFlags({ fileSizeBytes: stored.sizeBytes, expectedDurationS: videoPrompt?.duration_s ?? 0 });
+  // stored.durationS is the video's REAL measured length (parsed from the
+  // MP4 file itself, see content-video-storage.ts) — not assumed from
+  // what we requested. ViewMax does not reliably honor the requested
+  // duration (confirmed 2026-08-12: asked for 30s, delivered 6s, and
+  // this check is what makes that visible instead of silently passing).
+  const qualityFlags = computeQualityFlags({
+    fileSizeBytes: stored.sizeBytes,
+    expectedDurationS: videoPrompt?.duration_s ?? 0,
+    actualDurationS: stored.durationS,
+  });
 
   await supabase
     .from("content_videos")
