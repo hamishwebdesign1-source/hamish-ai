@@ -12,7 +12,20 @@ Once a real `VIEWMAX_API_KEY` was available, two things built against guessed/de
 
 The credit-buffer check (`VIEWMAX_MIN_CREDIT_BUFFER`) moved from a single flat account-wide threshold checked once per batch to a per-idea check against that idea's actual chosen-option cost (`content-video-pipeline.ts`'s `submitIdeaForVideo`) — a flat threshold said nothing about whether any specific idea's video was actually affordable once real per-model pricing was known.
 
-**Current blocker: credits.** The account has 10 credits; the cheapest real video found across all 20 models for a typical 15-30s 9:16 script costs more than that (roughly 20-60 credits depending on target length — grok-imagine's 480p tier was consistently cheapest in testing). No video will be generated until credits are topped up at [viewmax.studio/pricing](https://viewmax.studio/pricing).
+**Current blocker: credits.** The account has 10 credits; the cheapest real video found across all 20 models for a typical 15-30s 9:16 script costs more than that. No video will be generated until credits are topped up at [viewmax.studio/pricing](https://viewmax.studio/pricing).
+
+## Cost-effectiveness fix (2026-08-12) — Hamish's real plan: £15/mo, 200 ViewMax credits
+
+Pulled the exact cost table for every duration ViewMax offers at 9:16 and found a hard cliff: the cheapest real per-video cost is **~15-21 credits at 12 seconds or under** (`seedance-1-5-pro`, 480p — 7cr@4s, 15cr@8s, 21cr@12s), but the moment a script runs even 1 second past the ~15s mark, the cheapest available option jumps to a **flat 60 credits** (most affordable models skip straight from a ~15s tier to 30s — there's no 16-29s option at any price). Going from 12s to 16s doesn't cost a bit more, it costs **3x more**, for 4 extra seconds nobody asked for.
+
+The pipeline's own script-generation prompt was the actual cause: it told the model to write scenes summing to "15-40 seconds," landing squarely in the expensive zone almost every time. Fixed at the source, not just papered over downstream:
+
+- `generate-content-scripts.ts`'s prompt now requires scenes to sum to **12 seconds or less**, explained to the model as a real cost constraint of the platform, not a stylistic note.
+- `generate-video-prompt.ts` clamps the computed duration to **8-12s** (`MIN_DURATION_S`/`MAX_DURATION_S`) as a backstop, in case a script variant still comes back longer.
+- **A monthly spend cap**, not just a per-video affordability check: `content-video-pipeline.ts`'s `submitIdeaForVideo` now checks this calendar month's total ViewMax spend (summed from `content_ai_usage`) against `VIEWMAX_MONTHLY_CREDIT_BUDGET` (defaults to 200, matching the real plan) before submitting anything — independent of whatever the live account balance happens to be. Without this, a burst of 3 ready ideas on day one (the old `MAX_SUBMISSIONS_PER_RUN`) could spend a third of the whole month's budget immediately, then go quiet for weeks.
+- `MAX_SUBMISSIONS_PER_RUN` dropped from 3 to **1** — paces submissions to roughly one a day rather than bursts, so the monthly budget actually gets spread across the month instead of front-loaded.
+
+**Real economics with these fixes**: at ≤12s and the cheapest viable model, ~15-21 credits/video → **200 credits ≈ 9-13 videos/month**, roughly one every 2-3 days, at ~£1.15-£1.65/video for generation. Before the fix, undisciplined durations would have averaged ~60 credits/video → only 3/month at ~£5/video, for barely longer clips. Short-form hooks work fine at 8-12s anyway — this isn't really a creative compromise, ViewMax's pricing just happens to reward the same tight pacing that makes for a good hook in the first place.
 
 **A deliberate change from the original plan, confirmed with Hamish**: there is no mandatory "pick one of three scripts" human gate. `generate-content-scripts.ts` scores all three variants itself and auto-selects the strongest, auto-chaining straight into video-prompt generation — Hamish reviews/overrides at his discretion (`selectContentScript`/`editContentScript`), but the pipeline never blocks waiting for that. The only two things that ever require deliberate human action are rejecting an idea and the eventual video approval (Phase D).
 

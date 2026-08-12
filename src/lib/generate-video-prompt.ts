@@ -17,8 +17,17 @@ import type { ScriptBeats, SceneBeat } from "@/lib/generate-content-scripts";
 // are different jobs, and Haiku is more reliable one focused task at a
 // time). Aspect ratio and duration are computed deterministically, not
 // asked of the model — every platform this pipeline targets (Shorts/
-// TikTok/Reels) is vertical 9:16, and duration is just the sum of the
-// script's own scene durations.
+// TikTok/Reels) is vertical 9:16, and duration is the sum of the
+// script's own scene durations, clamped to MIN/MAX_DURATION_S.
+//
+// The clamp exists because of a real cost-cliff finding (2026-08-12,
+// see docs/content-factory-plan.md's cost section): ViewMax's real model
+// catalog has a hard tier jump around 15s — most affordable models offer
+// a duration at or near 12s, then skip straight to 30s, so a video
+// landing at even 16-25s costs roughly double what a 12s-or-under video
+// does, for barely any extra content. generate-content-scripts.ts's
+// prompt already asks for <=12s scenes, but this clamp is the backstop
+// in case a script variant still comes back longer.
 //
 // ViewMax's documented prompt limit is 2000 characters (see their MCP
 // docs) — enforced defensively here with a hard truncate, same "final
@@ -27,6 +36,8 @@ import type { ScriptBeats, SceneBeat } from "@/lib/generate-content-scripts";
 
 const MAX_PROMPT_CHARS = 2000;
 const ASPECT_RATIO = "9:16"; // every MVP platform target (shorts/tiktok/reels) is vertical
+const MIN_DURATION_S = 8;
+const MAX_DURATION_S = 12; // the real cost-cliff boundary — see module header
 
 export type VideoPromptSpec = {
   prompt: string;
@@ -98,7 +109,8 @@ export async function generateVideoPrompt(scriptId: string) {
   const anthropic = new Anthropic({ apiKey });
   const model = process.env.ANTHROPIC_MODEL || "claude-haiku-4-5-20251001";
   const sceneBreakdown = (script.scene_breakdown ?? []) as SceneBeat[];
-  const durationS = Math.max(15, Math.round(sceneBreakdown.reduce((sum, s) => sum + (s.duration_s || 0), 0)));
+  const rawDurationS = Math.round(sceneBreakdown.reduce((sum, s) => sum + (s.duration_s || 0), 0));
+  const durationS = Math.min(MAX_DURATION_S, Math.max(MIN_DURATION_S, rawDurationS));
 
   try {
     const response = await anthropic.messages.create({

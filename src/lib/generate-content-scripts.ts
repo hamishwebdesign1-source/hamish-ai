@@ -60,7 +60,7 @@ Cached research on this idea (already paid for — treat as ground truth, don't 
 }
 
 function buildSystemPrompt(idea: { title: string; concept: string; topic: string | null; research: ContentIdeaResearch | null }): string {
-  return `You are writing short-form video scripts (YouTube Shorts / TikTok, 15-60 seconds) for Hamish AI's content channel. Write THREE distinct variants of the same idea, each committing fully to a different retention archetype:
+  return `You are writing short-form video scripts (YouTube Shorts / TikTok, punchy and tightly-paced) for Hamish AI's content channel. Write THREE distinct variants of the same idea, each committing fully to a different retention archetype:
 
 1. "curiosity" — an open loop / curiosity-gap hook, resolved by the payoff.
 2. "shock" — a surprise or contrarian-claim hook, the payoff is the justification.
@@ -73,7 +73,7 @@ ${researchContext(idea.research)}
 
 Writing standards, all variants: the hook must create genuine curiosity or tension in its first 1-3 seconds — no throat-clearing, no "let's talk about", no "did you know". Write the way a specific person would actually talk out loud, not marketing copy — contractions, short sentences, real rhythm. Never use generic AI-sounding phrasing ("in today's fast-paced world", "unlock the power of", "game-changer"). The ending should give a genuine reason to watch again or think about this later — a twist, an open question, a loop back to the hook, or a concrete takeaway — never a generic "like and subscribe".
 
-For each variant also write a scene_breakdown: 4-6 short entries covering hook through ending, each with what's visually on screen (visual_description), any on-screen text overlay (on_screen_text, can be empty), and a rough duration in seconds (duration_s) — durations across all entries should sum to roughly 15-40 seconds total.
+For each variant also write a scene_breakdown: 4-6 short entries covering hook through ending, each with what's visually on screen (visual_description), any on-screen text overlay (on_screen_text, can be empty), and a rough duration in seconds (duration_s). Durations across all entries MUST sum to 12 seconds or less — this is a hard cost constraint of the video generation platform this pipeline uses (going even slightly over a short-clip threshold there roughly doubles the cost per video), not a stylistic preference, so favour a tight 2-4 beat arc over a padded one. A strong hook-payoff pair told in 8-12 seconds beats a meandering 20-second version every time anyway.
 
 Finally, score each variant 0-10 on its own real strength (hook impact, pacing, payoff satisfaction, novelty) with one honest sentence of rationale — these scores decide which variant gets produced, so be genuinely discriminating rather than scoring everything an 8.`;
 }

@@ -21,7 +21,12 @@ import type { VideoPromptSpec } from "@/lib/generate-video-prompt";
 // job-runner shape: every failure path resolves into a terminal or
 // durable status row, never throws outward.
 
-const MAX_SUBMISSIONS_PER_RUN = 3; // safety valve — mirrors MAX_NEW_LEADS_PER_RUN/MAX_NEW_IDEAS_PER_RUN elsewhere in this codebase
+// Paced to 1/day, not a burst of several — with a real monthly credit
+// budget (see VIEWMAX_MONTHLY_CREDIT_BUDGET below) submitting several at
+// once on day one would blow a third of the month's budget immediately
+// and then go quiet; one/day spreads the same spend into a steady daily
+// cadence instead. The cron itself only runs once/day anyway (see below).
+const MAX_SUBMISSIONS_PER_RUN = 1;
 const MAX_INFLIGHT_PER_RUN = 5;
 // A small safety margin kept back *on top of* whatever the chosen video
 // actually costs (see pickCheapestVideoOption in viewmax.ts) — not a
@@ -31,6 +36,18 @@ const MAX_INFLIGHT_PER_RUN = 5;
 // model catalog — a fixed threshold with no cost awareness would either
 // block affordable videos or let the account run to zero.
 const VIEWMAX_MIN_CREDIT_BUFFER = Number(process.env.VIEWMAX_MIN_CREDIT_BUFFER) || 5;
+// Real economics, confirmed 2026-08-12 against Hamish's actual plan
+// (£15/mo for 200 ViewMax credits): with scripts capped at <=12s (see
+// generate-content-scripts.ts and generate-video-prompt.ts's
+// MAX_DURATION_S), the cheapest real per-video cost is ~15-21 credits,
+// so 200 credits is genuinely ~9-13 videos/month — but only if spend is
+// paced across the month rather than front-loaded. This is a hard stop
+// once this calendar month's ViewMax spend (summed from
+// content_ai_usage, see getMonthlyViewMaxSpend below) would be exceeded,
+// independent of the account's live credit balance — the two checks
+// answer different questions ("can we afford this specific video right
+// now" vs. "should we, given the budget for the whole month").
+const VIEWMAX_MONTHLY_CREDIT_BUDGET = Number(process.env.VIEWMAX_MONTHLY_CREDIT_BUDGET) || 200;
 
 // ViewMax's docs say poll every 5s, but a multi-minute generation can't
 // be tracked by one Vercel invocation, and this codebase deliberately has
@@ -52,6 +69,26 @@ function sleep(ms: number) {
 export type SubmitReadyIdeasResult = { submitted: number; skipped: string[] } | { error: string };
 
 type SupabaseAdmin = NonNullable<ReturnType<typeof getSupabaseAdmin>>;
+
+// Sum of every viewmax-provider content_ai_usage row since the 1st of
+// the current UTC calendar month — the actual spend the monthly budget
+// check compares against. Fails open (returns 0, never blocks) on a
+// query error, same reasoning as every other usage-tracking write in
+// this codebase (audit-log.ts, content-ai-usage.ts): a broken tracking
+// query shouldn't be able to halt the pipeline on its own when the real
+// backstop (ViewMax's own live credit balance, checked separately) still
+// applies regardless.
+async function getMonthlyViewMaxSpend(supabase: SupabaseAdmin): Promise<number> {
+  const now = new Date();
+  const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString();
+
+  const { data, error } = await supabase.from("content_ai_usage").select("units").eq("provider", "viewmax").gte("created_at", monthStart);
+  if (error) {
+    console.error("Failed to compute this month's ViewMax spend:", error);
+    return 0;
+  }
+  return (data ?? []).reduce((sum, row) => sum + (Number(row.units) || 0), 0);
+}
 
 // The actual per-idea ViewMax submission — pulled out of submitReadyIdeas
 // so Phase D's manual "Regenerate" action (see admin/actions.ts) can
@@ -86,6 +123,11 @@ async function submitIdeaForVideo(
   // actually supports the target duration and aspect ratio.
   const option = pickCheapestVideoOption(models, videoPrompt.duration_s, videoPrompt.aspect_ratio);
   if (!option) return { ok: false, reason: `no_model_supports_${videoPrompt.aspect_ratio}` };
+
+  const monthlySpend = await getMonthlyViewMaxSpend(supabase);
+  if (monthlySpend + option.credits > VIEWMAX_MONTHLY_CREDIT_BUDGET) {
+    return { ok: false, reason: `monthly_budget_reached:spent_${monthlySpend}_of_${VIEWMAX_MONTHLY_CREDIT_BUDGET}` };
+  }
 
   const creditsBefore = await getViewMaxCredits();
   if (creditsBefore == null) return { ok: false, reason: "credits_check_failed" };
