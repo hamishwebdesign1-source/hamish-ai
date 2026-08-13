@@ -145,6 +145,28 @@ export default async function ContentFactoryPage({
                   <option value="reels">Instagram Reels</option>
                 </select>
               </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="content_domain">Content type</Label>
+                <select id="content_domain" name="content_domain" defaultValue="general" className={selectClasses}>
+                  <option value="general">General content</option>
+                  <option value="amazon_affiliate">Amazon affiliate product</option>
+                </select>
+              </div>
+              <div className="space-y-3 rounded-lg border border-dashed border-border p-3">
+                <p className="text-xs text-muted-foreground">Amazon affiliate ideas only — leave blank for general content.</p>
+                <div className="space-y-1.5">
+                  <Label htmlFor="product_name">Product name</Label>
+                  <Input id="product_name" name="product_name" placeholder="Compact sous-vide precision cooker" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="asin">ASIN</Label>
+                  <Input id="asin" name="asin" placeholder="B0XXXXXXXX" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="draft_amazon_url">Amazon URL (with affiliate tag)</Label>
+                  <Input id="draft_amazon_url" name="draft_amazon_url" placeholder="https://www.amazon.co.uk/dp/..." />
+                </div>
+              </div>
               <Button type="submit" className="w-full">
                 Add idea
               </Button>

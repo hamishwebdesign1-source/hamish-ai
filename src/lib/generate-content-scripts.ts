@@ -63,9 +63,13 @@ export type ScriptBeats = {
 // word count (see allocateSceneDurations), never guessed by the model —
 // that guessing was a source of the original "rushed" problem (the model
 // would write 5 seconds of narration and label it "3s").
+// "disclosure" is never AI-generated (see SCENE_BREAKDOWN_SCHEMA's enum,
+// which deliberately excludes it) — it's reserved for the scene
+// appendDisclosureScene inserts deterministically on Amazon-affiliate
+// content, below.
 export type RawSceneBeat = {
   order: number;
-  beat: "hook" | "setup" | "escalation" | "payoff" | "ending";
+  beat: "hook" | "setup" | "escalation" | "payoff" | "ending" | "disclosure";
   narration_segment: string;
   visual_description: string;
   on_screen_text: string;
@@ -94,17 +98,59 @@ Cached research on this idea (already paid for — treat as ground truth, don't 
 - Risk notes: ${research.risk_notes.join("; ") || "none noted"}`;
 }
 
-function buildSystemPrompt(idea: { title: string; concept: string; topic: string | null; research: ContentIdeaResearch | null }): string {
-  return `You are writing short-form documentary-style video narration (YouTube Shorts / TikTok) for Hamish AI's content channel. Write THREE distinct variants of the same idea, each committing fully to a different retention archetype:
+// Video Affiliate Engine, Phase 0 — the "Operating Blueprint" artifact's
+// "same shape, different domain" reuse of this exact pipeline for Amazon
+// product content. Kept intentionally small: whatever the pipeline
+// eventually needs to know about a specific product (ASIN, real footage
+// source) is looked up separately, not authored by the script-writing
+// call.
+export type AffiliateProduct = {
+  product_name: string;
+  asin?: string;
+  footage_source?: string;
+  footage_status?: string;
+  draft_amazon_url?: string;
+};
+
+function buildSystemPrompt(idea: {
+  title: string;
+  concept: string;
+  topic: string | null;
+  research: ContentIdeaResearch | null;
+  content_domain: string;
+  affiliate_product: AffiliateProduct | null;
+}): string {
+  const isAffiliate = idea.content_domain === "amazon_affiliate";
+
+  const archetypeIntro = isAffiliate
+    ? `You are writing a short-form Amazon product review (YouTube Shorts / TikTok) as an Amazon Associate. Write THREE distinct variants of the same product angle, each committing fully to a different retention archetype:
+
+1. "curiosity" — an open loop about the product's most surprising quality, resolved by the payoff.
+2. "shock" — a contrarian or surprising claim about the product (it beats something far more expensive, or it fails at the one thing you'd expect it to be good at), the payoff is the justification.
+3. "story" — a short real-use narrative (a specific moment using it, not a generic feature list), the hook is that moment's most striking beat.`
+    : `You are writing short-form documentary-style video narration (YouTube Shorts / TikTok) for Hamish AI's content channel. Write THREE distinct variants of the same idea, each committing fully to a different retention archetype:
 
 1. "curiosity" — an open loop / curiosity-gap hook, resolved by the payoff.
 2. "shock" — a surprise or contrarian-claim hook, the payoff is the justification.
-3. "story" — a short narrative arc (a specific moment, not a generic anecdote), the hook is the story's most striking beat.
+3. "story" — a short narrative arc (a specific moment, not a generic anecdote), the hook is the story's most striking beat.`;
+
+  const productContext = isAffiliate && idea.affiliate_product ? `
+Product: ${idea.affiliate_product.product_name}${idea.affiliate_product.asin ? ` (ASIN ${idea.affiliate_product.asin})` : ""}` : "";
+
+  const affiliateGuidance = isAffiliate
+    ? `
+
+THIS IS PAID/AFFILIATE CONTENT — take a genuine position. Say who the product is actually for, who it isn't, and at least one real limitation — a review with no real opinion reads as an ad, and ads get skipped. Never claim a feature, spec, or result you don't have real basis for; nothing here should describe how the product visually looks or performs beyond what's genuinely known — the visual_description fields in scene_breakdown must describe REAL footage of the actual product (it will be sourced separately, not AI-generated), never an imagined or embellished appearance. Do not write a disclosure line yourself — one is appended automatically after this step; just write the honest review.`
+    : "";
+
+  return `${archetypeIntro}
+${productContext}
 
 Idea title: ${idea.title}
 Concept: ${idea.concept}
 ${idea.topic ? `Topic: ${idea.topic}` : ""}
 ${researchContext(idea.research)}
+${affiliateGuidance}
 
 NARRATION COMES FIRST — everything else exists to serve it, not the other way round. Write the narration (hook + setup + escalation + payoff + ending) as a complete, natural spoken script FIRST, the way a real documentary narrator would actually say it out loud at a natural conversational pace. Do not write for a fixed duration and do not pad or compress to hit any target length — let the story's real content decide how long it needs to be. A simple, punchy idea might only need 40-60 words; a fuller story with a real setup and payoff might genuinely need 100-150 words. Every sentence must be a complete, natural sentence, never a fragment written to save time. Never use generic AI-sounding phrasing ("in today's fast-paced world", "unlock the power of", "game-changer") or a throat-clearing opener ("let's talk about", "did you know"). Write like a specific person talking — contractions, short sentences, real rhythm. The ending should give a genuine reason to watch again or think about this later — a twist, an open question, a loop back to the hook, or a concrete takeaway — never a generic "like and subscribe".
 
@@ -351,6 +397,74 @@ function prepareVariant(raw: {
   };
 }
 
+// Video Affiliate Engine, Phase 0 (see the "Operating Blueprint" artifact
+// and pinterest-amazon-affiliate-project memory) — Amazon's required
+// disclosure line, exact wording. This is fixed legal text, not creative
+// copy, so it is NEVER generated or paraphrased by the AI — it's appended
+// deterministically, the same way duration is computed deterministically
+// rather than trusted to the model's own guess (see this file's header
+// comment on why that mattered for pacing).
+export const AMAZON_DISCLOSURE_TEXT = "As an Amazon Associate, I earn from qualifying purchases.";
+const AMAZON_DISCLOSURE_ON_SCREEN = "Amazon Associate — I earn from qualifying purchases";
+
+// Removes a previously-appended disclosure scene/sentence, if present, so
+// a narration-tightening pass (generate-content-scripts.ts's own QC pass,
+// or generate-video-prompt.ts's ViewMax-ceiling reconciliation) never has
+// a chance to paraphrase, shorten, or drop legally-required text — an LLM
+// asked to "rewrite this shorter" has no way to know one sentence in the
+// middle is non-negotiable. appendDisclosureScene (below) always strips
+// first, then re-appends fresh, so the disclosure survives ANY number of
+// tightening passes intact rather than depending on the AI to protect it.
+// A no-op on a variant with no disclosure present. Exported alongside
+// appendDisclosureScene for callers (generate-video-prompt.ts's own
+// ViewMax-ceiling tightening pass) that need to strip before handing
+// text to an AI rewrite call themselves, rather than going through
+// appendDisclosureScene's own built-in strip-then-append.
+export function stripDisclosureScene(variant: PreparedVariant): PreparedVariant {
+  if (!variant.scene_breakdown.some((s) => s.beat === "disclosure")) return variant;
+
+  const beats: ScriptBeats = { ...variant.beats, ending: variant.beats.ending.replace(AMAZON_DISCLOSURE_TEXT, "").trim() };
+  const full_script = fullScriptText(variant.hook, beats);
+  const word_count = wordCount(full_script);
+  const target_duration_s = computeDurationFromWordCount(word_count);
+  const rawScenes: RawSceneBeat[] = variant.scene_breakdown
+    .filter((s) => s.beat !== "disclosure")
+    .map((s) => ({ order: s.order, beat: s.beat, narration_segment: s.narration_segment, visual_description: s.visual_description, on_screen_text: s.on_screen_text }));
+
+  return { ...variant, beats, full_script, word_count, target_duration_s, scene_breakdown: allocateSceneDurations(rawScenes, target_duration_s) };
+}
+
+// Appends the disclosure as both a spoken sentence (tacked onto the
+// ending beat, so it's actually narrated, not just a silent caption) and
+// its own final scene (a clean end card, on-screen text carrying the
+// same disclosure) — idempotent: always strips any existing disclosure
+// first, so this is safe to call more than once on the same variant (it
+// is: once here after generation, and again in generate-video-prompt.ts
+// after its own tightening pass, to guarantee the disclosure is the very
+// last thing done before a prompt is assembled).
+export function appendDisclosureScene(variant: PreparedVariant): PreparedVariant {
+  const clean = stripDisclosureScene(variant);
+
+  const beats: ScriptBeats = { ...clean.beats, ending: `${clean.beats.ending} ${AMAZON_DISCLOSURE_TEXT}`.trim() };
+  const full_script = fullScriptText(clean.hook, beats);
+  const word_count = wordCount(full_script);
+  const target_duration_s = computeDurationFromWordCount(word_count);
+
+  const rawScenes: RawSceneBeat[] = [
+    ...clean.scene_breakdown.map((s) => ({ order: s.order, beat: s.beat, narration_segment: s.narration_segment, visual_description: s.visual_description, on_screen_text: s.on_screen_text })),
+    {
+      order: clean.scene_breakdown.length + 1,
+      beat: "disclosure",
+      narration_segment: AMAZON_DISCLOSURE_TEXT,
+      visual_description: "Clean, static end card — legal disclosure text fully readable and unobstructed, no competing motion or overlay.",
+      on_screen_text: AMAZON_DISCLOSURE_ON_SCREEN,
+    },
+  ];
+  const scene_breakdown = allocateSceneDurations(rawScenes, target_duration_s);
+
+  return { ...clean, beats, full_script, word_count, target_duration_s, scene_breakdown };
+}
+
 // The brief's own QC point: "if the script is too long for the intended
 // format, intelligently reduce/rewrite the narration BEFORE generating
 // the ViewMax prompt rather than attempting to squeeze it into an
@@ -423,10 +537,11 @@ export async function generateContentScripts(ideaId: string): Promise<GenerateSc
 
   const { data: idea, error: ideaError } = await supabase
     .from("content_ideas")
-    .select("title, concept, topic, research")
+    .select("title, concept, topic, research, content_domain, affiliate_product")
     .eq("id", ideaId)
     .single();
   if (ideaError || !idea) return { error: "Idea not found." as const };
+  const isAffiliate = idea.content_domain === "amazon_affiliate";
 
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return { error: "ANTHROPIC_API_KEY is not configured." as const };
@@ -444,7 +559,7 @@ export async function generateContentScripts(ideaId: string): Promise<GenerateSc
       // 3500). 8000 gives real headroom without being close to Haiku's
       // output ceiling.
       max_tokens: 8000,
-      system: buildSystemPrompt(idea as { title: string; concept: string; topic: string | null; research: ContentIdeaResearch | null }),
+      system: buildSystemPrompt(idea as { title: string; concept: string; topic: string | null; research: ContentIdeaResearch | null; content_domain: string; affiliate_product: AffiliateProduct | null }),
       tools: [SCRIPTS_TOOL],
       tool_choice: { type: "tool", name: "submit_script_variants" },
       messages: [{ role: "user", content: "Write the three script variants and submit them." }],
@@ -478,9 +593,19 @@ export async function generateContentScripts(ideaId: string): Promise<GenerateSc
     const variants = rawVariants.map(prepareVariant);
 
     // Tighten only the auto-selected winner, per the brief's cost/scope
-    // reasoning above — not every candidate.
+    // reasoning above — not every candidate. Deliberately BEFORE the
+    // disclosure is ever appended (below) — see appendDisclosureScene's
+    // comment: an AI rewrite call must never see the disclosure text, or
+    // it risks paraphrasing or dropping legally-required wording.
     const winnerIndex = variants.reduce((bestIdx, v, i) => (v.score > variants[bestIdx].score ? i : bestIdx), 0);
     variants[winnerIndex] = await tightenNarrationToWordBudget(anthropic, model, idea as { title: string; concept: string }, variants[winnerIndex], MAX_REASONABLE_WORDS);
+
+    // Applied to all three variants (not just the winner) so a manual
+    // "use this instead" override later still ships with a disclosure —
+    // see selectContentScript in admin/actions.ts.
+    if (isAffiliate) {
+      for (let i = 0; i < variants.length; i++) variants[i] = appendDisclosureScene(variants[i]);
+    }
 
     const { data: insertedRows, error: insertError } = await supabase
       .from("content_scripts")

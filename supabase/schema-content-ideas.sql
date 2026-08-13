@@ -24,7 +24,9 @@ create table if not exists content_ideas (
   score numeric, -- 0-5, deterministic formula over `research` (see computeIdeaScore) — same "transparent v1 formula" convention as prospects.score
   score_breakdown jsonb, -- named components that produced `score`, for audit/debugging the formula
   rejected_reason text,
-  rejected_at timestamptz
+  rejected_at timestamptz,
+  content_domain text not null default 'general', -- general | amazon_affiliate — the same idea->script->video pipeline reused for a second content type. Added 2026-08-13, see the "Video Affiliate Engine" blueprint.
+  affiliate_product jsonb -- { product_name, asin, footage_source, footage_status, draft_amazon_url } — only populated when content_domain = 'amazon_affiliate'
 );
 
 create index if not exists content_ideas_status_created_idx on content_ideas (status, created_at desc);

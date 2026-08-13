@@ -9,6 +9,7 @@ import { researchContentIdea, type ContentIdeaResearch } from "@/lib/research-co
 import { generateContentScripts, reallocateScenesForEditedNarration, type ScriptVariant, type SceneBeat } from "@/lib/generate-content-scripts";
 import { generateVideoPrompt } from "@/lib/generate-video-prompt";
 import { submitSingleIdeaForVideo } from "@/lib/content-video-pipeline";
+import { createAffiliateLink } from "@/lib/affiliate-links";
 import { uploadVideoToYouTube, type YouTubePrivacyStatus } from "@/lib/youtube";
 import { sendClientEmail } from "@/lib/send-client-email";
 import { researchLead, type LeadResearch } from "@/lib/research-lead";
@@ -710,6 +711,17 @@ export async function addContentIdea(formData: FormData) {
 
   const title = String(formData.get("title") || "");
   const concept = String(formData.get("concept") || "");
+  const contentDomain = String(formData.get("content_domain") || "general");
+
+  // Video Affiliate Engine, Phase 0 — see the "Operating Blueprint"
+  // artifact and pinterest-amazon-affiliate-project memory. Fields are
+  // only ever meaningful when content_domain is amazon_affiliate; left
+  // entirely null for the existing general-content flow.
+  const productName = String(formData.get("product_name") || "").trim();
+  const asin = String(formData.get("asin") || "").trim();
+  const draftAmazonUrl = String(formData.get("draft_amazon_url") || "").trim();
+  const isAffiliate = contentDomain === "amazon_affiliate" && productName.length > 0;
+
   const { data: inserted, error } = await supabase
     .from("content_ideas")
     .insert({
@@ -719,20 +731,39 @@ export async function addContentIdea(formData: FormData) {
       platform_target: String(formData.get("platform_target") || "shorts"),
       status: "new",
       source: "manual",
+      content_domain: contentDomain,
+      affiliate_product: isAffiliate
+        ? { product_name: productName, asin: asin || undefined, draft_amazon_url: draftAmazonUrl || undefined }
+        : null,
     })
     .select("id")
     .single();
 
   if (error) {
     console.error("Failed to insert content idea:", error);
-  } else if (inserted) {
-    await logAuditEvent({
-      actor: "admin",
-      action: "content.idea_created",
-      targetType: "content_idea",
-      targetId: inserted.id,
-      metadata: { title },
-    });
+    revalidatePath("/admin/content-factory");
+    return;
+  }
+  if (!inserted) {
+    revalidatePath("/admin/content-factory");
+    return;
+  }
+
+  await logAuditEvent({
+    actor: "admin",
+    action: "content.idea_created",
+    targetType: "content_idea",
+    targetId: inserted.id,
+    metadata: { title, content_domain: contentDomain },
+  });
+
+  // Set up the tracked link from day one — see affiliate-links.ts's
+  // header comment on why every affiliate URL should go through /go/
+  // rather than straight at Amazon. Best-effort: a failure here shouldn't
+  // block the idea itself from being created; the link can be added later.
+  if (isAffiliate && draftAmazonUrl) {
+    const link = await createAffiliateLink({ productName, targetUrl: draftAmazonUrl, ideaId: inserted.id });
+    if ("error" in link) console.error(`Failed to create affiliate link for idea ${inserted.id}:`, link.error);
   }
 
   revalidatePath("/admin/content-factory");

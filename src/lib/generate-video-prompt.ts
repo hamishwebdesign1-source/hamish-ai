@@ -4,7 +4,17 @@ import { stripMarkdownEmphasis } from "@/lib/strip-markdown-emphasis";
 import { logAuditEvent } from "@/lib/audit-log";
 import { recordContentUsage } from "@/lib/content-ai-usage";
 import { listViewMaxModels, pickCheapestVideoOption, estimateOptionDurationS } from "@/lib/viewmax";
-import { tightenNarrationToWordBudget, WORDS_PER_MINUTE, type ScriptBeats, type SceneBeat, type PreparedVariant } from "@/lib/generate-content-scripts";
+import {
+  tightenNarrationToWordBudget,
+  stripDisclosureScene,
+  appendDisclosureScene,
+  wordCount,
+  AMAZON_DISCLOSURE_TEXT,
+  WORDS_PER_MINUTE,
+  type ScriptBeats,
+  type SceneBeat,
+  type PreparedVariant,
+} from "@/lib/generate-content-scripts";
 
 // ViewMax's real, confirmed hard limit on the `prompt` field of
 // POST /api/v1/videos — see viewmax.ts.
@@ -212,7 +222,8 @@ export async function generateVideoPrompt(scriptId: string) {
     .eq("id", scriptId)
     .single();
   if (scriptError || !script) return { error: "Script not found." as const };
-  const idea = (await supabase.from("content_ideas").select("title, concept").eq("id", script.idea_id).single()).data ?? { title: "", concept: "" };
+  const idea = (await supabase.from("content_ideas").select("title, concept, content_domain").eq("id", script.idea_id).single()).data ?? { title: "", concept: "", content_domain: "general" };
+  const isAffiliate = idea.content_domain === "amazon_affiliate";
 
   let scenes = (script.scene_breakdown as SceneBeat[]) ?? [];
   if (!scenes.length) return { error: "Script has no scene breakdown." as const };
@@ -249,8 +260,7 @@ export async function generateVideoPrompt(scriptId: string) {
       const deliverableS = initialOption ? estimateOptionDurationS(initialOption) : 0;
 
       if (deliverableS > 0 && deliverableS < durationS * DELIVERABLE_DURATION_MATCH_RATIO) {
-        const maxWords = wordsFromDurationS(deliverableS);
-        const current: PreparedVariant = {
+        let current: PreparedVariant = {
           style: (script.style as PreparedVariant["style"]) ?? "curiosity",
           hook,
           beats,
@@ -262,7 +272,21 @@ export async function generateVideoPrompt(scriptId: string) {
           word_count: fullScript.trim().split(/\s+/).filter(Boolean).length,
           target_duration_s: durationS,
         };
-        const tightened = await tightenNarrationToWordBudget(anthropic, model, idea as { title: string; concept: string }, current, maxWords);
+
+        // Same reasoning as generate-content-scripts.ts's own tightening
+        // pass: an AI rewrite call must never see the disclosure text, or
+        // it risks paraphrasing or dropping legally-required wording.
+        // Strip before tightening, reserve its word count out of the
+        // budget, then re-append fresh afterward regardless of whether
+        // tightening actually changed anything.
+        let maxWords = wordsFromDurationS(deliverableS);
+        if (isAffiliate) {
+          current = stripDisclosureScene(current);
+          maxWords = Math.max(1, maxWords - wordCount(AMAZON_DISCLOSURE_TEXT));
+        }
+
+        let tightened = await tightenNarrationToWordBudget(anthropic, model, idea as { title: string; concept: string }, current, maxWords);
+        if (isAffiliate) tightened = appendDisclosureScene(tightened);
 
         if (tightened.full_script !== fullScript) {
           scriptWasTightened = true;
