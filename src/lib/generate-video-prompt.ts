@@ -5,93 +5,178 @@ import { logAuditEvent } from "@/lib/audit-log";
 import { recordContentUsage } from "@/lib/content-ai-usage";
 import type { ScriptBeats, SceneBeat } from "@/lib/generate-content-scripts";
 
-// Content Factory MVP Phase B (docs/content-factory-plan.md) — the video
-// prompt engine (brief §7). Does not just hand the script to ViewMax: one
-// small forced-tool Haiku call synthesises the selected script's hook,
-// beats, and scene_breakdown into a single dense generation prompt
-// covering scene structure, visual style, camera movement, composition,
-// lighting, characters, environment, transitions, pacing, and on-screen
-// text — kept as a separate call from generate-content-scripts.ts for the
-// same schema-size/reliability reason research-lead.ts splits its two
-// large forced calls (a script-writing call and a visual-direction call
-// are different jobs, and Haiku is more reliable one focused task at a
-// time). Aspect ratio and duration are computed deterministically, not
-// asked of the model — every platform this pipeline targets (Shorts/
-// TikTok/Reels) is vertical 9:16, and duration is the sum of the
-// script's own scene durations, clamped to MIN/MAX_DURATION_S.
-//
-// The clamp exists because of a real cost-cliff finding (2026-08-12, see
-// docs/content-factory-plan.md's cost section): ViewMax's real model
-// catalog has a hard tier jump around 15s — most affordable models offer
-// a duration at or near 12s, then skip straight to 30s, so anything
-// landing in the 13-19s range costs exactly the same as a full 30s video
-// for less content. generate-content-scripts.ts's prompt already asks
-// for one of two efficient targets (TIGHT 8-12s or FULL 20-30s, never
-// in between); this clamp is the backstop in case a script variant still
-// comes back somewhere in the dead zone — it snaps to whichever tier the
-// raw sum is closer to, rather than a single flat ceiling (an earlier
-// version capped everything at 12s regardless of how much story the
-// script actually needed, which just moved the "crammed" problem from
-// duration mismatch to over-stuffed scenes — see the plan doc).
+// ViewMax's real, confirmed hard limit on the `prompt` field of
+// POST /api/v1/videos — see viewmax.ts.
 const MAX_PROMPT_CHARS = 2000;
-const ASPECT_RATIO = "9:16"; // every MVP platform target (shorts/tiktok/reels) is vertical
-const TIGHT_MIN_S = 8;
-const TIGHT_MAX_S = 12;
-const FULL_MIN_S = 20;
-const FULL_MAX_S = 30;
-const DEAD_ZONE_MIDPOINT_S = (TIGHT_MAX_S + FULL_MIN_S) / 2; // 16 — raw sums at or below this snap to TIGHT, above snap to FULL
+const ASPECT_RATIO = "9:16";
 
 export type VideoPromptSpec = {
   prompt: string;
   style_notes: string;
   duration_s: number;
   aspect_ratio: string;
-  resolution: string; // a sensible default; revalidated against ViewMax's live model catalog at submission time in Phase C, never assumed fixed
+  resolution: string;
 };
 
-const VIDEO_PROMPT_TOOL: Anthropic.Tool = {
-  name: "submit_video_prompt",
-  description: "Submit the ViewMax-ready video generation prompt for this script.",
+type Script = {
+  idea_id: string;
+  style: string;
+  hook: string;
+  beats: ScriptBeats;
+  full_script: string;
+  scene_breakdown: SceneBeat[];
+  character_consistency: string;
+};
+
+// REDESIGNED 2026-08-12 alongside generate-content-scripts.ts. The old
+// version summed the model's own guessed scene durations, snapped the
+// result to one of two ViewMax-pricing-driven tiers (8-12s or 20-30s),
+// and asked Claude to write one dense free-text paragraph that did NOT
+// carry the actual narration — ViewMax had no idea any voiceover needed
+// to fit, which is exactly why real generations came back rushed,
+// incomplete, or narration-free. Now: duration comes from the script's
+// own word-count-derived target_duration_s (computed in
+// generate-content-scripts.ts, never re-guessed here), and the prompt
+// itself is a deterministic, labelled structure built directly from the
+// script's real narration_segment/visual_description/on_screen_text per
+// scene — the AI call here only supplies the creative direction that
+// script-writing doesn't already cover (overall visual style, per-scene
+// camera/lighting polish, editing/pacing notes), not a from-scratch
+// rewrite of the whole prompt. That keeps this file in full control of
+// the final structure and the 2000-char budget instead of hoping a
+// single free-text generation both fits the template and stays on budget.
+
+const PROMPT_POLISH_TOOL: Anthropic.Tool = {
+  name: "submit_prompt_direction",
+  description: "Submit the visual style, per-scene camera direction, and editing notes for this video generation prompt.",
   input_schema: {
     type: "object",
     properties: {
-      prompt: {
+      visual_style: {
         type: "string",
-        description:
-          "A single dense natural-language generation prompt (under 2000 characters) describing the video scene-by-scene: visual style, camera movement, composition, lighting, characters/subjects, environment, transitions between scenes, pacing, and any on-screen text overlays. Written as one flowing prompt a text-to-video model can act on directly, not a bullet list.",
+        description: "1-2 sentences: overall look, tone, lighting, and camera style for the whole video (e.g. period-accurate, handheld documentary, muted grade).",
       },
-      style_notes: {
+      scene_visuals: {
+        type: "array",
+        description: "One tightened camera/lighting/framing direction per scene, in the same order as the scenes given — build on the scene's existing visual_description, don't replace its subject or action.",
+        items: {
+          type: "object",
+          properties: {
+            order: { type: "number" },
+            visual: { type: "string", description: "One concrete shot direction (framing, camera movement, lighting) — ONE clear action, no montage." },
+          },
+          required: ["order", "visual"],
+        },
+      },
+      editing_notes: {
         type: "string",
-        description: "A short (1-2 sentence) human-readable summary of the visual style/mood, for the review screen — not sent to ViewMax.",
+        description: "1-2 sentences on pacing/transitions/hold-time — e.g. slow deliberate cuts held on each scene, no rapid montage, gentle transitions.",
       },
     },
-    required: ["prompt", "style_notes"],
+    required: ["visual_style", "scene_visuals", "editing_notes"],
   },
 };
 
-function buildSystemPrompt(script: { hook: string; beats: ScriptBeats; scene_breakdown: SceneBeat[]; style: string }): string {
+function buildSystemPrompt(script: Script): string {
   const scenesText = script.scene_breakdown
     .sort((a, b) => a.order - b.order)
-    .map((s) => `${s.order}. [${s.beat}, ~${s.duration_s}s] ${s.visual_description}${s.on_screen_text ? ` — on-screen text: "${s.on_screen_text}"` : ""}`)
+    .map((s) => `${s.order}. [${s.beat}] "${s.narration_segment}" — current visual: ${s.visual_description}`)
     .join("\n");
 
-  return `You are a video-generation prompt engineer, turning a finished short-form video script into one detailed generation prompt for an AI video model (ViewMax). This is NOT the script text itself — it's visual direction for the model that will actually generate the footage.
+  return `You are adding video-generation direction on top of an already-finished short-form video script. The narration is FINAL and must not be rewritten, shortened, or reworded by you — your job is purely visual/editing direction that will accompany it.
 
-Script style: ${script.style}
-Hook (spoken): ${script.hook}
-Setup: ${script.beats.setup}
-Escalation: ${script.beats.escalation}
-Payoff: ${script.beats.payoff}
-Ending: ${script.beats.ending}
+Idea style: ${script.style}
+Full narration (final, do not alter): "${script.full_script}"
+${script.character_consistency ? `Recurring character (must stay visually identical every scene): ${script.character_consistency}` : "No recurring character."}
 
-Scene-by-scene breakdown already planned:
+Scenes with their narration and current visual description:
 ${scenesText}
 
-Write ONE dense, continuous generation prompt (well under 2000 characters) that a text-to-video model can act on directly — cover visual style (e.g. clean vertical mobile-first, realistic vs. stylised), camera movement and composition per scene, lighting/mood, any characters or subjects and their consistency across scenes, environment/setting, how scenes transition into each other, overall pacing, and where on-screen text appears. Do not restate the spoken script word-for-word — describe what the CAMERA and SCREEN show. Be concrete and visual, not abstract.`;
+Give: one overall visual_style (tone/lighting/camera for the whole piece), one tightened camera/lighting/framing direction per scene building on its existing visual (never change what's happening in the scene, only how it's shot), and brief editing_notes on pacing. Keep every field short and concrete — this is generation direction for a video model, not prose.`;
 }
 
-function truncatePrompt(prompt: string): string {
-  return prompt.length > MAX_PROMPT_CHARS ? `${prompt.slice(0, MAX_PROMPT_CHARS - 1).trimEnd()}…` : prompt;
+function truncateField(text: string, maxChars: number): string {
+  return text.length > maxChars ? `${text.slice(0, maxChars - 1).trimEnd()}…` : text;
+}
+
+// Deterministic assembly of the labelled template, with a cascading
+// trim strategy if it comes out over ViewMax's real 2000-char limit —
+// NEVER by touching the NARRATION block or any scene's narration quote
+// (per the explicit "never truncate the narration" requirement); only
+// the non-narration direction (per-scene quotes, then visual/editing
+// text) is shortened, in that order.
+function assemblePrompt(script: Script, durationS: number, direction: { visual_style: string; scene_visuals: { order: number; visual: string }[]; editing_notes: string }): string {
+  const visualByOrder = new Map(direction.scene_visuals.map((v) => [v.order, v.visual]));
+  const characterLine = script.character_consistency ? script.character_consistency : "No recurring characters — no consistency constraint needed.";
+  const scenes = script.scene_breakdown.sort((a, b) => a.order - b.order);
+
+  const build = (opts: { includeNarrationQuote: "full" | "short" | "none"; visualStyle: string; editingNotes: string; sceneVisuals: string[] }): string => {
+    const sceneBlocks = scenes.map((s, i) => {
+      const lines = [`SCENE ${s.order} (${s.duration_s}s):`];
+      if (opts.includeNarrationQuote === "full") {
+        lines.push(`Narration covered: "${s.narration_segment}"`);
+      } else if (opts.includeNarrationQuote === "short") {
+        const words = s.narration_segment.split(/\s+/);
+        const short = words.length > 6 ? `${words.slice(0, 6).join(" ")}…` : s.narration_segment;
+        lines.push(`Narration covered: "${short}"`);
+      }
+      lines.push(`Visual: ${opts.sceneVisuals[i]}`);
+      lines.push(`On-screen text: "${s.on_screen_text}"`);
+      return lines.join("\n");
+    });
+
+    return [
+      "VOICEOVER",
+      `NARRATION: "${script.full_script}"`,
+      `TARGET DURATION: ${durationS} seconds`,
+      `VISUAL STYLE: ${opts.visualStyle}`,
+      ...sceneBlocks,
+      `EDITING: ${opts.editingNotes}`,
+      `CHARACTER CONSISTENCY: ${characterLine}`,
+      "VOICEOVER PRIORITY: Do not rush, compress, or truncate the narration to fit the visuals. Every sentence must be spoken completely, at a natural pace, in full. If a visual sequence needs to be shortened, shorten the visual sequence — NEVER speed up, truncate, or remove words from the narration.",
+    ].join("\n\n");
+  };
+
+  const baseSceneVisuals = scenes.map((s) => visualByOrder.get(s.order) ?? s.visual_description);
+
+  // Escalating cascade: full per-scene narration quotes -> short quotes ->
+  // no quotes (the NARRATION block already carries the full text, scene
+  // order still ties each cue to its portion). Every step so far only
+  // removes redundant narration repetition, never narration content
+  // itself.
+  for (const includeNarrationQuote of ["full", "short", "none"] as const) {
+    const attempt = build({ includeNarrationQuote, visualStyle: direction.visual_style, editingNotes: direction.editing_notes, sceneVisuals: baseSceneVisuals });
+    if (attempt.length <= MAX_PROMPT_CHARS) return attempt;
+  }
+
+  // Still over (long script, many richly-directed scenes) — proportionally
+  // shrink the AI-authored creative-direction fields (visual style, editing
+  // notes, and EVERY scene's visual direction), never the narration or the
+  // scene/duration structure. Iterates a few times since truncateField's
+  // ellipsis makes the exact resulting length only approximate.
+  let visualStyle = direction.visual_style;
+  let editingNotes = direction.editing_notes;
+  let sceneVisuals = [...baseSceneVisuals];
+  let attempt = build({ includeNarrationQuote: "none", visualStyle, editingNotes, sceneVisuals });
+
+  for (let i = 0; i < 6 && attempt.length > MAX_PROMPT_CHARS; i++) {
+    const over = attempt.length - MAX_PROMPT_CHARS;
+    const totalLen = visualStyle.length + editingNotes.length + sceneVisuals.reduce((sum, v) => sum + v.length, 0);
+    if (totalLen < 100) break; // floor guard — nothing meaningful left to trim, stop rather than gut every field to near-zero
+
+    const shrink = (text: string) => truncateField(text, Math.max(20, text.length - Math.ceil((over * text.length) / totalLen)));
+    visualStyle = shrink(visualStyle);
+    editingNotes = shrink(editingNotes);
+    sceneVisuals = sceneVisuals.map(shrink);
+    attempt = build({ includeNarrationQuote: "none", visualStyle, editingNotes, sceneVisuals });
+  }
+
+  // If it's STILL over (pathological case — extremely long narration with
+  // many scenes even after every non-narration field is near its floor),
+  // leave it as-is rather than touch narration; the caller logs this case
+  // so it's visible rather than silently corrupting the narration ViewMax
+  // actually reads.
+  return attempt;
 }
 
 export async function generateVideoPrompt(scriptId: string) {
@@ -100,38 +185,44 @@ export async function generateVideoPrompt(scriptId: string) {
 
   const { data: script, error: scriptError } = await supabase
     .from("content_scripts")
-    .select("idea_id, style, hook, beats, scene_breakdown")
+    .select("idea_id, style, hook, beats, full_script, scene_breakdown, character_consistency")
     .eq("id", scriptId)
     .single();
   if (scriptError || !script) return { error: "Script not found." as const };
+
+  const scenes = (script.scene_breakdown as SceneBeat[]) ?? [];
+  if (!scenes.length) return { error: "Script has no scene breakdown." as const };
+
+  const durationS = scenes.reduce((sum, s) => sum + s.duration_s, 0);
 
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return { error: "ANTHROPIC_API_KEY is not configured." as const };
 
   const anthropic = new Anthropic({ apiKey });
   const model = process.env.ANTHROPIC_MODEL || "claude-haiku-4-5-20251001";
-  const sceneBreakdown = (script.scene_breakdown ?? []) as SceneBeat[];
-  const rawDurationS = Math.round(sceneBreakdown.reduce((sum, s) => sum + (s.duration_s || 0), 0));
-  // Snap to whichever efficient tier the raw sum is closer to — never
-  // land in the 13-19s dead zone, which costs the same as FULL for less
-  // content (see the module header).
-  const durationS =
-    rawDurationS <= DEAD_ZONE_MIDPOINT_S
-      ? Math.min(TIGHT_MAX_S, Math.max(TIGHT_MIN_S, rawDurationS))
-      : Math.min(FULL_MAX_S, Math.max(FULL_MIN_S, rawDurationS));
+
+  const typedScript: Script = {
+    idea_id: script.idea_id,
+    style: script.style,
+    hook: script.hook,
+    beats: script.beats as ScriptBeats,
+    full_script: script.full_script,
+    scene_breakdown: scenes,
+    character_consistency: script.character_consistency ?? "",
+  };
 
   try {
     const response = await anthropic.messages.create({
       model,
-      max_tokens: 900,
-      system: buildSystemPrompt(script as { hook: string; beats: ScriptBeats; scene_breakdown: SceneBeat[]; style: string }),
-      tools: [VIDEO_PROMPT_TOOL],
-      tool_choice: { type: "tool", name: "submit_video_prompt" },
-      messages: [{ role: "user", content: "Write the video generation prompt and submit it." }],
+      max_tokens: 1200,
+      system: buildSystemPrompt(typedScript),
+      tools: [PROMPT_POLISH_TOOL],
+      tool_choice: { type: "tool", name: "submit_prompt_direction" },
+      messages: [{ role: "user", content: "Submit the visual direction." }],
     });
 
     await recordContentUsage({
-      ideaId: script.idea_id,
+      ideaId: typedScript.idea_id,
       stage: "video_prompt",
       provider: "anthropic",
       units: response.usage.input_tokens + response.usage.output_tokens,
@@ -141,39 +232,45 @@ export async function generateVideoPrompt(scriptId: string) {
     const toolUse = response.content.find((block): block is Anthropic.ToolUseBlock => block.type === "tool_use");
     if (!toolUse) return { error: "The AI did not return a video prompt." as const };
 
-    const raw = toolUse.input as { prompt: string; style_notes: string };
+    const direction = toolUse.input as { visual_style: string; scene_visuals: { order: number; visual: string }[]; editing_notes: string };
+    const cleanDirection = {
+      visual_style: stripMarkdownEmphasis(direction.visual_style),
+      editing_notes: stripMarkdownEmphasis(direction.editing_notes),
+      scene_visuals: direction.scene_visuals.map((v) => ({ order: v.order, visual: stripMarkdownEmphasis(v.visual) })),
+    };
+
+    const prompt = assemblePrompt(typedScript, durationS, cleanDirection);
+    if (prompt.length > MAX_PROMPT_CHARS) {
+      console.error(`Video prompt for script ${scriptId} is ${prompt.length} chars, over the ${MAX_PROMPT_CHARS} budget, after full trim cascade — narration was long enough that only non-narration fields could be trimmed.`);
+    }
+
     const videoPrompt: VideoPromptSpec = {
-      prompt: truncatePrompt(stripMarkdownEmphasis(raw.prompt)),
-      style_notes: stripMarkdownEmphasis(raw.style_notes),
+      prompt,
+      style_notes: cleanDirection.visual_style,
       duration_s: durationS,
       aspect_ratio: ASPECT_RATIO,
       resolution: "1080p",
     };
-    const generatedAt = new Date().toISOString();
 
-    const { error: updateError } = await supabase
+    await supabase
       .from("content_scripts")
-      .update({ video_prompt: videoPrompt, prompt_generated_at: generatedAt })
+      .update({ video_prompt: videoPrompt, prompt_generated_at: new Date().toISOString() })
       .eq("id", scriptId);
-    if (updateError) {
-      console.error("Failed to save video prompt:", updateError);
-      return { error: "Video prompt generated but failed to save." as const };
-    }
 
-    await supabase.from("content_ideas").update({ status: "ready_for_video" }).eq("id", script.idea_id);
+    await supabase.from("content_ideas").update({ status: "ready_for_video" }).eq("id", typedScript.idea_id);
 
     await logAuditEvent({
       actor: "system",
       actorType: "system",
       action: "content.video_prompt_generated",
       targetType: "content_idea",
-      targetId: script.idea_id,
-      metadata: { script_id: scriptId, duration_s: durationS },
+      targetId: typedScript.idea_id,
+      metadata: { script_id: scriptId, duration_s: durationS, prompt_chars: prompt.length },
     });
 
-    return { videoPrompt, generatedAt };
+    return { videoPrompt };
   } catch (error) {
     console.error(`Failed to generate video prompt for script ${scriptId}:`, error);
-    return { error: "The prompt-engineering agent is temporarily unavailable." as const };
+    return { error: "The prompt-generation agent is temporarily unavailable." as const };
   }
 }

@@ -28,9 +28,10 @@ create table if not exists content_scripts (
   hook text not null, -- first 1-3 seconds, the curiosity hook
   beats jsonb not null, -- { setup, escalation, payoff, ending }
   full_script text not null, -- hook + beats concatenated into the actual spoken voiceover text
-  scene_breakdown jsonb not null, -- [{ order, beat, visual_description, on_screen_text, duration_s }, ...]
+  scene_breakdown jsonb not null, -- [{ order, beat, narration_segment, visual_description, on_screen_text, duration_s }, ...] — narration_segment is a verbatim quote of the portion of full_script spoken in that scene; duration_s is computed server-side from narration_segment's word count (see generate-content-scripts.ts), never AI-guessed.
   score numeric, -- 0-10, the model's own self-assessment of this variant's strength (see generate-content-scripts.ts)
   score_rationale text,
+  character_consistency text not null default '', -- concrete physical description a recurring character must keep across every scene's visual_description; empty string if the idea has no recurring character. Added in the 2026-08-12 narration-first redesign — see docs/content-factory-plan.md.
   video_prompt jsonb, -- populated only after selection — the single ViewMax-ready generation prompt (see generate-video-prompt.ts). Null on every non-selected variant.
   prompt_generated_at timestamptz,
   edited boolean not null default false, -- true once a human hand-edits hook/beats, so a "regenerate" action knows not to silently clobber a manual edit

@@ -6,7 +6,7 @@ import { after } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { createResearchJob, runResearchJob } from "@/lib/deep-research-pipeline";
 import { researchContentIdea, type ContentIdeaResearch } from "@/lib/research-content-idea";
-import { generateContentScripts, type ScriptVariant } from "@/lib/generate-content-scripts";
+import { generateContentScripts, reallocateScenesForEditedNarration, type ScriptVariant, type SceneBeat } from "@/lib/generate-content-scripts";
 import { generateVideoPrompt } from "@/lib/generate-video-prompt";
 import { submitSingleIdeaForVideo } from "@/lib/content-video-pipeline";
 import { uploadVideoToYouTube, type YouTubePrivacyStatus } from "@/lib/youtube";
@@ -881,9 +881,17 @@ export async function editContentScript(scriptId: string, ideaId: string, formDa
   };
   const fullScript = [hook, beats.setup, beats.escalation, beats.payoff, beats.ending].join(" ");
 
+  // Re-slice the edited narration across the existing scenes rather than
+  // leaving the pre-edit scene_breakdown in place — see
+  // reallocateScenesForEditedNarration's own comment for why: otherwise
+  // duration_s and every scene's narration_segment would silently go
+  // stale against the text a human just changed.
+  const { data: existing } = await supabase.from("content_scripts").select("scene_breakdown").eq("id", scriptId).single();
+  const sceneBreakdown = existing?.scene_breakdown ? reallocateScenesForEditedNarration(existing.scene_breakdown as SceneBeat[], fullScript) : undefined;
+
   const { error } = await supabase
     .from("content_scripts")
-    .update({ hook, beats, full_script: fullScript, edited: true })
+    .update({ hook, beats, full_script: fullScript, edited: true, ...(sceneBreakdown ? { scene_breakdown: sceneBreakdown } : {}) })
     .eq("id", scriptId);
   if (error) {
     console.error("Failed to edit content script:", error);
