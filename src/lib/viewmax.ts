@@ -157,6 +157,27 @@ export type VideoOption = { model: string; duration: string | null; resolution: 
 // this model specifically.
 const UNRELIABLE_MODELS = new Set(["grok-imagine"]);
 
+// Narrower than UNRELIABLE_MODELS: a specific (model, duration) combo
+// known broken, not the whole model. Found 2026-08-13 on real evidence —
+// three separate real submissions of grok-imagine-1-5 at "30s" (two
+// different narrations, one considerably shorter after the ViewMax-ceiling
+// reconciliation fix, same labelled prompt structure that succeeded fine
+// on veo-3-1-fast) all failed identically: the first two with an async
+// "media generation failed" after being accepted, the third rejected
+// synchronously with a 500 at the submission call itself. That rules out
+// narration length and prompt format as the cause and points at this
+// specific duration on this specific model being broken on ViewMax's/the
+// underlying provider's side right now. grok-imagine-1-5 at 20s worked
+// fine the day before (see docs/content-factory-plan.md) — only 30s is
+// excluded, so a target that would have picked 30s now correctly falls
+// back to 20s instead of retrying a combo with a 100% real failure rate.
+// Revisit (remove the entry) once ViewMax confirms/fixes it.
+const UNRELIABLE_MODEL_DURATIONS = new Set(["grok-imagine-1-5:30s"]);
+
+function availableDurations(model: ViewMaxModel, durations: string[]): string[] {
+  return durations.filter((d) => !UNRELIABLE_MODEL_DURATIONS.has(`${model.id}:${d}`));
+}
+
 // Hamish's explicit choice (2026-08-12) after comparing real output:
 // grok-imagine/grok-imagine-1-5's cheap-tier results looked "rushed,
 // unfinished, clearly AI" even once duration was accounted for — a
@@ -208,7 +229,7 @@ function cheapestMeetingTarget(models: ViewMaxModel[], aspectRatio: string, targ
       continue;
     }
 
-    const duration = nearestDurationAtOrAbove(mode.durations, targetDurationS);
+    const duration = nearestDurationAtOrAbove(availableDurations(model, mode.durations), targetDurationS);
     if (!duration) continue;
 
     for (const resolution of mode.resolutions) {
@@ -242,7 +263,7 @@ function longestAvailable(models: ViewMaxModel[], aspectRatio: string, restrictT
     if (!mode.aspect_ratios.includes(aspectRatio)) continue;
 
     const isFixed = !mode.durations?.length;
-    const duration = isFixed ? null : longestDuration(mode.durations);
+    const duration = isFixed ? null : longestDuration(availableDurations(model, mode.durations));
     if (!isFixed && !duration) continue;
     const durationS = isFixed ? (KNOWN_FIXED_DURATIONS_S[model.id] ?? 0) : Number.parseInt(duration!, 10) || 0;
 
