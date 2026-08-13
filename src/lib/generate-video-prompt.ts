@@ -95,8 +95,19 @@ ${scenesText}
 Give: one overall visual_style (tone/lighting/camera for the whole piece), one tightened camera/lighting/framing direction per scene building on its existing visual (never change what's happening in the scene, only how it's shot), and brief editing_notes on pacing. Keep every field short and concrete — this is generation direction for a video model, not prose.`;
 }
 
+// Real issue found 2026-08-13 while getting a real video through the
+// pipeline: this used to hard-cut mid-word ("...documentary-style archival
+// photograp…", "...harsh bright sunlight cu…") — sloppy on its own, and
+// feeding broken word-fragments into a video-generation prompt is a
+// plausible contributor to a real "media generation failed" ViewMax
+// response on this exact prompt. Now backs up to the last whole word
+// before the limit.
 function truncateField(text: string, maxChars: number): string {
-  return text.length > maxChars ? `${text.slice(0, maxChars - 1).trimEnd()}…` : text;
+  if (text.length <= maxChars) return text;
+  const cut = text.slice(0, maxChars - 1);
+  const lastSpace = cut.lastIndexOf(" ");
+  const clean = (lastSpace > maxChars * 0.5 ? cut.slice(0, lastSpace) : cut).trimEnd();
+  return `${clean}…`;
 }
 
 // Deterministic assembly of the labelled template, with a cascading
