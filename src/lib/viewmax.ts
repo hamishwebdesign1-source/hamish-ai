@@ -167,7 +167,22 @@ export type VideoOption = { model: string; duration: string | null; resolution: 
 // looks like a real regression on ViewMax's/the underlying provider's
 // side, not anything fixable here. Revisit (remove the entry) once
 // ViewMax confirms/fixes it — see docs/content-factory-plan.md.
-const UNRELIABLE_MODELS = new Set(["grok-imagine", "grok-imagine-1-5"]);
+// p-video and seedance-2-mini added 2026-08-13 on real evidence — same
+// symptom as grok-imagine (silently ignores the requested duration,
+// returns a short default) but ROOT-CAUSED this time: seedance-2-mini's
+// raw ViewMax task response included the exact parameters ViewMax sent
+// to the underlying provider (Kie/bytedance) — `{input:{prompt},
+// callBackUrl, model}` — with NO duration field at all. ViewMax's own API
+// accepts and charges for the requested duration, but its pass-through to
+// at least this underlying provider drops it entirely, so the provider
+// just generates its own default (~5s) regardless of what was requested
+// and paid for. This looks like it could be a ViewMax platform bug
+// affecting every model proxied the same way, not a per-model quirk —
+// worth a support ticket. Excluding on real per-model evidence for now
+// rather than assuming every model is affected; veo-3-1-fast (a
+// fixed-duration model with no duration parameter to drop) is the one
+// currently-proven-reliable option.
+const UNRELIABLE_MODELS = new Set(["grok-imagine", "grok-imagine-1-5", "p-video", "seedance-2-mini"]);
 
 // Reserved for a specific (model, duration) combo known broken while the
 // rest of that model is fine — narrower than UNRELIABLE_MODELS above.
