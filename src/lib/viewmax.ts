@@ -279,6 +279,19 @@ export function pickCheapestVideoOption(models: ViewMaxModel[], targetDurationS:
   return longestAvailable(models, aspectRatio);
 }
 
+// A VideoOption's real, actual output length in seconds — parses the
+// chosen duration string, or looks up KNOWN_FIXED_DURATIONS_S for a
+// fixed-duration model (duration: null). Exported so callers that need to
+// know the REAL deliverable length before committing to a target — see
+// generate-video-prompt.ts, which writes this into the prompt's own
+// TARGET DURATION line rather than the script's aspirational one, so the
+// model is never asked to speak more than the clip it's actually
+// generating can hold.
+export function estimateOptionDurationS(option: VideoOption): number {
+  if (option.duration == null) return KNOWN_FIXED_DURATIONS_S[option.model] ?? 0;
+  return Number.parseInt(option.duration, 10) || 0;
+}
+
 // Confirmed against a real key: the field is `remainingCredits`, not
 // `credits` — the earlier guess was wrong (see the module header's note
 // on unconfirmed field names). Checked defensively against both anyway,

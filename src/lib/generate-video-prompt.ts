@@ -3,12 +3,20 @@ import { getSupabaseAdmin } from "@/lib/supabase";
 import { stripMarkdownEmphasis } from "@/lib/strip-markdown-emphasis";
 import { logAuditEvent } from "@/lib/audit-log";
 import { recordContentUsage } from "@/lib/content-ai-usage";
-import type { ScriptBeats, SceneBeat } from "@/lib/generate-content-scripts";
+import { listViewMaxModels, pickCheapestVideoOption, estimateOptionDurationS } from "@/lib/viewmax";
+import { tightenNarrationToWordBudget, WORDS_PER_MINUTE, type ScriptBeats, type SceneBeat, type PreparedVariant } from "@/lib/generate-content-scripts";
 
 // ViewMax's real, confirmed hard limit on the `prompt` field of
 // POST /api/v1/videos — see viewmax.ts.
 const MAX_PROMPT_CHARS = 2000;
 const ASPECT_RATIO = "9:16";
+// If the best real ViewMax option can't deliver at least this fraction of
+// the narration's natural word-count-derived length, it's treated as a
+// genuine platform-ceiling shortfall worth tightening narration for —
+// not just noise from picking the nearest-available duration bucket
+// (e.g. a 36s narration landing on a real 30s option is normal rounding,
+// not a shortfall worth an extra AI call over).
+const DELIVERABLE_DURATION_MATCH_RATIO = 0.85;
 
 export type VideoPromptSpec = {
   prompt: string;
@@ -27,6 +35,10 @@ type Script = {
   scene_breakdown: SceneBeat[];
   character_consistency: string;
 };
+
+function wordsFromDurationS(durationS: number): number {
+  return Math.max(1, Math.floor((durationS / 60) * WORDS_PER_MINUTE));
+}
 
 // REDESIGNED 2026-08-12 alongside generate-content-scripts.ts. The old
 // version summed the model's own guessed scene durations, snapped the
@@ -196,15 +208,20 @@ export async function generateVideoPrompt(scriptId: string) {
 
   const { data: script, error: scriptError } = await supabase
     .from("content_scripts")
-    .select("idea_id, style, hook, beats, full_script, scene_breakdown, character_consistency")
+    .select("idea_id, style, hook, beats, full_script, scene_breakdown, character_consistency, score, score_rationale")
     .eq("id", scriptId)
     .single();
   if (scriptError || !script) return { error: "Script not found." as const };
+  const idea = (await supabase.from("content_ideas").select("title, concept").eq("id", script.idea_id).single()).data ?? { title: "", concept: "" };
 
-  const scenes = (script.scene_breakdown as SceneBeat[]) ?? [];
+  let scenes = (script.scene_breakdown as SceneBeat[]) ?? [];
   if (!scenes.length) return { error: "Script has no scene breakdown." as const };
 
-  const durationS = scenes.reduce((sum, s) => sum + s.duration_s, 0);
+  let hook = script.hook;
+  let beats = script.beats as ScriptBeats;
+  let fullScript = script.full_script;
+  let durationS = scenes.reduce((sum, s) => sum + s.duration_s, 0);
+  let scriptWasTightened = false;
 
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return { error: "ANTHROPIC_API_KEY is not configured." as const };
@@ -212,12 +229,72 @@ export async function generateVideoPrompt(scriptId: string) {
   const anthropic = new Anthropic({ apiKey });
   const model = process.env.ANTHROPIC_MODEL || "claude-haiku-4-5-20251001";
 
+  // Real bug found 2026-08-13: ViewMax's ENTIRE model catalog has a hard
+  // ceiling of ~30s per clip (no model, at any price, produces more) —
+  // often tighter than what a narration-first, no-artificial-ceiling
+  // script naturally needs. Without reconciling against that BEFORE
+  // assembling the prompt, TARGET DURATION would claim a length the clip
+  // being generated can't actually hold — asking the model to speak more
+  // than its own output can fit, a very plausible cause of real
+  // "media generation failed" responses, not just a cosmetic mismatch.
+  // Resolved here by checking the live catalog for the best real option
+  // and, if it falls meaningfully short, tightening the narration itself
+  // (same real-rewrite logic as the length-QC pass in
+  // generate-content-scripts.ts) rather than writing a prompt the
+  // delivered video was never going to be able to satisfy.
+  try {
+    const models = await listViewMaxModels("video");
+    if (models?.length) {
+      const initialOption = pickCheapestVideoOption(models, durationS, ASPECT_RATIO);
+      const deliverableS = initialOption ? estimateOptionDurationS(initialOption) : 0;
+
+      if (deliverableS > 0 && deliverableS < durationS * DELIVERABLE_DURATION_MATCH_RATIO) {
+        const maxWords = wordsFromDurationS(deliverableS);
+        const current: PreparedVariant = {
+          style: (script.style as PreparedVariant["style"]) ?? "curiosity",
+          hook,
+          beats,
+          scene_breakdown: scenes,
+          character_consistency: script.character_consistency ?? "",
+          score: script.score ?? 0,
+          score_rationale: script.score_rationale ?? "",
+          full_script: fullScript,
+          word_count: fullScript.trim().split(/\s+/).filter(Boolean).length,
+          target_duration_s: durationS,
+        };
+        const tightened = await tightenNarrationToWordBudget(anthropic, model, idea as { title: string; concept: string }, current, maxWords);
+
+        if (tightened.full_script !== fullScript) {
+          scriptWasTightened = true;
+          hook = tightened.hook;
+          beats = tightened.beats;
+          fullScript = tightened.full_script;
+          scenes = tightened.scene_breakdown;
+          durationS = scenes.reduce((sum, s) => sum + s.duration_s, 0);
+
+          // Persist the shortened narration back onto the script itself —
+          // not just the assembled prompt — so the review UI, any future
+          // hand-edit, and the ViewMax submission all agree on what's
+          // actually being spoken, rather than the prompt silently
+          // diverging from the stored script.
+          await supabase.from("content_scripts").update({ hook, beats, full_script: fullScript, scene_breakdown: scenes }).eq("id", scriptId);
+        }
+      }
+    }
+  } catch (error) {
+    // Best-effort — if the live catalog can't be checked (ViewMax
+    // unconfigured, network issue), fall back to the narration's natural
+    // word-count-derived duration exactly as before this reconciliation
+    // existed, rather than failing prompt generation over it.
+    console.error(`Video-prompt duration reconciliation against the live ViewMax catalog failed for script ${scriptId} (continuing with the natural duration):`, error);
+  }
+
   const typedScript: Script = {
     idea_id: script.idea_id,
     style: script.style,
-    hook: script.hook,
-    beats: script.beats as ScriptBeats,
-    full_script: script.full_script,
+    hook,
+    beats,
+    full_script: fullScript,
     scene_breakdown: scenes,
     character_consistency: script.character_consistency ?? "",
   };
@@ -276,7 +353,7 @@ export async function generateVideoPrompt(scriptId: string) {
       action: "content.video_prompt_generated",
       targetType: "content_idea",
       targetId: typedScript.idea_id,
-      metadata: { script_id: scriptId, duration_s: durationS, prompt_chars: prompt.length },
+      metadata: { script_id: scriptId, duration_s: durationS, prompt_chars: prompt.length, narration_tightened_for_viewmax_ceiling: scriptWasTightened },
     });
 
     return { videoPrompt };

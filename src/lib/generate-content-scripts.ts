@@ -43,7 +43,7 @@ import type { ContentIdeaResearch } from "@/lib/research-content-idea";
 // Matches the brief's own worked examples almost exactly (75w -> ~35s,
 // 100w -> ~46s, 125w -> ~58s, all within its stated 130-150wpm guidance)
 // without needing an extra pause-buffer multiplier on top.
-const WORDS_PER_MINUTE = 130;
+export const WORDS_PER_MINUTE = 130;
 // "Too long for the intended format" (brief's own QC point) — beyond this
 // the narration gets one tightening pass rather than accepting an
 // unrealistically long short-form video. ~170 words is roughly 78s at
@@ -176,7 +176,7 @@ const SCRIPTS_TOOL: Anthropic.Tool = {
   },
 };
 
-// A separate, focused tool for the tightening pass (see tightenNarrationIfNeeded)
+// A separate, focused tool for the tightening pass (see tightenNarrationToWordBudget)
 // — same scene_breakdown shape, no style/score fields since it's refining
 // an already-chosen variant, not generating fresh candidates.
 const TIGHTEN_TOOL: Anthropic.Tool = {
@@ -308,7 +308,7 @@ function fullScriptText(hook: string, beats: ScriptBeats): string {
   return [hook, beats.setup, beats.escalation, beats.payoff, beats.ending].join(" ");
 }
 
-type PreparedVariant = {
+export type PreparedVariant = {
   style: "curiosity" | "shock" | "story";
   hook: string;
   beats: ScriptBeats;
@@ -354,20 +354,35 @@ function prepareVariant(raw: {
 // The brief's own QC point: "if the script is too long for the intended
 // format, intelligently reduce/rewrite the narration BEFORE generating
 // the ViewMax prompt rather than attempting to squeeze it into an
-// unrealistic duration." Applied only to the auto-selected winner (not
-// all 3 candidates) to keep this a cheap, targeted fix rather than
-// tripling the cost of every generation. Rewrites narration properly
-// (shortens sentences/cuts a weaker beat) rather than truncating — a
-// genuinely different operation from the duration-mismatch bug this
-// pipeline already guards against downstream.
-async function tightenNarrationIfNeeded(anthropic: Anthropic, model: string, idea: { title: string; concept: string }, variant: PreparedVariant): Promise<PreparedVariant> {
-  if (variant.word_count <= MAX_REASONABLE_WORDS) return variant;
+// unrealistic duration." Rewrites narration properly (shortens sentences/
+// cuts a weaker beat) rather than truncating — a genuinely different
+// operation from the duration-mismatch bug this pipeline already guards
+// against downstream.
+//
+// Generalized 2026-08-13 to take an explicit maxWords rather than the
+// hardcoded genre-length ceiling, so generate-video-prompt.ts can reuse
+// it for a second, unrelated reason: ViewMax's entire model catalog has a
+// real hard ceiling of 30s per clip (no model, at any price, produces
+// more), which is often tighter than what a "let the story decide its
+// length" narration naturally needs. Without this, the prompt's own
+// TARGET DURATION line would claim a length longer than the clip ViewMax
+// is actually generating — asking the model to speak more than the video
+// it's producing can hold, a very plausible cause of real generation
+// failures, not just a cosmetic mismatch.
+export async function tightenNarrationToWordBudget(
+  anthropic: Anthropic,
+  model: string,
+  idea: { title: string; concept: string },
+  variant: PreparedVariant,
+  maxWords: number
+): Promise<PreparedVariant> {
+  if (variant.word_count <= maxWords) return variant;
 
   try {
     const response = await anthropic.messages.create({
       model,
       max_tokens: 1500,
-      system: `This short-form video narration for "${idea.title}" (${idea.concept}) came out at ${variant.word_count} words — too long for a short-form video even at a natural conversational pace (roughly ${Math.round(variant.target_duration_s)}s). Rewrite it shorter by cutting the weakest beat or tightening sentences — never by truncating mid-sentence or removing words from a sentence you keep. Every sentence in your rewrite must still be complete and natural. Aim for well under ${MAX_REASONABLE_WORDS} words while keeping the hook, the core turn, and the payoff intact.
+      system: `This short-form video narration for "${idea.title}" (${idea.concept}) came out at ${variant.word_count} words — too long for a short-form video even at a natural conversational pace (roughly ${Math.round(variant.target_duration_s)}s). Rewrite it shorter by cutting the weakest beat or tightening sentences — never by truncating mid-sentence or removing words from a sentence you keep. Every sentence in your rewrite must still be complete and natural. Aim for well under ${maxWords} words while keeping the hook, the core turn, and the payoff intact.
 
 Current hook: ${variant.hook}
 Current setup: ${variant.beats.setup}
@@ -465,7 +480,7 @@ export async function generateContentScripts(ideaId: string): Promise<GenerateSc
     // Tighten only the auto-selected winner, per the brief's cost/scope
     // reasoning above — not every candidate.
     const winnerIndex = variants.reduce((bestIdx, v, i) => (v.score > variants[bestIdx].score ? i : bestIdx), 0);
-    variants[winnerIndex] = await tightenNarrationIfNeeded(anthropic, model, idea as { title: string; concept: string }, variants[winnerIndex]);
+    variants[winnerIndex] = await tightenNarrationToWordBudget(anthropic, model, idea as { title: string; concept: string }, variants[winnerIndex], MAX_REASONABLE_WORDS);
 
     const { data: insertedRows, error: insertError } = await supabase
       .from("content_scripts")
