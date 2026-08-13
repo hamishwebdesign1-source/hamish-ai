@@ -168,12 +168,27 @@ const UNRELIABLE_MODELS = new Set(["grok-imagine"]);
 // request at all (e.g. an aspect ratio it doesn't support).
 const PREFERRED_MODELS = ["veo-3-1-fast"];
 
-function cheapestAcross(
-  models: ViewMaxModel[],
-  aspectRatio: string,
-  chooseDuration: (durations: string[]) => string | null,
-  restrictTo?: Set<string>
-): VideoOption | null {
+// Real bug found 2026-08-13, via the narration-first redesign's own
+// verification: fixed-duration models (see PER_GENERATION_KEY's comment)
+// were accepted unconditionally by cheapestAcross's "meets or exceeds
+// target duration" pass — there's no `durations` array to check a target
+// against, so the fixed-duration branch just always matched, regardless
+// of target. Since veo-3-1-fast is PREFERRED_MODELS' only entry and its
+// real output is a fixed ~8s (confirmed repeatedly via quality_flags —
+// e.g. "Requested 20s but got 8s"), EVERY submission with a target above
+// ~8s was silently landing on an 8s video no matter what the script
+// actually needed, completely defeating the narration-first duration
+// work upstream. A fixed-duration model can only honestly be said to
+// "meet" a target if its real output is known and long enough — never
+// assumed. Update this map as more fixed-duration models are confirmed
+// via real submissions (see content-quality-check.ts's duration_flag).
+const KNOWN_FIXED_DURATIONS_S: Record<string, number> = { "veo-3-1-fast": 8 };
+
+// Cheapest option among models that genuinely meet-or-exceed the target
+// duration. A fixed-duration model (e.g. Veo 3.1) only qualifies if its
+// real, known output (KNOWN_FIXED_DURATIONS_S) is actually long enough —
+// never assumed just because it has no duration parameter to check.
+function cheapestMeetingTarget(models: ViewMaxModel[], aspectRatio: string, targetDurationS: number, restrictTo?: Set<string>): VideoOption | null {
   let best: VideoOption | null = null;
   for (const model of models) {
     if (model.coming_soon || UNRELIABLE_MODELS.has(model.id)) continue;
@@ -183,8 +198,8 @@ function cheapestAcross(
     if (!mode.aspect_ratios.includes(aspectRatio)) continue;
 
     if (!mode.durations?.length) {
-      // Fixed-duration model (e.g. Veo 3.1) — no duration to choose, one
-      // flat per_generation rate per resolution.
+      const knownDurationS = KNOWN_FIXED_DURATIONS_S[model.id];
+      if (knownDurationS == null || knownDurationS < targetDurationS) continue;
       for (const resolution of mode.resolutions) {
         const credits = modeCostFixed(mode, resolution);
         if (credits == null) continue;
@@ -193,7 +208,7 @@ function cheapestAcross(
       continue;
     }
 
-    const duration = chooseDuration(mode.durations);
+    const duration = nearestDurationAtOrAbove(mode.durations, targetDurationS);
     if (!duration) continue;
 
     for (const resolution of mode.resolutions) {
@@ -205,26 +220,63 @@ function cheapestAcross(
   return best;
 }
 
+// Last-resort search: when nothing anywhere can reach the target
+// duration, find whichever qualifying option actually runs the LONGEST —
+// not the cheapest. Real bug found 2026-08-13: the original version of
+// this fallback reused the same cheapest-wins logic with each model's own
+// longest duration, so among all the "longest available" options it
+// still picked whichever was CHEAPEST, not whichever ran longest. Since
+// veo-3-1-fast's fixed ~8s output is cheap, that meant the fallback kept
+// landing back on an 8s video even when another model in the catalog
+// could genuinely run for 20-30s — the exact rushed-video problem this
+// whole fallback tier exists to avoid. Ties (equal duration) fall back to
+// cheapest, same spirit as the meets-target search.
+function longestAvailable(models: ViewMaxModel[], aspectRatio: string, restrictTo?: Set<string>): VideoOption | null {
+  let best: VideoOption | null = null;
+  let bestDurationS = -1;
+  for (const model of models) {
+    if (model.coming_soon || UNRELIABLE_MODELS.has(model.id)) continue;
+    if (restrictTo && !restrictTo.has(model.id)) continue;
+    const mode = model.modes?.["text-to-video"];
+    if (!mode || !mode.resolutions?.length || !mode.aspect_ratios?.length) continue;
+    if (!mode.aspect_ratios.includes(aspectRatio)) continue;
+
+    const isFixed = !mode.durations?.length;
+    const duration = isFixed ? null : longestDuration(mode.durations);
+    if (!isFixed && !duration) continue;
+    const durationS = isFixed ? (KNOWN_FIXED_DURATIONS_S[model.id] ?? 0) : Number.parseInt(duration!, 10) || 0;
+
+    for (const resolution of mode.resolutions) {
+      const credits = isFixed ? modeCostFixed(mode, resolution) : modeCost(mode, resolution, duration!);
+      if (credits == null) continue;
+      const better = durationS > bestDurationS || (durationS === bestDurationS && best != null && credits < best.credits);
+      if (!best || better) {
+        best = { model: model.id, duration, resolution, aspectRatio, credits };
+        bestDurationS = durationS;
+      }
+    }
+  }
+  return best;
+}
+
 // Picks the cheapest (model, duration, resolution) combination that
-// supports the requested aspect ratio — preferring PREFERRED_MODELS
-// first (see its comment), then within that, a model that can meet or
-// exceed the target duration so cost is never optimised at the expense
-// of silently truncating the video. Only if literally nothing in the
-// preferred set (or, failing that, the whole catalog) can reach the
-// target duration does it fall back to each candidate's own longest
-// option (a real content-length compromise, logged via the caller, not
-// hidden). Returns null if nothing qualifies at all.
+// supports the requested aspect ratio.
+//   1. Preferred models that genuinely meet-or-exceed the target.
+//   2. Any model in the full catalog that meets-or-exceeds the target.
+//   3. If NOTHING anywhere reaches the target, whichever qualifying
+//      option actually runs the LONGEST across the whole catalog — see
+//      longestAvailable's comment for the real bug this replaced.
+// Returns null if nothing qualifies at all.
 export function pickCheapestVideoOption(models: ViewMaxModel[], targetDurationS: number, aspectRatio: string): VideoOption | null {
   const preferred = new Set(PREFERRED_MODELS);
-  const meetsTargetPreferred = cheapestAcross(models, aspectRatio, (d) => nearestDurationAtOrAbove(d, targetDurationS), preferred);
+
+  const meetsTargetPreferred = cheapestMeetingTarget(models, aspectRatio, targetDurationS, preferred);
   if (meetsTargetPreferred) return meetsTargetPreferred;
 
-  const longestPreferred = cheapestAcross(models, aspectRatio, longestDuration, preferred);
-  if (longestPreferred) return longestPreferred;
+  const meetsTargetAny = cheapestMeetingTarget(models, aspectRatio, targetDurationS);
+  if (meetsTargetAny) return meetsTargetAny;
 
-  const meetsTarget = cheapestAcross(models, aspectRatio, (d) => nearestDurationAtOrAbove(d, targetDurationS));
-  if (meetsTarget) return meetsTarget;
-  return cheapestAcross(models, aspectRatio, longestDuration);
+  return longestAvailable(models, aspectRatio);
 }
 
 // Confirmed against a real key: the field is `remainingCredits`, not
