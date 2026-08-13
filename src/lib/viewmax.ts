@@ -155,24 +155,25 @@ export type VideoOption = { model: string; duration: string | null; resolution: 
 // just generates its own fixed short output regardless of what's asked.
 // Revisit if ViewMax fixes this or confirms it's expected behaviour for
 // this model specifically.
-const UNRELIABLE_MODELS = new Set(["grok-imagine"]);
+// grok-imagine-1-5 added 2026-08-13 on real evidence: four separate real
+// submissions in one session all failed with the same
+// "ViewMax error (500): media generation failed" — at "30s" (twice, two
+// different narration lengths), then at the previously-confirmed-working
+// "20s" (once a targeted duration exclusion correctly routed to it,
+// proving the failure isn't duration-specific), all with a labelled
+// prompt structure that succeeded fine on veo-3-1-fast in the same
+// session (ruling out narration length and prompt format as the cause).
+// It worked at 20s the day before with the old prompt format, so this
+// looks like a real regression on ViewMax's/the underlying provider's
+// side, not anything fixable here. Revisit (remove the entry) once
+// ViewMax confirms/fixes it — see docs/content-factory-plan.md.
+const UNRELIABLE_MODELS = new Set(["grok-imagine", "grok-imagine-1-5"]);
 
-// Narrower than UNRELIABLE_MODELS: a specific (model, duration) combo
-// known broken, not the whole model. Found 2026-08-13 on real evidence —
-// three separate real submissions of grok-imagine-1-5 at "30s" (two
-// different narrations, one considerably shorter after the ViewMax-ceiling
-// reconciliation fix, same labelled prompt structure that succeeded fine
-// on veo-3-1-fast) all failed identically: the first two with an async
-// "media generation failed" after being accepted, the third rejected
-// synchronously with a 500 at the submission call itself. That rules out
-// narration length and prompt format as the cause and points at this
-// specific duration on this specific model being broken on ViewMax's/the
-// underlying provider's side right now. grok-imagine-1-5 at 20s worked
-// fine the day before (see docs/content-factory-plan.md) — only 30s is
-// excluded, so a target that would have picked 30s now correctly falls
-// back to 20s instead of retrying a combo with a 100% real failure rate.
-// Revisit (remove the entry) once ViewMax confirms/fixes it.
-const UNRELIABLE_MODEL_DURATIONS = new Set(["grok-imagine-1-5:30s"]);
+// Reserved for a specific (model, duration) combo known broken while the
+// rest of that model is fine — narrower than UNRELIABLE_MODELS above.
+// Currently empty: the grok-imagine-1-5:30s entry that used to live here
+// was superseded by excluding the whole model once 20s failed too.
+const UNRELIABLE_MODEL_DURATIONS = new Set<string>([]);
 
 function availableDurations(model: ViewMaxModel, durations: string[]): string[] {
   return durations.filter((d) => !UNRELIABLE_MODEL_DURATIONS.has(`${model.id}:${d}`));
