@@ -182,7 +182,17 @@ export type VideoOption = { model: string; duration: string | null; resolution: 
 // rather than assuming every model is affected; veo-3-1-fast (a
 // fixed-duration model with no duration parameter to drop) is the one
 // currently-proven-reliable option.
-const UNRELIABLE_MODELS = new Set(["grok-imagine", "grok-imagine-1-5", "p-video", "seedance-2-mini"]);
+// runway and minimax-h3 added 2026-08-14, same generic-500-at-submission
+// failure as grok-imagine-1-5 (see above) — no task ID ever issued, no
+// credits charged. That makes 5 of the 6 non-fixed-duration models tested
+// on this account broken in one of two ways (silent short-duration
+// substitution, or an outright submission failure) — a strong signal this
+// is a platform-wide issue right now, not isolated model quirks. Until
+// ViewMax confirms/fixes something, treat ANY newly-tried duration-
+// parameterized model as suspect and verify with a cheap short-duration
+// test before trusting it for a real submission — don't assume a model
+// not on this list is safe just because it hasn't been tried yet.
+const UNRELIABLE_MODELS = new Set(["grok-imagine", "grok-imagine-1-5", "p-video", "seedance-2-mini", "runway", "minimax-h3"]);
 
 // Reserved for a specific (model, duration) combo known broken while the
 // rest of that model is fine — narrower than UNRELIABLE_MODELS above.
