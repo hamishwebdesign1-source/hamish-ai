@@ -110,6 +110,15 @@ export type AffiliateProduct = {
   footage_source?: string;
   footage_status?: string;
   draft_amazon_url?: string;
+  // Real, verified facts (price/rating/review_count/badge pulled from the
+  // live listing, not guessed) — see buildSystemPrompt's comment on why
+  // these exist: grounding the script in real numbers is what replaces
+  // the fabricated personal-testing anecdotes the model reached for when
+  // given nothing concrete to work with.
+  price?: string;
+  rating?: number;
+  review_count?: number;
+  badge?: string | null;
 };
 
 function buildSystemPrompt(idea: {
@@ -123,24 +132,42 @@ function buildSystemPrompt(idea: {
   const isAffiliate = idea.content_domain === "amazon_affiliate";
 
   const archetypeIntro = isAffiliate
-    ? `You are writing a short-form Amazon product review (YouTube Shorts / TikTok) as an Amazon Associate. Write THREE distinct variants of the same product angle, each committing fully to a different retention archetype:
+    ? `You are writing a short-form Amazon product review (YouTube Shorts / TikTok) as an Amazon Associate. Write THREE distinct variants of the same product angle, each committing fully to a different retention archetype — NONE of these involve you or anyone else having used the product, see the mandatory rule below:
 
-1. "curiosity" — an open loop about the product's most surprising quality, resolved by the payoff.
-2. "shock" — a contrarian or surprising claim about the product (it beats something far more expensive, or it fails at the one thing you'd expect it to be good at), the payoff is the justification.
-3. "story" — a short real-use narrative (a specific moment using it, not a generic feature list), the hook is that moment's most striking beat.`
+1. "curiosity" — an open loop about the most surprising thing the real facts below imply (why does something this cheap have this many five-star ratings?), resolved by the payoff.
+2. "shock" — a contrarian or surprising claim built ENTIRELY from the real facts about THIS product alone (is the price surprisingly low for a rating/review-count this strong; is a weaker rating a real reason for caution rather than something to gloss over) — NEVER a comparison to any other specific product, brand, or price you were not given. If you want to gesture at "pricier alternatives" existing, that's fine only in vague, unquantified terms (e.g. "compared to pricier options") — inventing a specific competitor price or product ("a £50 electric one," "premium mats run £80-100") is exactly as fabricated as a fake personal story.
+3. "story" — NOT a first-person "I used this" narrative. Instead, a short narrative about the KIND OF PERSON or MOMENT this solves for, told in second person or observationally ("the moment your jar lid won't budge and your hands are wet") — vivid and specific about the problem, never about invented personal testing of the product.`
     : `You are writing short-form documentary-style video narration (YouTube Shorts / TikTok) for Hamish AI's content channel. Write THREE distinct variants of the same idea, each committing fully to a different retention archetype:
 
 1. "curiosity" — an open loop / curiosity-gap hook, resolved by the payoff.
 2. "shock" — a surprise or contrarian-claim hook, the payoff is the justification.
 3. "story" — a short narrative arc (a specific moment, not a generic anecdote), the hook is the story's most striking beat.`;
 
-  const productContext = isAffiliate && idea.affiliate_product ? `
-Product: ${idea.affiliate_product.product_name}${idea.affiliate_product.asin ? ` (ASIN ${idea.affiliate_product.asin})` : ""}` : "";
+  const p = idea.affiliate_product;
+  const productContext =
+    isAffiliate && p
+      ? `
+Product: ${p.product_name}${p.asin ? ` (ASIN ${p.asin})` : ""}
+Real, verified facts — this is ALL you actually know about this product, and the only material you're allowed to build claims from:
+${p.price ? `- Price: ${p.price}\n` : ""}${p.rating != null ? `- Rating: ${p.rating}/5${p.review_count != null ? ` from ${p.review_count.toLocaleString()} ratings` : ""}\n` : ""}${p.badge ? `- ${p.badge}\n` : ""}`
+      : "";
 
+  // Real bug found 2026-08-14: even with "take a genuine position"
+  // guidance, the model reached for fabricated first-person testimony
+  // ("I tested it every day for a month," "my mum has arthritis") to
+  // manufacture that opinion — presenting invented personal experience as
+  // real is a materially worse problem than the disclosure text itself
+  // (it's fake-review territory, not just a missing-label issue). Fixed
+  // by removing the option entirely: no claim may rest on invented
+  // first-person testing, and the only real material available is the
+  // verified facts above — genuine opinion has to be built FROM those
+  // real numbers (is 47,000 five-star ratings at £2.46 actually
+  // impressive? is a 3.6★ average with under 1,000 reviews a reason for
+  // real caution?), not from a story that never happened.
   const affiliateGuidance = isAffiliate
     ? `
 
-THIS IS PAID/AFFILIATE CONTENT — take a genuine position. Say who the product is actually for, who it isn't, and at least one real limitation — a review with no real opinion reads as an ad, and ads get skipped. Never claim a feature, spec, or result you don't have real basis for; nothing here should describe how the product visually looks or performs beyond what's genuinely known — the visual_description fields in scene_breakdown must describe REAL footage of the actual product (it will be sourced separately, not AI-generated), never an imagined or embellished appearance. Do not write a disclosure line yourself — one is appended automatically after this step; just write the honest review.`
+THIS IS PAID/AFFILIATE CONTENT. Do NOT invent ANY first-person purchasing or testing history — not about this product, and not about some other product you claim to have bought/tried/compared it to either ("I spent twice as much on a sharpener that..." is exactly as fabricated as "I tested this for a month," just aimed at a different item). Do NOT invent a specific competitor price, brand, or product either ("premium ones run £80-100," "a £50 electric version") — you were not given any real data about competing products, so any specific number you state about one is made up, full stop, exactly the same problem as a fake personal anecdote. Zero invented personal anecdotes, zero specific test results or failure modes, zero invented competitor facts. You have no first-hand experience with this product OR any other, and no real data on what anything else costs — don't pretend otherwise, directly or by implication. The only real material you have is the verified facts above (price, rating, review count, badge) — build a genuine, specific opinion FROM those real numbers alone: is the price remarkable for what it does, does the review count/rating combination actually mean something, is a lower rating worth flagging honestly rather than glossing over. "Reviewers say" or "at this price and this many five-star ratings" framing is fine; a vague unquantified nod to "pricier alternatives" is fine; any invented specific number or story — about this product, a competitor, or yourself — is not. Never claim a feature, spec, or visual detail you don't have real basis for — the visual_description fields in scene_breakdown must describe REAL footage of the actual product (sourced separately, not AI-generated), never an imagined or embellished appearance.`
     : "";
 
   return `${archetypeIntro}
@@ -397,89 +424,27 @@ function prepareVariant(raw: {
   };
 }
 
-// Video Affiliate Engine, Phase 0 (see the "Operating Blueprint" artifact
-// and pinterest-amazon-affiliate-project memory) — Amazon's required
-// disclosure line, exact wording. This is fixed legal text, not creative
-// copy, so it is NEVER generated or paraphrased by the AI — it's appended
-// deterministically, the same way duration is computed deterministically
-// rather than trusted to the model's own guess (see this file's header
-// comment on why that mattered for pacing).
+// Video Affiliate Engine (see the "Operating Blueprint" artifact and
+// pinterest-amazon-affiliate-project memory) — Amazon's required
+// disclosure line, exact wording. Fixed legal text, so it's never
+// generated or paraphrased by the AI.
+//
+// REDESIGNED 2026-08-14: this used to be appended into the script/video
+// prompt itself (spoken narration + a dedicated on-screen end-card
+// scene) via appendDisclosureScene/stripDisclosureScene, with strip-
+// before/re-append-after protection around every AI tightening pass so
+// the text could never be paraphrased away. That protection worked, but
+// it was solving the wrong problem: real evidence showed AI video models
+// cannot reliably RENDER precise on-screen text at all — a real
+// generated video came back reading "As an Amazon Assosintert - I eear
+// from juting purxharless". No amount of protecting the text before it
+// reaches the video model helps once the video model itself garbles it
+// on the way out, and this pipeline has no verified working voiceover
+// audio either, so the spoken half was never confirmed to reach anyone.
+// The disclosure now lives ONLY in the video's caption/description (see
+// generate-content-copy.ts) — a plain text field with zero AI-rendering
+// risk — never touching the script or the ViewMax prompt at all.
 export const AMAZON_DISCLOSURE_TEXT = "As an Amazon Associate, I earn from qualifying purchases.";
-const AMAZON_DISCLOSURE_ON_SCREEN = "Amazon Associate — I earn from qualifying purchases";
-
-// Case-insensitive, tolerant of minor phrasing drift ("I earn a
-// commission" vs "I earn", missing comma, missing trailing period) —
-// real evidence 2026-08-14: despite buildSystemPrompt explicitly saying
-// "Do not write a disclosure line yourself", the model wrote one anyway,
-// verbatim, in a scene tagged "ending" rather than "disclosure" — so
-// detecting only a beat==="disclosure" scene (the old implementation)
-// missed it entirely, and appendDisclosureScene appended a second, real
-// duplicate on top of the AI's own unprompted one. This must catch
-// disclosure text regardless of who wrote it or which beat it landed in.
-const DISCLOSURE_PATTERN = /as an amazon associate,?\s*i earn (?:a commission )?from qualifying purchases\.?/gi;
-
-// Strips ANY disclosure text (mine or the model's own, deliberate or
-// not) from every beat, then re-slices scene_breakdown from scratch
-// against the cleaned narration — reusing reallocateScenesForEditedNarration
-// rather than patching old scenes in place, since removing text from the
-// middle of `ending` invalidates the old scenes' word boundaries the same
-// way a hand-edit would. Exported alongside appendDisclosureScene for
-// callers (generate-video-prompt.ts's own ViewMax-ceiling tightening
-// pass) that need to strip before handing text to an AI rewrite call
-// themselves — an LLM asked to "rewrite this shorter" has no way to know
-// one sentence is legally non-negotiable, so it must never see it in the
-// first place. A no-op on a variant with no disclosure text anywhere.
-export function stripDisclosureScene(variant: PreparedVariant): PreparedVariant {
-  const beats: ScriptBeats = {
-    setup: variant.beats.setup.replace(DISCLOSURE_PATTERN, "").trim(),
-    escalation: variant.beats.escalation.replace(DISCLOSURE_PATTERN, "").trim(),
-    payoff: variant.beats.payoff.replace(DISCLOSURE_PATTERN, "").trim(),
-    ending: variant.beats.ending.replace(DISCLOSURE_PATTERN, "").trim(),
-  };
-  const hook = variant.hook.replace(DISCLOSURE_PATTERN, "").trim();
-  if (hook === variant.hook && beats.setup === variant.beats.setup && beats.escalation === variant.beats.escalation && beats.payoff === variant.beats.payoff && beats.ending === variant.beats.ending && !variant.scene_breakdown.some((s) => s.beat === "disclosure")) {
-    return variant; // nothing to strip anywhere — genuine no-op
-  }
-
-  const full_script = fullScriptText(hook, beats);
-  const scenesWithoutDisclosureScene = variant.scene_breakdown.filter((s) => s.beat !== "disclosure");
-  const reallocated = reallocateScenesForEditedNarration(scenesWithoutDisclosureScene, full_script);
-  const word_count = wordCount(full_script);
-  const target_duration_s = computeDurationFromWordCount(word_count);
-
-  return { ...variant, hook, beats, full_script, word_count, target_duration_s, scene_breakdown: reallocated };
-}
-
-// Appends the disclosure as both a spoken sentence (tacked onto the
-// ending beat, so it's actually narrated, not just a silent caption) and
-// its own final scene (a clean end card, on-screen text carrying the
-// same disclosure) — idempotent: always strips any existing disclosure
-// first, so this is safe to call more than once on the same variant (it
-// is: once here after generation, and again in generate-video-prompt.ts
-// after its own tightening pass, to guarantee the disclosure is the very
-// last thing done before a prompt is assembled).
-export function appendDisclosureScene(variant: PreparedVariant): PreparedVariant {
-  const clean = stripDisclosureScene(variant);
-
-  const beats: ScriptBeats = { ...clean.beats, ending: `${clean.beats.ending} ${AMAZON_DISCLOSURE_TEXT}`.trim() };
-  const full_script = fullScriptText(clean.hook, beats);
-  const word_count = wordCount(full_script);
-  const target_duration_s = computeDurationFromWordCount(word_count);
-
-  const rawScenes: RawSceneBeat[] = [
-    ...clean.scene_breakdown.map((s) => ({ order: s.order, beat: s.beat, narration_segment: s.narration_segment, visual_description: s.visual_description, on_screen_text: s.on_screen_text })),
-    {
-      order: clean.scene_breakdown.length + 1,
-      beat: "disclosure",
-      narration_segment: AMAZON_DISCLOSURE_TEXT,
-      visual_description: "Clean, static end card — legal disclosure text fully readable and unobstructed, no competing motion or overlay.",
-      on_screen_text: AMAZON_DISCLOSURE_ON_SCREEN,
-    },
-  ];
-  const scene_breakdown = allocateSceneDurations(rawScenes, target_duration_s);
-
-  return { ...clean, beats, full_script, word_count, target_duration_s, scene_breakdown };
-}
 
 // The brief's own QC point: "if the script is too long for the intended
 // format, intelligently reduce/rewrite the narration BEFORE generating
@@ -594,7 +559,6 @@ export async function generateContentScripts(ideaId: string): Promise<GenerateSc
     .eq("id", ideaId)
     .single();
   if (ideaError || !idea) return { error: "Idea not found." as const };
-  const isAffiliate = idea.content_domain === "amazon_affiliate";
 
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return { error: "ANTHROPIC_API_KEY is not configured." as const };
@@ -669,19 +633,19 @@ export async function generateContentScripts(ideaId: string): Promise<GenerateSc
     const variants = rawVariants.map(prepareVariant);
 
     // Tighten only the auto-selected winner, per the brief's cost/scope
-    // reasoning above — not every candidate. Deliberately BEFORE the
-    // disclosure is ever appended (below) — see appendDisclosureScene's
-    // comment: an AI rewrite call must never see the disclosure text, or
-    // it risks paraphrasing or dropping legally-required wording.
+    // reasoning above — not every candidate.
     const winnerIndex = variants.reduce((bestIdx, v, i) => (v.score > variants[bestIdx].score ? i : bestIdx), 0);
     variants[winnerIndex] = await tightenNarrationToWordBudget(anthropic, model, idea as { title: string; concept: string }, variants[winnerIndex], MAX_REASONABLE_WORDS);
 
-    // Applied to all three variants (not just the winner) so a manual
-    // "use this instead" override later still ships with a disclosure —
-    // see selectContentScript in admin/actions.ts.
-    if (isAffiliate) {
-      for (let i = 0; i < variants.length; i++) variants[i] = appendDisclosureScene(variants[i]);
-    }
+    // Real bug found 2026-08-14: appending the disclosure into the
+    // ViewMax prompt (spoken narration + an on-screen end card) doesn't
+    // work — AI video models garble precise on-screen text (confirmed on
+    // a real generated video: "As an Amazon Assosintert - I eear from
+    // juting purxharless"), and there's no verified real voiceover audio
+    // in this pipeline for the spoken half to reach anyone either. The
+    // disclosure now lives ONLY in the video's caption/description (see
+    // generate-content-copy.ts), a plain text field with zero AI-
+    // rendering risk — not appended to the script/video prompt at all.
 
     const { data: insertedRows, error: insertError } = await supabase
       .from("content_scripts")

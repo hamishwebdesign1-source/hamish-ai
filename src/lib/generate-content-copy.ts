@@ -3,6 +3,7 @@ import { getSupabaseAdmin } from "@/lib/supabase";
 import { stripMarkdownEmphasis } from "@/lib/strip-markdown-emphasis";
 import { logAuditEvent } from "@/lib/audit-log";
 import { recordContentUsage } from "@/lib/content-ai-usage";
+import { AMAZON_DISCLOSURE_TEXT } from "@/lib/generate-content-scripts";
 
 // Content Factory MVP Phase C (docs/content-factory-plan.md) — caption/
 // title/hashtag generation, run automatically once a video finishes
@@ -37,12 +38,17 @@ const COPY_TOOL: Anthropic.Tool = {
   },
 };
 
-function buildSystemPrompt(idea: { title: string; concept: string }, hook: string): string {
+function buildSystemPrompt(idea: { title: string; concept: string; content_domain?: string }, hook: string): string {
+  const isAffiliate = idea.content_domain === "amazon_affiliate";
+  const affiliateNote = isAffiliate
+    ? `\n\nThis is an Amazon affiliate product video. Do NOT write a disclosure line or a purchase link — both are appended automatically after this step. Do not invent a personal-testing claim in the caption either, same rule as the script itself.`
+    : "";
   return `Write short-form video metadata for Hamish AI's content channel.
 
 Idea: ${idea.title}
 Concept: ${idea.concept}
 Video hook (spoken): ${hook}
+${affiliateNote}
 
 Write a punchy title, a short caption, and 5-8 relevant hashtags. No emojis unless they genuinely add clarity, never a wall of them. Ground everything in the actual hook/concept — no generic filler.`;
 }
@@ -65,10 +71,11 @@ export async function generateContentCopy(videoId: string) {
   if (videoError || !video) return { error: "Video not found." as const };
 
   const [{ data: idea }, { data: script }] = await Promise.all([
-    supabase.from("content_ideas").select("title, concept").eq("id", video.idea_id).single(),
+    supabase.from("content_ideas").select("title, concept, content_domain").eq("id", video.idea_id).single(),
     supabase.from("content_scripts").select("hook").eq("id", video.script_id).single(),
   ]);
   if (!idea) return { error: "Idea not found." as const };
+  const isAffiliate = idea.content_domain === "amazon_affiliate";
 
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return { error: "ANTHROPIC_API_KEY is not configured." as const };
@@ -99,9 +106,23 @@ export async function generateContentCopy(videoId: string) {
     if (!toolUse) return { error: "The AI did not return copy." as const };
 
     const raw = toolUse.input as ContentCopy;
+    let caption = stripMarkdownEmphasis(String(raw.caption ?? ""));
+
+    // The disclosure's one reliable channel — see AMAZON_DISCLOSURE_TEXT's
+    // comment in generate-content-scripts.ts for why it no longer touches
+    // the script/video prompt at all. Appended deterministically, never
+    // AI-generated, same reasoning as duration being computed rather than
+    // guessed. The tracked link lives here too — affiliate links belong
+    // in a video's description, not baked into the pixels.
+    if (isAffiliate) {
+      const { data: link } = await supabase.from("affiliate_links").select("slug").eq("idea_id", video.idea_id).eq("active", true).maybeSingle();
+      const linkLine = link ? `\n\nShop it: https://www.hamishai.org/go/${link.slug}` : "";
+      caption = `${caption}${linkLine}\n\n${AMAZON_DISCLOSURE_TEXT}`;
+    }
+
     const copy: ContentCopy = {
       title: stripMarkdownEmphasis(String(raw.title ?? "")),
-      caption: stripMarkdownEmphasis(String(raw.caption ?? "")),
+      caption,
       hashtags: toStringArray(raw.hashtags),
     };
     const generatedAt = new Date().toISOString();
