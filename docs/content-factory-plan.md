@@ -22,6 +22,18 @@ Two real bugs, both fixed:
 
 Reordered priority: preferred-model duration-adequacy no longer beats a non-preferred model that actually reaches the target — a rushed "trusted" video is a worse result than a full-length one from a lower-trust model, which is the entire point of the narration-first work this bug was undermining. Verified against the live model catalog: a 36s target now correctly selects `grok-imagine-1-5` at a real 30s/90 credits instead of `veo-3-1-fast`'s fixed 8s/30 credits. Trade-off worth flagging: grok-imagine-1-5 was the model Hamish previously called "rushed, unfinished, clearly AI" in earlier testing — that complaint may have been more about duration mismatch than raw output quality (it's now getting a real 30s to work with instead of 10s), but it hasn't been re-verified on rendering quality alone since; watch the next few real approvals.
 
+## Real products + honest scripts, disclosure redesign (2026-08-14)
+
+Hamish caught two real problems reviewing the first batch: the disclosure end-card text came back garbled/illegible on a real generated video ("As an Amazon Assosintert - I eear from juting purxharless" — AI video models can't reliably render precise on-screen text), and none of the 5 ideas were anchored to an actual purchasable product — everything was a generic AI-imagined concept.
+
+**Real products**: found and live-verified (navigated the actual amazon.co.uk listings, not just search snippets) real, in-stock, genuinely-under-£20 products for all 5 — catching two problems along the way (the first vegetable chopper candidate was actually £27.99 live despite a search snippet claiming £19.99; the first jar opener candidate was out of stock). `content_ideas.affiliate_product` now carries real product_name/asin/price/rating/review_count/badge; `affiliate_links` has a real tracked `/go/{slug}` link per idea (no Associates tag yet — none exists — but ready the moment one does).
+
+**Disclosure redesign**: moved out of the script/video-prompt entirely (see the commit for the full reasoning) into the video's caption/description, appended deterministically in `generate-content-copy.ts` — a plain text field with zero AI-rendering risk, alongside the tracked link.
+
+**Anti-fabrication rewrite**: scripts were inventing first-person testing narratives to manufacture "genuine opinion" — real evidence of fake-review-style fabrication, not just a missing disclosure. Rewrote the prompt so every claim must trace to real verified facts (price/rating/review count) instead. Found and closed two real loopholes on the first fix attempt (fabricated anecdotes about *other* products; invented competitor pricing) by inspecting actual output — the "story" archetype's own definition ("a real-use narrative") directly conflicted with the new rule and had to be reworked to observational/second-person framing. Verified clean across all 5 real scripts on the second pass.
+
+The 5 videos from the first batch are pulled from the review queue (`status: needs_review`, not deleted) since they're now superseded by both problems. Fresh scripts + prompts are regenerated and `ready_for_video`; new ViewMax submissions not yet made — that's a real cost decision, pending confirmation.
+
 ## First real affiliate batch shipped (2026-08-14)
 
 5 kitchen-gadget ideas (topic "kitchen gadgets under £20") went end-to-end for real: idea → research/scoring → script generation (product-review framing, genuine opinion required) → video prompt → real ViewMax submission via `veo-3-1-fast` (the only reliable model on this account) → stored, reviewable at `/admin/content-factory`. All 5 succeeded, 30 credits each (150 total).
