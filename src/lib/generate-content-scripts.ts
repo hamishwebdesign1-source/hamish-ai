@@ -407,31 +407,47 @@ function prepareVariant(raw: {
 export const AMAZON_DISCLOSURE_TEXT = "As an Amazon Associate, I earn from qualifying purchases.";
 const AMAZON_DISCLOSURE_ON_SCREEN = "Amazon Associate — I earn from qualifying purchases";
 
-// Removes a previously-appended disclosure scene/sentence, if present, so
-// a narration-tightening pass (generate-content-scripts.ts's own QC pass,
-// or generate-video-prompt.ts's ViewMax-ceiling reconciliation) never has
-// a chance to paraphrase, shorten, or drop legally-required text — an LLM
-// asked to "rewrite this shorter" has no way to know one sentence in the
-// middle is non-negotiable. appendDisclosureScene (below) always strips
-// first, then re-appends fresh, so the disclosure survives ANY number of
-// tightening passes intact rather than depending on the AI to protect it.
-// A no-op on a variant with no disclosure present. Exported alongside
-// appendDisclosureScene for callers (generate-video-prompt.ts's own
-// ViewMax-ceiling tightening pass) that need to strip before handing
-// text to an AI rewrite call themselves, rather than going through
-// appendDisclosureScene's own built-in strip-then-append.
-export function stripDisclosureScene(variant: PreparedVariant): PreparedVariant {
-  if (!variant.scene_breakdown.some((s) => s.beat === "disclosure")) return variant;
+// Case-insensitive, tolerant of minor phrasing drift ("I earn a
+// commission" vs "I earn", missing comma, missing trailing period) —
+// real evidence 2026-08-14: despite buildSystemPrompt explicitly saying
+// "Do not write a disclosure line yourself", the model wrote one anyway,
+// verbatim, in a scene tagged "ending" rather than "disclosure" — so
+// detecting only a beat==="disclosure" scene (the old implementation)
+// missed it entirely, and appendDisclosureScene appended a second, real
+// duplicate on top of the AI's own unprompted one. This must catch
+// disclosure text regardless of who wrote it or which beat it landed in.
+const DISCLOSURE_PATTERN = /as an amazon associate,?\s*i earn (?:a commission )?from qualifying purchases\.?/gi;
 
-  const beats: ScriptBeats = { ...variant.beats, ending: variant.beats.ending.replace(AMAZON_DISCLOSURE_TEXT, "").trim() };
-  const full_script = fullScriptText(variant.hook, beats);
+// Strips ANY disclosure text (mine or the model's own, deliberate or
+// not) from every beat, then re-slices scene_breakdown from scratch
+// against the cleaned narration — reusing reallocateScenesForEditedNarration
+// rather than patching old scenes in place, since removing text from the
+// middle of `ending` invalidates the old scenes' word boundaries the same
+// way a hand-edit would. Exported alongside appendDisclosureScene for
+// callers (generate-video-prompt.ts's own ViewMax-ceiling tightening
+// pass) that need to strip before handing text to an AI rewrite call
+// themselves — an LLM asked to "rewrite this shorter" has no way to know
+// one sentence is legally non-negotiable, so it must never see it in the
+// first place. A no-op on a variant with no disclosure text anywhere.
+export function stripDisclosureScene(variant: PreparedVariant): PreparedVariant {
+  const beats: ScriptBeats = {
+    setup: variant.beats.setup.replace(DISCLOSURE_PATTERN, "").trim(),
+    escalation: variant.beats.escalation.replace(DISCLOSURE_PATTERN, "").trim(),
+    payoff: variant.beats.payoff.replace(DISCLOSURE_PATTERN, "").trim(),
+    ending: variant.beats.ending.replace(DISCLOSURE_PATTERN, "").trim(),
+  };
+  const hook = variant.hook.replace(DISCLOSURE_PATTERN, "").trim();
+  if (hook === variant.hook && beats.setup === variant.beats.setup && beats.escalation === variant.beats.escalation && beats.payoff === variant.beats.payoff && beats.ending === variant.beats.ending && !variant.scene_breakdown.some((s) => s.beat === "disclosure")) {
+    return variant; // nothing to strip anywhere — genuine no-op
+  }
+
+  const full_script = fullScriptText(hook, beats);
+  const scenesWithoutDisclosureScene = variant.scene_breakdown.filter((s) => s.beat !== "disclosure");
+  const reallocated = reallocateScenesForEditedNarration(scenesWithoutDisclosureScene, full_script);
   const word_count = wordCount(full_script);
   const target_duration_s = computeDurationFromWordCount(word_count);
-  const rawScenes: RawSceneBeat[] = variant.scene_breakdown
-    .filter((s) => s.beat !== "disclosure")
-    .map((s) => ({ order: s.order, beat: s.beat, narration_segment: s.narration_segment, visual_description: s.visual_description, on_screen_text: s.on_screen_text }));
 
-  return { ...variant, beats, full_script, word_count, target_duration_s, scene_breakdown: allocateSceneDurations(rawScenes, target_duration_s) };
+  return { ...variant, hook, beats, full_script, word_count, target_duration_s, scene_breakdown: reallocated };
 }
 
 // Appends the disclosure as both a spoken sentence (tacked onto the
@@ -492,39 +508,76 @@ export async function tightenNarrationToWordBudget(
 ): Promise<PreparedVariant> {
   if (variant.word_count <= maxWords) return variant;
 
-  try {
-    const response = await anthropic.messages.create({
-      model,
-      max_tokens: 1500,
-      system: `This short-form video narration for "${idea.title}" (${idea.concept}) came out at ${variant.word_count} words — too long for a short-form video even at a natural conversational pace (roughly ${Math.round(variant.target_duration_s)}s). Rewrite it shorter by cutting the weakest beat or tightening sentences — never by truncating mid-sentence or removing words from a sentence you keep. Every sentence in your rewrite must still be complete and natural. Aim for well under ${maxWords} words while keeping the hook, the core turn, and the payoff intact.
+  // Real bug found 2026-08-14: this used to accept ANY reduction
+  // ("tightened.word_count < variant.word_count"), not one that actually
+  // reached maxWords. For a modest cut (170 -> 130 words) that's close
+  // enough not to matter. For a severe one — e.g. a 30-50s script forced
+  // down to veo-3-1-fast's real 8s (~17 words) after every longer-duration
+  // ViewMax model turned out unreliable — a single pass asked to "keep the
+  // hook, the core turn, and the payoff intact" structurally can't comply
+  // AND hit 17 words at once, so it just partially shortens (say to 70
+  // words) and that got accepted as "done", leaving the video nowhere near
+  // the length it would actually be generated at. Now retries up to 3
+  // times, escalating the instruction each time, and for a genuinely
+  // extreme compression (under ~35 words — too short to sustain 5 distinct
+  // beats at all) tells the model to collapse into one continuous punchy
+  // line instead of preserving the beat structure. Keeps whichever
+  // attempt landed closest to maxWords without going under it by more
+  // than a token or two's worth (2 words) of slack, never something that
+  // still overshoots by more than a small tolerance.
+  const TOLERANCE_WORDS = 5;
+  let best = variant;
 
-Current hook: ${variant.hook}
-Current setup: ${variant.beats.setup}
-Current escalation: ${variant.beats.escalation}
-Current payoff: ${variant.beats.payoff}
-Current ending: ${variant.beats.ending}
-Character consistency (keep as-is if present): ${variant.character_consistency || "none"}
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    const current = attempt === 1 ? variant : best;
+    if (current.word_count <= maxWords + TOLERANCE_WORDS) break; // already close enough
 
-Then re-do the scene_breakdown for your shortened narration, same rules as before: narration_segment is a verbatim quote, segments concatenate back to the full shortened narration, one clear shot per scene, short punchy captions.`,
-      tools: [TIGHTEN_TOOL],
-      tool_choice: { type: "tool", name: "submit_tightened_script" },
-      messages: [{ role: "user", content: "Rewrite it shorter and submit." }],
-    });
+    const extreme = maxWords < 35;
+    const instruction = extreme
+      ? `This needs to fit an ~${maxWords}-word, single-shot video — too short to sustain a hook/setup/escalation/payoff/ending structure at all. Collapse it into ONE tight, punchy, complete statement (still natural, still true to the product) rather than a multi-beat story. Put that single line in "hook" and leave setup/escalation/payoff/ending as empty strings — do not force distinct beats that don't fit.`
+      : `Rewrite it shorter by cutting the weakest beat or tightening sentences — never by truncating mid-sentence or removing words from a sentence you keep. Every sentence in your rewrite must still be complete and natural. Aim for well under ${maxWords} words while keeping the hook, the core turn, and the payoff intact.`;
+    const retryNote = attempt > 1 ? ` Your previous attempt came back at ${current.word_count} words — still well over the ${maxWords}-word budget. Cut harder this time; a review is not required to keep every beat.` : "";
 
-    await recordContentUsage({ stage: "script_generation", provider: "anthropic", units: response.usage.input_tokens + response.usage.output_tokens, unitType: "tokens" });
+    try {
+      const response = await anthropic.messages.create({
+        model,
+        max_tokens: 1500,
+        system: `This short-form video narration for "${idea.title}" (${idea.concept}) came out at ${current.word_count} words — too long for a short-form video even at a natural conversational pace. ${instruction}${retryNote}
 
-    const toolUse = response.content.find((block): block is Anthropic.ToolUseBlock => block.type === "tool_use");
-    if (!toolUse) return variant; // best-effort — keep the original rather than fail the whole generation over a polish pass
+Current hook: ${current.hook}
+Current setup: ${current.beats.setup}
+Current escalation: ${current.beats.escalation}
+Current payoff: ${current.beats.payoff}
+Current ending: ${current.beats.ending}
+Character consistency (keep as-is if present): ${current.character_consistency || "none"}
 
-    const raw = toolUse.input as { hook: string; beats: ScriptBeats; scene_breakdown: RawSceneBeat[]; character_consistency: string };
-    const tightened = prepareVariant({ ...raw, style: variant.style, score: variant.score, score_rationale: variant.score_rationale });
-    // Only use the tightened version if it actually helped — a rewrite
-    // that came back longer than it started is worse than the original.
-    return tightened.word_count < variant.word_count ? tightened : variant;
-  } catch (error) {
-    console.error("Narration tightening pass failed (keeping original):", error);
-    return variant;
+Then re-do the scene_breakdown for your shortened narration, same rules as before: narration_segment is a verbatim quote, segments concatenate back to the full shortened narration, one clear shot per scene, short punchy captions. Never write a disclosure/sponsorship line yourself — that is added separately.`,
+        tools: [TIGHTEN_TOOL],
+        tool_choice: { type: "tool", name: "submit_tightened_script" },
+        messages: [{ role: "user", content: "Rewrite it shorter and submit." }],
+      });
+
+      await recordContentUsage({ stage: "script_generation", provider: "anthropic", units: response.usage.input_tokens + response.usage.output_tokens, unitType: "tokens" });
+
+      const toolUse = response.content.find((block): block is Anthropic.ToolUseBlock => block.type === "tool_use");
+      if (!toolUse) break; // best-effort — keep the best attempt so far rather than fail the whole generation
+
+      const raw = toolUse.input as { hook: string; beats: ScriptBeats; scene_breakdown: RawSceneBeat[]; character_consistency: string };
+      const tightened = prepareVariant({ ...raw, style: variant.style, score: variant.score, score_rationale: variant.score_rationale });
+      // Only keep it if it actually helped — a rewrite that came back
+      // longer than the current best is worse, not better.
+      if (tightened.word_count < best.word_count) best = tightened;
+    } catch (error) {
+      console.error(`Narration tightening pass (attempt ${attempt}) failed (keeping best attempt so far):`, error);
+      break;
+    }
   }
+
+  if (best.word_count > maxWords + TOLERANCE_WORDS) {
+    console.error(`tightenNarrationToWordBudget: best attempt for "${idea.title}" still ${best.word_count} words against a ${maxWords}-word budget after 3 tries — shipping it anyway rather than blocking, but the video's real duration won't match this narration's natural length.`);
+  }
+
+  return best;
 }
 
 export type GenerateScriptsResult =
