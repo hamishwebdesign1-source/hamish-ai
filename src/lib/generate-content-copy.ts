@@ -40,8 +40,15 @@ const COPY_TOOL: Anthropic.Tool = {
 
 function buildSystemPrompt(idea: { title: string; concept: string; content_domain?: string }, hook: string): string {
   const isAffiliate = idea.content_domain === "amazon_affiliate";
+  // Real bug found 2026-08-14, live: this note used to be a one-line
+  // aside and the AI still wrote "We tested it on a genuinely stuck
+  // lid" / "Weeks later — still misting perfectly" into real published
+  // captions — the exact fabricated-testing problem just fixed in
+  // generate-content-scripts.ts's own prompt, just leaking through a
+  // second, under-hardened prompt instead. Give this one the same real
+  // weight, not an afterthought.
   const affiliateNote = isAffiliate
-    ? `\n\nThis is an Amazon affiliate product video. Do NOT write a disclosure line or a purchase link — both are appended automatically after this step. Do not invent a personal-testing claim in the caption either, same rule as the script itself.`
+    ? `\n\nThis is Amazon affiliate content. Do NOT write a disclosure line or a purchase link — both are appended automatically after this step. Do NOT invent any personal-testing claim or timeframe — no "we tested," "weeks later," "still going strong," or any implication you or anyone tried this product over any period of time. You have no first-hand experience with it. Build the caption from the same real facts the hook is grounded in (price, rating, review count) — a real number or a genuine question is fine, an invented experience is not.`
     : "";
   return `Write short-form video metadata for Hamish AI's content channel.
 
