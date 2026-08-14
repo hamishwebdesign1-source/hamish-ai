@@ -585,10 +585,33 @@ export async function generateContentScripts(ideaId: string): Promise<GenerateSc
       return { error: "The scripting agent's response was cut off before completing — try again." as const };
     }
 
-    const { variants: rawVariants } = toolUse.input as {
+    const { variants: allRawVariants } = toolUse.input as {
       variants: { style: "curiosity" | "shock" | "story"; hook: string; beats: ScriptBeats; scene_breakdown: RawSceneBeat[]; character_consistency: string; score: number; score_rationale: string }[];
     };
-    if (!rawVariants?.length) return { error: "The AI returned no script variants." as const };
+    if (!allRawVariants?.length) return { error: "The AI returned no script variants." as const };
+
+    // Real bug found 2026-08-14: despite scene_breakdown being a required
+    // field in SCENE_BREAKDOWN_SCHEMA, a real response omitted it entirely
+    // on one of three variants, crashing prepareVariant with a bare
+    // TypeError deep inside stripScenes. Same class of issue already
+    // documented in research-content-idea.ts (Haiku not strictly honouring
+    // a declared schema) — defend the same way: validate each variant
+    // before use and drop the malformed ones rather than crash the whole
+    // generation over one bad variant when the other two are fine.
+    const rawVariants = allRawVariants.filter((v) => {
+      const valid =
+        typeof v.hook === "string" &&
+        v.beats &&
+        typeof v.beats.setup === "string" &&
+        typeof v.beats.escalation === "string" &&
+        typeof v.beats.payoff === "string" &&
+        typeof v.beats.ending === "string" &&
+        Array.isArray(v.scene_breakdown) &&
+        v.scene_breakdown.length > 0;
+      if (!valid) console.error(`generateContentScripts: dropping a malformed variant for idea ${ideaId} (style=${v.style ?? "unknown"}) — missing/invalid required fields.`);
+      return valid;
+    });
+    if (!rawVariants.length) return { error: "The AI's script variants were all malformed — try again." as const };
 
     const variants = rawVariants.map(prepareVariant);
 
