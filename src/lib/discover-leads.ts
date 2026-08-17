@@ -178,6 +178,10 @@ export type DiscoverLeadsResult =
       // from `error`, since this isn't a failure, it's the cap working as
       // designed. undefined for a run that wasn't limited.
       limitReached?: { used: number; limit: number };
+      // Set when a non-internal org has no active subscription and its
+      // trial has ended — checked before limitReached, since these need
+      // different messages ("subscribe" vs "wait until next month").
+      billingRequired?: boolean;
     };
 
 // orgId is required, not defaulted — a cron or Server Action calling this
@@ -196,7 +200,7 @@ export async function discoverLeads(orgId: string): Promise<DiscoverLeadsResult>
 
   const { data: org, error: orgError } = await supabase
     .from("organisations")
-    .select("prospecting_config, is_internal, plan")
+    .select("prospecting_config, is_internal, plan, subscription_status, trial_ends_at")
     .eq("id", orgId)
     .single();
   if (orgError || !org) {
@@ -206,6 +210,20 @@ export async function discoverLeads(orgId: string): Promise<DiscoverLeadsResult>
   const config = (org.prospecting_config ?? {}) as { categories?: string[]; areas?: string[] };
   const categories = config.categories?.length ? config.categories : DEFAULT_CATEGORIES;
   const areas = config.areas?.length ? config.areas : DEFAULT_AREAS;
+
+  // Checked before usage (a lapsed trial should say "subscribe," not
+  // "you've hit your limit" — a more useful and more honest message).
+  // HamishAI's own organisation is exempt (subscription_status was set to
+  // 'active' once, at is_internal = true, in
+  // schema-platform-billing.sql) — the same is_internal branch every
+  // other billing/usage check in this function already uses, not a
+  // separate special case.
+  if (!org.is_internal) {
+    const billingOk = org.subscription_status === "active" || (org.subscription_status === "trialing" && new Date(org.trial_ends_at) > new Date());
+    if (!billingOk) {
+      return { inserted: [], skippedDuplicates: [], searchFailures: [], pairsSearched: [], billingRequired: true };
+    }
+  }
 
   // HamishAI's own organisation is never capped (see usage-limits.ts's own
   // comment on why that's the caller's job, not getUsageStatus()'s). For

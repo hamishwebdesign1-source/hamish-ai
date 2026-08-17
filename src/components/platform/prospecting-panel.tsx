@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState, useTransition } from "react";
 import { Search, ExternalLink, LoaderCircle, CircleAlert, Tag, MapPin, UserPlus } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
@@ -206,6 +207,16 @@ export function ProspectingPanel({
 
       {runResult && "error" in runResult && (
         <p className="text-sm text-destructive">{runResult.error}</p>
+      )}
+      {runResult && "billingRequired" in runResult && runResult.billingRequired && (
+        <p className="flex items-center gap-1.5 text-sm text-destructive">
+          <CircleAlert className="size-4 shrink-0" />
+          Your trial has ended.{" "}
+          <Link href="/studio/billing" className="underline underline-offset-2">
+            Subscribe to keep finding prospects
+          </Link>
+          .
+        </p>
       )}
       {runResult && "limitReached" in runResult && runResult.limitReached && (
         <p className="flex items-center gap-1.5 text-sm text-destructive">

@@ -86,6 +86,54 @@ export async function POST(request: Request) {
     } else {
       logInfo("stripe_webhook.subscription_status_synced", { stripe_subscription_id: subscription.id, status: subscription.status });
     }
+
+    // A stripe_subscription_id belongs to exactly one of clients or
+    // organisations, never both, so trying both here (rather than
+    // branching on event metadata) is a harmless no-op on whichever
+    // table this particular subscription isn't in — same pattern as the
+    // dual "clients"/"organisations" checks throughout this Week's work.
+    const { error: orgError } = await supabase
+      .from("organisations")
+      .update({ subscription_status: subscription.status })
+      .eq("stripe_subscription_id", subscription.id);
+    if (orgError) {
+      logError("stripe_webhook.platform_subscription_status_sync_failed", { stripe_subscription_id: subscription.id, message: orgError.message });
+    }
+  }
+
+  // The Agency Platform's own checkout completing — clients never go
+  // through Checkout (subscription.ts creates their subscription directly
+  // from /admin), so this event type is exclusively a platform-tenant
+  // signal. org_id travels in the session's own metadata (set in
+  // createPlatformCheckoutSession) rather than being looked up any other
+  // way, since this is the first moment a stripe_customer_id exists to
+  // look anything up by.
+  if (event.type === "checkout.session.completed") {
+    const session = event.data.object as Stripe.Checkout.Session;
+    const orgId = session.metadata?.org_id;
+    const plan = session.metadata?.platform_plan;
+
+    if (orgId && session.mode === "subscription") {
+      const customerId = typeof session.customer === "string" ? session.customer : session.customer?.id;
+      const subscriptionId = typeof session.subscription === "string" ? session.subscription : session.subscription?.id;
+
+      const { error } = await supabase
+        .from("organisations")
+        .update({
+          stripe_customer_id: customerId,
+          stripe_subscription_id: subscriptionId,
+          ...(plan ? { plan } : {}),
+          subscription_status: "active",
+        })
+        .eq("id", orgId);
+
+      if (error) {
+        logError("stripe_webhook.platform_checkout_sync_failed", { org_id: orgId, message: error.message });
+        await sendErrorAlert("Stripe webhook", `Agency Platform checkout completed for org ${orgId} but failed to save it: ${error.message}`);
+      } else {
+        logInfo("stripe_webhook.platform_subscription_started", { org_id: orgId, plan });
+      }
+    }
   }
 
   // Only `.id` is read from the invoice payload below — that's present in

@@ -10,15 +10,23 @@ import { logInfo, logError } from "@/lib/structured-log";
 // tenant on that tier, which is what Stripe Checkout against a catalog
 // Price is built for.
 //
-// Not called from anywhere yet — Week 4's onboarding wizard is what wires
-// a "Subscribe" button to this. Built now because it's a thin, self-
-// contained slice once the Price catalog exists, and having it ready
-// removes it from Week 4's critical path.
+// Wired to a real "Subscribe" button from Week 6's /studio/billing.
 //
 // charge_automatically (Checkout's default), not send_invoice — unlike
 // HamishAI's own clients, a self-serve Agency Platform signup is expected
 // to enter a card as part of checkout itself, not be invoiced afterwards.
-export async function createPlatformCheckoutSession(planSlug: PlatformPlanSlug, email: string, successUrl: string, cancelUrl: string) {
+//
+// orgId travels in metadata rather than being looked up from the
+// customer afterwards — the webhook's checkout.session.completed handler
+// needs to know which organisation this payment belongs to before any
+// stripe_customer_id has been saved anywhere to look it up by.
+export async function createPlatformCheckoutSession(
+  planSlug: PlatformPlanSlug,
+  email: string,
+  successUrl: string,
+  cancelUrl: string,
+  orgId: string
+) {
   const stripe = getStripe();
   if (!stripe) return { error: "Stripe is not configured." as const };
 
@@ -35,7 +43,7 @@ export async function createPlatformCheckoutSession(planSlug: PlatformPlanSlug, 
       line_items: [{ price: priceId, quantity: 1 }],
       success_url: successUrl,
       cancel_url: cancelUrl,
-      metadata: { platform_plan: planSlug },
+      metadata: { platform_plan: planSlug, org_id: orgId },
     });
 
     logInfo("platform_checkout.session_created", { plan: planSlug, session_id: session.id });

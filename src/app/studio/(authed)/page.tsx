@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Search, Users, FileText, CheckCircle2 } from "lucide-react";
+import { Search, Users, FileText, CreditCard, CheckCircle2 } from "lucide-react";
 import { createServerSupabaseClient } from "@/lib/supabase-server-auth";
 import { getOrgMembership } from "@/lib/org-membership";
 import { Card, CardContent } from "@/components/ui/card";
@@ -8,9 +8,8 @@ import { Eyebrow } from "@/components/eyebrow";
 import { Badge } from "@/components/ui/badge";
 
 // The end of the onboarding journey (Section 5, step 6 — "workspace
-// generated"). Week 5 adds the first real piece past this confirmation
-// screen — prospecting, at /studio/prospects. Client management and
-// reporting stay "coming soon" until they're actually built.
+// generated"). Prospecting, client management and billing are real past
+// this confirmation screen now — reporting is still the one "coming soon."
 export default async function StudioHomePage() {
   const supabase = await createServerSupabaseClient();
   const {
@@ -36,8 +35,7 @@ export default async function StudioHomePage() {
         Welcome to {org?.name ?? "your agency"}.
       </h1>
       <p className="mt-2 text-muted-foreground">
-        Your workspace is set up. Prospecting, client management and reporting land here next — you&apos;ll get
-        access as part of the private beta.
+        Find prospects, convert them into clients, and manage your subscription — all from here.
       </p>
 
       <div className="mt-8 flex flex-wrap gap-2">
@@ -61,7 +59,7 @@ export default async function StudioHomePage() {
         </Card>
       )}
 
-      <div className="mt-6 grid gap-3 sm:grid-cols-3">
+      <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Link href="/studio/prospects" className="rounded-xl border border-accent/40 bg-accent/5 p-4 text-center transition-colors hover:bg-accent/10">
           <Search className="mx-auto size-5 text-accent" />
           <p className="mt-2 font-heading text-sm font-semibold">Prospecting</p>
@@ -70,6 +68,11 @@ export default async function StudioHomePage() {
         <Link href="/studio/clients" className="rounded-xl border border-accent/40 bg-accent/5 p-4 text-center transition-colors hover:bg-accent/10">
           <Users className="mx-auto size-5 text-accent" />
           <p className="mt-2 font-heading text-sm font-semibold">Client management</p>
+          <p className="mt-1 font-mono text-[11px] tracking-wide text-accent uppercase">Ready</p>
+        </Link>
+        <Link href="/studio/billing" className="rounded-xl border border-accent/40 bg-accent/5 p-4 text-center transition-colors hover:bg-accent/10">
+          <CreditCard className="mx-auto size-5 text-accent" />
+          <p className="mt-2 font-heading text-sm font-semibold">Billing</p>
           <p className="mt-1 font-mono text-[11px] tracking-wide text-accent uppercase">Ready</p>
         </Link>
         {[
