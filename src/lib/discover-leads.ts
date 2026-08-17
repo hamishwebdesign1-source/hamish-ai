@@ -19,7 +19,16 @@ import { logAuditEvent } from "@/lib/audit-log";
 // Real category/neighbourhood values already in the prospects table (see
 // the query run when this was built) — keeps discovered leads in the same
 // vocabulary as manually-added ones instead of inventing new labels.
-const TARGET_CATEGORIES = [
+//
+// Used as a fallback only, for an organisation with no prospecting_config
+// of its own yet (a brand-new Agency Platform signup mid-onboarding).
+// HamishAI's own organisation has this exact list — value for value — in
+// its prospecting_config column as of
+// schema-fix-internal-org-prospecting-config.sql, so its weekly cron reads
+// the same categories/areas it always has; the constants stay here only as
+// the default a new org starts from, not as HamishAI's actual source of
+// truth anymore.
+const DEFAULT_CATEGORIES = [
   "Cafe",
   "Restaurant",
   "Trades (Joiner)",
@@ -32,7 +41,7 @@ const TARGET_CATEGORIES = [
   "Independent Retailer (Gifts)",
 ];
 
-const TARGET_AREAS = [
+const DEFAULT_AREAS = [
   "Edinburgh",
   "Leith",
   "Morningside",
@@ -92,8 +101,13 @@ function normaliseName(name: string): string {
 // category x area grid a few pairs at a time across weeks, so the same
 // combination isn't re-searched every run without needing to persist
 // "where we got to" anywhere.
-function pickPairsForWeek(weekIndex: number, count: number): { category: string; area: string }[] {
-  const allPairs = TARGET_CATEGORIES.flatMap((category) => TARGET_AREAS.map((area) => ({ category, area })));
+function pickPairsForWeek(
+  categories: string[],
+  areas: string[],
+  weekIndex: number,
+  count: number
+): { category: string; area: string }[] {
+  const allPairs = categories.flatMap((category) => areas.map((area) => ({ category, area })));
   const start = (weekIndex * count) % allPairs.length;
   const pairs: { category: string; area: string }[] = [];
   for (let i = 0; i < count; i++) {
@@ -159,14 +173,41 @@ export type DiscoverLeadsResult =
       pairsSearched: { category: string; area: string }[];
     };
 
-export async function discoverLeads(): Promise<DiscoverLeadsResult> {
+// orgId is required, not defaulted — a cron or Server Action calling this
+// must say explicitly which organisation it's discovering for, the same
+// "explicit over implicit" call made everywhere else org_id shows up in
+// this codebase (see schema-backfill-internal-org.sql's own reasoning for
+// why the column default exists but application code shouldn't lean on
+// it). /api/cron/lead-discovery passes HAMISHAI_ORG_ID explicitly; a
+// future /studio "find prospects" action passes the signed-in org's own id.
+export async function discoverLeads(orgId: string): Promise<DiscoverLeadsResult> {
   const supabase = getSupabaseAdmin();
   if (!supabase) return { error: "Supabase is not configured." as const };
 
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return { error: "ANTHROPIC_API_KEY is not configured." as const };
 
-  const { data: existing, error: existingError } = await supabase.from("prospects").select("business_name");
+  const { data: org, error: orgError } = await supabase
+    .from("organisations")
+    .select("prospecting_config")
+    .eq("id", orgId)
+    .single();
+  if (orgError || !org) {
+    console.error("Failed to load organisation for lead discovery:", orgError);
+    return { error: "Organisation not found." as const };
+  }
+  const config = (org.prospecting_config ?? {}) as { categories?: string[]; areas?: string[] };
+  const categories = config.categories?.length ? config.categories : DEFAULT_CATEGORIES;
+  const areas = config.areas?.length ? config.areas : DEFAULT_AREAS;
+
+  // Scoped to this org only — an org's own dedup must never treat another
+  // org's prospects (e.g. HamishAI's own ~100+ rows) as already-found,
+  // which is what an unscoped select here would have done the moment a
+  // second organisation started using this function.
+  const { data: existing, error: existingError } = await supabase
+    .from("prospects")
+    .select("business_name")
+    .eq("org_id", orgId);
   if (existingError) {
     console.error("Failed to fetch existing prospects for dedup:", existingError);
     return { error: "Failed to fetch existing leads." as const };
@@ -175,7 +216,7 @@ export async function discoverLeads(): Promise<DiscoverLeadsResult> {
 
   const anthropic = new Anthropic({ apiKey });
   const model = process.env.ANTHROPIC_MODEL || "claude-haiku-4-5-20251001";
-  const pairs = pickPairsForWeek(isoWeekIndex(new Date()), PAIRS_PER_RUN);
+  const pairs = pickPairsForWeek(categories, areas, isoWeekIndex(new Date()), PAIRS_PER_RUN);
 
   const inserted: { business_name: string; category: string; neighbourhood: string }[] = [];
   const skippedDuplicates: string[] = [];
@@ -207,6 +248,7 @@ export async function discoverLeads(): Promise<DiscoverLeadsResult> {
       const { data: lead, error: insertError } = await supabase
         .from("prospects")
         .insert({
+          org_id: orgId,
           business_name: candidate.business_name,
           category,
           neighbourhood: area,

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { discoverLeads } from "@/lib/discover-leads";
 import { sendErrorAlert } from "@/lib/send-error-alert";
 import { recordCronRun } from "@/lib/record-cron-run";
+import { HAMISHAI_ORG_ID } from "@/lib/org-membership";
 
 // Triggered weekly by the Vercel Cron job in vercel.json. Same shared-secret
 // pattern as every other cron route (see site-checks/route.ts) — no user
@@ -14,7 +15,9 @@ export async function GET(request: Request) {
   }
 
   try {
-    const result = await discoverLeads();
+    // HamishAI's own weekly run, explicit rather than relying on the
+    // org_id column default — see discoverLeads()'s own comment on why.
+    const result = await discoverLeads(HAMISHAI_ORG_ID);
     if ("error" in result) {
       console.error("Lead discovery cron failed:", result.error);
       await sendErrorAlert("Weekly lead-discovery cron", result.error);

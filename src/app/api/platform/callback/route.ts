@@ -1,0 +1,51 @@
+import { NextResponse } from "next/server";
+import { createServerSupabaseClient } from "@/lib/supabase-server-auth";
+import { getOrgMembership } from "@/lib/org-membership";
+import { logInfo, logWarn } from "@/lib/structured-log";
+
+// Same two-format handling as /api/portal/callback (PKCE code vs.
+// token_hash+type) — see that file's own comment for why both exist.
+// What's genuinely different: /portal/callback always sends a matched
+// session straight to /portal, because a client with no client_members
+// row simply has no access. Here, no membership yet is the *expected*
+// first-time path, not an error state — it means "verified, but hasn't
+// finished onboarding," so it branches to /platform/onboarding instead of
+// showing a dead end.
+export async function GET(request: Request) {
+  const { searchParams, origin } = new URL(request.url);
+  const code = searchParams.get("code");
+  const tokenHash = searchParams.get("token_hash");
+  const type = searchParams.get("type");
+
+  const supabase = await createServerSupabaseClient();
+
+  let email: string | null = null;
+
+  if (code) {
+    const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+    if (!error) {
+      email = data.user?.email ?? null;
+      logInfo("platform_auth.login_success", { email, method: "code" });
+    } else {
+      logWarn("platform_auth.login_failed", { method: "code", message: error.message });
+    }
+  } else if (tokenHash && type) {
+    const { data, error } = await supabase.auth.verifyOtp({
+      token_hash: tokenHash,
+      type: type as "magiclink" | "email",
+    });
+    if (!error) {
+      email = data.user?.email ?? null;
+      logInfo("platform_auth.login_success", { email, method: "token_hash" });
+    } else {
+      logWarn("platform_auth.login_failed", { method: "token_hash", message: error.message });
+    }
+  }
+
+  if (!email) {
+    return NextResponse.redirect(`${origin}/platform/signup?error=1`);
+  }
+
+  const membership = await getOrgMembership(supabase, email);
+  return NextResponse.redirect(`${origin}${membership ? "/studio" : "/platform/onboarding"}`);
+}
