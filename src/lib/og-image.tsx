@@ -1,4 +1,6 @@
 import { ImageResponse } from "next/og";
+import { readFile } from "fs/promises";
+import path from "path";
 
 export const ogSize = { width: 1200, height: 630 };
 export const ogContentType = "image/png";
@@ -13,13 +15,21 @@ const BRAND = {
   clay: "#ac7957",
 };
 
-async function fetchTtf(url: string) {
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`Font fetch failed (${res.status}): ${url}`);
-  return res.arrayBuffer();
+// Read from disk rather than fetched over the network at build time. This
+// used to fetch both files from github.com/google/fonts on every build —
+// fragile in exactly the way that convention warns against elsewhere in
+// this codebase: it took down every production deploy the moment GitHub's
+// raw-content path 404'd (the repo had reorganised) and, separately,
+// raw.githubusercontent.com turned out to rate-limit build traffic (429)
+// even when the path is right. Fetched once via the GitHub Contents API
+// (a different, non-rate-limited endpoint) and committed to
+// src/lib/fonts/ — see the two OFL.txt files alongside them for the
+// required SIL Open Font License attribution.
+async function readTtf(filename: string) {
+  return readFile(path.join(process.cwd(), "src/lib/fonts", filename));
 }
 
-let fontsPromise: Promise<{ heading: ArrayBuffer; plexMono: ArrayBuffer }> | null = null;
+let fontsPromise: Promise<{ heading: Buffer; plexMono: Buffer }> | null = null;
 
 function getFonts() {
   if (!fontsPromise) {
@@ -29,12 +39,8 @@ function getFonts() {
       // social-card heading uses PT Serif — a static build with real serif
       // character — instead. The live site's headings still render true Fraunces
       // via next/font; this substitution is scoped to this Satori pipeline only.
-      fetchTtf(
-        "https://github.com/google/fonts/raw/main/ofl/ptserif/PT_Serif-Web-Bold.ttf",
-      ),
-      fetchTtf(
-        "https://github.com/google/fonts/raw/main/ofl/ibmplexmono/IBMPlexMono-Medium.ttf",
-      ),
+      readTtf("PT-Serif-Bold.ttf"),
+      readTtf("IBMPlexMono-Medium.ttf"),
     ]).then(([heading, plexMono]) => ({ heading, plexMono }));
   }
   return fontsPromise;
