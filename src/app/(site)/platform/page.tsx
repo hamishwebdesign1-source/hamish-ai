@@ -9,6 +9,7 @@ import {
   Check,
   ArrowRight,
   ChartColumn,
+  LayoutDashboard,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -136,6 +137,68 @@ export default function PlatformPage() {
 
       <section className="mx-auto max-w-6xl px-6 py-16 md:py-20">
         <Reveal>
+          <Badge variant="secondary" className="mb-4">Two workspaces, both yours</Badge>
+          <h2 className="max-w-2xl font-heading text-2xl font-semibold text-balance md:text-3xl">
+            You get your own ops workspace. Your clients get their own portal.
+          </h2>
+          <p className="mt-4 max-w-xl text-muted-foreground">
+            This isn&apos;t one shared dashboard with your name on it. It&apos;s the same two-tier structure
+            hamishai.org itself runs on — a private workspace where you run the agency, and a separate, branded
+            portal each of your own clients signs into to see their own results. They never see HamishAI, and
+            they never see each other.
+          </p>
+        </Reveal>
+        <div className="mt-8 grid gap-6 md:grid-cols-2">
+          <Reveal>
+            <div className="h-full rounded-2xl border border-border bg-background p-6">
+              <span className="flex size-11 items-center justify-center rounded-xl bg-accent/10 text-accent">
+                <LayoutDashboard className="size-5" />
+              </span>
+              <p className="mt-4 font-heading text-base font-semibold">Your agency workspace</p>
+              <p className="mt-1 text-sm text-muted-foreground">Where you run the business — private to you and your team.</p>
+              <ul className="mt-4 space-y-2 text-sm">
+                {[
+                  "Every prospect, researched and scored",
+                  "Every client you've signed, in one pipeline",
+                  "Outreach drafts, reports and invoices",
+                  "Signed in under your own agency, not HamishAI's",
+                ].map((f) => (
+                  <li key={f} className="flex gap-2">
+                    <Check className="mt-0.5 size-3.5 shrink-0 text-accent" />
+                    <span className="text-muted-foreground">{f}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </Reveal>
+          <Reveal delay={80}>
+            <div className="h-full rounded-2xl border border-border bg-background p-6">
+              <span className="flex size-11 items-center justify-center rounded-xl bg-accent/10 text-accent">
+                <Users className="size-5" />
+              </span>
+              <p className="mt-4 font-heading text-base font-semibold">Your clients&apos; portal</p>
+              <p className="mt-1 text-sm text-muted-foreground">A separate, branded login for each business you sign — not a shared inbox.</p>
+              <ul className="mt-4 space-y-2 text-sm">
+                {[
+                  "Their own sign-in — no password, magic link",
+                  "Only their own reports and requests, never another client's",
+                  "Your logo and accent colour, not HamishAI's",
+                  "Where you deliver the work you're actually selling",
+                ].map((f) => (
+                  <li key={f} className="flex gap-2">
+                    <Check className="mt-0.5 size-3.5 shrink-0 text-accent" />
+                    <span className="text-muted-foreground">{f}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </Reveal>
+        </div>
+      </section>
+
+      <section className="border-t border-border/60">
+        <div className="mx-auto max-w-6xl px-6 py-16 md:py-20">
+        <Reveal>
           <div className="flex items-start gap-4 rounded-2xl border border-accent/40 bg-accent/5 p-6 md:p-8">
             <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-accent/10 text-accent">
               <ChartColumn className="size-5" />
@@ -153,6 +216,7 @@ export default function PlatformPage() {
             </div>
           </div>
         </Reveal>
+        </div>
       </section>
 
       <section className="border-t border-border/60 bg-secondary/40">
