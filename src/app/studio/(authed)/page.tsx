@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Search, Users, FileText, CheckCircle2 } from "lucide-react";
 import { createServerSupabaseClient } from "@/lib/supabase-server-auth";
@@ -7,10 +8,9 @@ import { Eyebrow } from "@/components/eyebrow";
 import { Badge } from "@/components/ui/badge";
 
 // The end of the onboarding journey (Section 5, step 6 — "workspace
-// generated") and deliberately nothing past it yet. Real prospecting,
-// client management and reporting inside /studio are Week 5+ — building
-// past a confirmation screen this week would be building ahead of the
-// private-beta invites the 90-day plan actually calls for next.
+// generated"). Week 5 adds the first real piece past this confirmation
+// screen — prospecting, at /studio/prospects. Client management and
+// reporting stay "coming soon" until they're actually built.
 export default async function StudioHomePage() {
   const supabase = await createServerSupabaseClient();
   const {
@@ -62,8 +62,12 @@ export default async function StudioHomePage() {
       )}
 
       <div className="mt-6 grid gap-3 sm:grid-cols-3">
+        <Link href="/studio/prospects" className="rounded-xl border border-accent/40 bg-accent/5 p-4 text-center transition-colors hover:bg-accent/10">
+          <Search className="mx-auto size-5 text-accent" />
+          <p className="mt-2 font-heading text-sm font-semibold">Prospecting</p>
+          <p className="mt-1 font-mono text-[11px] tracking-wide text-accent uppercase">Ready</p>
+        </Link>
         {[
-          { icon: Search, label: "Prospecting", note: "Coming soon" },
           { icon: Users, label: "Client management", note: "Coming soon" },
           { icon: FileText, label: "Reporting", note: "Coming soon" },
         ].map((item) => (

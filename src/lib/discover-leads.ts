@@ -2,6 +2,8 @@ import Anthropic from "@anthropic-ai/sdk";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { researchLead } from "@/lib/research-lead";
 import { logAuditEvent } from "@/lib/audit-log";
+import { getUsageStatus, recordUsageEvent } from "@/lib/usage-limits";
+import type { PlatformPlanSlug } from "@/lib/platform-plans";
 
 // Larger Feature #10 from docs/leads-automation-plan.md — automates what
 // currently happens by hand in a weekly Claude chat session: targeted
@@ -171,6 +173,11 @@ export type DiscoverLeadsResult =
       skippedDuplicates: string[];
       searchFailures: string[];
       pairsSearched: { category: string; area: string }[];
+      // Set when a non-internal org's monthly plan limit stopped this run
+      // before it searched everything it otherwise would have — distinct
+      // from `error`, since this isn't a failure, it's the cap working as
+      // designed. undefined for a run that wasn't limited.
+      limitReached?: { used: number; limit: number };
     };
 
 // orgId is required, not defaulted — a cron or Server Action calling this
@@ -189,7 +196,7 @@ export async function discoverLeads(orgId: string): Promise<DiscoverLeadsResult>
 
   const { data: org, error: orgError } = await supabase
     .from("organisations")
-    .select("prospecting_config")
+    .select("prospecting_config, is_internal, plan")
     .eq("id", orgId)
     .single();
   if (orgError || !org) {
@@ -199,6 +206,27 @@ export async function discoverLeads(orgId: string): Promise<DiscoverLeadsResult>
   const config = (org.prospecting_config ?? {}) as { categories?: string[]; areas?: string[] };
   const categories = config.categories?.length ? config.categories : DEFAULT_CATEGORIES;
   const areas = config.areas?.length ? config.areas : DEFAULT_AREAS;
+
+  // HamishAI's own organisation is never capped (see usage-limits.ts's own
+  // comment on why that's the caller's job, not getUsageStatus()'s). For
+  // every paying org, a plan's "up to N prospects a month" becomes a real
+  // ceiling here rather than just pricing-page copy — checked once before
+  // the run starts, so a request against an already-exhausted month never
+  // spends a single Claude call.
+  let maxInsertsThisRun = MAX_NEW_LEADS_PER_RUN;
+  if (!org.is_internal) {
+    const usage = await getUsageStatus(orgId, "prospect_researched", org.plan as PlatformPlanSlug);
+    if (!usage.allowed) {
+      return {
+        inserted: [],
+        skippedDuplicates: [],
+        searchFailures: [],
+        pairsSearched: [],
+        limitReached: { used: usage.used, limit: usage.limit },
+      };
+    }
+    maxInsertsThisRun = Math.min(MAX_NEW_LEADS_PER_RUN, usage.remaining);
+  }
 
   // Scoped to this org only — an org's own dedup must never treat another
   // org's prospects (e.g. HamishAI's own ~100+ rows) as already-found,
@@ -223,7 +251,7 @@ export async function discoverLeads(orgId: string): Promise<DiscoverLeadsResult>
   const searchFailures: string[] = [];
 
   for (const { category, area } of pairs) {
-    if (inserted.length >= MAX_NEW_LEADS_PER_RUN) break;
+    if (inserted.length >= maxInsertsThisRun) break;
 
     let candidates: Candidate[];
     try {
@@ -235,7 +263,7 @@ export async function discoverLeads(orgId: string): Promise<DiscoverLeadsResult>
     }
 
     for (const candidate of candidates) {
-      if (inserted.length >= MAX_NEW_LEADS_PER_RUN) break;
+      if (inserted.length >= maxInsertsThisRun) break;
       if (!candidate.business_name) continue;
 
       const normalised = normaliseName(candidate.business_name);
@@ -264,6 +292,8 @@ export async function discoverLeads(orgId: string): Promise<DiscoverLeadsResult>
         console.error(`Failed to insert discovered lead "${candidate.business_name}":`, insertError);
         continue;
       }
+
+      if (!org.is_internal) await recordUsageEvent(orgId, "prospect_researched");
 
       await logAuditEvent({
         actor: "system",
