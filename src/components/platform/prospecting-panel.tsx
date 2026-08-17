@@ -1,13 +1,13 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Search, ExternalLink, LoaderCircle, CircleAlert, Tag, MapPin } from "lucide-react";
+import { Search, ExternalLink, LoaderCircle, CircleAlert, Tag, MapPin, UserPlus } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { updateProspectingConfig, runDiscovery } from "@/app/studio/(authed)/prospects/actions";
+import { updateProspectingConfig, runDiscovery, convertProspectToClient } from "@/app/studio/(authed)/prospects/actions";
 import type { UsageStatus } from "@/lib/usage-limits";
 
 type Prospect = {
@@ -16,9 +16,61 @@ type Prospect = {
   category: string | null;
   neighbourhood: string | null;
   website: string | null;
+  email: string | null;
   status: string;
   created_at: string;
 };
+
+// A single row's own convert-to-client mini-form — its own component so
+// each prospect card's open/closed and pending state is independent, not
+// one shared bit of state on the parent tracking "which row is open."
+function ConvertToClientControl({ prospect }: { prospect: Prospect }) {
+  const [open, setOpen] = useState(false);
+  const [email, setEmail] = useState(prospect.email ?? "");
+  const [pending, startTransition] = useTransition();
+  const [result, setResult] = useState<Awaited<ReturnType<typeof convertProspectToClient>> | null>(null);
+
+  if (prospect.status === "converted") {
+    return <Badge variant="secondary">Client</Badge>;
+  }
+
+  if (!open) {
+    return (
+      <Button size="sm" variant="outline" onClick={() => setOpen(true)}>
+        <UserPlus className="size-3.5" /> Convert to client
+      </Button>
+    );
+  }
+
+  return (
+    <div className="flex flex-col items-end gap-1.5">
+      <div className="flex items-center gap-1.5">
+        <Input
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          placeholder="client@business.com"
+          className="h-8 w-44 text-xs"
+          autoFocus
+        />
+        <Button
+          size="sm"
+          disabled={pending}
+          onClick={() =>
+            startTransition(async () => {
+              const r = await convertProspectToClient(prospect.id, email);
+              setResult(r);
+              if ("ok" in r) setOpen(false);
+            })
+          }
+        >
+          {pending ? "…" : "Confirm"}
+        </Button>
+      </div>
+      {result && "error" in result && <span className="text-xs text-destructive">{result.error}</span>}
+    </div>
+  );
+}
 
 // A single client component rather than splitting settings/results/usage
 // into three — they all react to the same runDiscovery() call (a fresh
@@ -200,9 +252,12 @@ export function ProspectingPanel({
                         <ExternalLink className="size-4" />
                       </a>
                     )}
-                    <Badge variant="secondary" className="capitalize">
-                      {p.status.replace(/_/g, " ")}
-                    </Badge>
+                    {p.status !== "converted" && (
+                      <Badge variant="secondary" className="capitalize">
+                        {p.status.replace(/_/g, " ")}
+                      </Badge>
+                    )}
+                    <ConvertToClientControl prospect={p} />
                   </div>
                 </CardContent>
               </Card>

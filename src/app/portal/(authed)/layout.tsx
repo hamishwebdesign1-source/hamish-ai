@@ -27,8 +27,20 @@ export default async function PortalAuthedLayout({ children }: { children: React
   // alone couldn't leak another client's row in.
   const membership = await getPortalMembership(supabase, user.email);
   const { data: client } = membership
-    ? await supabase.from("clients").select("id, business_name, status").eq("id", membership.clientId).single()
+    ? await supabase.from("clients").select("id, business_name, status, org_id").eq("id", membership.clientId).single()
     : { data: null };
+
+  // This is the one portal serving both HamishAI's own clients and every
+  // Agency Platform tenant's clients (see the architecture doc's "shared
+  // /portal" decision) — org branding is looked up here, once, rather than
+  // duplicating this whole layout per tenant. is_internal is the switch:
+  // HamishAI's own clients see exactly the same header they always have,
+  // byte for byte, since org?.is_internal is false only for a real tenant.
+  const { data: org } = client?.org_id
+    ? await supabase.from("organisations").select("name, is_internal, brand").eq("id", client.org_id).single()
+    : { data: null };
+  const brand = (org?.brand ?? {}) as { accentColor?: string };
+  const isBranded = Boolean(org && !org.is_internal);
 
   if (!client || client.status === "churned") {
     return (
@@ -56,12 +68,21 @@ export default async function PortalAuthedLayout({ children }: { children: React
   const recentEvents = await getRecentPortalEvents(supabase, client.id, 8);
 
   return (
-    <div className="min-h-screen bg-secondary/20">
+    <div
+      className="min-h-screen bg-secondary/20"
+      style={isBranded && brand.accentColor ? ({ "--accent": brand.accentColor } as React.CSSProperties) : undefined}
+    >
       <PortalThemeInitScript />
       <header className="relative border-b border-border/60 bg-background">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
           <Link href="/portal" className="font-heading text-lg font-semibold">
-            Hamish<span className="text-accent">AI</span>
+            {isBranded ? (
+              org!.name
+            ) : (
+              <>
+                Hamish<span className="text-accent">AI</span>
+              </>
+            )}
           </Link>
           <div className="flex items-center gap-1">
             <NotificationBell events={recentEvents} />

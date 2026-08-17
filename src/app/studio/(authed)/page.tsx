@@ -67,8 +67,12 @@ export default async function StudioHomePage() {
           <p className="mt-2 font-heading text-sm font-semibold">Prospecting</p>
           <p className="mt-1 font-mono text-[11px] tracking-wide text-accent uppercase">Ready</p>
         </Link>
+        <Link href="/studio/clients" className="rounded-xl border border-accent/40 bg-accent/5 p-4 text-center transition-colors hover:bg-accent/10">
+          <Users className="mx-auto size-5 text-accent" />
+          <p className="mt-2 font-heading text-sm font-semibold">Client management</p>
+          <p className="mt-1 font-mono text-[11px] tracking-wide text-accent uppercase">Ready</p>
+        </Link>
         {[
-          { icon: Users, label: "Client management", note: "Coming soon" },
           { icon: FileText, label: "Reporting", note: "Coming soon" },
         ].map((item) => (
           <div key={item.label} className="rounded-xl border border-dashed border-border p-4 text-center">
