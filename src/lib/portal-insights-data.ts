@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { buildAutomationEvents } from "@/lib/portal-events";
+import { getPortalOrgBranding } from "@/lib/portal-org-branding";
 
 // Real-data equivalent of the marketing site's illustrative AI Command
 // Centre. Every number here is computed from tables we actually have for
@@ -74,10 +75,12 @@ function projectNextMonth(monthlyTotals: number[]): number | null {
 export async function buildPortalInsights(supabase: SupabaseClient, clientId: string) {
   const { data: client } = await supabase
     .from("clients")
-    .select("id, business_name, website_url")
+    .select("id, business_name, website_url, org_id")
     .eq("id", clientId)
     .single();
   if (!client) return { error: "Client not found." as const };
+
+  const orgBranding = await getPortalOrgBranding(supabase, client.org_id);
 
   const { data: requestsData } = await supabase
     .from("requests")
@@ -234,6 +237,7 @@ export async function buildPortalInsights(supabase: SupabaseClient, clientId: st
 
   return {
     client,
+    orgBranding,
     healthScore,
     components,
     requestsByMonth,

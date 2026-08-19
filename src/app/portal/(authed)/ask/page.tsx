@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { createServerSupabaseClient } from "@/lib/supabase-server-auth";
 import { getPortalMembership } from "@/lib/portal-membership";
+import { getPortalOrgBranding } from "@/lib/portal-org-branding";
 import { AiCopilot } from "@/components/portal/ai-copilot";
 
 // Client portal redesign Phase 3 — the promoted "Ask HamishAI" surface.
@@ -21,14 +22,16 @@ export default async function PortalAskPage() {
 
   const { data: client } = await supabase
     .from("clients")
-    .select("business_name")
+    .select("business_name, org_id")
     .eq("id", membership.clientId)
     .single();
   if (!client) redirect("/portal/login");
 
+  const orgBranding = await getPortalOrgBranding(supabase, client.org_id);
+
   return (
     <div>
-      <h1 className="text-page-title">Ask HamishAI</h1>
+      <h1 className="text-page-title">Ask {orgBranding.name}</h1>
       <p className="text-page-subtitle mt-1">
         A quick way to check on your account — requests, spend, site health. Answered from your real data, not a
         generic FAQ.

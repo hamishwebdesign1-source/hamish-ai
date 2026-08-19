@@ -4,14 +4,15 @@ import { useState } from "react";
 import { Menu, X, LogOut } from "lucide-react";
 import { PortalNavLink } from "@/components/portal/nav-link";
 import { PortalThemeToggle } from "@/components/portal/theme-toggle";
-import { NAV_SECTIONS } from "@/components/portal/sidebar";
+import { getNavSections } from "@/components/portal/sidebar";
 import { Button } from "@/components/ui/button";
 
-// Client portal redesign Phase 1 — reads the same NAV_SECTIONS the
+// Client portal redesign Phase 1 — reads the same nav sections the
 // desktop sidebar renders (sidebar.tsx), same "define the grouping once"
 // discipline as the admin's mobile-nav.tsx.
-export function PortalMobileNav() {
+export function PortalMobileNav({ orgName }: { orgName: string }) {
   const [open, setOpen] = useState(false);
+  const navSections = getNavSections(orgName);
 
   return (
     <div className="md:hidden">
@@ -29,7 +30,7 @@ export function PortalMobileNav() {
       {open && (
         <nav className="absolute inset-x-0 top-full z-40 max-h-[calc(100vh-4rem)] overflow-y-auto border-b border-border/60 bg-background px-6 py-4 shadow-sm">
           <div className="flex flex-col gap-4">
-            {NAV_SECTIONS.map((section, i) => (
+            {navSections.map((section, i) => (
               <div key={section.label ?? `ungrouped-${i}`} className="flex flex-col gap-1">
                 {section.label && <p className="text-eyebrow px-2.5 pb-1">{section.label}</p>}
                 {section.items.map((item) => (

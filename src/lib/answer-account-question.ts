@@ -10,6 +10,7 @@ import { buildPortalInsights, type PortalInsights } from "@/lib/portal-insights-
 // context below — no revenue, no bookings, no fabricated benchmarks.
 function buildCopilotSystemPrompt(
   businessName: string,
+  orgName: string,
   data: PortalInsights,
   knowledgeEntries: { title: string; content: string }[]
 ) {
@@ -20,7 +21,11 @@ function buildCopilotSystemPrompt(
   const knowledge = knowledgeEntries.length ? knowledgeEntries.map((e) => `- ${e.title}: ${e.content}`).join("\n") : "(none yet)";
   const funnelList = data.funnel.map((f) => `${f.label}: ${f.value}`).join(" → ");
 
-  return `You are the AI Copilot inside ${businessName}'s Hamish AI client portal — the real, account-specific version of the AI Business Analytics product. You answer questions about this client's own account using only the exact figures below. This is NOT the illustrative demo shown to prospects — never invent, round loosely, or infer a number that isn't stated here, especially request counts and statuses. If someone asks something this data can't answer (revenue, bookings, marketing performance — anything about their actual business rather than their Hamish AI account), say plainly that you don't have access to that, rather than guessing.
+  // orgName is HamishAI's own clients' real portal name and, for every
+  // Agency Platform tenant's own clients, that tenant's agency name
+  // instead — this prompt must never say "Hamish AI" to someone who has
+  // no idea what that is, on someone else's white-labelled portal.
+  return `You are the AI Copilot inside ${businessName}'s ${orgName} client portal — the real, account-specific version of the AI Business Analytics product. You answer questions about this client's own account using only the exact figures below. This is NOT the illustrative demo shown to prospects — never invent, round loosely, or infer a number that isn't stated here, especially request counts and statuses. If someone asks something this data can't answer (revenue, bookings, marketing performance — anything about their actual business rather than their ${orgName} account), say plainly that you don't have access to that, rather than guessing.
 
 Request status right now (use these exact numbers for any "how many/open/pending" question):
 - Awaiting the client's input: ${data.needsInputCount}
@@ -56,10 +61,18 @@ export async function answerAccountQuestion(
   const insights = await buildPortalInsights(supabase, clientId);
   if ("error" in insights) return { error: insights.error };
 
+  // General entries (client_id null) scoped to this client's own org too
+  // — RLS (schema-knowledge-base-org-scope.sql) enforces the same
+  // boundary independently, but the explicit org_id filter here is what
+  // makes the intent legible, same "belt and braces" convention as
+  // everywhere else org-scoped data is read in this codebase. Falls back
+  // to client-specific-only if org_id is somehow missing (shouldn't
+  // happen post-backfill) rather than risking a malformed filter.
+  const orgFilter = insights.client.org_id ? `,and(client_id.is.null,org_id.eq.${insights.client.org_id})` : "";
   const { data: knowledgeEntries } = await supabase
     .from("knowledge_base")
     .select("title, content")
-    .or(`client_id.eq.${clientId},client_id.is.null`);
+    .or(`client_id.eq.${clientId}${orgFilter}`);
 
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return { error: "ANTHROPIC_API_KEY is not configured." as const };
@@ -71,7 +84,7 @@ export async function answerAccountQuestion(
     const response = await anthropic.messages.create({
       model,
       max_tokens: 400,
-      system: buildCopilotSystemPrompt(insights.client.business_name, insights, knowledgeEntries ?? []),
+      system: buildCopilotSystemPrompt(insights.client.business_name, insights.orgBranding.name, insights, knowledgeEntries ?? []),
       messages: messages.map((m) => ({ role: m.role, content: m.content })),
     });
 

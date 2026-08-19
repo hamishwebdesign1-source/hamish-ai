@@ -4,6 +4,7 @@ import { LogOut } from "lucide-react";
 import { createServerSupabaseClient } from "@/lib/supabase-server-auth";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { getPortalMembership, markMembershipAccepted } from "@/lib/portal-membership";
+import { getPortalOrgBranding } from "@/lib/portal-org-branding";
 import { getRecentPortalEvents } from "@/lib/portal-events";
 import { PortalSidebar } from "@/components/portal/sidebar";
 import { PortalMobileNav } from "@/components/portal/mobile-nav";
@@ -32,15 +33,12 @@ export default async function PortalAuthedLayout({ children }: { children: React
 
   // This is the one portal serving both HamishAI's own clients and every
   // Agency Platform tenant's clients (see the architecture doc's "shared
-  // /portal" decision) — org branding is looked up here, once, rather than
-  // duplicating this whole layout per tenant. is_internal is the switch:
-  // HamishAI's own clients see exactly the same header they always have,
-  // byte for byte, since org?.is_internal is false only for a real tenant.
-  const { data: org } = client?.org_id
-    ? await supabase.from("organisations").select("name, is_internal, brand").eq("id", client.org_id).single()
-    : { data: null };
-  const brand = (org?.brand ?? {}) as { accentColor?: string };
-  const isBranded = Boolean(org && !org.is_internal);
+  // /portal" decision) — org branding is looked up here, once, via the
+  // same helper every other portal page now uses (portal-org-branding.ts),
+  // rather than each page repeating its own organisations query.
+  // isInternal is the switch: HamishAI's own clients see exactly the same
+  // header they always have, byte for byte.
+  const orgBranding = await getPortalOrgBranding(supabase, client?.org_id ?? null);
 
   if (!client || client.status === "churned") {
     return (
@@ -49,8 +47,8 @@ export default async function PortalAuthedLayout({ children }: { children: React
           <CardContent>
             <h1 className="font-heading text-xl font-semibold">No portal access found</h1>
             <p className="mt-2 text-sm text-muted-foreground">
-              We couldn&apos;t find a project registered under {user.email}. Contact Hamish AI if you think this is
-              a mistake.
+              We couldn&apos;t find a project registered under {user.email}. Contact {orgBranding.name} if you think
+              this is a mistake.
             </p>
           </CardContent>
         </Card>
@@ -70,18 +68,18 @@ export default async function PortalAuthedLayout({ children }: { children: React
   return (
     <div
       className="min-h-screen bg-secondary/20"
-      style={isBranded && brand.accentColor ? ({ "--accent": brand.accentColor } as React.CSSProperties) : undefined}
+      style={orgBranding.accentColor ? ({ "--accent": orgBranding.accentColor } as React.CSSProperties) : undefined}
     >
       <PortalThemeInitScript />
       <header className="relative border-b border-border/60 bg-background">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
           <Link href="/portal" className="font-heading text-lg font-semibold">
-            {isBranded ? (
-              org!.name
-            ) : (
+            {orgBranding.isInternal ? (
               <>
                 Hamish<span className="text-accent">AI</span>
               </>
+            ) : (
+              orgBranding.name
             )}
           </Link>
           <div className="flex items-center gap-1">
@@ -95,12 +93,12 @@ export default async function PortalAuthedLayout({ children }: { children: React
                 Sign out
               </Button>
             </form>
-            <PortalMobileNav />
+            <PortalMobileNav orgName={orgBranding.name} />
           </div>
         </div>
       </header>
       <div className="mx-auto flex max-w-6xl gap-8 px-6">
-        <PortalSidebar />
+        <PortalSidebar orgName={orgBranding.name} />
         <main className="min-w-0 flex-1 py-10">{children}</main>
       </div>
     </div>

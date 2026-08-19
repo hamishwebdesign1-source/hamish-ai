@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { createServerSupabaseClient } from "@/lib/supabase-server-auth";
 import { getPortalMembership } from "@/lib/portal-membership";
+import { getPortalOrgBranding } from "@/lib/portal-org-branding";
 import { isInvoiceOverdue } from "@/lib/invoice-status";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -49,6 +50,8 @@ export default async function PortalHomePage() {
   // means these queries can only ever return this one client's rows.
   const { data: client } = await supabase.from("clients").select("*").eq("id", clientId).single();
   if (!client) redirect("/portal/login");
+
+  const orgBranding = await getPortalOrgBranding(supabase, client.org_id);
 
   const { data: requests } = await supabase
     .from("requests")
@@ -149,7 +152,7 @@ export default async function PortalHomePage() {
       </section>
 
       <section className="mt-8">
-        <h2 className="text-section-title">HamishAI is working on</h2>
+        <h2 className="text-section-title">{orgBranding.name} is working on</h2>
         <Card className="mt-3">
           <CardContent className="space-y-3 pt-6">
             {!inProgressTasks.length && !autoReplyCount && !latestCheck ? (
@@ -205,7 +208,7 @@ export default async function PortalHomePage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-1.5">
               <Sparkles className="size-4 text-[var(--gradient-violet)]" />
-              Ask HamishAI
+              Ask {orgBranding.name}
             </CardTitle>
           </CardHeader>
           <CardContent className="flex flex-1 flex-col justify-between gap-4">

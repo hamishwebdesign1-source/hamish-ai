@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { BookOpen, Sparkles, ArrowRight } from "lucide-react";
 import { createServerSupabaseClient } from "@/lib/supabase-server-auth";
 import { getPortalMembership } from "@/lib/portal-membership";
+import { getPortalOrgBranding } from "@/lib/portal-org-branding";
 import { Card, CardContent } from "@/components/ui/card";
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion";
 
@@ -17,17 +18,24 @@ export default async function PortalHelpPage() {
   if (!membership) redirect("/portal/login");
   const clientId = membership.clientId;
 
+  const { data: client } = await supabase.from("clients").select("org_id").eq("id", clientId).single();
+  const orgBranding = await getPortalOrgBranding(supabase, client?.org_id ?? null);
+
+  // General entries (client_id null) scoped to this client's own org too
+  // — see schema-knowledge-base-org-scope.sql and the same fix in
+  // answer-account-question.ts.
+  const orgFilter = client?.org_id ? `,and(client_id.is.null,org_id.eq.${client.org_id})` : "";
   const { data: entries } = await supabase
     .from("knowledge_base")
     .select("id, title, content")
-    .or(`client_id.eq.${clientId},client_id.is.null`)
+    .or(`client_id.eq.${clientId}${orgFilter}`)
     .order("title");
 
   return (
     <div>
       <h1 className="text-page-title">Help</h1>
       <p className="text-page-subtitle mt-1">
-        Answers to common questions. Anything not covered here, ask HamishAI or submit a request.
+        Answers to common questions. Anything not covered here, ask {orgBranding.name} or submit a request.
       </p>
 
       <div className="mt-8">
@@ -36,7 +44,7 @@ export default async function PortalHelpPage() {
           <Card className="mt-3">
             <CardContent className="flex flex-col items-center gap-2 py-8 text-center text-sm text-muted-foreground">
               <BookOpen className="size-6 text-muted-foreground/60" />
-              Nothing published yet — ask HamishAI below and we&apos;ll build this out.
+              Nothing published yet — ask {orgBranding.name} below and we&apos;ll build this out.
             </CardContent>
           </Card>
         )}
@@ -58,7 +66,7 @@ export default async function PortalHelpPage() {
       >
         <span className="flex items-center gap-2 text-sm font-medium text-foreground">
           <Sparkles className="size-4 shrink-0 text-[var(--gradient-violet)]" />
-          Still stuck? Ask HamishAI — answered from your real account data.
+          Still stuck? Ask {orgBranding.name} — answered from your real account data.
         </span>
         <ArrowRight className="size-4 shrink-0 text-muted-foreground" />
       </Link>

@@ -165,7 +165,7 @@ function OverviewTab({ data }: { data: PortalInsights }) {
       >
         <span className="flex items-center gap-2 text-sm text-primary-foreground">
           <Sparkles className="size-4 shrink-0 text-[var(--gradient-violet)]" />
-          Have a question about this data? Ask HamishAI.
+          Have a question about this data? Ask {data.orgBranding.name}.
         </span>
         <ArrowRight className="size-4 shrink-0 text-primary-foreground/50" />
       </Link>

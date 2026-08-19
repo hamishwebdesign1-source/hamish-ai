@@ -3,6 +3,7 @@ import { revalidatePath } from "next/cache";
 import { Building2, Bell, Users } from "lucide-react";
 import { createServerSupabaseClient } from "@/lib/supabase-server-auth";
 import { getPortalMembership } from "@/lib/portal-membership";
+import { getPortalOrgBranding } from "@/lib/portal-org-branding";
 import { logAuditEvent } from "@/lib/audit-log";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -47,10 +48,12 @@ export default async function PortalSettingsPage() {
 
   const { data: client } = await supabase
     .from("clients")
-    .select("id, business_name, weekly_digest_enabled")
+    .select("id, business_name, weekly_digest_enabled, org_id")
     .eq("id", clientId)
     .single();
   if (!client) redirect("/portal/login");
+
+  const orgBranding = await getPortalOrgBranding(supabase, client.org_id);
 
   // client_members_select_team (schema-portal-settings.sql) is what makes
   // this return every member of the client, not just the caller's own row.
@@ -113,7 +116,7 @@ export default async function PortalSettingsPage() {
               Team
             </CardTitle>
             <CardDescription>
-              Everyone who can sign in to this portal. Contact Hamish AI to add or remove someone.
+              Everyone who can sign in to this portal. Contact {orgBranding.name} to add or remove someone.
             </CardDescription>
           </CardHeader>
           <CardContent>
