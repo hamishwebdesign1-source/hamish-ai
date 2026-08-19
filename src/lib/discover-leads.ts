@@ -322,17 +322,20 @@ export async function discoverLeads(orgId: string): Promise<DiscoverLeadsResult>
         metadata: { why_suggested: candidate.why_suggested, search_category: category, search_area: area },
       });
 
-      // Best-effort — most discovered leads have no website (that's the
-      // point of the search), and researchLead() correctly errors out
-      // rather than doing anything when there's nothing to fetch. Not a
-      // failure worth surfacing; the operator researches those manually
-      // once they've confirmed a real site exists.
-      if (candidate.website) {
-        try {
-          await researchLead(lead.id);
-        } catch (error) {
-          console.error(`Post-discovery research failed for lead ${lead.id}:`, error);
-        }
+      // Best-effort, unconditional — this comment used to say most
+      // discovered leads have no website "so researchLead() correctly
+      // errors out rather than doing anything." That was stale: the
+      // Phase 8 fix documented at the top of research-lead.ts made "no
+      // website at all" the strongest possible finding, not a skip
+      // condition — researchLead() branches on it explicitly rather than
+      // failing. Gating this call on candidate.website meant the exact
+      // businesses discovery exists to find (weak-or-no web presence)
+      // were the ones silently never researched — every discovered lead
+      // now gets a research pass regardless.
+      try {
+        await researchLead(lead.id);
+      } catch (error) {
+        console.error(`Post-discovery research failed for lead ${lead.id}:`, error);
       }
 
       inserted.push({ business_name: candidate.business_name, category, neighbourhood: area });

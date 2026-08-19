@@ -2,14 +2,33 @@
 
 import Link from "next/link";
 import { useState, useTransition } from "react";
-import { Search, ExternalLink, LoaderCircle, CircleAlert, Tag, MapPin, UserPlus } from "lucide-react";
+import {
+  Search,
+  ExternalLink,
+  LoaderCircle,
+  CircleAlert,
+  Tag,
+  MapPin,
+  UserPlus,
+  Phone,
+  Mail,
+  ChevronDown,
+  ChevronUp,
+  RefreshCw,
+  ThumbsUp,
+  ThumbsDown,
+  Lightbulb,
+  Gauge,
+  Sparkles,
+} from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { updateProspectingConfig, runDiscovery, convertProspectToClient } from "@/app/studio/(authed)/prospects/actions";
+import { updateProspectingConfig, runDiscovery, convertProspectToClient, researchProspect } from "@/app/studio/(authed)/prospects/actions";
 import type { UsageStatus } from "@/lib/usage-limits";
+import type { LeadResearch } from "@/lib/research-lead";
 
 type Prospect = {
   id: string;
@@ -18,7 +37,11 @@ type Prospect = {
   neighbourhood: string | null;
   website: string | null;
   email: string | null;
+  phone: string | null;
   status: string;
+  score: number | null;
+  research: LeadResearch | null;
+  research_generated_at: string | null;
   created_at: string;
 };
 
@@ -70,6 +93,194 @@ function ConvertToClientControl({ prospect }: { prospect: Prospect }) {
       </div>
       {result && "error" in result && <span className="text-xs text-destructive">{result.error}</span>}
     </div>
+  );
+}
+
+function ResearchTrigger({ prospectId }: { prospectId: string }) {
+  const [pending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+
+  return (
+    <div className="rounded-lg border border-dashed border-border p-4 text-center">
+      <p className="text-sm text-muted-foreground">Not researched yet — no contact details or opportunity analysis found.</p>
+      <Button
+        size="sm"
+        variant="outline"
+        className="mt-3"
+        disabled={pending}
+        onClick={() =>
+          startTransition(async () => {
+            setError(null);
+            const r = await researchProspect(prospectId);
+            if (r && "error" in r) setError(r.error ?? "Research failed.");
+          })
+        }
+      >
+        {pending ? (
+          <>
+            <LoaderCircle className="size-3.5 animate-spin" /> Researching…
+          </>
+        ) : (
+          <>
+            <RefreshCw className="size-3.5" /> Research this business
+          </>
+        )}
+      </Button>
+      {error && <p className="mt-2 text-xs text-destructive">{error}</p>}
+    </div>
+  );
+}
+
+const FIT_STYLES: Record<LeadResearch["ai_opportunity_fit"], string> = {
+  high: "text-accent",
+  medium: "text-muted-foreground",
+  low: "text-muted-foreground",
+};
+
+function ResearchSummary({ research }: { research: LeadResearch }) {
+  return (
+    <div className="space-y-4">
+      <div className="rounded-lg border border-accent/30 bg-accent/5 p-3">
+        <p className="flex items-center gap-1.5 text-xs font-semibold text-accent">
+          <Lightbulb className="size-3.5 shrink-0" />
+          Why pursue this one
+        </p>
+        <p className="mt-1 text-sm">{research.pursue_because}</p>
+      </div>
+
+      <p className="text-sm text-muted-foreground">{research.business_summary}</p>
+
+      <div className="flex flex-wrap gap-2 text-xs">
+        <Badge variant="secondary">{research.estimated_project_value_band}</Badge>
+        <Badge variant="secondary" className="capitalize">
+          {research.conversion_probability_band} conversion probability
+        </Badge>
+        <span className={`inline-flex items-center gap-1 rounded-full border border-border px-2.5 py-0.5 capitalize ${FIT_STYLES[research.ai_opportunity_fit]}`}>
+          <Gauge className="size-3" />
+          {research.ai_opportunity_fit} AI fit
+        </span>
+      </div>
+
+      {research.weaknesses.length > 0 && (
+        <div>
+          <p className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
+            <ThumbsDown className="size-3.5 shrink-0" /> Weaknesses found
+          </p>
+          <ul className="mt-1.5 space-y-1 text-sm text-muted-foreground">
+            {research.weaknesses.map((w) => (
+              <li key={w}>• {w}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {research.strengths.length > 0 && (
+        <div>
+          <p className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
+            <ThumbsUp className="size-3.5 shrink-0" /> Strengths
+          </p>
+          <ul className="mt-1.5 space-y-1 text-sm text-muted-foreground">
+            {research.strengths.map((s) => (
+              <li key={s}>• {s}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {research.ai_opportunities.length > 0 && (
+        <div>
+          <p className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
+            <Sparkles className="size-3.5 shrink-0" /> AI opportunities
+          </p>
+          <ul className="mt-1.5 space-y-1 text-sm text-muted-foreground">
+            {research.ai_opportunities.map((o) => (
+              <li key={o}>• {o}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      <div className="rounded-lg bg-secondary/40 p-3">
+        <p className="text-xs font-semibold text-muted-foreground">Suggested opening line</p>
+        <p className="mt-1 text-sm italic">&ldquo;{research.suggested_sales_angle}&rdquo;</p>
+      </div>
+    </div>
+  );
+}
+
+function ProspectCard({ prospect }: { prospect: Prospect }) {
+  const [open, setOpen] = useState(false);
+  const hasContact = prospect.phone || prospect.email;
+
+  return (
+    <Card>
+      <CardContent className="py-3">
+        <button type="button" onClick={() => setOpen((o) => !o)} className="flex w-full items-center justify-between gap-3 text-left">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <p className="truncate text-sm font-medium">{prospect.business_name}</p>
+              {prospect.score !== null && (
+                <span className="shrink-0 font-mono text-[11px] text-muted-foreground">score {prospect.score}/5</span>
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {[prospect.category, prospect.neighbourhood].filter(Boolean).join(" · ")}
+            </p>
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
+            {prospect.status !== "converted" && (
+              <Badge variant="secondary" className="capitalize">
+                {prospect.status.replace(/_/g, " ")}
+              </Badge>
+            )}
+            {open ? <ChevronUp className="size-4 text-muted-foreground" /> : <ChevronDown className="size-4 text-muted-foreground" />}
+          </div>
+        </button>
+
+        {open && (
+          <div className="mt-4 space-y-4 border-t border-border pt-4">
+            <div className="flex flex-wrap items-center gap-4 text-sm">
+              {prospect.phone && (
+                <span className="flex items-center gap-1.5">
+                  <Phone className="size-3.5 shrink-0 text-muted-foreground" />
+                  <a href={`tel:${prospect.phone}`} className="hover:text-accent">
+                    {prospect.phone}
+                  </a>
+                </span>
+              )}
+              {prospect.email && (
+                <span className="flex items-center gap-1.5">
+                  <Mail className="size-3.5 shrink-0 text-muted-foreground" />
+                  <a href={`mailto:${prospect.email}`} className="hover:text-accent">
+                    {prospect.email}
+                  </a>
+                </span>
+              )}
+              {prospect.website && (
+                <a
+                  href={prospect.website.startsWith("http") ? prospect.website : `https://${prospect.website}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex items-center gap-1.5 hover:text-accent"
+                >
+                  <ExternalLink className="size-3.5 shrink-0 text-muted-foreground" />
+                  Website
+                </a>
+              )}
+              {!hasContact && !prospect.website && (
+                <span className="text-xs text-muted-foreground">No contact details found for this business yet.</span>
+              )}
+            </div>
+
+            {prospect.research ? <ResearchSummary research={prospect.research} /> : <ResearchTrigger prospectId={prospect.id} />}
+
+            <div className="flex justify-end">
+              <ConvertToClientControl prospect={prospect} />
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 
@@ -243,35 +454,7 @@ export function ProspectingPanel({
         ) : (
           <div className="mt-3 space-y-2">
             {prospects.map((p) => (
-              <Card key={p.id}>
-                <CardContent className="flex items-center justify-between gap-3 py-3">
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-medium">{p.business_name}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {[p.category, p.neighbourhood].filter(Boolean).join(" · ")}
-                    </p>
-                  </div>
-                  <div className="flex shrink-0 items-center gap-2">
-                    {p.website && (
-                      <a
-                        href={p.website.startsWith("http") ? p.website : `https://${p.website}`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-muted-foreground hover:text-accent"
-                        aria-label={`Visit ${p.business_name}'s website`}
-                      >
-                        <ExternalLink className="size-4" />
-                      </a>
-                    )}
-                    {p.status !== "converted" && (
-                      <Badge variant="secondary" className="capitalize">
-                        {p.status.replace(/_/g, " ")}
-                      </Badge>
-                    )}
-                    <ConvertToClientControl prospect={p} />
-                  </div>
-                </CardContent>
-              </Card>
+              <ProspectCard key={p.id} prospect={p} />
             ))}
           </div>
         )}

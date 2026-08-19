@@ -5,6 +5,7 @@ import { createServerSupabaseClient } from "@/lib/supabase-server-auth";
 import { getOrgMembership } from "@/lib/org-membership";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { discoverLeads } from "@/lib/discover-leads";
+import { researchLead } from "@/lib/research-lead";
 
 // Every action here re-derives the caller's org from their own session
 // rather than trusting an orgId argument from the client — Server Actions
@@ -44,6 +45,35 @@ export async function updateProspectingConfig(input: { categories: string[]; are
 export async function runDiscovery() {
   const orgId = await requireOrgId();
   const result = await discoverLeads(orgId);
+  revalidatePath("/studio/prospects");
+  return result;
+}
+
+// Manual trigger for a prospect discovery ran without researching
+// (shouldn't happen going forward — discoverLeads() now researches every
+// prospect it finds — but real for anything found before that fix, or as
+// an explicit re-research after a prospect's website changes). Not
+// usage-metered the way discovery itself is: the monthly cap is on
+// finding prospects in the first place, not on re-checking one you
+// already have.
+export async function researchProspect(prospectId: string) {
+  const orgId = await requireOrgId();
+  const admin = getSupabaseAdmin();
+  if (!admin) return { error: "Supabase is not configured." };
+
+  // Confirmed against this caller's own org_id before spending an AI call
+  // on it — researchLead() itself has no org concept at all, so this
+  // check is the only thing stopping a tenant from researching another
+  // org's prospect by id.
+  const { data: prospect, error: prospectError } = await admin
+    .from("prospects")
+    .select("id")
+    .eq("id", prospectId)
+    .eq("org_id", orgId)
+    .single();
+  if (prospectError || !prospect) return { error: "Prospect not found." };
+
+  const result = await researchLead(prospectId);
   revalidatePath("/studio/prospects");
   return result;
 }
