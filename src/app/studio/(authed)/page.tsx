@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Search, Users, FileText, CreditCard, CheckCircle2, Lightbulb, ArrowRight } from "lucide-react";
+import { Search, Users, FileText, CreditCard, CheckCircle2, Lightbulb, ArrowRight, Mail } from "lucide-react";
 import { createServerSupabaseClient } from "@/lib/supabase-server-auth";
 import { getOrgMembership } from "@/lib/org-membership";
 import { getStudioBriefing } from "@/lib/studio-briefing";
@@ -129,6 +129,11 @@ export default async function StudioHomePage() {
         <Link href="/studio/billing" className="rounded-xl border border-accent/40 bg-accent/5 p-4 text-center transition-colors hover:bg-accent/10">
           <CreditCard className="mx-auto size-5 text-accent" />
           <p className="mt-2 font-heading text-sm font-semibold">Billing</p>
+          <p className="mt-1 font-mono text-[11px] tracking-wide text-accent uppercase">Ready</p>
+        </Link>
+        <Link href="/studio/settings" className="rounded-xl border border-accent/40 bg-accent/5 p-4 text-center transition-colors hover:bg-accent/10">
+          <Mail className="mx-auto size-5 text-accent" />
+          <p className="mt-2 font-heading text-sm font-semibold">Integrations</p>
           <p className="mt-1 font-mono text-[11px] tracking-wide text-accent uppercase">Ready</p>
         </Link>
         {[
