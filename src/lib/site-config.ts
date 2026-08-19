@@ -1,8 +1,12 @@
 export const siteConfig = {
   name: "Hamish AI",
   tagline: "Edinburgh's AI transformation partner for small businesses",
+  // Kept in sync with layout.tsx's <meta name="description"> even though
+  // nothing currently reads this field (confirmed via grep) — a stale,
+  // contradictory copy of the same fact sitting unused here is exactly
+  // the kind of drift that looks intentional to whoever finds it next.
   description:
-    "We help Edinburgh businesses automate tasks, improve customer experiences, and unlock new growth opportunities using practical AI solutions. We don't just build websites — we make businesses smarter with AI.",
+    "AI websites and automation for Edinburgh small businesses — see a free, working prototype before you pay anything. Plain English, no obligation.",
   location: "Edinburgh, Scotland",
   email: "HamishWebDesign1@gmail.com",
   phone: "07949 674994",

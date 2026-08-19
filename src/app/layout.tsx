@@ -22,8 +22,15 @@ const fraunces = Fraunces({
 export const metadata: Metadata = {
   metadataBase: new URL("https://hamishai.org"),
   title: "Hamish AI | Edinburgh's AI Transformation Partner for Small Businesses",
+  // Rewritten 19 Aug 2026 — this is the meta description search engines
+  // and social link previews actually show, so it's arguably the single
+  // highest-stakes line of copy on the site: a stranger reads this before
+  // they've clicked through to anything else. The old line ("unlock new
+  // growth opportunities using practical AI solutions") was generic
+  // AI-agency filler; this says the one concrete, unusual thing about the
+  // offer instead — same fix as the homepage headline, same reasoning.
   description:
-    "We help Edinburgh businesses automate tasks, improve customer experiences, and unlock new growth opportunities using practical AI solutions. We don't just build websites — we make businesses smarter with AI.",
+    "AI websites and automation for Edinburgh small businesses — see a free, working prototype before you pay anything. Plain English, no obligation.",
 };
 
 export default function RootLayout({
