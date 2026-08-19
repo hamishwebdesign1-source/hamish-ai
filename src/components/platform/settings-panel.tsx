@@ -6,6 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { disconnectInbox, runReplyCheck } from "@/app/studio/(authed)/settings/actions";
+import { timeAgo } from "@/lib/time-ago";
 
 type Connection = { email_address: string; connected_at: string; last_checked_at: string | null } | null;
 
@@ -30,8 +31,11 @@ export function SettingsPanel({
     <Card>
       <CardContent>
         <div className="flex items-center justify-between">
-          <p className="flex items-center gap-1.5 font-heading text-sm font-semibold">
-            <Mail className="size-4 shrink-0 text-muted-foreground" /> Connected inbox
+          <p className="flex items-center gap-2.5 font-heading text-sm font-semibold">
+            <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-accent/10 text-accent">
+              <Mail className="size-4" />
+            </span>
+            Connected inbox
           </p>
           {connection ? (
             <Badge variant="success" className="gap-1">
@@ -50,6 +54,10 @@ export function SettingsPanel({
               Connected as <span className="font-medium text-foreground">{connection.email_address}</span>. Used
               read-only to check whether a prospect you&apos;ve marked contacted has replied — nothing is sent from
               this inbox, and nothing but message existence and timestamp is read.
+            </p>
+            <p className="mt-2 font-mono text-xs text-muted-foreground">
+              Connected {timeAgo(connection.connected_at)}
+              {connection.last_checked_at ? ` · last checked ${timeAgo(connection.last_checked_at)}` : " · not checked yet"}
             </p>
             <div className="mt-4 flex flex-wrap items-center gap-3">
               <Button
