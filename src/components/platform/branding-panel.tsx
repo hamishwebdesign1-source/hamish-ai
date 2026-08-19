@@ -55,7 +55,7 @@ export function BrandingPanel({ accentColor }: { accentColor: string | null }) {
   }
 
   return (
-    <Card className="max-w-2xl">
+    <Card>
       <CardContent>
         <p className="flex items-center gap-2.5 font-heading text-sm font-semibold">
           <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-accent/10 text-accent">

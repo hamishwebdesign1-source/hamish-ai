@@ -45,7 +45,9 @@ export default async function StudioSettingsPage({
   const params = await searchParams;
 
   return (
-    <div className="space-y-6">
+    // Centered column, not left-aligned-and-capped — see prospecting-panel.tsx's
+    // comment for why that distinction is the actual fix.
+    <div className="mx-auto max-w-2xl space-y-6">
       <div>
         <h1 className="font-heading text-2xl font-semibold md:text-3xl">Settings</h1>
         <p className="mt-1 text-sm text-muted-foreground">Connect your own inbox to automate follow-up tracking.</p>
