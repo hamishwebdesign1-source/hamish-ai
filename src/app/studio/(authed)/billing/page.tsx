@@ -57,10 +57,10 @@ export default async function StudioBillingPage({
   const isActive = org?.subscription_status === "active";
 
   return (
-    <div className="max-w-4xl space-y-6">
+    <div className="space-y-6">
       <div>
         <h1 className="font-heading text-2xl font-semibold md:text-3xl">Billing</h1>
-        <p className="mt-1 text-sm text-muted-foreground">Your plan, your subscription, and where to manage the card behind it.</p>
+        <p className="mt-1 max-w-2xl text-sm text-muted-foreground">Your plan, your subscription, and where to manage the card behind it.</p>
       </div>
 
       {checkout === "success" && (
@@ -75,7 +75,7 @@ export default async function StudioBillingPage({
       )}
       {error && <p className="rounded-lg border border-destructive/40 bg-destructive/5 px-4 py-3 text-sm text-destructive">{error}</p>}
 
-      <Card>
+      <Card className="max-w-2xl">
         <CardContent className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <span className="flex size-10 items-center justify-center rounded-xl bg-accent/10 text-accent">

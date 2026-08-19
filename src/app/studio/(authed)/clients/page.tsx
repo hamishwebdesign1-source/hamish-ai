@@ -25,15 +25,15 @@ export default async function StudioClientsPage() {
     .order("created_at", { ascending: false });
 
   return (
-    <div className="max-w-3xl">
+    <div>
       <h1 className="font-heading text-2xl font-semibold md:text-3xl">Clients</h1>
-      <p className="mt-1 text-sm text-muted-foreground">
+      <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
         Everyone you&apos;ve converted from a prospect. Each one gets their own portal login at{" "}
         <span className="font-mono text-xs">hamishai.org/portal</span>, branded to your agency.
       </p>
 
       {!clients || clients.length === 0 ? (
-        <div className="mt-6 rounded-xl border border-dashed border-border p-8 text-center">
+        <div className="mt-6 max-w-2xl rounded-xl border border-dashed border-border p-8 text-center">
           <Users className="mx-auto size-6 text-muted-foreground" />
           <p className="mt-3 text-sm text-muted-foreground">
             No clients yet — convert a prospect from{" "}

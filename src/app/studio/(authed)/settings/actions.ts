@@ -43,3 +43,43 @@ export async function runReplyCheck() {
   revalidatePath("/studio/prospects");
   return result;
 }
+
+// Writes into the same organisations.brand jsonb column
+// getPortalOrgBranding() (portal-org-branding.ts) already reads —
+// existing, working infrastructure that just never had a Studio-side
+// editor. Merged rather than overwritten, same reasoning as
+// updateProspectingConfig() in prospects/actions.ts: brand is expected to
+// grow more keys later (logo, eventually a custom domain per that
+// column's own schema comment) and a colour update shouldn't erase them.
+export async function updateBrandAccent(color: string) {
+  const orgId = await requireOrgId();
+  const admin = getSupabaseAdmin();
+  if (!admin) return { error: "Supabase is not configured." };
+
+  if (!/^#[0-9a-f]{6}$/i.test(color)) return { error: "Enter a valid colour." };
+
+  const { data: org } = await admin.from("organisations").select("brand").eq("id", orgId).single();
+  const merged = { ...(org?.brand ?? {}), accentColor: color };
+
+  const { error } = await admin.from("organisations").update({ brand: merged }).eq("id", orgId);
+  if (error) return { error: "Failed to save your portal colour." };
+
+  revalidatePath("/studio/settings");
+  return { ok: true as const };
+}
+
+export async function resetBrandAccent() {
+  const orgId = await requireOrgId();
+  const admin = getSupabaseAdmin();
+  if (!admin) return { error: "Supabase is not configured." };
+
+  const { data: org } = await admin.from("organisations").select("brand").eq("id", orgId).single();
+  const merged = { ...(org?.brand ?? {}) } as Record<string, unknown>;
+  delete merged.accentColor;
+
+  const { error } = await admin.from("organisations").update({ brand: merged }).eq("id", orgId);
+  if (error) return { error: "Failed to reset your portal colour." };
+
+  revalidatePath("/studio/settings");
+  return { ok: true as const };
+}

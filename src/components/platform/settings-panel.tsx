@@ -28,7 +28,7 @@ export function SettingsPanel({
   const [disconnectError, setDisconnectError] = useState<string | null>(null);
 
   return (
-    <Card>
+    <Card className="max-w-2xl">
       <CardContent>
         <div className="flex items-center justify-between">
           <p className="flex items-center gap-2.5 font-heading text-sm font-semibold">

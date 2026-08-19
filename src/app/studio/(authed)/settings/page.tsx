@@ -4,6 +4,7 @@ import { createServerSupabaseClient } from "@/lib/supabase-server-auth";
 import { getOrgMembership } from "@/lib/org-membership";
 import { hasPlatformMsConfig } from "@/lib/tenant-graph-auth";
 import { SettingsPanel } from "@/components/platform/settings-panel";
+import { BrandingPanel } from "@/components/platform/branding-panel";
 
 // Server-side data assembly only, same split as /studio/prospects — the
 // connect/disconnect/check actions live in settings/actions.ts and
@@ -32,10 +33,19 @@ export default async function StudioSettingsPage({
     .eq("provider", "microsoft")
     .maybeSingle();
 
+  // organisations_select_own RLS (schema-organisations.sql) — same policy
+  // every other /studio page's org read already relies on.
+  const { data: org } = await supabase
+    .from("organisations")
+    .select("brand, is_internal")
+    .eq("id", membership.orgId)
+    .single();
+  const brand = (org?.brand ?? {}) as { accentColor?: string };
+
   const params = await searchParams;
 
   return (
-    <div className="max-w-2xl space-y-6">
+    <div className="space-y-6">
       <div>
         <h1 className="font-heading text-2xl font-semibold md:text-3xl">Settings</h1>
         <p className="mt-1 text-sm text-muted-foreground">Connect your own inbox to automate follow-up tracking.</p>
@@ -53,6 +63,12 @@ export default async function StudioSettingsPage({
       )}
 
       <SettingsPanel connection={connection ?? null} configured={hasPlatformMsConfig()} connectHref="/api/platform/ms-connect" />
+
+      {/* Not rendered for HamishAI's own internal org — getPortalOrgBranding()
+          ignores brand.accentColor for is_internal orgs entirely (the
+          portal always reads as "HamishAI"), so this control would
+          visibly do nothing for that one row. */}
+      {!org?.is_internal && <BrandingPanel accentColor={brand.accentColor ?? null} />}
     </div>
   );
 }

@@ -833,17 +833,17 @@ export function ProspectingPanel({
   }, [prospects, search, statusFilter, sortBy]);
 
   return (
-    <div className="max-w-3xl space-y-6">
+    <div className="space-y-6">
       <div>
         <h1 className="font-heading text-2xl font-semibold md:text-3xl">Prospects</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
+        <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
           Set your niche and geography, then find real businesses matching it — the same engine HamishAI runs its
           own weekly search on.
         </p>
       </div>
 
       {usage && (
-        <Card>
+        <Card className="max-w-2xl">
           <CardContent>
             <div className="flex items-center justify-between text-sm">
               <span className="font-heading font-semibold">This month</span>
@@ -867,7 +867,14 @@ export function ProspectingPanel({
         </Card>
       )}
 
-      <Card>
+      {/* Capped at max-w-2xl deliberately, unlike the page around it — this
+          card holds text inputs, and letting them stretch to the page's
+          full width (matching the header/nav above) would make a "Gyms"
+          text box look absurd. The results list below has no such
+          constraint, and gets to use the width a page-wide list actually
+          benefits from. Same "widen the page, cap just what needs it"
+          fix as Studio Overview's own off-centre bug. */}
+      <Card className="max-w-2xl">
         <CardContent>
           <p className="font-heading text-sm font-semibold">Describe your ideal customer</p>
           <p className="mt-1 text-xs text-muted-foreground">
