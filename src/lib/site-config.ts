@@ -14,7 +14,6 @@ export const siteConfig = {
     { label: "Portfolio", href: "/portfolio" },
     { label: "About", href: "/about" },
     { label: "Contact", href: "/contact" },
-    { label: "Launch an AI Agency", href: "/platform" },
   ],
 };
 

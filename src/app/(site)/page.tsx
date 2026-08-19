@@ -359,8 +359,18 @@ export default function HomePage() {
           <div className="mt-10 grid gap-8 lg:grid-cols-2">
             <Reveal delay={60}>
               <div className="flex h-full flex-col rounded-xl border border-border bg-background p-6">
-                <Eyebrow className="mb-2">AI Business Analytics</Eyebrow>
-                <p className="font-heading text-lg font-medium">Turn your data into decisions.</p>
+                <div className="flex items-center justify-between gap-2">
+                  <Eyebrow>AI Business Analytics</Eyebrow>
+                  {/* Same disclosure command-centre.tsx already shows on
+                      the full /analytics dashboard these tiles link to —
+                      the homepage teaser was the one place on the site
+                      missing it, which read as real revenue at a glance
+                      (real feedback, a Skool reply, 19 Aug 2026). */}
+                  <span className="font-mono text-[10px] tracking-wide text-muted-foreground/70 uppercase">
+                    Illustrative — fictional data
+                  </span>
+                </div>
+                <p className="mt-2 font-heading text-lg font-medium">Turn your data into decisions.</p>
                 <div className="mt-4 grid grid-cols-2 gap-3">
                   {homepageTeaserKpis.map((kpi) => (
                     <KpiCard key={kpi.id} kpi={kpi} compact />
@@ -420,10 +430,22 @@ export default function HomePage() {
           <Reveal>
             <div className="flex flex-wrap items-end justify-between gap-4">
               <div>
-                <Eyebrow className="mb-3">Industries we&apos;ve worked with</Eyebrow>
+                {/* Was "Industries we've worked with" / "Built for real
+                    Edinburgh businesses" — factually wrong for a portfolio
+                    of illustrative concept builds (see case-studies-data.ts),
+                    and the one line on the homepage that directly
+                    contradicted /portfolio's own honest framing one click
+                    later. Real feedback, a Skool reply, 19 Aug 2026: "the
+                    homepage framing sitting above them isn't [honest]...
+                    that's the one a cafe owner would catch." */}
+                <Eyebrow className="mb-3">Concept portfolio</Eyebrow>
                 <h2 className="font-heading text-2xl font-semibold md:text-3xl">
-                  Built for real Edinburgh businesses, not a generic template.
+                  See what this could look like for a business like yours.
                 </h2>
+                <p className="mt-2 max-w-md text-sm text-muted-foreground">
+                  Illustrative concept builds, not real clients yet — each one links through to a fully working
+                  live site, not a static mock-up.
+                </p>
               </div>
               <Button size="lg" variant="gradient" render={<Link href="/portfolio" />}>
                 View the portfolio

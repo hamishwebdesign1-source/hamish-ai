@@ -59,6 +59,19 @@ export function SiteHeader() {
         </nav>
 
         <div className="flex items-center gap-3">
+          {/* Deliberately not in siteConfig.nav, alongside the pages
+              that sell Hamish AI's own services — real feedback (a Skool
+              reply, 19 Aug 2026) flagged that a local business owner
+              couldn't tell if they were the client or the product when
+              this sat flush in the main nav. A muted, visually distinct
+              text link instead of a matching nav item or button keeps it
+              reachable without implying it's another consultancy page. */}
+          <Link
+            href="/platform"
+            className="hidden text-xs text-muted-foreground underline decoration-border underline-offset-4 transition-colors hover:text-foreground lg:inline"
+          >
+            Launch an AI agency →
+          </Link>
           <Button
             size="sm"
             variant="gradient"
@@ -102,6 +115,13 @@ export function SiteHeader() {
             >
               Book a free AI consultation
             </Button>
+            <Link
+              href="/platform"
+              className="text-center text-xs text-muted-foreground underline decoration-border underline-offset-4"
+              onClick={() => setOpen(false)}
+            >
+              Or launch your own AI agency →
+            </Link>
           </div>
         </nav>
       )}
