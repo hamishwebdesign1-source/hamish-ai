@@ -209,3 +209,45 @@ export async function convertProspectToClient(prospectId: string, email: string)
   revalidatePath("/studio/clients");
   return { ok: true as const, clientId: client.id };
 }
+
+// Follow-up tracking — direct port of /admin/leads' own cadence system
+// (lead-status.ts, schema-lead-cadence.sql), which already reads as a
+// pure function over {status, contacted_at, last_contact_method,
+// replied_at} with no HamishAI-specific logic in it at all. Nothing new
+// to invent here, just a tenant-scoped way to set the same fields.
+//
+// Manual, not automated — see the reply on hooking up a tenant's own
+// inbox: that's a real, separate, much bigger feature (multi-tenant
+// OAuth, Google app verification, per-org token storage), not something
+// this action set silently grows into.
+export async function markProspectContacted(prospectId: string) {
+  const orgId = await requireOrgId();
+  const admin = getSupabaseAdmin();
+  if (!admin) return { error: "Supabase is not configured." };
+
+  const { error } = await admin
+    .from("prospects")
+    .update({ status: "contacted", contacted_at: new Date().toISOString(), last_contact_method: "email" })
+    .eq("id", prospectId)
+    .eq("org_id", orgId);
+  if (error) return { error: "Failed to mark as contacted." };
+
+  revalidatePath("/studio/prospects");
+  return { ok: true as const };
+}
+
+export async function markProspectReplied(prospectId: string) {
+  const orgId = await requireOrgId();
+  const admin = getSupabaseAdmin();
+  if (!admin) return { error: "Supabase is not configured." };
+
+  const { error } = await admin
+    .from("prospects")
+    .update({ replied_at: new Date().toISOString() })
+    .eq("id", prospectId)
+    .eq("org_id", orgId);
+  if (error) return { error: "Failed to mark as replied." };
+
+  revalidatePath("/studio/prospects");
+  return { ok: true as const };
+}

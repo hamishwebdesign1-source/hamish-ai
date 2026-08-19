@@ -30,7 +30,8 @@ export default async function StudioHomePage() {
 
   const config = (org?.prospecting_config ?? {}) as { agencyType?: string; services?: string[] };
   const briefing = await getStudioBriefing(supabase, membership.orgId);
-  const hasBriefingContent = briefing.newThisWeek > 0 || briefing.needsResearch > 0 || briefing.readyToContact > 0;
+  const hasBriefingContent =
+    briefing.newThisWeek > 0 || briefing.needsResearch > 0 || briefing.readyToContact > 0 || briefing.followUpsDue > 0;
 
   return (
     <div className="max-w-2xl">
@@ -68,6 +69,12 @@ export default async function StudioHomePage() {
                 <span>
                   <span className="font-mono font-semibold text-accent">{briefing.readyToContact}</span>{" "}
                   <span className="text-muted-foreground">ready to contact</span>
+                </span>
+              )}
+              {briefing.followUpsDue > 0 && (
+                <span>
+                  <span className="font-mono font-semibold text-destructive">{briefing.followUpsDue}</span>{" "}
+                  <span className="text-muted-foreground">follow-up{briefing.followUpsDue === 1 ? "" : "s"} due</span>
                 </span>
               )}
             </div>

@@ -28,6 +28,9 @@ import {
   FileText,
   Calendar,
   MessageCircle,
+  Send,
+  MessageSquareText,
+  BellRing,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -43,11 +46,14 @@ import {
   generateWebsiteMockup,
   generateIcp,
   generateSalesKit,
+  markProspectContacted,
+  markProspectReplied,
 } from "@/app/studio/(authed)/prospects/actions";
 import type { UsageStatus } from "@/lib/usage-limits";
 import type { LeadResearch, ScoreBreakdown } from "@/lib/research-lead";
 import type { WebsiteMockup } from "@/lib/draft-website-mockup";
 import type { SalesKit } from "@/lib/draft-sales-kit";
+import { getLeadCadenceAction, leadNeedsFollowUp } from "@/lib/lead-status";
 
 type Prospect = {
   id: string;
@@ -64,8 +70,92 @@ type Prospect = {
   research_generated_at: string | null;
   website_mockup: WebsiteMockup | null;
   sales_kit: SalesKit | null;
+  contacted_at: string | null;
+  last_contact_method: string | null;
+  replied_at: string | null;
   created_at: string;
 };
+
+function formatDaysAgo(iso: string) {
+  const days = Math.floor((Date.now() - new Date(iso).getTime()) / (1000 * 60 * 60 * 24));
+  if (days <= 0) return "today";
+  if (days === 1) return "1 day ago";
+  return `${days} days ago`;
+}
+
+// Manual tracking, not automated — a tenant clicks these after they've
+// actually emailed or called a prospect themselves. Hooking up a tenant's
+// own inbox (Gmail/Outlook) so this fills in on its own is a real,
+// separate feature (per-tenant OAuth, Google/Microsoft app verification),
+// not something bolted on here.
+function ContactTrackingControl({ prospect }: { prospect: Prospect }) {
+  const [pending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+
+  if (prospect.status === "converted") return null;
+
+  if (!prospect.contacted_at) {
+    return (
+      <div className="flex items-center gap-2">
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={pending}
+          onClick={() =>
+            startTransition(async () => {
+              setError(null);
+              const r = await markProspectContacted(prospect.id);
+              if (r && "error" in r) setError(r.error ?? "Failed to update.");
+            })
+          }
+        >
+          <Send className="size-3.5" /> Mark as contacted
+        </Button>
+        {error && <span className="text-xs text-destructive">{error}</span>}
+      </div>
+    );
+  }
+
+  if (prospect.replied_at) {
+    return (
+      <Badge variant="secondary" className="gap-1">
+        <MessageSquareText className="size-3" /> Replied
+      </Badge>
+    );
+  }
+
+  const cadenceAction = getLeadCadenceAction(prospect);
+
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <span className="text-xs text-muted-foreground">
+        Contacted {formatDaysAgo(prospect.contacted_at)}
+        {prospect.last_contact_method ? ` by ${prospect.last_contact_method}` : ""}
+      </span>
+      {cadenceAction && (
+        <span className="flex items-center gap-1 text-xs font-medium text-destructive">
+          <BellRing className="size-3.5 shrink-0" />
+          {cadenceAction === "call" ? "Call due" : "Follow-up due"}
+        </span>
+      )}
+      <Button
+        size="sm"
+        variant="outline"
+        disabled={pending}
+        onClick={() =>
+          startTransition(async () => {
+            setError(null);
+            const r = await markProspectReplied(prospect.id);
+            if (r && "error" in r) setError(r.error ?? "Failed to update.");
+          })
+        }
+      >
+        <MessageSquareText className="size-3.5" /> Mark as replied
+      </Button>
+      {error && <span className="text-xs text-destructive">{error}</span>}
+    </div>
+  );
+}
 
 // A single row's own convert-to-client mini-form — its own component so
 // each prospect card's open/closed and pending state is independent, not
@@ -500,6 +590,12 @@ function ProspectCard({ prospect }: { prospect: Prospect }) {
             </p>
           </div>
           <div className="flex shrink-0 items-center gap-2">
+            {leadNeedsFollowUp(prospect) && (
+              <span className="flex items-center gap-1 text-[11px] font-medium text-destructive">
+                <BellRing className="size-3 shrink-0" />
+                {getLeadCadenceAction(prospect) === "call" ? "Call due" : "Follow-up due"}
+              </span>
+            )}
             {prospect.status !== "converted" && (
               <Badge variant="secondary" className="capitalize">
                 {prospect.status.replace(/_/g, " ")}
@@ -554,7 +650,8 @@ function ProspectCard({ prospect }: { prospect: Prospect }) {
 
             {prospect.research && <SalesKitSection prospect={prospect} />}
 
-            <div className="flex justify-end">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
+              <ContactTrackingControl prospect={prospect} />
               <ConvertToClientControl prospect={prospect} />
             </div>
           </div>
@@ -648,7 +745,7 @@ export function ProspectingPanel({
   const atLimit = usage !== null && !usage.allowed;
 
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<"all" | "needs_verification" | "converted">("all");
+  const [statusFilter, setStatusFilter] = useState<"all" | "needs_verification" | "contacted" | "needs_followup" | "converted">("all");
   const [sortBy, setSortBy] = useState<"score" | "newest" | "oldest" | "name">("score");
 
   // Client-side over the full prospect list, not a server round-trip —
@@ -656,7 +753,8 @@ export function ProspectingPanel({
   // rows at most today, not a scale where that trade-off matters yet.
   const visibleProspects = useMemo(() => {
     let list = prospects;
-    if (statusFilter !== "all") list = list.filter((p) => p.status === statusFilter);
+    if (statusFilter === "needs_followup") list = list.filter((p) => leadNeedsFollowUp(p));
+    else if (statusFilter !== "all") list = list.filter((p) => p.status === statusFilter);
     if (search.trim()) {
       const q = search.trim().toLowerCase();
       list = list.filter((p) => p.business_name.toLowerCase().includes(q));
@@ -839,6 +937,8 @@ export function ProspectingPanel({
               >
                 <option value="all">All statuses</option>
                 <option value="needs_verification">Needs verification</option>
+                <option value="contacted">Contacted</option>
+                <option value="needs_followup">Follow-up due</option>
                 <option value="converted">Converted</option>
               </select>
               <select
