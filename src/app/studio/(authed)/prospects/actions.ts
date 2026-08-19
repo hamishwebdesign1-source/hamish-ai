@@ -6,6 +6,7 @@ import { getOrgMembership } from "@/lib/org-membership";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { discoverLeads } from "@/lib/discover-leads";
 import { researchLead } from "@/lib/research-lead";
+import { draftWebsiteMockup } from "@/lib/draft-website-mockup";
 
 // Every action here re-derives the caller's org from their own session
 // rather than trusting an orgId argument from the client — Server Actions
@@ -74,6 +75,31 @@ export async function researchProspect(prospectId: string) {
   if (prospectError || !prospect) return { error: "Prospect not found." };
 
   const result = await researchLead(prospectId);
+  revalidatePath("/studio/prospects");
+  return result;
+}
+
+// The lightweight website-mockup generator (draft-website-mockup.ts) —
+// same org-ownership check as researchProspect(), plus a lookup of the
+// caller's own org name, since the mockup copy is written "on behalf of"
+// that org and must never default to HamishAI's name for a real tenant.
+export async function generateWebsiteMockup(prospectId: string) {
+  const orgId = await requireOrgId();
+  const admin = getSupabaseAdmin();
+  if (!admin) return { error: "Supabase is not configured." };
+
+  const { data: prospect, error: prospectError } = await admin
+    .from("prospects")
+    .select("id")
+    .eq("id", prospectId)
+    .eq("org_id", orgId)
+    .single();
+  if (prospectError || !prospect) return { error: "Prospect not found." };
+
+  const { data: org } = await admin.from("organisations").select("name, is_internal").eq("id", orgId).single();
+  const orgName = org && !org.is_internal ? org.name : "HamishAI";
+
+  const result = await draftWebsiteMockup(prospectId, orgName);
   revalidatePath("/studio/prospects");
   return result;
 }
