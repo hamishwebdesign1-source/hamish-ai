@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import {
   Search,
   ExternalLink,
@@ -638,6 +638,28 @@ export function ProspectingPanel({
 
   const atLimit = usage !== null && !usage.allowed;
 
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"all" | "needs_verification" | "converted">("all");
+  const [sortBy, setSortBy] = useState<"score" | "newest" | "oldest" | "name">("score");
+
+  // Client-side over the full prospect list, not a server round-trip —
+  // everything's already loaded for the page, and this is a few dozen
+  // rows at most today, not a scale where that trade-off matters yet.
+  const visibleProspects = useMemo(() => {
+    let list = prospects;
+    if (statusFilter !== "all") list = list.filter((p) => p.status === statusFilter);
+    if (search.trim()) {
+      const q = search.trim().toLowerCase();
+      list = list.filter((p) => p.business_name.toLowerCase().includes(q));
+    }
+    const sorted = [...list];
+    if (sortBy === "score") sorted.sort((a, b) => (b.score_breakdown?.overall ?? b.score ?? -1) - (a.score_breakdown?.overall ?? a.score ?? -1));
+    else if (sortBy === "newest") sorted.sort((a, b) => b.created_at.localeCompare(a.created_at));
+    else if (sortBy === "oldest") sorted.sort((a, b) => a.created_at.localeCompare(b.created_at));
+    else if (sortBy === "name") sorted.sort((a, b) => a.business_name.localeCompare(b.business_name));
+    return sorted;
+  }, [prospects, search, statusFilter, sortBy]);
+
   return (
     <div className="max-w-3xl space-y-6">
       <div>
@@ -789,16 +811,51 @@ export function ProspectingPanel({
       )}
 
       <div>
-        <p className="font-heading text-sm font-semibold">
-          Your prospects{prospects.length > 0 ? ` (${prospects.length})` : ""}
-        </p>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="font-heading text-sm font-semibold">
+            Your prospects{prospects.length > 0 ? ` (${visibleProspects.length}${visibleProspects.length !== prospects.length ? ` of ${prospects.length}` : ""})` : ""}
+          </p>
+          {prospects.length > 0 && (
+            <div className="flex flex-wrap items-center gap-2">
+              <Input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search by name…"
+                className="h-8 w-40 text-xs"
+              />
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)}
+                className="h-8 rounded-lg border border-input bg-transparent px-2 text-xs outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+              >
+                <option value="all">All statuses</option>
+                <option value="needs_verification">Needs verification</option>
+                <option value="converted">Converted</option>
+              </select>
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
+                className="h-8 rounded-lg border border-input bg-transparent px-2 text-xs outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+              >
+                <option value="score">Highest score</option>
+                <option value="newest">Newest first</option>
+                <option value="oldest">Oldest first</option>
+                <option value="name">Name A–Z</option>
+              </select>
+            </div>
+          )}
+        </div>
         {prospects.length === 0 ? (
           <div className="mt-3 rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
             No prospects yet — set your niche above and click &quot;Find prospects now.&quot;
           </div>
+        ) : visibleProspects.length === 0 ? (
+          <div className="mt-3 rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+            No prospects match that search or filter.
+          </div>
         ) : (
           <div className="mt-3 space-y-2">
-            {prospects.map((p) => (
+            {visibleProspects.map((p) => (
               <ProspectCard key={p.id} prospect={p} />
             ))}
           </div>
