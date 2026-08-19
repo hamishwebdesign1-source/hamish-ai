@@ -1,8 +1,8 @@
 import { redirect } from "next/navigation";
-import { Check, Clock, CreditCard } from "lucide-react";
+import { Check, Clock, CreditCard, Rocket, Zap, Building2 } from "lucide-react";
 import { createServerSupabaseClient } from "@/lib/supabase-server-auth";
 import { getOrgMembership } from "@/lib/org-membership";
-import { platformPlans, formatMonthlyPrice } from "@/lib/platform-plans";
+import { platformPlans, formatMonthlyPrice, type PlatformPlanSlug } from "@/lib/platform-plans";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -16,6 +16,16 @@ import { startCheckout, openBillingPortal } from "./actions";
 function daysUntil(dateStr: string) {
   return Math.max(0, Math.ceil((new Date(dateStr).getTime() - Date.now()) / (1000 * 60 * 60 * 24)));
 }
+
+// Same icon choice as the public /platform pricing grid — kept as its own
+// local copy rather than a shared import, same reasoning as that file's
+// own comment: platform-plans.ts is Stripe wiring and pricing facts, this
+// is a display-only concern for wherever a plan card happens to render.
+const planIcons: Record<PlatformPlanSlug, typeof Rocket> = {
+  starter: Rocket,
+  professional: Zap,
+  agency: Building2,
+};
 
 export default async function StudioBillingPage({
   searchParams,
@@ -47,7 +57,7 @@ export default async function StudioBillingPage({
   const isActive = org?.subscription_status === "active";
 
   return (
-    <div className="max-w-3xl space-y-6">
+    <div className="max-w-4xl space-y-6">
       <div>
         <h1 className="font-heading text-2xl font-semibold md:text-3xl">Billing</h1>
         <p className="mt-1 text-sm text-muted-foreground">Your plan, your subscription, and where to manage the card behind it.</p>
@@ -96,6 +106,7 @@ export default async function StudioBillingPage({
       <div className="grid gap-4 sm:grid-cols-3">
         {platformPlans.map((plan) => {
           const isCurrent = org?.plan === plan.slug && isActive;
+          const PlanIcon = planIcons[plan.slug];
           return (
             <div
               key={plan.slug}
@@ -105,8 +116,11 @@ export default async function StudioBillingPage({
                 <Badge className="mb-3 w-fit bg-accent text-accent-foreground">Most agencies start here</Badge>
               )}
               {isCurrent && <Badge className="mb-3 w-fit" variant="secondary">Current plan</Badge>}
-              <p className="font-heading text-sm font-semibold">{plan.name}</p>
-              <p className="mt-2 font-heading text-2xl font-semibold">
+              <span className="flex size-10 items-center justify-center rounded-xl bg-accent/10 text-accent">
+                <PlanIcon className="size-4.5" />
+              </span>
+              <p className="mt-3 font-heading text-sm font-semibold">{plan.name}</p>
+              <p className="mt-2 font-heading text-2xl font-semibold tabular-nums">
                 {formatMonthlyPrice(plan.monthlyPence)}
                 <span className="ml-1 font-body text-xs text-muted-foreground">/mo</span>
               </p>

@@ -10,7 +10,11 @@ import {
   ArrowRight,
   ChartColumn,
   LayoutDashboard,
+  Rocket,
+  Zap,
+  Building2,
 } from "lucide-react";
+import type { PlatformPlanSlug } from "@/lib/platform-plans";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { PageHero } from "@/components/page-hero";
@@ -56,6 +60,18 @@ const howItWorks = [
     description: "A client-facing report and a Stripe invoice, generated from the same data — not a second tool.",
   },
 ];
+
+// Starter/Professional/Agency, in that order — matches
+// platformPlans.length exactly, but kept as its own local map rather than
+// a field on PlatformPlan itself: platform-plans.ts is Stripe wiring and
+// pricing facts, not presentation, and this icon choice is purely a
+// display concern for the two places a plan card renders (here and
+// /studio/billing).
+const planIcons: Record<PlatformPlanSlug, typeof Rocket> = {
+  starter: Rocket,
+  professional: Zap,
+  agency: Building2,
+};
 
 const agencyTypes = [
   { name: "AI Analytics", description: "Monthly performance reports, sold as a retainer." },
@@ -250,42 +266,48 @@ export default function PlatformPage() {
           </p>
         </Reveal>
         <div className="mt-10 grid gap-6 md:grid-cols-3">
-          {platformPlans.map((plan, i) => (
-            <Reveal key={plan.slug} delay={i * 80} className="h-full">
-              <div
-                className={`card-interactive relative flex h-full flex-col rounded-2xl border p-6 ${
-                  plan.highlighted ? "border-accent/50 shadow-lg shadow-accent/10" : "border-border"
-                }`}
-              >
-                {plan.highlighted && (
-                  <Badge className="absolute -top-3 left-6 bg-accent text-accent-foreground">
-                    Most agencies start here
-                  </Badge>
-                )}
-                <p className="mt-4 font-heading text-lg font-semibold">{plan.name}</p>
-                <p className="mt-1 text-sm text-muted-foreground">{plan.tagline}</p>
-                <p className="mt-4 font-heading text-3xl font-semibold">
-                  {formatMonthlyPrice(plan.monthlyPence)}
-                  <span className="ml-1 font-body text-sm text-muted-foreground">/mo</span>
-                </p>
-                <ul className="mt-5 flex-1 space-y-2 text-sm">
-                  {plan.features.map((f) => (
-                    <li key={f} className="flex gap-2">
-                      <Check className="mt-0.5 size-3.5 shrink-0 text-accent" />
-                      <span className="text-muted-foreground">{f}</span>
-                    </li>
-                  ))}
-                </ul>
-                <Button
-                  className="mt-6 w-full"
-                  variant={plan.highlighted ? "gradient" : "outline"}
-                  render={<Link href="/book" />}
+          {platformPlans.map((plan, i) => {
+            const PlanIcon = planIcons[plan.slug];
+            return (
+              <Reveal key={plan.slug} delay={i * 80} className="h-full">
+                <div
+                  className={`card-interactive relative flex h-full flex-col rounded-2xl border p-6 ${
+                    plan.highlighted ? "border-accent/50 shadow-lg shadow-accent/10" : "border-border"
+                  }`}
                 >
-                  Get early access
-                </Button>
-              </div>
-            </Reveal>
-          ))}
+                  {plan.highlighted && (
+                    <Badge className="absolute -top-3 left-6 bg-accent text-accent-foreground">
+                      Most agencies start here
+                    </Badge>
+                  )}
+                  <span className="flex size-11 items-center justify-center rounded-xl bg-accent/10 text-accent">
+                    <PlanIcon className="size-5" />
+                  </span>
+                  <p className="mt-4 font-heading text-lg font-semibold">{plan.name}</p>
+                  <p className="mt-1 text-sm text-muted-foreground">{plan.tagline}</p>
+                  <p className="mt-4 font-heading text-3xl font-semibold tabular-nums">
+                    {formatMonthlyPrice(plan.monthlyPence)}
+                    <span className="ml-1 font-body text-sm text-muted-foreground">/mo</span>
+                  </p>
+                  <ul className="mt-5 flex-1 space-y-2 text-sm">
+                    {plan.features.map((f) => (
+                      <li key={f} className="flex gap-2">
+                        <Check className="mt-0.5 size-3.5 shrink-0 text-accent" />
+                        <span className="text-muted-foreground">{f}</span>
+                      </li>
+                    ))}
+                  </ul>
+                  <Button
+                    className="mt-6 w-full"
+                    variant={plan.highlighted ? "default" : "outline"}
+                    render={<Link href="/book" />}
+                  >
+                    Get early access
+                  </Button>
+                </div>
+              </Reveal>
+            );
+          })}
         </div>
         <p className="mt-6 text-center text-xs text-muted-foreground">
           No standalone white-label tier yet — it&apos;s a future add-on on the Agency plan, turned on once
