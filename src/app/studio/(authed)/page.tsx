@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Search, Users, FileText, CreditCard, CheckCircle2, Lightbulb, ArrowRight, Mail } from "lucide-react";
+import { Search, Users, CreditCard, CheckCircle2, Lightbulb, ArrowRight, Mail } from "lucide-react";
 import { createServerSupabaseClient } from "@/lib/supabase-server-auth";
 import { getOrgMembership } from "@/lib/org-membership";
 import { getStudioBriefing } from "@/lib/studio-briefing";
@@ -10,8 +10,12 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 
 // The end of the onboarding journey (Section 5, step 6 — "workspace
-// generated"). Prospecting, client management and billing are real past
-// this confirmation screen now — reporting is still the one "coming soon."
+// generated"). Prospecting, client management, billing and integrations
+// are all real past this confirmation screen. The "Reporting" tile that
+// used to sit here as a "Coming soon" placeholder is gone — the stats row
+// above is a real, honest first version of it (actual counts, not the
+// homepage's illustrative marketing numbers), not a promise of something
+// not built yet.
 export default async function StudioHomePage() {
   const supabase = await createServerSupabaseClient();
   const {
@@ -33,6 +37,21 @@ export default async function StudioHomePage() {
   const hasBriefingContent =
     briefing.newThisWeek > 0 || briefing.needsResearch > 0 || briefing.readyToContact > 0 || briefing.followUpsDue > 0;
 
+  // Real counts, not the illustrative marketing-page numbers — the
+  // homepage's KPI teaser is fictional-data-and-labelled-as-such
+  // (aiInsights/dashboardKpis), deliberately kept out of Studio entirely.
+  // Head-count queries only (no rows fetched) since this page just needs
+  // the totals, and RLS scopes both to this org independently of the
+  // .eq() below getting it right.
+  const [{ count: prospectCount }, { count: clientCount }] = await Promise.all([
+    supabase.from("prospects").select("id", { count: "exact", head: true }).eq("org_id", membership.orgId),
+    supabase.from("clients").select("id", { count: "exact", head: true }).eq("org_id", membership.orgId),
+  ]);
+  const conversionRate =
+    prospectCount && prospectCount > 0 && clientCount != null
+      ? `${Math.round((clientCount / prospectCount) * 100)}%`
+      : "—";
+
   return (
     <div className="max-w-2xl">
       <Eyebrow>Workspace ready</Eyebrow>
@@ -46,6 +65,21 @@ export default async function StudioHomePage() {
       <div className="mt-8 flex flex-wrap gap-2">
         <Badge variant="secondary">{config.agencyType ?? "Agency"}</Badge>
         <Badge variant="secondary" className="capitalize">{org?.plan ?? "starter"} plan</Badge>
+      </div>
+
+      <div className="mt-6 grid grid-cols-3 gap-4 rounded-xl border border-border bg-background p-5">
+        <div>
+          <p className="font-heading text-2xl font-semibold">{prospectCount ?? 0}</p>
+          <p className="mt-0.5 text-xs text-muted-foreground">Prospects found</p>
+        </div>
+        <div>
+          <p className="font-heading text-2xl font-semibold">{clientCount ?? 0}</p>
+          <p className="mt-0.5 text-xs text-muted-foreground">Clients</p>
+        </div>
+        <div>
+          <p className="font-heading text-2xl font-semibold">{conversionRate}</p>
+          <p className="mt-0.5 text-xs text-muted-foreground">Conversion rate</p>
+        </div>
       </div>
 
       {hasBriefingContent && (
@@ -136,15 +170,6 @@ export default async function StudioHomePage() {
           <p className="mt-2 font-heading text-sm font-semibold">Integrations</p>
           <p className="mt-1 font-mono text-[11px] tracking-wide text-accent uppercase">Ready</p>
         </Link>
-        {[
-          { icon: FileText, label: "Reporting", note: "Coming soon" },
-        ].map((item) => (
-          <div key={item.label} className="rounded-xl border border-dashed border-border p-4 text-center">
-            <item.icon className="mx-auto size-5 text-muted-foreground" />
-            <p className="mt-2 font-heading text-sm font-semibold">{item.label}</p>
-            <p className="mt-1 font-mono text-[11px] tracking-wide text-muted-foreground uppercase">{item.note}</p>
-          </div>
-        ))}
       </div>
     </div>
   );

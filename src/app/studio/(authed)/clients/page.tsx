@@ -1,8 +1,9 @@
 import { redirect } from "next/navigation";
-import { Users } from "lucide-react";
+import { Users, ExternalLink } from "lucide-react";
 import { createServerSupabaseClient } from "@/lib/supabase-server-auth";
 import { getOrgMembership } from "@/lib/org-membership";
 import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 
 // Session-scoped client, RLS-enforced via clients_select_own_org
 // (schema-rls-clients-org-staff.sql) — a plain filtered query would look
@@ -19,7 +20,7 @@ export default async function StudioClientsPage() {
 
   const { data: clients } = await supabase
     .from("clients")
-    .select("id, business_name, email, website_url, created_at")
+    .select("id, business_name, email, website_url, maintenance_plan, created_at")
     .eq("org_id", membership.orgId)
     .order("created_at", { ascending: false });
 
@@ -43,21 +44,50 @@ export default async function StudioClientsPage() {
           </p>
         </div>
       ) : (
-        <div className="mt-6 space-y-2">
-          {clients.map((c) => (
-            <Card key={c.id}>
-              <CardContent className="flex items-center justify-between gap-3 py-3">
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-medium">{c.business_name}</p>
-                  <p className="text-xs text-muted-foreground">{c.email}</p>
-                </div>
-                <p className="shrink-0 font-mono text-[11px] text-muted-foreground">
-                  {new Date(c.created_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
-                </p>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+        <>
+          <p className="mt-4 text-sm text-muted-foreground">
+            <span className="font-mono font-semibold text-foreground">{clients.length}</span> client
+            {clients.length === 1 ? "" : "s"}
+          </p>
+          <div className="mt-3 space-y-2">
+            {clients.map((c) => (
+              <Card key={c.id}>
+                <CardContent className="flex items-center justify-between gap-3 py-3">
+                  <div className="flex min-w-0 items-center gap-3">
+                    <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-accent/10 font-heading text-sm font-semibold text-accent uppercase">
+                      {c.business_name.charAt(0)}
+                    </span>
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium">{c.business_name}</p>
+                      <p className="truncate text-xs text-muted-foreground">{c.email}</p>
+                    </div>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-3">
+                    {c.website_url && (
+                      <a
+                        href={c.website_url.startsWith("http") ? c.website_url : `https://${c.website_url}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="hidden items-center gap-1 text-xs text-accent hover:underline sm:flex"
+                      >
+                        <ExternalLink className="size-3" />
+                        Website
+                      </a>
+                    )}
+                    {c.maintenance_plan && c.maintenance_plan !== "none" && (
+                      <Badge variant="secondary" className="hidden capitalize sm:inline-flex">
+                        {c.maintenance_plan}
+                      </Badge>
+                    )}
+                    <p className="font-mono text-[11px] text-muted-foreground">
+                      {new Date(c.created_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </>
       )}
     </div>
   );
