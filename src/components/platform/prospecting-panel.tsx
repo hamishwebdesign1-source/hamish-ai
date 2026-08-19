@@ -38,6 +38,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsList, TabsTab, TabsPanel } from "@/components/ui/tabs";
 import {
   updateProspectingConfig,
   runDiscovery,
@@ -391,9 +392,6 @@ function WebsiteMockupSection({ prospect }: { prospect: Prospect }) {
 
   return (
     <div>
-      <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
-        <LayoutTemplate className="size-3.5 shrink-0" /> Website mockup
-      </p>
       {prospect.website_mockup ? (
         <WebsiteMockupPreview mockup={prospect.website_mockup} />
       ) : (
@@ -523,9 +521,6 @@ function SalesKitSection({ prospect }: { prospect: Prospect }) {
 
   return (
     <div>
-      <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
-        <ClipboardList className="size-3.5 shrink-0" /> Outreach kit
-      </p>
       {prospect.sales_kit ? (
         <SalesKitPreview kit={prospect.sales_kit} />
       ) : (
@@ -641,14 +636,31 @@ function ProspectCard({ prospect }: { prospect: Prospect }) {
             </div>
 
             {prospect.research ? (
-              <ResearchSummary research={prospect.research} scoreBreakdown={prospect.score_breakdown} />
+              <Tabs defaultValue="research">
+                <TabsList>
+                  <TabsTab value="research">
+                    <Lightbulb className="size-3.5" /> Research
+                  </TabsTab>
+                  <TabsTab value="mockup">
+                    <LayoutTemplate className="size-3.5" /> Website mockup
+                  </TabsTab>
+                  <TabsTab value="kit">
+                    <ClipboardList className="size-3.5" /> Outreach kit
+                  </TabsTab>
+                </TabsList>
+                <TabsPanel value="research">
+                  <ResearchSummary research={prospect.research} scoreBreakdown={prospect.score_breakdown} />
+                </TabsPanel>
+                <TabsPanel value="mockup">
+                  <WebsiteMockupSection prospect={prospect} />
+                </TabsPanel>
+                <TabsPanel value="kit">
+                  <SalesKitSection prospect={prospect} />
+                </TabsPanel>
+              </Tabs>
             ) : (
               <ResearchTrigger prospectId={prospect.id} />
             )}
-
-            {prospect.research && <WebsiteMockupSection prospect={prospect} />}
-
-            {prospect.research && <SalesKitSection prospect={prospect} />}
 
             <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
               <ContactTrackingControl prospect={prospect} />
