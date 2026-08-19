@@ -106,7 +106,7 @@ export default async function StudioBillingPage({
               )}
               {isCurrent && <Badge className="mb-3 w-fit" variant="secondary">Current plan</Badge>}
               <p className="font-heading text-sm font-semibold">{plan.name}</p>
-              <p className="mt-2 gradient-text font-heading text-2xl font-semibold">
+              <p className="mt-2 font-heading text-2xl font-semibold">
                 {formatMonthlyPrice(plan.monthlyPence)}
                 <span className="ml-1 font-body text-xs text-muted-foreground">/mo</span>
               </p>

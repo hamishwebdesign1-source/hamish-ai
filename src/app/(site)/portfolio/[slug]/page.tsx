@@ -66,7 +66,7 @@ export default async function CaseStudyPage({
               what this could look like for your business.
             </p>
           </div>
-          <Button size="lg" variant="gradient" render={<Link href="/book" />}>
+          <Button size="lg" render={<Link href="/book" />}>
             Book a free AI consultation
           </Button>
         </div>

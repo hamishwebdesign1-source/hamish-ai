@@ -71,7 +71,7 @@ export default function ServicesPage() {
             </span>
             <p className="mt-4 font-heading text-lg font-semibold">{packages[1].name}</p>
             <p className="mt-1 text-sm text-muted-foreground">{packages[1].tagline}</p>
-            <p className="mt-4 gradient-text font-heading text-3xl font-semibold">
+            <p className="mt-4 font-heading text-3xl font-semibold">
               {packages[1].foundingPrice}
             </p>
             <p className="mt-1 font-mono text-xs text-muted-foreground line-through">
@@ -117,7 +117,7 @@ export default function ServicesPage() {
                   </span>
                   <p className="mt-4 font-heading text-lg font-semibold">{pkg.name}</p>
                   <p className="mt-1 text-sm text-muted-foreground">{pkg.tagline}</p>
-                  <p className="mt-4 gradient-text font-heading text-2xl font-semibold">
+                  <p className="mt-4 font-heading text-2xl font-semibold">
                     {pkg.foundingPrice}
                   </p>
                   <p className="mt-1 font-mono text-xs text-muted-foreground line-through">
@@ -134,7 +134,7 @@ export default function ServicesPage() {
                   </ul>
                   <Button
                     className="mt-6 w-full"
-                    variant={pkg.highlighted ? "gradient" : "outline"}
+                    variant={pkg.highlighted ? "default" : "outline"}
                     render={<Link href="/contact" />}
                   >
                     Enquire
@@ -208,7 +208,7 @@ export default function ServicesPage() {
                   <BarChart3 className="size-5" />
                 </span>
                 <p className="mt-4 text-sm text-muted-foreground">{analyticsPackage.tagline}</p>
-                <p className="mt-4 gradient-text font-heading text-3xl font-semibold">
+                <p className="mt-4 font-heading text-3xl font-semibold">
                   {analyticsPackage.foundingPrice}
                 </p>
                 <p className="mt-1 font-mono text-xs text-muted-foreground line-through">
@@ -219,7 +219,6 @@ export default function ServicesPage() {
                 </p>
                 <Button
                   className="mt-6 w-full md:w-auto"
-                  variant="gradient"
                   render={<Link href="/contact" />}
                 >
                   Enquire
@@ -280,7 +279,7 @@ export default function ServicesPage() {
               to sell you.
             </p>
           </div>
-          <Button size="lg" variant="gradient" render={<Link href="/book" />}>
+          <Button size="lg" variant="secondary" render={<Link href="/book" />}>
             Book a free AI consultation
           </Button>
         </div>

@@ -30,7 +30,7 @@ export function CaseStudyHero({ study }: { study: CaseStudy }) {
         </h1>
         <p className="mt-6 max-w-xl text-lg text-muted-foreground">{study.overview}</p>
         <div className="mt-8 flex flex-wrap gap-3">
-          <Button size="lg" variant="gradient" render={<Link href="/contact" />}>
+          <Button size="lg" render={<Link href="/contact" />}>
             Get results like this
           </Button>
           <Button

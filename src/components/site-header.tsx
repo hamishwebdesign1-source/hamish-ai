@@ -74,7 +74,6 @@ export function SiteHeader() {
           </Link>
           <Button
             size="sm"
-            variant="gradient"
             className="hidden sm:inline-flex"
             render={<Link href="/book" />}
           >
@@ -108,7 +107,6 @@ export function SiteHeader() {
             ))}
             <Button
               size="sm"
-              variant="gradient"
               className="mt-2 w-full"
               render={<Link href="/book" />}
               onClick={() => setOpen(false)}

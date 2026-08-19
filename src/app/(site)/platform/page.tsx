@@ -90,7 +90,7 @@ export default function PlatformPage() {
         description="The platform behind HamishAI, now yours to run your own agency on. Prospecting, AI analysis, outreach and client delivery — in one workspace, under your own brand."
       >
         <div className="mt-8 flex flex-wrap gap-3">
-          <Button size="lg" variant="gradient" render={<Link href="/book" />}>
+          <Button size="lg" render={<Link href="/book" />}>
             Get early access
           </Button>
           <Button size="lg" variant="outline" render={<Link href="/analytics" />}>
@@ -264,7 +264,7 @@ export default function PlatformPage() {
                 )}
                 <p className="mt-4 font-heading text-lg font-semibold">{plan.name}</p>
                 <p className="mt-1 text-sm text-muted-foreground">{plan.tagline}</p>
-                <p className="mt-4 gradient-text font-heading text-3xl font-semibold">
+                <p className="mt-4 font-heading text-3xl font-semibold">
                   {formatMonthlyPrice(plan.monthlyPence)}
                   <span className="ml-1 font-body text-sm text-muted-foreground">/mo</span>
                 </p>
@@ -318,7 +318,7 @@ export default function PlatformPage() {
               for what you want to sell.
             </p>
           </div>
-          <Button size="lg" variant="gradient" render={<Link href="/book" />}>
+          <Button size="lg" variant="secondary" render={<Link href="/book" />}>
             Get early access
           </Button>
         </div>

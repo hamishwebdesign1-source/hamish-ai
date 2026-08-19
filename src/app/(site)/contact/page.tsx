@@ -64,7 +64,7 @@ export default function ContactPage() {
             {steps.map((s, i) => (
               <Reveal key={s.step} delay={i * 80}>
                 <div className="flex gap-4">
-                  <span className="gradient-text font-heading text-2xl font-semibold">
+                  <span className="font-heading text-2xl font-semibold text-muted-foreground">
                     {s.step}
                   </span>
                   <div>

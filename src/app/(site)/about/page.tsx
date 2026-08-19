@@ -177,7 +177,7 @@ export default function AboutPage() {
               working example.
             </p>
           </div>
-          <Button size="lg" variant="gradient" render={<Link href="/book" />}>
+          <Button size="lg" variant="secondary" render={<Link href="/book" />}>
             Book a free AI consultation
           </Button>
         </div>

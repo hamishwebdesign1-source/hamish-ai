@@ -75,7 +75,7 @@ export function ContactForm() {
         <Textarea id="message" name="message" rows={5} required />
       </div>
 
-      <Button type="submit" size="lg" variant="gradient" disabled={status === "sending"}>
+      <Button type="submit" size="lg" disabled={status === "sending"}>
         {status === "sending" ? "Sending…" : "Book my free AI consultation"}
       </Button>
 

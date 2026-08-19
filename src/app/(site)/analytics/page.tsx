@@ -96,7 +96,7 @@ export default function AnalyticsPage() {
         }
       >
         <div className="mt-8 flex flex-wrap gap-3">
-          <Button size="lg" variant="gradient" render={<Link href="/book" />}>
+          <Button size="lg" render={<Link href="/book" />}>
             Book a free AI consultation
             <ArrowRight className="size-4" />
           </Button>
@@ -152,7 +152,7 @@ export default function AnalyticsPage() {
         <div className="mx-auto max-w-6xl px-6 py-16 md:py-20">
           <Reveal>
             <h2 className="font-heading text-2xl font-semibold md:text-3xl">
-              What's included
+              What&apos;s included
             </h2>
           </Reveal>
           <div className="mt-10 grid gap-6 md:grid-cols-2">
@@ -182,7 +182,7 @@ export default function AnalyticsPage() {
           <Reveal>
             <Eyebrow className="mb-3">Built for your industry</Eyebrow>
             <h2 className="font-heading text-2xl font-semibold md:text-3xl">
-              What we'd track for a business like yours.
+              What we&apos;d track for a business like yours.
             </h2>
           </Reveal>
           <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
@@ -249,7 +249,7 @@ export default function AnalyticsPage() {
               working example.
             </p>
           </div>
-          <Button size="lg" variant="gradient" render={<Link href="/book" />}>
+          <Button size="lg" variant="secondary" render={<Link href="/book" />}>
             Book a free AI consultation
           </Button>
         </div>
