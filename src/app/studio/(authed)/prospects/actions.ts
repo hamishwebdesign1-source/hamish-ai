@@ -251,3 +251,40 @@ export async function markProspectReplied(prospectId: string) {
   revalidatePath("/studio/prospects");
   return { ok: true as const };
 }
+
+// A converted prospect can't be removed — it's now a client
+// (clients.source_lead_id references this row), and deleting it would
+// either fail on that foreign key or, worse, silently orphan the client's
+// "where this came from" link. ConvertToClientControl already never shows
+// a remove option for one; this is the server-side backstop for that,
+// same belt-and-braces rule as every ownership check in this file.
+//
+// research_jobs and lead_meetings both reference prospect_id with no
+// cascade — cleared explicitly first so the delete itself can't fail on
+// either, even though neither pipeline is one Studio prospects normally
+// pass through today.
+export async function deleteProspect(prospectId: string) {
+  const orgId = await requireOrgId();
+  const admin = getSupabaseAdmin();
+  if (!admin) return { error: "Supabase is not configured." };
+
+  const { data: prospect, error: prospectError } = await admin
+    .from("prospects")
+    .select("id, status")
+    .eq("id", prospectId)
+    .eq("org_id", orgId)
+    .single();
+  if (prospectError || !prospect) return { error: "Prospect not found." };
+  if (prospect.status === "converted") {
+    return { error: "Converted prospects can't be removed — they're now a client." };
+  }
+
+  await admin.from("research_jobs").delete().eq("prospect_id", prospectId);
+  await admin.from("lead_meetings").delete().eq("prospect_id", prospectId);
+
+  const { error } = await admin.from("prospects").delete().eq("id", prospectId).eq("org_id", orgId);
+  if (error) return { error: "Failed to remove prospect." };
+
+  revalidatePath("/studio/prospects");
+  return { ok: true as const };
+}
