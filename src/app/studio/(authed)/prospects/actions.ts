@@ -7,6 +7,8 @@ import { getSupabaseAdmin } from "@/lib/supabase";
 import { discoverLeads } from "@/lib/discover-leads";
 import { researchLead } from "@/lib/research-lead";
 import { draftWebsiteMockup } from "@/lib/draft-website-mockup";
+import { buildIcp } from "@/lib/build-icp";
+import { draftSalesKit } from "@/lib/draft-sales-kit";
 
 // Every action here re-derives the caller's org from their own session
 // rather than trusting an orgId argument from the client — Server Actions
@@ -23,6 +25,18 @@ async function requireOrgId(): Promise<string> {
   const membership = await getOrgMembership(supabase, user.email);
   if (!membership) throw new Error("No organisation found for this session.");
   return membership.orgId;
+}
+
+// Costs a real AI call, so gated behind requireOrgId() like everything
+// else here even though it doesn't touch the database — an unauthenticated
+// visitor shouldn't be able to spend the org's AI budget on ICP guesses.
+// Returns the ICP for the client to show in a review step; saving it is a
+// separate, existing updateProspectingConfig() call the user triggers
+// explicitly (via the existing "Save niche" button), not automatic — the
+// AI's interpretation should be reviewable before it's acted on.
+export async function generateIcp(description: string) {
+  await requireOrgId();
+  return buildIcp(description);
 }
 
 export async function updateProspectingConfig(input: { categories: string[]; areas: string[] }) {
@@ -100,6 +114,32 @@ export async function generateWebsiteMockup(prospectId: string) {
   const orgName = org && !org.is_internal ? org.name : "HamishAI";
 
   const result = await draftWebsiteMockup(prospectId, orgName);
+  revalidatePath("/studio/prospects");
+  return result;
+}
+
+// The full six-piece outreach kit (draft-sales-kit.ts), now genuinely
+// tenant-safe — same org/prospect ownership check as generateWebsiteMockup(),
+// resolving the caller's own org name and is_internal so the kit is
+// written on their agency's behalf, not defaulted to Hamish's identity
+// and hamishai.org proof points.
+export async function generateSalesKit(prospectId: string) {
+  const orgId = await requireOrgId();
+  const admin = getSupabaseAdmin();
+  if (!admin) return { error: "Supabase is not configured." };
+
+  const { data: prospect, error: prospectError } = await admin
+    .from("prospects")
+    .select("id")
+    .eq("id", prospectId)
+    .eq("org_id", orgId)
+    .single();
+  if (prospectError || !prospect) return { error: "Prospect not found." };
+
+  const { data: org } = await admin.from("organisations").select("name, is_internal").eq("id", orgId).single();
+  const sender = org && !org.is_internal ? { name: org.name, isInternal: false } : { name: "Hamish AI", isInternal: true };
+
+  const result = await draftSalesKit(prospectId, sender);
   revalidatePath("/studio/prospects");
   return result;
 }

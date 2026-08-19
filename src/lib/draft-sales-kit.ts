@@ -49,12 +49,29 @@ type LeadRow = {
   research: LeadResearch | null;
 };
 
+// Who this kit is being written on behalf of — the piece that makes this
+// function tenant-safe. isInternal is the same switch used everywhere
+// else in this codebase an internal/tenant distinction matters
+// (org-membership.ts, portal-org-branding.ts): HamishAI's own kits stay
+// byte-for-byte identical to before this change; a real Agency Platform
+// tenant gets a genuinely different, honest voice instead of Hamish's own
+// name and hamishai.org URLs leaking into their outreach.
+export type SalesKitSender = { name: string; isInternal: boolean };
+
 // A real sign-off reads as a genuine person reaching out, not an anonymous
-// mailer — same instruction draft-lead-email.ts uses, kept identical so
-// the two don't drift into different voices for the same business.
-const SIGN_OFF_INSTRUCTION = `Hamish
+// mailer — same instruction draft-lead-email.ts used to, kept identical
+// for the internal org so nothing about HamishAI's own kits changes. A
+// tenant has no phone/LinkedIn on file yet (nothing collects one), so
+// their sign-off is honestly just their agency's name rather than
+// inventing contact details that don't exist.
+function signOffInstruction(sender: SalesKitSender): string {
+  if (sender.isInternal) {
+    return `Hamish
 ${siteConfig.phone}
 ${siteConfig.linkedin}`;
+  }
+  return sender.name;
+}
 
 function researchContext(research: LeadResearch | null): string {
   if (!research) return "";
@@ -71,7 +88,15 @@ Cached research on this business (already paid for — treat as ground truth, do
 - Why pursue: ${research.pursue_because}`;
 }
 
-function proofPointInstruction(lead: LeadRow, matchedCaseStudy?: { name: string; industry: string; demoUrl: string }): string {
+function proofPointInstruction(lead: LeadRow, sender: SalesKitSender, matchedCaseStudy?: { name: string; industry: string; demoUrl: string }): string {
+  // Both proof points below point at hamishai.org — real, concrete
+  // evidence for HamishAI's own outreach, but not something a tenant has
+  // any equivalent of yet (no portfolio, no per-tenant concept pages).
+  // Gated on sender.isInternal explicitly rather than trusting
+  // concept_slug/matchedCaseStudy to naturally stay empty for a tenant —
+  // explicit is the same rule every other internal-vs-tenant switch in
+  // this codebase already follows.
+  if (!sender.isInternal) return "";
   if (lead.concept_slug) {
     return `\n\nOne concrete proof point, required in outreach_email and worth a brief natural mention in linkedin_message: Hamish has actually built ${lead.business_name} a real concept of what their own website could look like — not a generic example, a live page made specifically for them, including a working AI chat assistant trained on ${lead.business_name}'s own real details that visitors can talk to right now. In outreach_email you MUST include the literal URL https://www.hamishai.org/concepts/${lead.concept_slug} spelled out in full in the body itself, framed as "here's a concept I put together for your business" style. This is the single most important thing in the email — it's proof, not a pitch.`;
   }
@@ -81,19 +106,24 @@ function proofPointInstruction(lead: LeadRow, matchedCaseStudy?: { name: string;
   return "";
 }
 
-function buildSystemPrompt(lead: LeadRow, matchedCaseStudy?: { name: string; industry: string; demoUrl: string }): string {
-  return `You are ghostwriting a full outreach kit as Hamish, who runs Hamish AI — a small Edinburgh-based AI/web consultancy that fixes concrete website/automation problems for small businesses. You will produce SIX distinct pieces for the same prospect in one pass, so keep them consistent with each other (same specific findings, same tone) but don't repeat yourself word-for-word between them — each has a different job.
+function buildSystemPrompt(lead: LeadRow, sender: SalesKitSender, matchedCaseStudy?: { name: string; industry: string; demoUrl: string }): string {
+  const signOff = signOffInstruction(sender);
+  const identity = sender.isInternal
+    ? "as Hamish, who runs Hamish AI — a small Edinburgh-based AI/web consultancy that fixes concrete website/automation problems for small businesses"
+    : `on behalf of ${sender.name}, an AI/web consultancy that fixes concrete website/automation problems for small businesses`;
+
+  return `You are ghostwriting a full outreach kit ${identity}. You will produce SIX distinct pieces for the same prospect in one pass, so keep them consistent with each other (same specific findings, same tone) but don't repeat yourself word-for-word between them — each has a different job.
 
 Business: ${lead.business_name} (${lead.category || "unknown category"}, ${lead.neighbourhood || "unknown location"})
 ${lead.signal ? `Recorded signal: ${lead.signal}` : ""}
 ${lead.outreach_note ? `Recorded outreach note: ${lead.outreach_note}` : ""}
 ${researchContext(lead.research)}
-${proofPointInstruction(lead, matchedCaseStudy)}
+${proofPointInstruction(lead, sender, matchedCaseStudy)}
 
-General voice for everything below: plain English, warm, direct, zero jargon, zero hard sell. Always ground copy in the real, specific finding(s) above — never generic praise, never invent a fact about the business beyond what's given. Never use markdown formatting (no asterisks, headings, or bullet syntax) inside any text field — a link, if included, is just a plain URL in a sentence. Estimated figures (from research, if present) are for Hamish's own prioritisation only — never state a price or an estimate to the prospect in any of these six pieces.
+General voice for everything below: plain English, warm, direct, zero jargon, zero hard sell. Always ground copy in the real, specific finding(s) above — never generic praise, never invent a fact about the business beyond what's given. Never use markdown formatting (no asterisks, headings, or bullet syntax) inside any text field — a link, if included, is just a plain URL in a sentence. Estimated figures (from research, if present) are for internal prioritisation only — never state a price or an estimate to the prospect in any of these six pieces.
 
 1. outreach_email — a short cold email (4-6 sentences). Open with the specific, concrete observation, never a template greeting like "I hope this finds you well". Offer to help, invite a reply or a quick chat, no pressure. End with this exact sign-off on its own lines (plain text, no extra boilerplate):
-${SIGN_OFF_INSTRUCTION}
+${signOff}
 Also write a short, specific, non-clickbait subject line that references the actual finding.
 
 2. follow_up_email — a very short, low-pressure follow-up (2-3 sentences) for a few days after outreach_email if there's been no reply. Briefly remind them what the original note was about in passing, ask if they had a chance to see it, genuinely fine either way, not pushy. Do not repeat the full pitch. Same sign-off shape as above. Subject line makes clear it's a follow-up (e.g. "Following up on...").
@@ -169,7 +199,11 @@ function stripKit(kit: SalesKit): SalesKit {
   };
 }
 
-export async function draftSalesKit(leadId: string) {
+// sender defaults to HamishAI's own internal identity — every existing
+// call site (just /admin/actions.ts today) keeps behaving exactly as
+// before with no change required there. A future /studio caller passes
+// the signed-in org's own name and isInternal: false explicitly.
+export async function draftSalesKit(leadId: string, sender: SalesKitSender = { name: "Hamish AI", isInternal: true }) {
   const supabase = getSupabaseAdmin();
   if (!supabase) return { error: "Supabase is not configured." as const };
 
@@ -186,13 +220,13 @@ export async function draftSalesKit(leadId: string) {
 
   const anthropic = new Anthropic({ apiKey });
   const model = process.env.ANTHROPIC_MODEL || "claude-haiku-4-5-20251001";
-  const matched = matchCaseStudy(lead.category);
+  const matched = sender.isInternal ? matchCaseStudy(lead.category) : undefined;
 
   try {
     const response = await anthropic.messages.create({
       model,
       max_tokens: 2000,
-      system: buildSystemPrompt(lead as LeadRow, matched),
+      system: buildSystemPrompt(lead as LeadRow, sender, matched),
       tools: [SALES_KIT_TOOL],
       tool_choice: { type: "tool", name: "submit_sales_kit" },
       messages: [{ role: "user", content: "Write the full sales kit." }],

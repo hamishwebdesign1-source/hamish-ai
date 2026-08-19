@@ -21,9 +21,17 @@ import {
   Gauge,
   Sparkles,
   LayoutTemplate,
+  WandSparkles,
+  ClipboardList,
+  Copy,
+  PhoneCall,
+  FileText,
+  Calendar,
+  MessageCircle,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -33,10 +41,13 @@ import {
   convertProspectToClient,
   researchProspect,
   generateWebsiteMockup,
+  generateIcp,
+  generateSalesKit,
 } from "@/app/studio/(authed)/prospects/actions";
 import type { UsageStatus } from "@/lib/usage-limits";
-import type { LeadResearch } from "@/lib/research-lead";
+import type { LeadResearch, ScoreBreakdown } from "@/lib/research-lead";
 import type { WebsiteMockup } from "@/lib/draft-website-mockup";
+import type { SalesKit } from "@/lib/draft-sales-kit";
 
 type Prospect = {
   id: string;
@@ -48,9 +59,11 @@ type Prospect = {
   phone: string | null;
   status: string;
   score: number | null;
+  score_breakdown: ScoreBreakdown | null;
   research: LeadResearch | null;
   research_generated_at: string | null;
   website_mockup: WebsiteMockup | null;
+  sales_kit: SalesKit | null;
   created_at: string;
 };
 
@@ -146,9 +159,40 @@ const FIT_STYLES: Record<LeadResearch["ai_opportunity_fit"], string> = {
   low: "text-muted-foreground",
 };
 
-function ResearchSummary({ research }: { research: LeadResearch }) {
+const SCORE_DIMENSIONS: { key: keyof Omit<ScoreBreakdown, "overall">; label: string }[] = [
+  { key: "fit", label: "Fit" },
+  { key: "need", label: "Need" },
+  { key: "value", label: "Value" },
+  { key: "confidence", label: "Confidence" },
+];
+
+// Four dimensions rather than one number, so a user can see *why* two
+// prospects with the same overall score are actually different — e.g. a
+// no-website business scores high on need but lower on confidence, which
+// a single 0-5 score would flatten into an identical-looking result.
+function ScoreBreakdownBars({ breakdown }: { breakdown: ScoreBreakdown }) {
+  return (
+    <div className="grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-4">
+      {SCORE_DIMENSIONS.map(({ key, label }) => (
+        <div key={key}>
+          <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+            <span>{label}</span>
+            <span className="font-mono">{breakdown[key]}/5</span>
+          </div>
+          <div className="mt-1 h-1 w-full overflow-hidden rounded-full bg-secondary">
+            <div className="h-full rounded-full bg-accent" style={{ width: `${(breakdown[key] / 5) * 100}%` }} />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ResearchSummary({ research, scoreBreakdown }: { research: LeadResearch; scoreBreakdown: ScoreBreakdown | null }) {
   return (
     <div className="space-y-4">
+      {scoreBreakdown && <ScoreBreakdownBars breakdown={scoreBreakdown} />}
+
       <div className="rounded-lg border border-accent/30 bg-accent/5 p-3">
         <p className="flex items-center gap-1.5 text-xs font-semibold text-accent">
           <Lightbulb className="size-3.5 shrink-0" />
@@ -297,6 +341,136 @@ function WebsiteMockupSection({ prospect }: { prospect: Prospect }) {
   );
 }
 
+// Small, local — copies its own text and shows a brief confirmation, no
+// shared state needed since each outreach piece has its own button.
+function CopyButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        navigator.clipboard.writeText(text);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 1500);
+      }}
+      className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-accent"
+    >
+      <Copy className="size-3" /> {copied ? "Copied" : "Copy"}
+    </button>
+  );
+}
+
+function SalesKitPreview({ kit }: { kit: SalesKit }) {
+  return (
+    <div className="space-y-3">
+      <div className="rounded-lg border border-border p-3">
+        <div className="flex items-center justify-between">
+          <p className="flex items-center gap-1.5 text-xs font-semibold"><Mail className="size-3.5 shrink-0 text-muted-foreground" /> Outreach email</p>
+          <CopyButton text={`${kit.outreach_email.subject}\n\n${kit.outreach_email.body}`} />
+        </div>
+        <p className="mt-2 text-xs font-medium">{kit.outreach_email.subject}</p>
+        <p className="mt-1 text-sm whitespace-pre-line text-muted-foreground">{kit.outreach_email.body}</p>
+      </div>
+
+      <div className="rounded-lg border border-border p-3">
+        <div className="flex items-center justify-between">
+          <p className="flex items-center gap-1.5 text-xs font-semibold"><Mail className="size-3.5 shrink-0 text-muted-foreground" /> Follow-up email</p>
+          <CopyButton text={`${kit.follow_up_email.subject}\n\n${kit.follow_up_email.body}`} />
+        </div>
+        <p className="mt-2 text-xs font-medium">{kit.follow_up_email.subject}</p>
+        <p className="mt-1 text-sm whitespace-pre-line text-muted-foreground">{kit.follow_up_email.body}</p>
+      </div>
+
+      <div className="rounded-lg border border-border p-3">
+        <div className="flex items-center justify-between">
+          <p className="flex items-center gap-1.5 text-xs font-semibold"><PhoneCall className="size-3.5 shrink-0 text-muted-foreground" /> Call script</p>
+          <CopyButton
+            text={`Opener: ${kit.call_script.opener}\n\nTalking points:\n${kit.call_script.talking_points.map((t) => `- ${t}`).join("\n")}\n\nIf hesitant: ${kit.call_script.if_hesitant}\n\nClosing ask: ${kit.call_script.closing_ask}`}
+          />
+        </div>
+        <p className="mt-2 text-sm text-muted-foreground">{kit.call_script.opener}</p>
+        <ul className="mt-1.5 space-y-1 text-sm text-muted-foreground">
+          {kit.call_script.talking_points.map((t) => (
+            <li key={t}>• {t}</li>
+          ))}
+        </ul>
+      </div>
+
+      <div className="rounded-lg border border-border p-3">
+        <div className="flex items-center justify-between">
+          <p className="flex items-center gap-1.5 text-xs font-semibold"><MessageCircle className="size-3.5 shrink-0 text-muted-foreground" /> LinkedIn message</p>
+          <CopyButton text={kit.linkedin_message} />
+        </div>
+        <p className="mt-2 text-sm text-muted-foreground">{kit.linkedin_message}</p>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div className="rounded-lg border border-border p-3">
+          <p className="flex items-center gap-1.5 text-xs font-semibold"><Calendar className="size-3.5 shrink-0 text-muted-foreground" /> Meeting agenda</p>
+          <ul className="mt-2 space-y-1 text-xs text-muted-foreground">
+            {kit.meeting_agenda.map((a) => (
+              <li key={a}>• {a}</li>
+            ))}
+          </ul>
+        </div>
+        <div className="rounded-lg border border-border p-3">
+          <p className="flex items-center gap-1.5 text-xs font-semibold"><FileText className="size-3.5 shrink-0 text-muted-foreground" /> Proposal outline</p>
+          <p className="mt-2 text-xs text-muted-foreground">{kit.proposal_outline.overview}</p>
+          <ul className="mt-1.5 space-y-1 text-xs text-muted-foreground">
+            {kit.proposal_outline.included.map((i) => (
+              <li key={i}>• {i}</li>
+            ))}
+          </ul>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SalesKitSection({ prospect }: { prospect: Prospect }) {
+  const [pending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+
+  return (
+    <div>
+      <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
+        <ClipboardList className="size-3.5 shrink-0" /> Outreach kit
+      </p>
+      {prospect.sales_kit ? (
+        <SalesKitPreview kit={prospect.sales_kit} />
+      ) : (
+        <div className="rounded-lg border border-dashed border-border p-4 text-center">
+          <p className="text-sm text-muted-foreground">Not generated yet — email, follow-up, call script, LinkedIn message, meeting agenda and proposal outline, in one go.</p>
+          <Button
+            size="sm"
+            variant="outline"
+            className="mt-3"
+            disabled={pending}
+            onClick={() =>
+              startTransition(async () => {
+                setError(null);
+                const r = await generateSalesKit(prospect.id);
+                if (r && "error" in r) setError(r.error ?? "Sales kit generation failed.");
+              })
+            }
+          >
+            {pending ? (
+              <>
+                <LoaderCircle className="size-3.5 animate-spin" /> Writing…
+              </>
+            ) : (
+              <>
+                <ClipboardList className="size-3.5" /> Generate outreach kit
+              </>
+            )}
+          </Button>
+          {error && <p className="mt-2 text-xs text-destructive">{error}</p>}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ProspectCard({ prospect }: { prospect: Prospect }) {
   const [open, setOpen] = useState(false);
   const hasContact = prospect.phone || prospect.email;
@@ -361,9 +535,15 @@ function ProspectCard({ prospect }: { prospect: Prospect }) {
               )}
             </div>
 
-            {prospect.research ? <ResearchSummary research={prospect.research} /> : <ResearchTrigger prospectId={prospect.id} />}
+            {prospect.research ? (
+              <ResearchSummary research={prospect.research} scoreBreakdown={prospect.score_breakdown} />
+            ) : (
+              <ResearchTrigger prospectId={prospect.id} />
+            )}
 
             {prospect.research && <WebsiteMockupSection prospect={prospect} />}
+
+            {prospect.research && <SalesKitSection prospect={prospect} />}
 
             <div className="flex justify-end">
               <ConvertToClientControl prospect={prospect} />
@@ -395,6 +575,29 @@ export function ProspectingPanel({
   const [areas, setAreas] = useState(initialAreas.join(", "));
   const [savePending, startSave] = useTransition();
   const [saveStatus, setSaveStatus] = useState<"idle" | "saved" | "error">("idle");
+
+  const [icpDescription, setIcpDescription] = useState("");
+  const [icpPending, startIcp] = useTransition();
+  const [icpError, setIcpError] = useState<string | null>(null);
+  const [icpNotes, setIcpNotes] = useState<string | null>(null);
+
+  function handleGenerateIcp() {
+    setIcpError(null);
+    setIcpNotes(null);
+    startIcp(async () => {
+      const result = await generateIcp(icpDescription);
+      if ("error" in result) {
+        setIcpError(result.error);
+        return;
+      }
+      // Fills the existing category/area fields rather than saving
+      // directly — the AI's interpretation is a starting point to review
+      // and edit, not a decision made on the user's behalf.
+      setCategories(result.icp.categories.join(", "));
+      setAreas(result.icp.areas.join(", "));
+      setIcpNotes(result.icp.notes || null);
+    });
+  }
 
   const [runPending, startRun] = useTransition();
   const [runResult, setRunResult] = useState<Awaited<ReturnType<typeof runDiscovery>> | null>(null);
@@ -472,7 +675,34 @@ export function ProspectingPanel({
 
       <Card>
         <CardContent>
-          <p className="font-heading text-sm font-semibold">Your niche</p>
+          <p className="font-heading text-sm font-semibold">Describe your ideal customer</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            One sentence is enough — it fills in the fields below for you to review before saving.
+          </p>
+          <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-start">
+            <Textarea
+              value={icpDescription}
+              onChange={(e) => setIcpDescription(e.target.value)}
+              placeholder="e.g. Independent gyms and fitness studios across Kent's main towns, no chains."
+              className="min-h-9 flex-1 text-sm"
+              rows={2}
+            />
+            <Button size="sm" variant="outline" onClick={handleGenerateIcp} disabled={icpPending || !icpDescription.trim()} className="shrink-0">
+              {icpPending ? (
+                <>
+                  <LoaderCircle className="size-3.5 animate-spin" /> Thinking…
+                </>
+              ) : (
+                <>
+                  <WandSparkles className="size-3.5" /> Generate
+                </>
+              )}
+            </Button>
+          </div>
+          {icpError && <p className="mt-2 text-xs text-destructive">{icpError}</p>}
+          {icpNotes && <p className="mt-2 text-xs text-accent">{icpNotes}</p>}
+
+          <p className="mt-5 font-heading text-sm font-semibold">Your niche</p>
           <div className="mt-4 grid gap-4 sm:grid-cols-2">
             <div className="space-y-1.5">
               <Label htmlFor="categories" className="text-xs">

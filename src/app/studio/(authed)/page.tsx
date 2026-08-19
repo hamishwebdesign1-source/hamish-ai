@@ -1,11 +1,13 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Search, Users, FileText, CreditCard, CheckCircle2 } from "lucide-react";
+import { Search, Users, FileText, CreditCard, CheckCircle2, Lightbulb, ArrowRight } from "lucide-react";
 import { createServerSupabaseClient } from "@/lib/supabase-server-auth";
 import { getOrgMembership } from "@/lib/org-membership";
+import { getStudioBriefing } from "@/lib/studio-briefing";
 import { Card, CardContent } from "@/components/ui/card";
 import { Eyebrow } from "@/components/eyebrow";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 
 // The end of the onboarding journey (Section 5, step 6 — "workspace
 // generated"). Prospecting, client management and billing are real past
@@ -27,6 +29,8 @@ export default async function StudioHomePage() {
     .single();
 
   const config = (org?.prospecting_config ?? {}) as { agencyType?: string; services?: string[] };
+  const briefing = await getStudioBriefing(supabase, membership.orgId);
+  const hasBriefingContent = briefing.newThisWeek > 0 || briefing.needsResearch > 0 || briefing.readyToContact > 0;
 
   return (
     <div className="max-w-2xl">
@@ -42,6 +46,51 @@ export default async function StudioHomePage() {
         <Badge variant="secondary">{config.agencyType ?? "Agency"}</Badge>
         <Badge variant="secondary" className="capitalize">{org?.plan ?? "starter"} plan</Badge>
       </div>
+
+      {hasBriefingContent && (
+        <Card className="mt-6">
+          <CardContent>
+            <p className="font-heading text-sm font-semibold">Your briefing</p>
+            <div className="mt-3 flex flex-wrap gap-x-6 gap-y-2 text-sm">
+              {briefing.newThisWeek > 0 && (
+                <span>
+                  <span className="font-mono font-semibold text-accent">{briefing.newThisWeek}</span>{" "}
+                  <span className="text-muted-foreground">new this week</span>
+                </span>
+              )}
+              {briefing.needsResearch > 0 && (
+                <span>
+                  <span className="font-mono font-semibold text-accent">{briefing.needsResearch}</span>{" "}
+                  <span className="text-muted-foreground">still need research</span>
+                </span>
+              )}
+              {briefing.readyToContact > 0 && (
+                <span>
+                  <span className="font-mono font-semibold text-accent">{briefing.readyToContact}</span>{" "}
+                  <span className="text-muted-foreground">ready to contact</span>
+                </span>
+              )}
+            </div>
+            {briefing.topOpportunity && (
+              <div className="mt-4 rounded-lg border border-accent/30 bg-accent/5 p-3">
+                <p className="flex items-center gap-1.5 text-xs font-semibold text-accent">
+                  <Lightbulb className="size-3.5 shrink-0" />
+                  Your best opportunity right now
+                </p>
+                <p className="mt-1 text-sm font-medium">
+                  {briefing.topOpportunity.businessName}{" "}
+                  <span className="font-mono text-xs font-normal text-muted-foreground">({briefing.topOpportunity.overallScore}/5)</span>
+                </p>
+                <p className="mt-1 text-sm text-muted-foreground">{briefing.topOpportunity.pursueBecause}</p>
+              </div>
+            )}
+            <Button variant="link" size="sm" className="mt-3 h-auto px-0" render={<Link href="/studio/prospects" />}>
+              View all prospects
+              <ArrowRight className="size-3.5" />
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
       {config.services && config.services.length > 0 && (
         <Card className="mt-6">

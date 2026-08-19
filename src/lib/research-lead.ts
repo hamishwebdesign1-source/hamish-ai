@@ -212,6 +212,52 @@ export function computeLeadScore(siteCheck: SiteCheck | null, aiOpportunityFit: 
   return Math.max(0, Math.min(5, points));
 }
 
+// The multi-dimensional breakdown behind the single score above —
+// computeLeadScore() itself is left completely untouched (it's a live,
+// hand-tuned formula /admin/leads already sorts and filters by; changing
+// what it returns would silently change behaviour nobody asked to
+// change). This is a second, additive computation over the same
+// already-generated research, not a replacement, and costs no new AI
+// call: every input already exists in LeadResearch by the time this runs.
+export type ScoreBreakdown = {
+  fit: number; // 1-5 — how well ai_opportunity_fit rates this business for what the org sells
+  need: number; // 1-5 — how many concrete problems the research actually found
+  value: number; // 1-5 — from the estimated project value band
+  confidence: number; // 1-5 — how much of this is real observed evidence vs. inferred from a name and category alone
+  overall: number; // 1-5 — plain average of the four, not a tuned weighting (same "transparent over opaque" reasoning as computeLeadScore)
+};
+
+const VALUE_BAND_SCORE: Record<string, number> = {
+  "£500-£1,500": 1,
+  "£1,500-£3,000": 2,
+  "£3,000-£6,000": 4,
+  "£6,000+": 5,
+};
+
+export function computeScoreBreakdown(siteCheck: SiteCheck | null, research: Omit<LeadResearch, "site_check" | "sales_strategy" | "concept_page_analysis">): ScoreBreakdown {
+  const fit = research.ai_opportunity_fit === "high" ? 5 : research.ai_opportunity_fit === "medium" ? 3 : 1;
+
+  // A count of concrete, named problems, not a judgment call — the same
+  // "auditable over tuned" principle as computeLeadScore.
+  const needSignals = research.weaknesses.length + research.missing_trust_signals.length + research.missing_conversion_opportunities.length;
+  const need = Math.max(1, Math.min(5, Math.round(needSignals / 2)));
+
+  const value = VALUE_BAND_SCORE[research.estimated_project_value_band] ?? 3;
+
+  // Deliberately the inverse of computeLeadScore's own "no website is the
+  // strongest finding" logic: that's true for need (a business with
+  // nothing online has a real, obvious problem), but the opposite is true
+  // for confidence — with no site to check, everything except the
+  // business's name and category is inferred, not observed, so this
+  // dimension is honest about there being less to verify, not less to
+  // worry about.
+  const confidence = !siteCheck ? 2 : siteCheck.resolves ? 5 : 3;
+
+  const overall = Math.round((fit + need + value + confidence) / 4);
+
+  return { fit, need, value, confidence, overall };
+}
+
 const RESEARCH_TOOL: Anthropic.Tool = {
   name: "submit_lead_research",
   description: "Submit the researched findings for this business.",
@@ -590,11 +636,12 @@ export async function researchLead(leadId: string) {
     }
 
     const score = computeLeadScore(siteCheck, findings.ai_opportunity_fit);
+    const scoreBreakdown = computeScoreBreakdown(siteCheck, findings);
     const generatedAt = new Date().toISOString();
 
     const { error: updateError } = await supabase
       .from("prospects")
-      .update({ research, research_generated_at: generatedAt, score })
+      .update({ research, research_generated_at: generatedAt, score, score_breakdown: scoreBreakdown })
       .eq("id", leadId);
     if (updateError) {
       console.error("Failed to save lead research:", updateError);
