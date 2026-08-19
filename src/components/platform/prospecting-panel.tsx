@@ -482,8 +482,17 @@ function ProspectCard({ prospect }: { prospect: Prospect }) {
           <div className="min-w-0">
             <div className="flex items-center gap-2">
               <p className="truncate text-sm font-medium">{prospect.business_name}</p>
-              {prospect.score !== null && (
-                <span className="shrink-0 font-mono text-[11px] text-muted-foreground">score {prospect.score}/5</span>
+              {/* score_breakdown.overall is the same average shown in the
+                  expanded fit/need/value/confidence bars below — showing
+                  the old, unrelated single-formula score here instead
+                  would show two different numbers for "the score" on the
+                  same card, which is exactly what happened before this
+                  fix. Falls back to the old score only for a prospect
+                  researched before score_breakdown existed. */}
+              {(prospect.score_breakdown?.overall ?? prospect.score) !== null && (
+                <span className="shrink-0 font-mono text-[11px] text-muted-foreground">
+                  score {prospect.score_breakdown?.overall ?? prospect.score}/5
+                </span>
               )}
             </div>
             <p className="text-xs text-muted-foreground">
