@@ -103,6 +103,14 @@ function normaliseName(name: string): string {
 // category x area grid a few pairs at a time across weeks, so the same
 // combination isn't re-searched every run without needing to persist
 // "where we got to" anywhere.
+//
+// Capped at allPairs.length, not just `count` — a tenant with one
+// category and one area (a single-pair grid) used to get that identical
+// pair pushed three times in one run (count=3, allPairs.length=1, every
+// index mod 1 is 0), burning two-thirds of the run on a guaranteed
+// duplicate of the same search instead of ever trying anything else.
+// HamishAI's own much larger grid (10 categories x 12 areas) is
+// unaffected — count (3) was already well under allPairs.length (120).
 function pickPairsForWeek(
   categories: string[],
   areas: string[],
@@ -110,9 +118,11 @@ function pickPairsForWeek(
   count: number
 ): { category: string; area: string }[] {
   const allPairs = categories.flatMap((category) => areas.map((area) => ({ category, area })));
+  if (allPairs.length === 0) return [];
   const start = (weekIndex * count) % allPairs.length;
+  const uniqueCount = Math.min(count, allPairs.length);
   const pairs: { category: string; area: string }[] = [];
-  for (let i = 0; i < count; i++) {
+  for (let i = 0; i < uniqueCount; i++) {
     pairs.push(allPairs[(start + i) % allPairs.length]);
   }
   return pairs;
@@ -124,10 +134,20 @@ function isoWeekIndex(date: Date): number {
   return Math.floor(date.getTime() / (7 * 24 * 60 * 60 * 1000));
 }
 
-async function searchCandidates(anthropic: Anthropic, model: string, category: string, area: string): Promise<Candidate[]> {
-  const system = `You are researching small, independently-owned businesses for Hamish AI, an Edinburgh-based AI/web consultancy that helps small businesses that are underserved online.
+async function searchCandidates(anthropic: Anthropic, model: string, orgName: string, category: string, area: string): Promise<Candidate[]> {
+  // orgName and area both come from the caller, not hardcoded — this used
+  // to say "for Hamish AI, an Edinburgh-based AI/web consultancy" and
+  // append ", Scotland" onto every single area regardless of what the
+  // area actually was. That was fine while this only ever ran for
+  // HamishAI's own Central Belt Scotland searches; the moment a real
+  // tenant entered "Kent" as their area, the prompt actually sent was
+  // "gyms category in Kent, Scotland" — a place that doesn't exist,
+  // which is exactly why that search returned almost nothing. The area
+  // string is trusted as-is now; a tenant who needs to disambiguate a
+  // place name can just write "Kent, England" or "Leeds, UK" themselves.
+  const system = `You are researching small, independently-owned businesses on behalf of ${orgName}, an AI/web consultancy that helps small businesses that are underserved online.
 
-Find 2-4 real, currently-operating small businesses in the "${category}" category in ${area}, Scotland, that appear to have no website at all, or only a very weak one (a bare Facebook page, an unmaintained directory listing, or something clearly outdated). Use web search to confirm each business genuinely exists and check for a working website before including it.
+Find 2-4 real, currently-operating small businesses in the "${category}" category in ${area}, that appear to have no website at all, or only a very weak one (a bare Facebook page, an unmaintained directory listing, or something clearly outdated). Use web search to confirm each business genuinely exists and check for a working website before including it. Take the area given literally and don't substitute a different location if you can't immediately place it — search for it as written.
 
 Never invent a business, a website, or a phone number. If you can't confirm a detail, leave it out rather than guess. If you can't find enough businesses that genuinely fit (weak/no web presence), submit fewer — do not pad the list with well-established businesses that already have a good website.`;
 
@@ -182,6 +202,11 @@ export type DiscoverLeadsResult =
       // trial has ended — checked before limitReached, since these need
       // different messages ("subscribe" vs "wait until next month").
       billingRequired?: boolean;
+      // Set when a non-internal org has never saved a niche
+      // (categories/areas) — see the comment where this is checked for
+      // why silently falling back to HamishAI's own Central Belt
+      // Scotland defaults for a real tenant was never actually correct.
+      nicheRequired?: boolean;
     };
 
 // orgId is required, not defaulted — a cron or Server Action calling this
@@ -200,7 +225,7 @@ export async function discoverLeads(orgId: string): Promise<DiscoverLeadsResult>
 
   const { data: org, error: orgError } = await supabase
     .from("organisations")
-    .select("prospecting_config, is_internal, plan, subscription_status, trial_ends_at")
+    .select("name, prospecting_config, is_internal, plan, subscription_status, trial_ends_at")
     .eq("id", orgId)
     .single();
   if (orgError || !org) {
@@ -208,6 +233,18 @@ export async function discoverLeads(orgId: string): Promise<DiscoverLeadsResult>
     return { error: "Organisation not found." as const };
   }
   const config = (org.prospecting_config ?? {}) as { categories?: string[]; areas?: string[] };
+
+  // DEFAULT_CATEGORIES/DEFAULT_AREAS are HamishAI's own Central Belt
+  // Scotland rotation, not a generic placeholder — falling back to them
+  // for a real tenant with no saved niche silently ran their "find
+  // prospects" click against Edinburgh/Falkirk/Glasgow accountants and
+  // cafes regardless of what business they actually run. Only the
+  // internal org gets that fallback now; every other org with no
+  // categories/areas saved gets told to set one, not handed someone
+  // else's config.
+  if (!org.is_internal && (!config.categories?.length || !config.areas?.length)) {
+    return { inserted: [], skippedDuplicates: [], searchFailures: [], pairsSearched: [], nicheRequired: true };
+  }
   const categories = config.categories?.length ? config.categories : DEFAULT_CATEGORIES;
   const areas = config.areas?.length ? config.areas : DEFAULT_AREAS;
 
@@ -273,7 +310,7 @@ export async function discoverLeads(orgId: string): Promise<DiscoverLeadsResult>
 
     let candidates: Candidate[];
     try {
-      candidates = await searchCandidates(anthropic, model, category, area);
+      candidates = await searchCandidates(anthropic, model, org.name, category, area);
     } catch (error) {
       console.error(`Lead discovery search failed for ${category} in ${area}:`, error);
       searchFailures.push(`${category} in ${area}`);

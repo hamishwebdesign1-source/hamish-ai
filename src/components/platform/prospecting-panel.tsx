@@ -399,13 +399,23 @@ export function ProspectingPanel({
   const [runPending, startRun] = useTransition();
   const [runResult, setRunResult] = useState<Awaited<ReturnType<typeof runDiscovery>> | null>(null);
 
+  // Shared by both the explicit "Save niche" button and "Find prospects
+  // now" — this used to be two separate actions, which meant typing a
+  // niche and clicking "Find prospects now" without first clicking "Save"
+  // ran discovery against whatever was already saved (nothing, the first
+  // time), not what was actually in the boxes. "Find prospects now" now
+  // always saves first, so there's no state where the two can disagree.
+  async function saveNiche() {
+    return updateProspectingConfig({
+      categories: categories.split(",").map((s) => s.trim()).filter(Boolean),
+      areas: areas.split(",").map((s) => s.trim()).filter(Boolean),
+    });
+  }
+
   function handleSave() {
     setSaveStatus("idle");
     startSave(async () => {
-      const result = await updateProspectingConfig({
-        categories: categories.split(",").map((s) => s.trim()).filter(Boolean),
-        areas: areas.split(",").map((s) => s.trim()).filter(Boolean),
-      });
+      const result = await saveNiche();
       setSaveStatus("error" in result ? "error" : "saved");
     });
   }
@@ -413,6 +423,11 @@ export function ProspectingPanel({
   function handleRun() {
     setRunResult(null);
     startRun(async () => {
+      const saveResult = await saveNiche();
+      if ("error" in saveResult) {
+        setRunResult({ error: saveResult.error ?? "Failed to save your niche." });
+        return;
+      }
       const result = await runDiscovery();
       setRunResult(result);
     });
@@ -484,7 +499,10 @@ export function ProspectingPanel({
               />
             </div>
           </div>
-          <p className="mt-2 text-xs text-muted-foreground">Comma-separated. Leave blank to use sensible defaults.</p>
+          <p className="mt-2 text-xs text-muted-foreground">
+            Comma-separated. Both are required — be specific with areas (a town or city works better than a whole
+            county or region).
+          </p>
           <div className="mt-4 flex items-center gap-3">
             <Button size="sm" variant="outline" onClick={handleSave} disabled={savePending}>
               {savePending ? "Saving…" : "Save niche"}
@@ -509,6 +527,12 @@ export function ProspectingPanel({
 
       {runResult && "error" in runResult && (
         <p className="text-sm text-destructive">{runResult.error}</p>
+      )}
+      {runResult && "nicheRequired" in runResult && runResult.nicheRequired && (
+        <p className="flex items-center gap-1.5 text-sm text-destructive">
+          <CircleAlert className="size-4 shrink-0" />
+          Enter at least one category and one area above before finding prospects.
+        </p>
       )}
       {runResult && "billingRequired" in runResult && runResult.billingRequired && (
         <p className="flex items-center gap-1.5 text-sm text-destructive">
