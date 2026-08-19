@@ -1,6 +1,5 @@
 import Link from "next/link";
 import Image from "next/image";
-import { Bricolage_Grotesque } from "next/font/google";
 import {
   ArrowRight,
   UtensilsCrossed,
@@ -21,7 +20,6 @@ import { Badge } from "@/components/ui/badge";
 import { Reveal } from "@/components/reveal";
 import { Eyebrow } from "@/components/eyebrow";
 import { ParallaxLayer } from "@/components/parallax-layer";
-import { ConstellationBackdrop } from "@/components/constellation-backdrop";
 import { ProcessTimeline } from "@/components/process-timeline";
 import {
   Accordion,
@@ -32,16 +30,6 @@ import {
 import { aiSolutions } from "@/lib/ai-solutions-data";
 import { dashboardKpis, aiInsights } from "@/lib/analytics-data";
 import { KpiCard } from "@/components/analytics/kpi-card";
-
-// Example treatment for the homepage hero only — a distinct display face
-// from the site's shared Fraunces, tried here first rather than changed
-// globally. Bricolage Grotesque carries real character without being the
-// generic "Inter/Space Grotesk" SaaS default.
-const heroDisplay = Bricolage_Grotesque({
-  subsets: ["latin"],
-  weight: ["600", "700", "800"],
-  variable: "--font-hero-display",
-});
 
 const industries = [
   { icon: UtensilsCrossed, name: "Restaurants & cafés", href: "/portfolio/the-gannet" },
@@ -158,7 +146,7 @@ const steps = [
 export default function HomePage() {
   return (
     <>
-      <section className={`${heroDisplay.variable} relative isolate overflow-hidden bg-[#0d1420]`}>
+      <section className="relative isolate overflow-hidden bg-[#0d1420]">
         <ParallaxLayer speed={0.12} className="absolute inset-x-0 -top-24 h-[calc(100%+12rem)]">
           {/* Poster doubles as the reduced-motion fallback: the video sits on
               top and is hidden by the prefers-reduced-motion rule in
@@ -186,17 +174,10 @@ export default function HomePage() {
         </ParallaxLayer>
         <div className="absolute inset-0 bg-gradient-to-r from-[#0d1420] via-[#0d1420]/75 to-[#0d1420]/15" />
         <div className="absolute inset-0 bg-gradient-to-t from-[#0d1420] via-transparent to-[#0d1420]/30" />
-        {/* The same node-and-line motif used for OG images / page heroes,
-            laid over the footage as a faint "technology" signal rather than
-            a separate literal clip — screen-blended so the city underneath
-            still reads through it. */}
-        <div
-          className="pointer-events-none absolute inset-0 opacity-70 mix-blend-screen"
-          style={{ "--foreground": "#ffffff" } as React.CSSProperties}
-          aria-hidden="true"
-        >
-          <ConstellationBackdrop className="h-full w-full" />
-        </div>
+        {/* No node-and-line overlay here (dropped — see redesign notes,
+            19 Aug 2026): real drone footage of the city is the hero's actual
+            asset, and laying a synthetic "AI network" motif over real
+            photography read as clip art on top of a photo, not texture. */}
 
         <div className="relative mx-auto max-w-6xl px-6 pt-14 pb-16 md:pt-20 md:pb-24">
           <div className="grid gap-12 lg:grid-cols-[1.1fr_1fr] lg:items-center lg:gap-16">
@@ -204,19 +185,20 @@ export default function HomePage() {
               <Badge variant="secondary" className="mb-6 border-white/15 bg-white/10 text-white">
                 Edinburgh, Scotland
               </Badge>
-              <h1
-                className="max-w-xl text-4xl font-bold tracking-tight text-balance text-white md:text-6xl"
-                style={{ fontFamily: "var(--font-hero-display)" }}
-              >
-                Transform your business with{" "}
-                <span className="text-accent">AI-powered</span> digital
-                solutions.
+              {/* Rewritten 19 Aug 2026 — "Transform your business with
+                  AI-powered digital solutions" was the generic template
+                  headline every AI agency site opens with, and said nothing
+                  a stranger couldn't already guess. This says the one thing
+                  that's actually true and unusual about the offer: you see
+                  it built, working, before you've paid anything. */}
+              <h1 className="max-w-xl text-4xl font-bold tracking-tight text-balance text-white md:text-6xl">
+                See it working <span className="text-accent">before you pay</span> for it.
               </h1>
               <p className="mt-6 max-w-xl text-lg text-white/70 text-balance">
-                We help Edinburgh businesses automate tasks, improve customer
-                experiences, and unlock new growth opportunities using
-                practical AI solutions. We don&apos;t just build websites —
-                we make businesses smarter with AI.
+                We build Edinburgh businesses a free, working AI prototype
+                first — a real chatbot you can actually try, not a slide
+                deck — so you know exactly what you&apos;re getting before
+                committing to anything.
               </p>
               <div className="mt-8 flex flex-wrap gap-3">
                 <Button size="lg" variant="gradient" render={<Link href="/contact" />}>
@@ -266,7 +248,7 @@ export default function HomePage() {
           {offerStats.map((s, i) => (
             <Reveal key={s.label} delay={i * 60}>
               <div>
-                <p className="gradient-text font-heading text-3xl font-semibold md:text-4xl">
+                <p className="font-heading text-3xl font-semibold md:text-4xl">
                   {s.value}
                 </p>
                 <p className="mt-1 text-sm text-muted-foreground">{s.label}</p>
@@ -276,13 +258,10 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section className={`${heroDisplay.variable} border-t border-border/60 bg-secondary/40`}>
+      <section className="border-t border-border/60 bg-secondary/40">
         <div className="mx-auto max-w-6xl px-6 py-16 md:py-20">
           <Reveal>
-            <h2
-              className="max-w-2xl text-2xl font-bold tracking-tight text-balance md:text-3xl"
-              style={{ fontFamily: "var(--font-hero-display)" }}
-            >
+            <h2 className="max-w-2xl text-2xl font-bold tracking-tight text-balance md:text-3xl">
               Sound familiar? Here&apos;s what AI can actually do about it.
             </h2>
           </Reveal>
@@ -447,7 +426,7 @@ export default function HomePage() {
                   live site, not a static mock-up.
                 </p>
               </div>
-              <Button size="lg" variant="gradient" render={<Link href="/portfolio" />}>
+              <Button size="lg" render={<Link href="/portfolio" />}>
                 View the portfolio
               </Button>
             </div>
@@ -525,7 +504,7 @@ export default function HomePage() {
               working example.
             </p>
           </div>
-          <Button size="lg" variant="gradient" render={<Link href="/contact" />}>
+          <Button size="lg" variant="secondary" render={<Link href="/contact" />}>
             Book a free AI consultation
           </Button>
         </div>
