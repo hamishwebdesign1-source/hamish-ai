@@ -1,6 +1,18 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Search, Users, CreditCard, CheckCircle2, Lightbulb, ArrowRight, Mail } from "lucide-react";
+import {
+  Search,
+  Users,
+  CreditCard,
+  CheckCircle2,
+  Lightbulb,
+  ArrowRight,
+  Mail,
+  TrendingUp,
+  Sparkles,
+  Send,
+  BellRing,
+} from "lucide-react";
 import { createServerSupabaseClient } from "@/lib/supabase-server-auth";
 import { getOrgMembership } from "@/lib/org-membership";
 import { getStudioBriefing } from "@/lib/studio-briefing";
@@ -53,12 +65,12 @@ export default async function StudioHomePage() {
       : "—";
 
   return (
-    <div className="max-w-2xl">
+    <div>
       <Eyebrow>Workspace ready</Eyebrow>
       <h1 className="mt-3 font-heading text-2xl font-semibold md:text-3xl">
         Welcome to {org?.name ?? "your agency"}.
       </h1>
-      <p className="mt-2 text-muted-foreground">
+      <p className="mt-2 max-w-xl text-muted-foreground">
         Find prospects, convert them into clients, and manage your subscription — all from here.
       </p>
 
@@ -67,47 +79,78 @@ export default async function StudioHomePage() {
         <Badge variant="secondary" className="capitalize">{org?.plan ?? "starter"} plan</Badge>
       </div>
 
-      <div className="mt-6 grid grid-cols-3 gap-4 rounded-xl border border-border bg-background p-5">
-        <div>
-          <p className="font-heading text-2xl font-semibold">{prospectCount ?? 0}</p>
-          <p className="mt-0.5 text-xs text-muted-foreground">Prospects found</p>
-        </div>
-        <div>
-          <p className="font-heading text-2xl font-semibold">{clientCount ?? 0}</p>
-          <p className="mt-0.5 text-xs text-muted-foreground">Clients</p>
-        </div>
-        <div>
-          <p className="font-heading text-2xl font-semibold">{conversionRate}</p>
-          <p className="mt-0.5 text-xs text-muted-foreground">Conversion rate</p>
-        </div>
+      {/* Three real cards, not one shared box split into columns — matches
+          the tile grid's own visual language further down the page, and
+          gives each number room to breathe now that this page isn't
+          artificially choked to a 672px column (the actual cause of the
+          "off centre" look — the header/nav span the full width, this
+          content used to be stuck in a narrow max-w-2xl inside it). */}
+      <div className="mt-6 grid gap-4 sm:grid-cols-3">
+        <Card>
+          <CardContent className="flex items-center gap-3.5">
+            <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-accent/10 text-accent">
+              <Search className="size-5" />
+            </span>
+            <div>
+              <p className="font-heading text-2xl font-semibold tabular-nums">{prospectCount ?? 0}</p>
+              <p className="text-xs text-muted-foreground">Prospects found</p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="flex items-center gap-3.5">
+            <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-accent/10 text-accent">
+              <Users className="size-5" />
+            </span>
+            <div>
+              <p className="font-heading text-2xl font-semibold tabular-nums">{clientCount ?? 0}</p>
+              <p className="text-xs text-muted-foreground">Clients</p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="flex items-center gap-3.5">
+            <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-accent/10 text-accent">
+              <TrendingUp className="size-5" />
+            </span>
+            <div>
+              <p className="font-heading text-2xl font-semibold tabular-nums">{conversionRate}</p>
+              <p className="text-xs text-muted-foreground">Conversion rate</p>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       {hasBriefingContent && (
         <Card className="mt-6">
           <CardContent>
             <p className="font-heading text-sm font-semibold">Your briefing</p>
-            <div className="mt-3 flex flex-wrap gap-x-6 gap-y-2 text-sm">
+            <div className="mt-3 flex flex-wrap gap-x-6 gap-y-3 text-sm">
               {briefing.newThisWeek > 0 && (
-                <span>
-                  <span className="font-mono font-semibold text-accent">{briefing.newThisWeek}</span>{" "}
+                <span className="flex items-center gap-1.5">
+                  <Sparkles className="size-3.5 shrink-0 text-accent" />
+                  <span className="font-mono font-semibold text-accent">{briefing.newThisWeek}</span>
                   <span className="text-muted-foreground">new this week</span>
                 </span>
               )}
               {briefing.needsResearch > 0 && (
-                <span>
-                  <span className="font-mono font-semibold text-accent">{briefing.needsResearch}</span>{" "}
+                <span className="flex items-center gap-1.5">
+                  <Search className="size-3.5 shrink-0 text-accent" />
+                  <span className="font-mono font-semibold text-accent">{briefing.needsResearch}</span>
                   <span className="text-muted-foreground">still need research</span>
                 </span>
               )}
               {briefing.readyToContact > 0 && (
-                <span>
-                  <span className="font-mono font-semibold text-accent">{briefing.readyToContact}</span>{" "}
+                <span className="flex items-center gap-1.5">
+                  <Send className="size-3.5 shrink-0 text-accent" />
+                  <span className="font-mono font-semibold text-accent">{briefing.readyToContact}</span>
                   <span className="text-muted-foreground">ready to contact</span>
                 </span>
               )}
               {briefing.followUpsDue > 0 && (
-                <span>
-                  <span className="font-mono font-semibold text-destructive">{briefing.followUpsDue}</span>{" "}
+                <span className="flex items-center gap-1.5">
+                  <BellRing className="size-3.5 shrink-0 text-destructive" />
+                  <span className="font-mono font-semibold text-destructive">{briefing.followUpsDue}</span>
                   <span className="text-muted-foreground">follow-up{briefing.followUpsDue === 1 ? "" : "s"} due</span>
                 </span>
               )}
