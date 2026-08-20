@@ -108,6 +108,12 @@ export async function deleteClientData(clientId: string) {
   await admin.from("processed_emails").update({ client_id: null }).eq("client_id", clientId);
   await admin.from("site_checks").delete().eq("client_id", clientId);
 
+  // projects.client_id is also NOT NULL (schema-projects.sql) — same
+  // "delete outright" rule as site_checks. Tasks are already gone by this
+  // point (deleted above via request_id), so there's nothing left
+  // pointing at these projects to orphan.
+  await admin.from("projects").delete().eq("client_id", clientId);
+
   const { error } = await admin.from("clients").delete().eq("id", clientId);
   if (error) return { error: "Failed to delete this client's data." };
 

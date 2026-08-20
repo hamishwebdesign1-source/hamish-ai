@@ -20,22 +20,25 @@ export default async function StudioRequestsPage() {
   const membership = await getOrgMembership(supabase, user.email);
   if (!membership) redirect("/platform/onboarding");
 
-  const { data: requests } = await supabase
-    .from("requests")
-    .select(
-      "id, created_at, client_id, raw_text, status, category, complexity, suggested_approach, covered_by_maintenance, coverage_reasoning, draft_response, priority, missing_info, responded_at, clients!inner(business_name, org_id)"
-    )
-    .eq("clients.org_id", membership.orgId)
-    .order("created_at", { ascending: false });
+  const [{ data: requests }, { data: projects }] = await Promise.all([
+    supabase
+      .from("requests")
+      .select(
+        "id, created_at, client_id, raw_text, status, category, complexity, suggested_approach, covered_by_maintenance, coverage_reasoning, draft_response, priority, missing_info, responded_at, clients!inner(business_name, org_id)"
+      )
+      .eq("clients.org_id", membership.orgId)
+      .order("created_at", { ascending: false }),
+    supabase.from("projects").select("id, client_id, name, status").eq("org_id", membership.orgId).eq("status", "active"),
+  ]);
 
   const requestIds = (requests ?? []).map((r) => r.id);
   const { data: tasks } =
     requestIds.length > 0
       ? await supabase
           .from("tasks")
-          .select("id, request_id, title, description, acceptance_criteria, status")
+          .select("id, request_id, title, description, acceptance_criteria, status, project_id")
           .in("request_id", requestIds)
       : { data: [] };
 
-  return <RequestsPanel requests={requests ?? []} tasks={tasks ?? []} />;
+  return <RequestsPanel requests={requests ?? []} tasks={tasks ?? []} projects={projects ?? []} />;
 }

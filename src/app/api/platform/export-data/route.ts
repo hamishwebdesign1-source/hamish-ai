@@ -54,6 +54,11 @@ export async function GET() {
     admin.from("knowledge_base").select("id, title, content, created_at").eq("org_id", orgId),
   ]);
 
+  const { data: projects } = await admin
+    .from("projects")
+    .select("id, client_id, name, target_date, status, created_at")
+    .eq("org_id", orgId);
+
   const clientIds = (clients ?? []).map((c) => c.id);
   const [{ data: clientMembers }, { data: requests }, { data: invoices }] = await Promise.all([
     clientIds.length
@@ -84,6 +89,7 @@ export async function GET() {
     client_members: clientMembers ?? [],
     requests: requests ?? [],
     tasks: tasks ?? [],
+    projects: projects ?? [],
     invoices: invoices ?? [],
     email_connection: emailConnection ?? null,
     knowledge_base: knowledgeBase ?? [],

@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { RequestStatusBadge, TaskStatusBadge, PriorityBadge } from "@/components/status-badges";
 import { markRequestResponded, updateRequestDraft, updateTaskStatus } from "@/app/studio/(authed)/requests/actions";
+import { assignTaskToProject } from "@/app/studio/(authed)/projects/actions";
 
 type Request = {
   id: string;
@@ -43,7 +44,13 @@ type Task = {
   description: string | null;
   acceptance_criteria: string | null;
   status: string;
+  project_id: string | null;
 };
+
+type Project = { id: string; client_id: string; name: string; status: string };
+
+const selectClasses =
+  "h-7 rounded-lg border border-input bg-transparent px-2 text-[11px] outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50";
 
 function clientName(r: Request): string {
   const c = Array.isArray(r.clients) ? r.clients[0] : r.clients;
@@ -68,15 +75,26 @@ function CopyButton({ text }: { text: string }) {
   );
 }
 
-function TaskRow({ task }: { task: Task }) {
+function TaskRow({ task, projects }: { task: Task; projects: Project[] }) {
   const [pending, startTransition] = useTransition();
   const [status, setStatus] = useState(task.status);
+  const [projectPending, startProjectTransition] = useTransition();
+  const [projectId, setProjectId] = useState(task.project_id ?? "");
 
   function setTaskStatus(next: "todo" | "in_progress" | "done") {
     setStatus(next);
     startTransition(async () => {
       const r = await updateTaskStatus(task.id, next);
       if (r && "error" in r) setStatus(task.status);
+    });
+  }
+
+  function setTaskProject(next: string) {
+    const prev = projectId;
+    setProjectId(next);
+    startProjectTransition(async () => {
+      const r = await assignTaskToProject(task.id, next || null);
+      if (r && "error" in r) setProjectId(prev);
     });
   }
 
@@ -92,7 +110,7 @@ function TaskRow({ task }: { task: Task }) {
           <span className="font-medium text-foreground">Done means:</span> {task.acceptance_criteria}
         </p>
       )}
-      <div className="mt-2 flex gap-1.5">
+      <div className="mt-2 flex flex-wrap items-center gap-1.5">
         {(["todo", "in_progress", "done"] as const).map((s) => (
           <Button
             key={s}
@@ -104,12 +122,27 @@ function TaskRow({ task }: { task: Task }) {
             {s === "todo" ? "To do" : s === "in_progress" ? "In progress" : "Done"}
           </Button>
         ))}
+        {projects.length > 0 && (
+          <select
+            value={projectId}
+            onChange={(e) => setTaskProject(e.target.value)}
+            disabled={projectPending}
+            className={`${selectClasses} ml-auto`}
+          >
+            <option value="">No project</option>
+            {projects.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+          </select>
+        )}
       </div>
     </div>
   );
 }
 
-function RequestCard({ request, tasks }: { request: Request; tasks: Task[] }) {
+function RequestCard({ request, tasks, projects }: { request: Request; tasks: Task[]; projects: Project[] }) {
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState(request.draft_response ?? "");
   const [draftPending, startDraftSave] = useTransition();
@@ -193,7 +226,7 @@ function RequestCard({ request, tasks }: { request: Request; tasks: Task[] }) {
                 </p>
                 <div className="space-y-2">
                   {tasks.map((t) => (
-                    <TaskRow key={t.id} task={t} />
+                    <TaskRow key={t.id} task={t} projects={projects} />
                   ))}
                 </div>
               </div>
@@ -244,7 +277,7 @@ function RequestCard({ request, tasks }: { request: Request; tasks: Task[] }) {
   );
 }
 
-export function RequestsPanel({ requests, tasks }: { requests: Request[]; tasks: Task[] }) {
+export function RequestsPanel({ requests, tasks, projects }: { requests: Request[]; tasks: Task[]; projects: Project[] }) {
   const [filter, setFilter] = useState<"all" | "open" | "responded">("open");
 
   const tasksByRequest = useMemo(() => {
@@ -256,6 +289,16 @@ export function RequestsPanel({ requests, tasks }: { requests: Request[]; tasks:
     }
     return map;
   }, [tasks]);
+
+  const projectsByClient = useMemo(() => {
+    const map = new Map<string, Project[]>();
+    for (const p of projects) {
+      const list = map.get(p.client_id) ?? [];
+      list.push(p);
+      map.set(p.client_id, list);
+    }
+    return map;
+  }, [projects]);
 
   const visible = useMemo(() => {
     if (filter === "all") return requests;
@@ -297,7 +340,12 @@ export function RequestsPanel({ requests, tasks }: { requests: Request[]; tasks:
           ) : (
             <div className="space-y-2">
               {visible.map((r) => (
-                <RequestCard key={r.id} request={r} tasks={tasksByRequest.get(r.id) ?? []} />
+                <RequestCard
+                  key={r.id}
+                  request={r}
+                  tasks={tasksByRequest.get(r.id) ?? []}
+                  projects={projectsByClient.get(r.client_id) ?? []}
+                />
               ))}
             </div>
           )}
