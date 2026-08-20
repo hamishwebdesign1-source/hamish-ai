@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import Link from "next/link";
 import { BookOpen, Plus, Pencil, Trash2, X, Sparkles } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -225,7 +226,12 @@ export function KnowledgePanel({
       <h1 className="font-heading text-2xl font-semibold md:text-3xl">Knowledge base</h1>
       <p className="mt-1 text-sm text-muted-foreground">
         What your clients&apos; AI Copilot and support agent draw on to answer questions instantly — leave a client
-        unset for answers that apply to everyone.
+        unset for answers that apply to everyone. This is also step one for putting a chatbot on a client&apos;s own
+        website — once they have facts here, turn it on from their card in{" "}
+        <Link href="/studio/clients" className="text-accent underline underline-offset-2">
+          Clients
+        </Link>
+        .
       </p>
 
       {researchClients.length > 0 && (

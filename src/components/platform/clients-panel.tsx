@@ -304,36 +304,75 @@ function EmbedChatbotControl({ client, usageCount }: { client: Client; usageCoun
         )}
       </div>
       <p className="mt-1 text-xs text-muted-foreground">
-        Answers visitor questions using entries from{" "}
-        <Link href="/studio/knowledge" className="text-accent underline underline-offset-2">
-          Knowledge base
-        </Link>{" "}
-        — no account or order data, ever.
+        A real feature you can sell as part of what you deliver — visitors on your client&apos;s own website get
+        instant, accurate answers, day or night.
       </p>
 
-      <div className="mt-2 flex items-center gap-2">
-        <Label htmlFor={`embed-origin-${client.id}`} className="text-xs whitespace-nowrap">
-          Their website
-        </Label>
-        <Input
-          id={`embed-origin-${client.id}`}
-          value={origin}
-          onChange={(e) => {
-            setOrigin(e.target.value);
-            setSaved(false);
-          }}
-          placeholder="https://theirsite.com"
-          className="h-8 text-sm"
-        />
-      </div>
-
-      <div className="mt-2 flex items-center gap-2">
-        <Button size="sm" variant={enabled ? "outline" : "default"} disabled={pending} onClick={() => save(!enabled)}>
-          {pending ? "Saving…" : enabled ? "Disable" : "Enable"}
-        </Button>
-        {saved && <span className="text-xs text-accent">Saved.</span>}
-      </div>
-      {error && <p className="mt-2 text-xs text-destructive">{error}</p>}
+      <ol className="mt-3 space-y-2.5 text-xs">
+        <li className="flex gap-2">
+          <span className="flex size-4 shrink-0 items-center justify-center rounded-full bg-accent/10 font-mono text-[10px] font-semibold text-accent">
+            1
+          </span>
+          <span className="text-muted-foreground">
+            Add what it should know in{" "}
+            <Link href="/studio/knowledge" className="text-accent underline underline-offset-2">
+              Knowledge base
+            </Link>{" "}
+            — opening hours, policies, services. It never answers from account or order data, only these facts.
+          </span>
+        </li>
+        <li className="flex gap-2">
+          <span className="flex size-4 shrink-0 items-center justify-center rounded-full bg-accent/10 font-mono text-[10px] font-semibold text-accent">
+            2
+          </span>
+          <div className="flex-1 space-y-2 text-muted-foreground">
+            <span>Enter their website and turn it on:</span>
+            <div className="flex items-center gap-2">
+              <Input
+                id={`embed-origin-${client.id}`}
+                value={origin}
+                onChange={(e) => {
+                  setOrigin(e.target.value);
+                  setSaved(false);
+                }}
+                placeholder="https://theirsite.com"
+                className="h-8 text-sm"
+              />
+              <Button size="sm" variant={enabled ? "outline" : "default"} disabled={pending} onClick={() => save(!enabled)}>
+                {pending ? "Saving…" : enabled ? "Disable" : "Enable"}
+              </Button>
+            </div>
+            {saved && <span className="block text-accent">Saved.</span>}
+            {error && <span className="block text-destructive">{error}</span>}
+          </div>
+        </li>
+        <li className="flex gap-2">
+          <span
+            className={`flex size-4 shrink-0 items-center justify-center rounded-full font-mono text-[10px] font-semibold ${
+              enabled && client.chatbot_embed_allowed_origin ? "bg-accent/10 text-accent" : "bg-secondary text-muted-foreground"
+            }`}
+          >
+            3
+          </span>
+          <span className="text-muted-foreground">
+            Copy the snippet below and send it to whoever manages their site — them, their web developer, or you.
+          </span>
+        </li>
+        <li className="flex gap-2">
+          <span
+            className={`flex size-4 shrink-0 items-center justify-center rounded-full font-mono text-[10px] font-semibold ${
+              usageCount > 0 ? "bg-accent/10 text-accent" : "bg-secondary text-muted-foreground"
+            }`}
+          >
+            4
+          </span>
+          <span className="text-muted-foreground">
+            {usageCount > 0
+              ? `It's live and being used — ${usageCount} real conversation${usageCount === 1 ? "" : "s"} in the last 30 days.`
+              : "Once pasted onto their site, it's live — real usage shows up here once visitors start asking it questions."}
+          </span>
+        </li>
+      </ol>
 
       {enabled && client.chatbot_embed_allowed_origin && (
         <div className="mt-3 rounded-lg border border-dashed border-border p-3">
