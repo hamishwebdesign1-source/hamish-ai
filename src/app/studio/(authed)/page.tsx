@@ -28,7 +28,7 @@ import { getStudioBriefing } from "@/lib/studio-briefing";
 import { computeAgencyHealth } from "@/lib/client-health";
 import { getStudioAnalytics } from "@/lib/studio-analytics";
 import { generateInsights, type InsightCategory } from "@/lib/studio-insights";
-import { resolveCardOrder, type CommandCentreCardId } from "@/lib/command-centre-layout";
+import { resolveLayout, isStatBlockId, type StatBlockId } from "@/lib/command-centre-layout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Eyebrow } from "@/components/eyebrow";
 import { Badge } from "@/components/ui/badge";
@@ -83,10 +83,10 @@ export default async function StudioHomePage() {
 
   const { data: org } = await supabase
     .from("organisations")
-    .select("name, plan, prospecting_config, is_internal, stripe_connect_charges_enabled, command_centre_cards")
+    .select("name, plan, prospecting_config, is_internal, stripe_connect_charges_enabled, command_centre_layout")
     .eq("id", membership.orgId)
     .single();
-  const cardOrder = resolveCardOrder(org?.command_centre_cards);
+  const blocks = resolveLayout(org?.command_centre_layout);
 
   const config = (org?.prospecting_config ?? {}) as { agencyType?: string; services?: string[] };
   const briefing = await getStudioBriefing(supabase, membership.orgId);
@@ -175,15 +175,12 @@ export default async function StudioHomePage() {
   ];
   const checklistComplete = checklist.every((item) => item.done);
 
-  // Command Centre Phase 5, first real slice — which of these 5 cards
-  // render and in what order is now per-org (Settings → Command Centre
-  // layout), not fixed. Business Health no longer assumes it's always
-  // first: a reorderable card can't keep a "sized to stand out" special
-  // grid column, so every card in this set now renders at the same
-  // width. Keyed by the same CommandCentreCardId the settings panel and
-  // resolveCardOrder() share, so there's one real list, not two.
-  const cardContent: Record<CommandCentreCardId, ReactNode> = {
-    health: (
+  // Command Centre Phase 5b — which blocks render, their order, and (for
+  // stat cards) their width is now per-org (Settings → Command Centre
+  // layout), not fixed. Keyed by the same StatBlockId the settings panel
+  // and resolveLayout() share, so there's one real list, not two.
+  const statContent: Record<StatBlockId, ReactNode> = {
+    "stat:health": (
       <Card className="h-full">
         <CardContent>
           <div className="flex items-center gap-2">
@@ -217,7 +214,7 @@ export default async function StudioHomePage() {
         </CardContent>
       </Card>
     ),
-    prospects: (
+    "stat:prospects": (
       <Card className="h-full">
         <CardContent className="flex items-center gap-3.5">
           <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-accent/10 text-accent">
@@ -230,7 +227,7 @@ export default async function StudioHomePage() {
         </CardContent>
       </Card>
     ),
-    clients: (
+    "stat:clients": (
       <Card className="h-full">
         <CardContent className="flex items-center gap-3.5">
           <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-accent/10 text-accent">
@@ -243,7 +240,7 @@ export default async function StudioHomePage() {
         </CardContent>
       </Card>
     ),
-    conversion: (
+    "stat:conversion": (
       <Card className="h-full">
         <CardContent className="flex items-center gap-3.5">
           <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-accent/10 text-accent">
@@ -256,7 +253,7 @@ export default async function StudioHomePage() {
         </CardContent>
       </Card>
     ),
-    pipeline: (
+    "stat:pipeline": (
       <Card className="h-full">
         <CardContent className="flex items-center gap-3.5">
           <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-accent/10 text-accent">
@@ -273,37 +270,15 @@ export default async function StudioHomePage() {
     ),
   };
 
-  return (
-    <div>
-      <Eyebrow>Command Centre</Eyebrow>
-      <h1 className="mt-3 font-heading text-2xl font-semibold md:text-3xl">
-        {timeOfDayGreeting()}, {org?.name ?? "your agency"}.
-      </h1>
-      <p className="mt-2 max-w-xl text-muted-foreground">
-        Find prospects, convert them into clients, and manage your subscription — all from here.
-      </p>
-
-      <div className="mt-8 flex flex-wrap gap-2">
-        <Badge variant="secondary">{config.agencyType ?? "Agency"}</Badge>
-        <Badge variant="secondary" className="capitalize">{org?.plan ?? "starter"} plan</Badge>
-      </div>
-
-      {/* Stat cards (Command Centre Phase 1, reorderable per-org since
-          Phase 5 — see Settings → Command Centre layout). Same real,
-          no-fabrication data as before; only which cards show and their
-          order can now differ per tenant. */}
-      <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-        {cardOrder.map((id) => (
-          <div key={id}>{cardContent[id]}</div>
-        ))}
-      </div>
-
-      {/* Actions Required (Command Centre Phase 1) — the urgent subset,
-          gathered from three previously-scattered sources (follow-up
-          cadence, project deadlines, unresponded requests). Only rendered
-          when something real is actually due. */}
-      {actionsRequired.length > 0 && (
-        <Card className="mt-6 border-destructive/30">
+  // Section blocks (Actions required / Insights / Your briefing) —
+  // content is null when there's nothing real to show, same "only
+  // render with real content" rule Phase 1/3 already established. A
+  // block present in the saved layout but with no real content right
+  // now simply renders nothing for that slot, rather than an empty card.
+  const sectionContent: Partial<Record<"actions_required" | "insights" | "briefing", ReactNode>> = {
+    actions_required:
+      actionsRequired.length > 0 ? (
+        <Card className="border-destructive/30">
           <CardContent>
             <p className="flex items-center gap-1.5 font-heading text-sm font-semibold">
               <AlertTriangle className="size-4 shrink-0 text-destructive" /> Actions required
@@ -325,13 +300,10 @@ export default async function StudioHomePage() {
             </ul>
           </CardContent>
         </Card>
-      )}
-
-      {/* AI Insight Feed (Command Centre Phase 3) — only rendered with
-          real content, same rule as every other conditional section on
-          this page. */}
-      {insights.length > 0 && (
-        <Card className="mt-6">
+      ) : undefined,
+    insights:
+      insights.length > 0 ? (
+        <Card>
           <CardContent>
             <p className="flex items-center gap-1 font-heading text-sm font-semibold">
               Insights
@@ -358,8 +330,104 @@ export default async function StudioHomePage() {
             </div>
           </CardContent>
         </Card>
-      )}
+      ) : undefined,
+    briefing: hasBriefingContent ? (
+      <Card>
+        <CardContent>
+          <p className="font-heading text-sm font-semibold">Your briefing</p>
+          <div className="mt-3 flex flex-wrap gap-x-6 gap-y-3 text-sm">
+            {briefing.newThisWeek > 0 && (
+              <span className="flex items-center gap-1.5">
+                <Sparkles className="size-3.5 shrink-0 text-accent" />
+                <span className="font-mono font-semibold text-accent">{briefing.newThisWeek}</span>
+                <span className="text-muted-foreground">new this week</span>
+              </span>
+            )}
+            {briefing.needsResearch > 0 && (
+              <span className="flex items-center gap-1.5">
+                <Search className="size-3.5 shrink-0 text-accent" />
+                <span className="font-mono font-semibold text-accent">{briefing.needsResearch}</span>
+                <span className="text-muted-foreground">still need research</span>
+              </span>
+            )}
+            {briefing.readyToContact > 0 && (
+              <span className="flex items-center gap-1.5">
+                <Send className="size-3.5 shrink-0 text-accent" />
+                <span className="font-mono font-semibold text-accent">{briefing.readyToContact}</span>
+                <span className="text-muted-foreground">ready to contact</span>
+              </span>
+            )}
+          </div>
+          {briefing.topOpportunity && (
+            <div className="mt-4 rounded-lg border border-accent/30 bg-accent/5 p-3">
+              <p className="flex items-center gap-1.5 text-xs font-semibold text-accent">
+                <Lightbulb className="size-3.5 shrink-0" />
+                Your best opportunity right now
+              </p>
+              <p className="mt-1 text-sm font-medium">
+                {briefing.topOpportunity.businessName}{" "}
+                <span className="font-mono text-xs font-normal text-muted-foreground">({briefing.topOpportunity.overallScore}/5)</span>
+              </p>
+              <p className="mt-1 text-sm text-muted-foreground">{briefing.topOpportunity.pursueBecause}</p>
+            </div>
+          )}
+          <Button variant="link" size="sm" className="mt-3 h-auto px-0" render={<Link href="/studio/prospects" />}>
+            View all prospects
+            <ArrowRight className="size-3.5" />
+          </Button>
+        </CardContent>
+      </Card>
+    ) : undefined,
+  };
 
+  return (
+    <div>
+      <Eyebrow>Command Centre</Eyebrow>
+      <h1 className="mt-3 font-heading text-2xl font-semibold md:text-3xl">
+        {timeOfDayGreeting()}, {org?.name ?? "your agency"}.
+      </h1>
+      <p className="mt-2 max-w-xl text-muted-foreground">
+        Find prospects, convert them into clients, and manage your subscription — all from here.
+      </p>
+
+      <div className="mt-8 flex flex-wrap gap-2">
+        <Badge variant="secondary">{config.agencyType ?? "Agency"}</Badge>
+        <Badge variant="secondary" className="capitalize">{org?.plan ?? "starter"} plan</Badge>
+      </div>
+
+      {/* Block canvas (Command Centre Phase 5b — see Settings → Command
+          Centre layout). Stat cards and the three section cards
+          (Actions required / Insights / Your briefing) now live in one
+          reorderable grid: a stat block occupies 1 or 2 of 5 columns
+          depending on its saved width, a section block always spans the
+          full row (see command-centre-layout.ts's own comment on why),
+          and a section block with no real content right now renders
+          nothing for its slot rather than an empty card. */}
+      <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+        {blocks.map((block) => {
+          if (isStatBlockId(block.id)) {
+            const span = (block as { id: StatBlockId; span: 1 | 2 }).span;
+            return (
+              <div key={block.id} className={span === 2 ? "sm:col-span-2" : undefined}>
+                {statContent[block.id]}
+              </div>
+            );
+          }
+          const content = sectionContent[block.id];
+          if (!content) return null;
+          return (
+            <div key={block.id} className="sm:col-span-2 lg:col-span-5">
+              {content}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Getting set up (P1 onboarding checklist) — deliberately not a
+          block: it's a temporary, self-removing section (see its own
+          comment below), not a permanent piece of the layout an agency
+          would want to reorder or hide. Always renders directly after
+          the block canvas while incomplete. */}
       {!checklistComplete && (
         <Card className="mt-6">
           <CardContent>
@@ -381,54 +449,6 @@ export default async function StudioHomePage() {
                 </li>
               ))}
             </ul>
-          </CardContent>
-        </Card>
-      )}
-
-      {hasBriefingContent && (
-        <Card className="mt-6">
-          <CardContent>
-            <p className="font-heading text-sm font-semibold">Your briefing</p>
-            <div className="mt-3 flex flex-wrap gap-x-6 gap-y-3 text-sm">
-              {briefing.newThisWeek > 0 && (
-                <span className="flex items-center gap-1.5">
-                  <Sparkles className="size-3.5 shrink-0 text-accent" />
-                  <span className="font-mono font-semibold text-accent">{briefing.newThisWeek}</span>
-                  <span className="text-muted-foreground">new this week</span>
-                </span>
-              )}
-              {briefing.needsResearch > 0 && (
-                <span className="flex items-center gap-1.5">
-                  <Search className="size-3.5 shrink-0 text-accent" />
-                  <span className="font-mono font-semibold text-accent">{briefing.needsResearch}</span>
-                  <span className="text-muted-foreground">still need research</span>
-                </span>
-              )}
-              {briefing.readyToContact > 0 && (
-                <span className="flex items-center gap-1.5">
-                  <Send className="size-3.5 shrink-0 text-accent" />
-                  <span className="font-mono font-semibold text-accent">{briefing.readyToContact}</span>
-                  <span className="text-muted-foreground">ready to contact</span>
-                </span>
-              )}
-            </div>
-            {briefing.topOpportunity && (
-              <div className="mt-4 rounded-lg border border-accent/30 bg-accent/5 p-3">
-                <p className="flex items-center gap-1.5 text-xs font-semibold text-accent">
-                  <Lightbulb className="size-3.5 shrink-0" />
-                  Your best opportunity right now
-                </p>
-                <p className="mt-1 text-sm font-medium">
-                  {briefing.topOpportunity.businessName}{" "}
-                  <span className="font-mono text-xs font-normal text-muted-foreground">({briefing.topOpportunity.overallScore}/5)</span>
-                </p>
-                <p className="mt-1 text-sm text-muted-foreground">{briefing.topOpportunity.pursueBecause}</p>
-              </div>
-            )}
-            <Button variant="link" size="sm" className="mt-3 h-auto px-0" render={<Link href="/studio/prospects" />}>
-              View all prospects
-              <ArrowRight className="size-3.5" />
-            </Button>
           </CardContent>
         </Card>
       )}

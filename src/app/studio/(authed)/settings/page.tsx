@@ -7,7 +7,7 @@ import { SettingsPanel } from "@/components/platform/settings-panel";
 import { BrandingPanel } from "@/components/platform/branding-panel";
 import { DataPrivacyPanel } from "@/components/platform/data-privacy-panel";
 import { CommandCentreLayoutPanel } from "@/components/platform/command-centre-layout-panel";
-import { resolveCardOrder } from "@/lib/command-centre-layout";
+import { resolveLayout } from "@/lib/command-centre-layout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -50,12 +50,12 @@ export default async function StudioSettingsPage({
   const { data: org } = await supabase
     .from("organisations")
     .select(
-      "name, brand, is_internal, stripe_connect_account_id, stripe_connect_charges_enabled, deletion_requested_at, command_centre_cards"
+      "name, brand, is_internal, stripe_connect_account_id, stripe_connect_charges_enabled, deletion_requested_at, command_centre_layout"
     )
     .eq("id", membership.orgId)
     .single();
   const brand = (org?.brand ?? {}) as { accentColor?: string };
-  const commandCentreOrder = resolveCardOrder(org?.command_centre_cards);
+  const commandCentreBlocks = resolveLayout(org?.command_centre_layout);
 
   const params = await searchParams;
 
@@ -148,7 +148,7 @@ export default async function StudioSettingsPage({
       <div>
         <h2 className="font-heading text-xs font-semibold tracking-wide text-muted-foreground uppercase">Command Centre</h2>
         <div className="mt-3">
-          <CommandCentreLayoutPanel initialOrder={commandCentreOrder} />
+          <CommandCentreLayoutPanel initialBlocks={commandCentreBlocks} />
         </div>
       </div>
 
