@@ -8,6 +8,10 @@ import { checkForReplies } from "@/lib/detect-replies";
 import { sendErrorAlert } from "@/lib/send-error-alert";
 import { logAuditEvent } from "@/lib/audit-log";
 import { sanitizeBlocksForWrite, type Block, type CommandCentreLayout } from "@/lib/command-centre-layout";
+import { proposeCommandCentreLayout } from "@/lib/command-centre-design-assistant";
+import { getUsageStatus, recordUsageEvent } from "@/lib/usage-limits";
+import { isStudioActionRateLimited } from "@/lib/chat-rate-limit";
+import type { PlatformPlanSlug } from "@/lib/platform-plans";
 
 // Same session-derivation as prospects/actions.ts's requireOrgId() — kept
 // as its own local copy, same convention billing/actions.ts documents.
@@ -96,6 +100,62 @@ export async function updateCommandCentreLayout(blocks: Block[]) {
   revalidatePath("/studio/settings");
   revalidatePath("/studio");
   return { ok: true as const };
+}
+
+// Same usage/rate-limit discipline as every other Studio AI Server
+// Action (prospects/actions.ts's own checkUsage()/usageCheckErrorMessage())
+// — kept as its own local copy, same convention requireOrgId() above
+// already documents for this file. This is a real AI-cost surface
+// (§23's AI Design Assistant), not exempt from the platform readiness
+// audit's own rule that every one of these gets a monthly cap.
+async function checkAiUsage(
+  orgId: string
+): Promise<
+  | { allowed: true; isInternal: boolean }
+  | { allowed: false; isInternal: false; rateLimited: true }
+  | { allowed: false; isInternal: false; rateLimited: false; used: number; limit: number }
+> {
+  const admin = getSupabaseAdmin();
+  if (!admin) return { allowed: true, isInternal: false };
+
+  const { data: org } = await admin.from("organisations").select("plan, is_internal").eq("id", orgId).single();
+  if (!org || org.is_internal) return { allowed: true, isInternal: true };
+
+  if (await isStudioActionRateLimited(orgId)) return { allowed: false, isInternal: false, rateLimited: true };
+
+  const usage = await getUsageStatus(orgId, "layout_redesign_proposed", org.plan as PlatformPlanSlug);
+  if (!usage.allowed) return { allowed: false, isInternal: false, rateLimited: false, used: usage.used, limit: usage.limit };
+  return { allowed: true, isInternal: false };
+}
+
+function aiUsageErrorMessage(usageCheck: { rateLimited: true } | { rateLimited: false; used: number; limit: number }): string {
+  if (usageCheck.rateLimited) return "You're doing that a lot right now — wait a few minutes and try again.";
+  return `Monthly limit reached (${usageCheck.used} of ${usageCheck.limit}) — try again next month.`;
+}
+
+// Command Centre Phase 5d (§23) — the AI Design Assistant. Read-only:
+// this never writes to the database. It returns a proposed layout for
+// the settings panel to load into its own editable draft, exactly like
+// a person had just clicked all those buttons themselves — the existing
+// updateCommandCentreLayout() above, unchanged, is still the only thing
+// that ever persists a layout, and only once the human clicks Save.
+export async function requestLayoutRedesign(instruction: string, currentBlocks: Block[]) {
+  const orgId = await requireOrgId();
+  const usageCheck = await checkAiUsage(orgId);
+  if (!usageCheck.allowed) return { error: aiUsageErrorMessage(usageCheck) };
+
+  // The client's current draft (including any unsaved edits already
+  // made this session) is what the assistant builds on top of — not a
+  // trusted value, just prompt context, since sanitizeBlocksForWrite()
+  // inside proposeCommandCentreLayout() re-validates its own output
+  // regardless of what was fed in here.
+  const safeCurrentBlocks = sanitizeBlocksForWrite(currentBlocks) ?? [];
+  const result = await proposeCommandCentreLayout(safeCurrentBlocks, instruction);
+
+  if (!usageCheck.isInternal && "outcome" in result && result.outcome === "proposal") {
+    await recordUsageEvent(orgId, "layout_redesign_proposed");
+  }
+  return result;
 }
 
 export async function resetCommandCentreLayout() {

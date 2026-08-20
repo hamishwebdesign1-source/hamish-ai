@@ -14,7 +14,8 @@ export type UsageEventType =
   | "website_mockup_generated"
   | "icp_built"
   | "request_triaged"
-  | "clients_copilot_question";
+  | "clients_copilot_question"
+  | "layout_redesign_proposed";
 
 // Calendar month, not a rolling 30 days — matches how the pricing page
 // already describes each plan ("up to 30 researched prospects a month"),
@@ -47,6 +48,10 @@ const USAGE_MULTIPLIER: Record<Exclude<UsageEventType, "prospect_researched">, n
   // generous headroom for a real working session, still a real ceiling
   // against a runaway loop.
   clients_copilot_question: 10,
+  // Same reasoning as clients_copilot_question — a real editing session
+  // means several instructions before the layout looks right, and each
+  // call is the same cheap Haiku model with no per-call research cost.
+  layout_redesign_proposed: 10,
 };
 
 function limitFor(eventType: UsageEventType, plan: PlatformPlanSlug): number {

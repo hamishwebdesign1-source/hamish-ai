@@ -1,12 +1,12 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { LayoutGrid, RotateCcw, ChevronUp, ChevronDown, Eye, EyeOff, RectangleHorizontal, Square, Trash2, LineChart, Type, Link2, Plus } from "lucide-react";
+import { LayoutGrid, RotateCcw, ChevronUp, ChevronDown, Eye, EyeOff, RectangleHorizontal, Square, Trash2, LineChart, Type, Link2, Plus, Sparkles } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { updateCommandCentreLayout, resetCommandCentreLayout } from "@/app/studio/(authed)/settings/actions";
+import { updateCommandCentreLayout, resetCommandCentreLayout, requestLayoutRedesign } from "@/app/studio/(authed)/settings/actions";
 import {
   DEFAULT_LAYOUT,
   STAT_LABELS,
@@ -30,6 +30,24 @@ function blockLabel(block: Block): string {
   return block.label || "Call to action";
 }
 
+// Shared by the initial draft, Reset, and applying an AI proposal — the
+// same "fill in any missing singleton block as hidden, in its default
+// position" construction needed in all three places, not three near-copies.
+function blocksToState(blocks: Block[]): { draftBlocks: Record<string, Block>; order: string[]; hidden: Set<string> } {
+  const draftBlocks: Record<string, Block> = {};
+  for (const b of blocks) draftBlocks[b.id] = b;
+  for (const b of DEFAULT_LAYOUT.blocks) if (!(b.id in draftBlocks)) draftBlocks[b.id] = b;
+
+  const present = blocks.map((b) => b.id);
+  const missingSingletons = DEFAULT_LAYOUT.blocks.map((b) => b.id).filter((id) => !present.includes(id));
+  const order = [...present, ...missingSingletons];
+
+  const presentSet = new Set(present);
+  const hidden = new Set(DEFAULT_LAYOUT.blocks.map((b) => b.id).filter((id) => !presentSet.has(id)));
+
+  return { draftBlocks, order, hidden };
+}
+
 // Command Centre Phase 5c — the settings panel grows from "toggle/reorder
 // 8 fixed blocks" (Phase 5b) into a real add/remove/configure canvas for
 // three genuinely new block types: chart (sourced from studio-analytics.ts's
@@ -40,24 +58,22 @@ function blockLabel(block: Block): string {
 // their own inline fields, since "hide" doesn't mean anything for a
 // block that only exists because someone added it.
 export function CommandCentreLayoutPanel({ initialBlocks }: { initialBlocks: Block[] }) {
-  const [draftBlocks, setDraftBlocks] = useState<Record<string, Block>>(() => {
-    const map: Record<string, Block> = {};
-    for (const b of initialBlocks) map[b.id] = b;
-    for (const b of DEFAULT_LAYOUT.blocks) if (!(b.id in map)) map[b.id] = b;
-    return map;
-  });
-  const [order, setOrder] = useState<string[]>(() => {
-    const present = initialBlocks.map((b) => b.id);
-    const missingSingletons = DEFAULT_LAYOUT.blocks.map((b) => b.id).filter((id) => !present.includes(id));
-    return [...present, ...missingSingletons];
-  });
-  const [hidden, setHidden] = useState<Set<string>>(() => {
-    const present = new Set(initialBlocks.map((b) => b.id));
-    return new Set(DEFAULT_LAYOUT.blocks.map((b) => b.id).filter((id) => !present.has(id)));
-  });
+  const [{ draftBlocks: initialDraft, order: initialOrder, hidden: initialHidden }] = useState(() => blocksToState(initialBlocks));
+  const [draftBlocks, setDraftBlocks] = useState<Record<string, Block>>(initialDraft);
+  const [order, setOrder] = useState<string[]>(initialOrder);
+  const [hidden, setHidden] = useState<Set<string>>(initialHidden);
   const [pending, startTransition] = useTransition();
   const [status, setStatus] = useState<"idle" | "saved" | "error">("idle");
   const [error, setError] = useState<string | null>(null);
+
+  const [aiInstruction, setAiInstruction] = useState("");
+  const [aiPending, startAiTransition] = useTransition();
+  const [aiResult, setAiResult] = useState<
+    | { kind: "proposal"; blocks: Block[]; summary: string }
+    | { kind: "unable"; reason: string }
+    | { kind: "error"; message: string }
+    | null
+  >(null);
 
   const defaultIds = DEFAULT_LAYOUT.blocks.map((b) => b.id);
   const isCustomised =
@@ -114,13 +130,21 @@ export function CommandCentreLayoutPanel({ initialBlocks }: { initialBlocks: Blo
     });
   }
 
-  function save() {
-    setStatus("idle");
-    setError(null);
-    const blocks: Block[] = order
+// A visible, ordered block currently in the draft — shared by Save and
+  // the AI Design Assistant, which builds its proposal on top of exactly
+  // what Save would persist right now (including any unsaved edits),
+  // not a second, possibly-stale read of the database.
+  function visibleOrderedBlocks(): Block[] {
+    return order
       .map((id) => draftBlocks[id])
       .filter((b): b is Block => Boolean(b))
       .filter((b) => b.type === "chart" || b.type === "text" || b.type === "cta" || !hidden.has(b.id));
+  }
+
+  function save() {
+    setStatus("idle");
+    setError(null);
+    const blocks = visibleOrderedBlocks();
     startTransition(async () => {
       const r = await updateCommandCentreLayout(blocks);
       if (r && "error" in r) setError(r.error ?? "Failed to save.");
@@ -137,13 +161,39 @@ export function CommandCentreLayoutPanel({ initialBlocks }: { initialBlocks: Blo
         setError(r.error ?? "Failed to reset.");
         return;
       }
-      const map: Record<string, Block> = {};
-      for (const b of DEFAULT_LAYOUT.blocks) map[b.id] = b;
-      setDraftBlocks(map);
-      setOrder(defaultIds);
-      setHidden(new Set());
+      const next = blocksToState(DEFAULT_LAYOUT.blocks);
+      setDraftBlocks(next.draftBlocks);
+      setOrder(next.order);
+      setHidden(next.hidden);
       setStatus("saved");
     });
+  }
+
+  // Command Centre Phase 5d (§23) — read-only: this never saves anything
+  // itself. A successful proposal only becomes real once "Apply
+  // suggestion" loads it into the same draft state every manual edit
+  // already goes through, and the existing Save button persists it —
+  // the AI is never trusted more than a hand-filled form, and never
+  // writes without the human clicking Save afterward.
+  function runDesignAssistant() {
+    if (!aiInstruction.trim()) return;
+    setAiResult(null);
+    startAiTransition(async () => {
+      const r = await requestLayoutRedesign(aiInstruction, visibleOrderedBlocks());
+      if ("error" in r) setAiResult({ kind: "error", message: r.error });
+      else if (r.outcome === "unable") setAiResult({ kind: "unable", reason: r.reason });
+      else setAiResult({ kind: "proposal", blocks: r.blocks, summary: r.summary });
+    });
+  }
+
+  function applyAiProposal(blocks: Block[]) {
+    const next = blocksToState(blocks);
+    setDraftBlocks(next.draftBlocks);
+    setOrder(next.order);
+    setHidden(next.hidden);
+    setAiResult(null);
+    setAiInstruction("");
+    setStatus("idle");
   }
 
   return (
@@ -312,6 +362,53 @@ export function CommandCentreLayoutPanel({ initialBlocks }: { initialBlocks: Blo
             <Plus className="size-3.5" />
             <Link2 className="size-3.5" /> Call to action
           </Button>
+        </div>
+
+        <div className="mt-5 rounded-lg border border-border bg-secondary/30 p-3">
+          <p className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
+            <Sparkles className="size-3.5 shrink-0 text-accent" /> AI Design Assistant
+          </p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Describe a change and review it before it&apos;s saved — nothing here is applied automatically.
+          </p>
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <Input
+              value={aiInstruction}
+              onChange={(e) => setAiInstruction(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !aiPending) runDesignAssistant();
+              }}
+              placeholder="e.g. Make this more focused on revenue"
+              maxLength={500}
+              className="min-w-48 flex-1"
+              aria-label="Describe a layout change"
+            />
+            <Button size="sm" variant="outline" disabled={aiPending || !aiInstruction.trim()} onClick={runDesignAssistant}>
+              {aiPending ? "Thinking…" : "Suggest changes"}
+            </Button>
+          </div>
+
+          {aiResult?.kind === "proposal" && (
+            <div className="mt-3 rounded-lg border border-accent/30 bg-accent/5 p-3">
+              <p className="text-sm">{aiResult.summary}</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {aiResult.blocks.length} block{aiResult.blocks.length === 1 ? "" : "s"} in the suggested layout.
+              </p>
+              <div className="mt-2 flex items-center gap-2">
+                <Button size="xs" onClick={() => applyAiProposal(aiResult.blocks)}>
+                  Apply suggestion
+                </Button>
+                <Button size="xs" variant="ghost" onClick={() => setAiResult(null)}>
+                  Discard
+                </Button>
+              </div>
+              <p className="mt-2 text-[11px] text-muted-foreground">
+                Applying loads this into the editor below — nothing is saved until you click Save layout.
+              </p>
+            </div>
+          )}
+          {aiResult?.kind === "unable" && <p className="mt-2 text-xs text-muted-foreground">{aiResult.reason}</p>}
+          {aiResult?.kind === "error" && <p className="mt-2 text-xs text-destructive">{aiResult.message}</p>}
         </div>
 
         <div className="mt-4 flex flex-wrap items-center gap-3">
