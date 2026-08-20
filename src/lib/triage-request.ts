@@ -4,6 +4,8 @@ import { stripMarkdownEmphasis } from "@/lib/strip-markdown-emphasis";
 import { sendClientEmail } from "@/lib/send-client-email";
 import { createTaskCalendarEvent } from "@/lib/calendar-sync";
 import { logAuditEvent } from "@/lib/audit-log";
+import { getUsageStatus, recordUsageEvent } from "@/lib/usage-limits";
+import type { PlatformPlanSlug } from "@/lib/platform-plans";
 
 type Client = {
   id: string;
@@ -125,10 +127,25 @@ export async function triageRequest(clientId: string, rawText: string) {
   if (client.org_id) {
     const { data: org } = await supabase
       .from("organisations")
-      .select("name, is_internal")
+      .select("name, is_internal, plan")
       .eq("id", client.org_id)
       .single();
-    if (org && !org.is_internal) sender = { name: org.name, isInternal: false };
+    if (org && !org.is_internal) {
+      sender = { name: org.name, isInternal: false };
+
+      // Usage-metered as of the platform readiness audit — unlike every
+      // other AI action in this app, this one is triggered by a tenant's
+      // own *client* (via /portal/requests), not the tenant themselves,
+      // so it can't be gated in a Studio Server Action the way sales-kit
+      // generation etc. are. The cap has to live here, the one place
+      // every path into this function actually passes through.
+      const usage = await getUsageStatus(client.org_id, "request_triaged", org.plan as PlatformPlanSlug);
+      if (!usage.allowed) {
+        return {
+          error: "This organisation has reached its monthly request limit — please try again next month, or contact them directly." as const,
+        };
+      }
+    }
   }
 
   const apiKey = process.env.ANTHROPIC_API_KEY;
@@ -322,6 +339,8 @@ export async function triageRequest(clientId: string, rawText: string) {
       );
     }
   }
+
+  if (!sender.isInternal && client.org_id) await recordUsageEvent(client.org_id, "request_triaged");
 
   return { request: savedRequest };
 }

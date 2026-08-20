@@ -1,7 +1,19 @@
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { getPlatformPlan, type PlatformPlanSlug } from "@/lib/platform-plans";
 
-export type UsageEventType = "prospect_researched";
+// prospect_researched was the only metered event for a while — every AI
+// action downstream of it (sales kit, mockup, ICP building) and one
+// upstream of the whole prospecting flow (request triage, driven by a
+// tenant's own client, not the tenant themselves) had no cap at all. A
+// real gap found in the platform readiness audit: a single tenant could
+// generate unlimited Anthropic calls through any of these with nothing
+// stopping them, regardless of plan.
+export type UsageEventType =
+  | "prospect_researched"
+  | "sales_kit_generated"
+  | "website_mockup_generated"
+  | "icp_built"
+  | "request_triaged";
 
 // Calendar month, not a rolling 30 days — matches how the pricing page
 // already describes each plan ("up to 30 researched prospects a month"),
@@ -13,13 +25,36 @@ function startOfMonth(): string {
 
 export type UsageStatus = { used: number; limit: number; remaining: number; allowed: boolean };
 
+// Everything but prospecting itself is a fair-use ceiling, not a marketed
+// plan feature — nobody signed up for "90 sales kits a month," they
+// signed up for "30 researched prospects," and these are the actions a
+// legitimate user takes on those same prospects. Multiples of the plan's
+// own prospectsPerMonth rather than flat numbers, so a higher tier still
+// gets proportionally more headroom without a second pricing dimension
+// to maintain. Chosen generously (a real user regenerating a kit or
+// mockup once or twice per prospect, or iterating on an ICP description
+// a few times, should never come close) — the point is stopping runaway
+// spend, not rationing a working session.
+const USAGE_MULTIPLIER: Record<Exclude<UsageEventType, "prospect_researched">, number> = {
+  sales_kit_generated: 2,
+  website_mockup_generated: 2,
+  icp_built: 3,
+  request_triaged: 5,
+};
+
+function limitFor(eventType: UsageEventType, plan: PlatformPlanSlug): number {
+  const prospectsPerMonth = getPlatformPlan(plan).prospectsPerMonth;
+  if (eventType === "prospect_researched") return prospectsPerMonth;
+  return prospectsPerMonth * USAGE_MULTIPLIER[eventType];
+}
+
 // HamishAI's own organisation (is_internal) is never capped — the internal
 // tier's whole point is no plan constraints. Callers check org.is_internal
 // themselves and skip calling this entirely for that org rather than this
 // function special-casing it, since "no limit" isn't really a usage
 // status at all.
 export async function getUsageStatus(orgId: string, eventType: UsageEventType, plan: PlatformPlanSlug): Promise<UsageStatus> {
-  const limit = getPlatformPlan(plan).prospectsPerMonth; // the only metered event type today
+  const limit = limitFor(eventType, plan);
 
   const supabase = getSupabaseAdmin();
   if (!supabase) return { used: 0, limit, remaining: limit, allowed: true };

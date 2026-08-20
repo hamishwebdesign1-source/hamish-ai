@@ -9,6 +9,8 @@ import { researchLead } from "@/lib/research-lead";
 import { draftWebsiteMockup } from "@/lib/draft-website-mockup";
 import { buildIcp } from "@/lib/build-icp";
 import { draftSalesKit } from "@/lib/draft-sales-kit";
+import { getUsageStatus, recordUsageEvent, type UsageEventType } from "@/lib/usage-limits";
+import type { PlatformPlanSlug } from "@/lib/platform-plans";
 
 // Every action here re-derives the caller's org from their own session
 // rather than trusting an orgId argument from the client — Server Actions
@@ -27,6 +29,26 @@ async function requireOrgId(): Promise<string> {
   return membership.orgId;
 }
 
+// Shared by every AI action in this file that isn't prospect discovery
+// itself (discoverLeads() does its own equivalent check internally,
+// checked against a different event type). HamishAI's own org is exempt,
+// same is_internal branch every other usage/billing check in this app
+// uses — not a separate special case.
+async function checkUsage(
+  orgId: string,
+  eventType: UsageEventType
+): Promise<{ allowed: true; isInternal: boolean } | { allowed: false; isInternal: false; used: number; limit: number }> {
+  const admin = getSupabaseAdmin();
+  if (!admin) return { allowed: true, isInternal: false };
+
+  const { data: org } = await admin.from("organisations").select("plan, is_internal").eq("id", orgId).single();
+  if (!org || org.is_internal) return { allowed: true, isInternal: true };
+
+  const usage = await getUsageStatus(orgId, eventType, org.plan as PlatformPlanSlug);
+  if (!usage.allowed) return { allowed: false, isInternal: false, used: usage.used, limit: usage.limit };
+  return { allowed: true, isInternal: false };
+}
+
 // Costs a real AI call, so gated behind requireOrgId() like everything
 // else here even though it doesn't touch the database — an unauthenticated
 // visitor shouldn't be able to spend the org's AI budget on ICP guesses.
@@ -34,9 +56,20 @@ async function requireOrgId(): Promise<string> {
 // separate, existing updateProspectingConfig() call the user triggers
 // explicitly (via the existing "Save niche" button), not automatic — the
 // AI's interpretation should be reviewable before it's acted on.
+//
+// Usage-metered as of the platform readiness audit — this and the other
+// two AI actions below had no cap at all before, unlike prospecting
+// itself.
 export async function generateIcp(description: string) {
-  await requireOrgId();
-  return buildIcp(description);
+  const orgId = await requireOrgId();
+  const usageCheck = await checkUsage(orgId, "icp_built");
+  if (!usageCheck.allowed) {
+    return { error: `Monthly limit reached (${usageCheck.used} of ${usageCheck.limit}) — try again next month.` };
+  }
+
+  const result = await buildIcp(description);
+  if (!usageCheck.isInternal && "icp" in result) await recordUsageEvent(orgId, "icp_built");
+  return result;
 }
 
 export async function updateProspectingConfig(input: { categories: string[]; areas: string[] }) {
@@ -110,10 +143,16 @@ export async function generateWebsiteMockup(prospectId: string) {
     .single();
   if (prospectError || !prospect) return { error: "Prospect not found." };
 
+  const usageCheck = await checkUsage(orgId, "website_mockup_generated");
+  if (!usageCheck.allowed) {
+    return { error: `Monthly limit reached (${usageCheck.used} of ${usageCheck.limit}) — try again next month.` };
+  }
+
   const { data: org } = await admin.from("organisations").select("name, is_internal").eq("id", orgId).single();
   const orgName = org && !org.is_internal ? org.name : "HamishAI";
 
   const result = await draftWebsiteMockup(prospectId, orgName);
+  if (!usageCheck.isInternal && "mockup" in result) await recordUsageEvent(orgId, "website_mockup_generated");
   revalidatePath("/studio/prospects");
   return result;
 }
@@ -136,10 +175,16 @@ export async function generateSalesKit(prospectId: string) {
     .single();
   if (prospectError || !prospect) return { error: "Prospect not found." };
 
+  const usageCheck = await checkUsage(orgId, "sales_kit_generated");
+  if (!usageCheck.allowed) {
+    return { error: `Monthly limit reached (${usageCheck.used} of ${usageCheck.limit}) — try again next month.` };
+  }
+
   const { data: org } = await admin.from("organisations").select("name, is_internal").eq("id", orgId).single();
   const sender = org && !org.is_internal ? { name: org.name, isInternal: false } : { name: "Hamish AI", isInternal: true };
 
   const result = await draftSalesKit(prospectId, sender);
+  if (!usageCheck.isInternal && "kit" in result) await recordUsageEvent(orgId, "sales_kit_generated");
   revalidatePath("/studio/prospects");
   return result;
 }
