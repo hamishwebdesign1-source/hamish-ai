@@ -4,7 +4,8 @@ import { LogOut } from "lucide-react";
 import { createServerSupabaseClient } from "@/lib/supabase-server-auth";
 import { getOrgMembership } from "@/lib/org-membership";
 import { Button } from "@/components/ui/button";
-import { StudioNav } from "@/components/platform/studio-nav";
+import { StudioSidebar } from "@/components/platform/studio-nav";
+import { StudioMobileNav } from "@/components/platform/studio-mobile-nav";
 import { HelpModeProvider } from "@/components/platform/help-mode-context";
 import { HelpModeToggle } from "@/components/platform/help-mode-toggle";
 import { StudioTour } from "@/components/platform/studio-tour";
@@ -35,7 +36,7 @@ export default async function StudioAuthedLayout({ children }: { children: React
     <HelpModeProvider>
       {!org?.tour_completed_at && <StudioTour />}
       <div className="min-h-screen bg-secondary/20">
-        <header className="border-b border-border/60 bg-background">
+        <header className="relative border-b border-border/60 bg-background">
           <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
             <Link href="/studio" className="font-heading text-lg font-semibold">
               {org?.name ?? "Your Agency"}
@@ -44,18 +45,23 @@ export default async function StudioAuthedLayout({ children }: { children: React
               </span>
             </Link>
             <div className="flex items-center gap-2">
-              <HelpModeToggle />
-              <form action="/api/platform/logout" method="post">
+              <div className="hidden md:block">
+                <HelpModeToggle />
+              </div>
+              <form action="/api/platform/logout" method="post" className="hidden md:block">
                 <Button type="submit" variant="ghost" size="sm" className="text-muted-foreground">
                   <LogOut className="size-4" />
                   Sign out
                 </Button>
               </form>
+              <StudioMobileNav />
             </div>
           </div>
         </header>
-        <StudioNav />
-        <main className="mx-auto max-w-6xl px-6 py-10">{children}</main>
+        <div className="mx-auto flex max-w-6xl gap-8 px-6">
+          <StudioSidebar />
+          <main className="min-w-0 flex-1 py-10">{children}</main>
+        </div>
       </div>
     </HelpModeProvider>
   );
