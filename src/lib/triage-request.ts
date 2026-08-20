@@ -167,6 +167,15 @@ export async function triageRequest(clientId: string, rawText: string) {
     .from("requests")
     .insert({
       client_id: clientId,
+      // requests.org_id (schema-backfill-internal-org.sql) defaults to
+      // HamishAI's own org id — found live, testing this change against a
+      // real tenant client: every tenant request was silently getting
+      // mis-attributed to HamishAI on this column since the insert never
+      // set it explicitly. Doesn't affect /studio/requests itself (its
+      // RLS and queries join through clients.org_id, not this column),
+      // but leaving requests.org_id wrong is a real correctness bug
+      // waiting for the next thing that trusts it directly.
+      org_id: client.org_id ?? null,
       raw_text: rawText,
       status,
       category: triage.category,
