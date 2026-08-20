@@ -18,15 +18,32 @@ import {
   Activity,
   AlertTriangle,
   FolderClock,
+  TriangleAlert,
+  Zap,
 } from "lucide-react";
 import { createServerSupabaseClient } from "@/lib/supabase-server-auth";
 import { getOrgMembership } from "@/lib/org-membership";
 import { getStudioBriefing } from "@/lib/studio-briefing";
 import { computeAgencyHealth } from "@/lib/client-health";
+import { getStudioAnalytics } from "@/lib/studio-analytics";
+import { generateInsights, type InsightCategory } from "@/lib/studio-insights";
 import { Card, CardContent } from "@/components/ui/card";
 import { Eyebrow } from "@/components/eyebrow";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+
+const INSIGHT_ICON: Record<InsightCategory, typeof Sparkles> = {
+  opportunity: Sparkles,
+  warning: TriangleAlert,
+  recommendation: Lightbulb,
+  anomaly: Zap,
+};
+const INSIGHT_COLOR: Record<InsightCategory, string> = {
+  opportunity: "text-accent",
+  warning: "text-destructive",
+  recommendation: "text-accent",
+  anomaly: "text-warning",
+};
 
 // Pulled out of the component body, same reasoning as clients/page.tsx's
 // thirtyDaysAgoIso() — react-hooks/purity flags a current-time read
@@ -131,6 +148,14 @@ export default async function StudioHomePage() {
     { count: overdueProjectCount, label: "overdue project", href: "/studio/projects", icon: FolderClock },
     { count: openRequestCount, label: "request awaiting your reply", href: "/studio/requests", icon: Inbox },
   ].filter((a) => a.count > 0);
+
+  // AI Insight Feed (Command Centre Phase 3) — rule-based, not
+  // LLM-generated (see studio-insights.ts's own comment on why). Reuses
+  // the same 30-day analytics computation the Analytics page itself
+  // shows, so an insight's numbers are never out of step with what a
+  // tenant sees if they click through to investigate it.
+  const analytics = await getStudioAnalytics(supabase, membership.orgId, "30d");
+  const insights = generateInsights(analytics, agencyHealth, overdueProjectCount);
 
   // Onboarding checklist (P1 platform readiness item) — four real,
   // independently checkable states, not a fixed "step 1 of 5" wizard
@@ -268,6 +293,36 @@ export default async function StudioHomePage() {
                 </li>
               ))}
             </ul>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* AI Insight Feed (Command Centre Phase 3) — only rendered with
+          real content, same rule as every other conditional section on
+          this page. */}
+      {insights.length > 0 && (
+        <Card className="mt-6">
+          <CardContent>
+            <p className="font-heading text-sm font-semibold">Insights</p>
+            <div className="mt-3 space-y-3">
+              {insights.map((insight) => {
+                const Icon = INSIGHT_ICON[insight.category];
+                return (
+                  <div key={insight.id} className="flex items-start gap-2.5">
+                    <Icon className={`mt-0.5 size-4 shrink-0 ${INSIGHT_COLOR[insight.category]}`} />
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium">{insight.headline}</p>
+                      <p className="mt-0.5 text-xs text-muted-foreground">{insight.evidence}</p>
+                      {insight.action && (
+                        <Link href={insight.action.href} className="mt-1 inline-block text-xs text-accent underline underline-offset-2">
+                          {insight.action.label}
+                        </Link>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </CardContent>
         </Card>
       )}

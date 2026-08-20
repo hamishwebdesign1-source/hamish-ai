@@ -2,6 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { computeClientHealth } from "@/lib/client-health";
 import { stripMarkdownEmphasis } from "@/lib/strip-markdown-emphasis";
+import { getStudioAnalytics } from "@/lib/studio-analytics";
 
 // Studio's own equivalent of the portal's AI Copilot (answer-account-question.ts)
 // — same "only ever talk about real numbers in the prompt" discipline, but
@@ -9,6 +10,14 @@ import { stripMarkdownEmphasis } from "@/lib/strip-markdown-emphasis";
 // own account. Read-only by design: this answers questions, it never
 // writes anything — the same caution this session's whole GDPR/rate-limit/
 // usage-cap work has applied to every AI-cost surface.
+//
+// Command Centre Phase 3 — broadened from "ask about your clients" toward
+// the brief's "AI Business Analyst" by also including real 30-day
+// analytics (getStudioAnalytics(), the same computation the Analytics
+// page itself shows). Not the full Business Analyst vision yet — still
+// one fixed 30-day window, no drill-down — but a genuine step: it can now
+// actually answer "why did revenue change" instead of the old prompt's
+// explicit "I don't have that."
 
 type ClientSummary = {
   businessName: string;
@@ -71,7 +80,16 @@ async function buildClientsSummary(orgId: string): Promise<ClientSummary[]> {
   });
 }
 
-function buildSystemPrompt(orgName: string, clients: ClientSummary[]) {
+function buildAnalyticsSummary(analytics: Awaited<ReturnType<typeof getStudioAnalytics>>): string {
+  const lines = analytics.kpis.map((kpi) => {
+    const current = kpi.format === "money" ? `£${(kpi.value / 100).toLocaleString("en-GB")}` : kpi.value.toLocaleString("en-GB");
+    const previous = kpi.format === "money" ? `£${(kpi.previousValue / 100).toLocaleString("en-GB")}` : kpi.previousValue.toLocaleString("en-GB");
+    return `- ${kpi.label}: ${current} in the last 30 days (${previous} in the 30 days before that)`;
+  });
+  return lines.join("\n");
+}
+
+function buildSystemPrompt(orgName: string, clients: ClientSummary[], analyticsSummary: string) {
   const clientLines = clients.length
     ? clients
         .map((c) => {
@@ -86,16 +104,24 @@ function buildSystemPrompt(orgName: string, clients: ClientSummary[]) {
         .join("\n")
     : "(no clients yet)";
 
-  return `You are the AI Copilot inside ${orgName}'s Studio, on the Clients page — you help the agency owner (not their clients) quickly see who needs attention across their whole client roster. You answer questions using only the exact figures below. Never invent, round loosely, or infer a number that isn't stated here. If asked something this data can't answer (a client's own business performance, revenue, anything not listed below), say plainly you don't have that.
+  return `You are the AI Business Analyst inside ${orgName}'s Studio — you help the agency owner (not their clients) understand their own business and quickly see who needs attention across their whole client roster. You answer questions using only the exact figures below. Never invent, round loosely, or infer a number that isn't stated here. If asked something none of this data can answer, say plainly you don't have that, rather than guessing.
+
+Your business, last 30 days vs the 30 days before that:
+${analyticsSummary}
 
 Your clients:
 ${clientLines}
 
-Plain English, direct, no markdown formatting, no jargon. Keep answers short — a sentence or two unless asked for detail. If several clients match a question (e.g. "who hasn't paid"), list them by name.`;
+Plain English, direct, no markdown formatting, no jargon. Keep answers short — a sentence or two unless asked for detail. If several clients match a question (e.g. "who hasn't paid"), list them by name. If asked "why" something changed and the data doesn't explain the cause (it rarely will — these are what-changed numbers, not why-it-changed reasons), say what changed and suggest where to look, rather than inventing a cause.`;
 }
 
 export async function answerClientsQuestion(orgId: string, orgName: string, messages: { role: "user" | "assistant"; content: string }[]) {
-  const clients = await buildClientsSummary(orgId);
+  const admin = getSupabaseAdmin();
+  const [clients, analytics] = await Promise.all([
+    buildClientsSummary(orgId),
+    admin ? getStudioAnalytics(admin, orgId, "30d") : Promise.resolve(null),
+  ]);
+  const analyticsSummary = analytics ? buildAnalyticsSummary(analytics) : "(not available)";
 
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return { error: "ANTHROPIC_API_KEY is not configured." as const };
@@ -107,7 +133,7 @@ export async function answerClientsQuestion(orgId: string, orgName: string, mess
     const response = await anthropic.messages.create({
       model,
       max_tokens: 400,
-      system: buildSystemPrompt(orgName, clients),
+      system: buildSystemPrompt(orgName, clients, analyticsSummary),
       messages: messages.map((m) => ({ role: m.role, content: m.content })),
     });
 

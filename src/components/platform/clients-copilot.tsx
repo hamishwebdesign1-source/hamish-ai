@@ -5,23 +5,23 @@ import { Send, Sparkles, ChevronDown, ChevronUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { askClientsCopilot } from "@/app/studio/(authed)/clients/actions";
 
-// Studio's own AI Copilot, scoped to the Clients page — same UI shape as
-// the portal's own AiCopilot (ai-copilot.tsx), but calling the Server
-// Action directly (useTransition) rather than fetching an API route, same
-// convention as every other Studio interaction in this file's siblings.
-// Collapsed by default: unlike the portal's copilot (its own dedicated
-// page), this shares the Clients page with the client list itself, so it
-// shouldn't be the first thing pushing that list down before anyone's
-// asked for it.
+// Studio's own AI Business Analyst (Command Centre Phase 3), scoped to
+// the Clients page — same UI shape as the portal's own AiCopilot
+// (ai-copilot.tsx), but calling the Server Action directly (useTransition)
+// rather than fetching an API route, same convention as every other
+// Studio interaction in this file's siblings. Collapsed by default:
+// unlike the portal's copilot (its own dedicated page), this shares the
+// Clients page with the client list itself, so it shouldn't be the first
+// thing pushing that list down before anyone's asked for it.
 
 type Message = { role: "user" | "assistant"; content: string };
 
-const SUGGESTED_PROMPTS = ["Which clients haven't paid?", "Who needs attention right now?", "Any overdue projects?"];
+const SUGGESTED_PROMPTS = ["How's revenue this month?", "Which clients haven't paid?", "Who needs attention right now?"];
 
 export function ClientsCopilot() {
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
-    { role: "assistant", content: "Ask me about your clients — who hasn't paid, who's unhealthy, what's overdue." },
+    { role: "assistant", content: "Ask me about your business — revenue, prospects, who needs attention, what's overdue." },
   ]);
   const [input, setInput] = useState("");
   const [pending, startTransition] = useTransition();
@@ -59,7 +59,7 @@ export function ClientsCopilot() {
         className="flex w-full items-center justify-between gap-2 bg-secondary/40 px-4 py-2.5 text-left"
       >
         <span className="flex items-center gap-1.5 text-sm font-medium">
-          <Sparkles className="size-4 text-accent" /> Ask about your clients
+          <Sparkles className="size-4 text-accent" /> AI Business Analyst
         </span>
         {open ? <ChevronUp className="size-4 text-muted-foreground" /> : <ChevronDown className="size-4 text-muted-foreground" />}
       </button>
@@ -119,7 +119,7 @@ export function ClientsCopilot() {
             <input
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder="Ask about your clients…"
+              placeholder="Ask about your business…"
               aria-label="Message"
               disabled={pending}
               className="h-9 flex-1 rounded-md border border-input bg-background px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
