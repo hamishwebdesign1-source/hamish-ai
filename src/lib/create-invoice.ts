@@ -7,13 +7,22 @@ import { logInfo, logError } from "@/lib/structured-log";
 // Creates a real Stripe invoice and emails the client a link to pay it —
 // collection_method "send_invoice" rather than charging a saved card
 // automatically, since new clients won't have one on file and this needs
-// a human decision (Hamish) to trigger, not an auto-charge.
+// a human decision to trigger, not an auto-charge.
 //
 // The email itself goes via our own Resend-based sendClientEmail rather
 // than Stripe's built-in invoice email (stripe.invoices.sendInvoice):
 // Stripe's Sandbox test environment rejects that call outright ("cannot
 // be sent right now"), and sending it ourselves means the email matches
-// Hamish's voice instead of Stripe's generic template anyway.
+// the sender's voice instead of Stripe's generic template anyway.
+//
+// Tenant billing (stripe-connect.ts): every Stripe call below takes a
+// second `options` argument — `{ stripeAccount: id }` when the caller is
+// a Connect-onboarded tenant, omitted entirely for HamishAI's own
+// internal invoicing (undefined = the platform's own account, current
+// behaviour unchanged). This is what actually routes the money to the
+// tenant's own bank account instead of HamishAI's — the org_id column
+// fix alone would only have fixed attribution in our own database, not
+// where the cash lands.
 export async function createInvoice(params: {
   clientId: string;
   amountPence: number;
@@ -28,7 +37,7 @@ export async function createInvoice(params: {
 
   const { data: client, error: clientError } = await supabase
     .from("clients")
-    .select("id, business_name, email, stripe_customer_id")
+    .select("id, business_name, email, stripe_customer_id, org_id")
     .eq("id", params.clientId)
     .single();
 
@@ -37,35 +46,75 @@ export async function createInvoice(params: {
     return { error: "This client has no email on file — needed to send the invoice." as const };
   }
 
+  // Same sender-resolution pattern as triage-request.ts, extended with
+  // the Connect account a tenant's invoices must actually be created
+  // under. A tenant with no connected account, or one that hasn't
+  // finished Stripe's own onboarding yet, can't invoice at all —
+  // deliberately hard-stopped here rather than silently falling back to
+  // the platform account, which would recreate exactly the
+  // money-goes-to-the-wrong-place problem this whole change exists to
+  // avoid.
+  let sender: { name: string; isInternal: boolean } = { name: "Hamish AI", isInternal: true };
+  let stripeAccountId: string | undefined;
+  if (client.org_id) {
+    const { data: org } = await supabase
+      .from("organisations")
+      .select("name, is_internal, stripe_connect_account_id, stripe_connect_charges_enabled")
+      .eq("id", client.org_id)
+      .single();
+    if (org && !org.is_internal) {
+      sender = { name: org.name, isInternal: false };
+      if (!org.stripe_connect_account_id || !org.stripe_connect_charges_enabled) {
+        return { error: "Connect your Stripe account in Settings before invoicing clients." as const };
+      }
+      stripeAccountId = org.stripe_connect_account_id;
+    }
+  }
+  const stripeOptions = stripeAccountId ? { stripeAccount: stripeAccountId } : undefined;
+
   let stripeCustomerId = client.stripe_customer_id as string | null;
   if (!stripeCustomerId) {
-    const customer = await stripe.customers.create({
-      email: client.email,
-      name: client.business_name,
-    });
+    const customer = await stripe.customers.create(
+      {
+        email: client.email,
+        name: client.business_name,
+      },
+      stripeOptions
+    );
     stripeCustomerId = customer.id;
     await supabase.from("clients").update({ stripe_customer_id: stripeCustomerId }).eq("id", client.id);
   }
 
   try {
-    await stripe.invoiceItems.create({
-      customer: stripeCustomerId,
-      amount: params.amountPence,
-      currency: "gbp",
-      description: params.description,
-    });
+    await stripe.invoiceItems.create(
+      {
+        customer: stripeCustomerId,
+        amount: params.amountPence,
+        currency: "gbp",
+        description: params.description,
+      },
+      stripeOptions
+    );
 
-    const invoice = await stripe.invoices.create({
-      customer: stripeCustomerId,
-      collection_method: "send_invoice",
-      days_until_due: 14,
-      auto_advance: false,
-    });
+    const invoice = await stripe.invoices.create(
+      {
+        customer: stripeCustomerId,
+        collection_method: "send_invoice",
+        days_until_due: 14,
+        auto_advance: false,
+      },
+      stripeOptions
+    );
 
-    const finalized = await stripe.invoices.finalizeInvoice(invoice.id);
+    const finalized = await stripe.invoices.finalizeInvoice(invoice.id, {}, stripeOptions);
 
     const { error: insertError } = await supabase.from("invoices").insert({
       client_id: params.clientId,
+      // Same fix as requests.org_id — this column defaults to HamishAI's
+      // own org id (schema-backfill-internal-org.sql) and was never being
+      // set explicitly, meaning every invoice would otherwise misattribute
+      // on this column regardless of whose client it was actually for.
+      org_id: client.org_id ?? null,
       request_id: params.requestId ?? null,
       stripe_invoice_id: finalized.id,
       stripe_hosted_invoice_url: finalized.hosted_invoice_url,
@@ -81,7 +130,13 @@ export async function createInvoice(params: {
       logInfo("invoice.created", { client_id: params.clientId, stripe_invoice_id: finalized.id, amount_pence: params.amountPence });
     }
 
-    if (finalized.hosted_invoice_url) {
+    // Gated to isInternal for the same reason as triage-request.ts:
+    // sendClientEmail has no per-tenant identity, so this can't correctly
+    // send "from" a tenant yet regardless of the Stripe/Connect question
+    // above — moot in practice today since this function isn't reachable
+    // for a tenant's client at all, but correct in case that changes
+    // before Connect does.
+    if (sender.isInternal && finalized.hosted_invoice_url) {
       const amountPounds = (params.amountPence / 100).toFixed(2);
       await sendClientEmail(
         client.email,

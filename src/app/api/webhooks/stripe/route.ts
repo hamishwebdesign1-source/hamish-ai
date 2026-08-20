@@ -31,10 +31,32 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid signature." }, { status: 400 });
   }
 
-  logInfo("stripe_webhook.received", { event_type: event.type, event_id: event.id });
+  logInfo("stripe_webhook.received", { event_type: event.type, event_id: event.id, account: event.account });
 
   const supabase = getSupabaseAdmin();
   if (!supabase) return NextResponse.json({ error: "Supabase is not configured." }, { status: 500 });
+
+  // Connect account events (event.account present) arrive on this same
+  // endpoint once "Listen to Connect events" is enabled on it — a tenant's
+  // own onboarding progress, not a platform-level billing event. Backstop
+  // for /api/platform/stripe-connect/return's own explicit re-check
+  // (Stripe doesn't guarantee that redirect fires reliably), and the only
+  // way this platform learns about status changes that happen after a
+  // tenant leaves the onboarding flow (e.g. Stripe later restricting the
+  // account for a compliance reason).
+  if (event.type === "account.updated" && event.account) {
+    const account = event.data.object as Stripe.Account;
+    const { error } = await supabase
+      .from("organisations")
+      .update({ stripe_connect_charges_enabled: Boolean(account.charges_enabled) })
+      .eq("stripe_connect_account_id", event.account);
+    if (error) {
+      logError("stripe_webhook.connect_account_sync_failed", { account: event.account, message: error.message });
+    } else {
+      logInfo("stripe_webhook.connect_account_synced", { account: event.account, charges_enabled: account.charges_enabled });
+    }
+    return NextResponse.json({ received: true });
+  }
 
   // Phase 3: a real Stripe subscription generates its own invoice every
   // cycle — unlike create-invoice.ts's one-off invoices, which insert
