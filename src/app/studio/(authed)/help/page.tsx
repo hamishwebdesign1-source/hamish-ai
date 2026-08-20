@@ -1,5 +1,6 @@
 import { HelpCircle } from "lucide-react";
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion";
+import { RestartTourButton } from "@/components/platform/restart-tour-button";
 
 // Studio-side help (P1 platform readiness item) — the client portal has
 // had a Help/FAQ page since Week 3; Studio, the agency owner's own side,
@@ -62,6 +63,10 @@ export default function StudioHelpPage() {
         </a>
         .
       </p>
+
+      <div className="mt-4">
+        <RestartTourButton />
+      </div>
 
       <div className="mt-8">
         <Accordion>

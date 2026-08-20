@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { StudioNav } from "@/components/platform/studio-nav";
 import { HelpModeProvider } from "@/components/platform/help-mode-context";
 import { HelpModeToggle } from "@/components/platform/help-mode-toggle";
+import { StudioTour } from "@/components/platform/studio-tour";
 
 // Same shape as portal/(authed)/layout.tsx, one level up: session check,
 // then a membership-based gate, session-scoped client throughout so RLS
@@ -28,10 +29,11 @@ export default async function StudioAuthedLayout({ children }: { children: React
   const membership = await getOrgMembership(supabase, user.email);
   if (!membership) redirect("/platform/onboarding");
 
-  const { data: org } = await supabase.from("organisations").select("name").eq("id", membership.orgId).single();
+  const { data: org } = await supabase.from("organisations").select("name, tour_completed_at").eq("id", membership.orgId).single();
 
   return (
     <HelpModeProvider>
+      {!org?.tour_completed_at && <StudioTour />}
       <div className="min-h-screen bg-secondary/20">
         <header className="border-b border-border/60 bg-background">
           <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
