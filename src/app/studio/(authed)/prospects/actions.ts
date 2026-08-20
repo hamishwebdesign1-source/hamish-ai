@@ -10,6 +10,7 @@ import { draftWebsiteMockup } from "@/lib/draft-website-mockup";
 import { buildIcp } from "@/lib/build-icp";
 import { draftSalesKit } from "@/lib/draft-sales-kit";
 import { getUsageStatus, recordUsageEvent, type UsageEventType } from "@/lib/usage-limits";
+import { isStudioActionRateLimited } from "@/lib/chat-rate-limit";
 import type { PlatformPlanSlug } from "@/lib/platform-plans";
 
 // Every action here re-derives the caller's org from their own session
@@ -30,23 +31,40 @@ async function requireOrgId(): Promise<string> {
 }
 
 // Shared by every AI action in this file that isn't prospect discovery
-// itself (discoverLeads() does its own equivalent check internally,
-// checked against a different event type). HamishAI's own org is exempt,
-// same is_internal branch every other usage/billing check in this app
-// uses — not a separate special case.
+// itself (discoverLeads() does its own equivalent checks internally —
+// see runDiscovery() below for its own rate-limit call). HamishAI's own
+// org is exempt from both checks, same is_internal branch every other
+// usage/billing check in this app uses — not a separate special case.
+//
+// Rate-limited first, before the (slightly more expensive) monthly-usage
+// query: burst protection and fair-use budgeting are different concerns
+// — usage-limits.ts stops an org exceeding its plan over a month, this
+// stops the same org firing a tight script loop within an otherwise-
+// unexceeded month, which nothing before this session caught.
 async function checkUsage(
   orgId: string,
   eventType: UsageEventType
-): Promise<{ allowed: true; isInternal: boolean } | { allowed: false; isInternal: false; used: number; limit: number }> {
+): Promise<
+  | { allowed: true; isInternal: boolean }
+  | { allowed: false; isInternal: false; rateLimited: true }
+  | { allowed: false; isInternal: false; rateLimited: false; used: number; limit: number }
+> {
   const admin = getSupabaseAdmin();
   if (!admin) return { allowed: true, isInternal: false };
 
   const { data: org } = await admin.from("organisations").select("plan, is_internal").eq("id", orgId).single();
   if (!org || org.is_internal) return { allowed: true, isInternal: true };
 
+  if (await isStudioActionRateLimited(orgId)) return { allowed: false, isInternal: false, rateLimited: true };
+
   const usage = await getUsageStatus(orgId, eventType, org.plan as PlatformPlanSlug);
-  if (!usage.allowed) return { allowed: false, isInternal: false, used: usage.used, limit: usage.limit };
+  if (!usage.allowed) return { allowed: false, isInternal: false, rateLimited: false, used: usage.used, limit: usage.limit };
   return { allowed: true, isInternal: false };
+}
+
+function usageCheckErrorMessage(usageCheck: { rateLimited: true } | { rateLimited: false; used: number; limit: number }): string {
+  if (usageCheck.rateLimited) return "You're doing that a lot right now — wait a few minutes and try again.";
+  return `Monthly limit reached (${usageCheck.used} of ${usageCheck.limit}) — try again next month.`;
 }
 
 // Costs a real AI call, so gated behind requireOrgId() like everything
@@ -64,7 +82,7 @@ export async function generateIcp(description: string) {
   const orgId = await requireOrgId();
   const usageCheck = await checkUsage(orgId, "icp_built");
   if (!usageCheck.allowed) {
-    return { error: `Monthly limit reached (${usageCheck.used} of ${usageCheck.limit}) — try again next month.` };
+    return { error: usageCheckErrorMessage(usageCheck) };
   }
 
   const result = await buildIcp(description);
@@ -92,6 +110,22 @@ export async function updateProspectingConfig(input: { categories: string[]; are
 
 export async function runDiscovery() {
   const orgId = await requireOrgId();
+
+  // Rate-limited here rather than inside discoverLeads() itself — that
+  // function also runs from /api/cron/lead-discovery for HamishAI's own
+  // org, which shouldn't be burst-protected against itself. discoverLeads()
+  // already has its own monthly usage cap (checked internally, against
+  // prospect_researched); this is the same burst-protection layer as
+  // checkUsage() above, for the single most expensive Studio AI action
+  // (multiple searches + a research call per candidate).
+  const admin = getSupabaseAdmin();
+  if (admin) {
+    const { data: org } = await admin.from("organisations").select("is_internal").eq("id", orgId).single();
+    if (org && !org.is_internal && (await isStudioActionRateLimited(orgId))) {
+      return { error: "You're doing that a lot right now — wait a few minutes and try again." };
+    }
+  }
+
   const result = await discoverLeads(orgId);
   revalidatePath("/studio/prospects");
   return result;
@@ -145,7 +179,7 @@ export async function generateWebsiteMockup(prospectId: string) {
 
   const usageCheck = await checkUsage(orgId, "website_mockup_generated");
   if (!usageCheck.allowed) {
-    return { error: `Monthly limit reached (${usageCheck.used} of ${usageCheck.limit}) — try again next month.` };
+    return { error: usageCheckErrorMessage(usageCheck) };
   }
 
   const { data: org } = await admin.from("organisations").select("name, is_internal").eq("id", orgId).single();
@@ -177,7 +211,7 @@ export async function generateSalesKit(prospectId: string) {
 
   const usageCheck = await checkUsage(orgId, "sales_kit_generated");
   if (!usageCheck.allowed) {
-    return { error: `Monthly limit reached (${usageCheck.used} of ${usageCheck.limit}) — try again next month.` };
+    return { error: usageCheckErrorMessage(usageCheck) };
   }
 
   const { data: org } = await admin.from("organisations").select("name, is_internal").eq("id", orgId).single();

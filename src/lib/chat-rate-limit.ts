@@ -8,12 +8,12 @@ const MAX_REQUESTS = 20;
 // runs. In production this path should never be hit; check_rate_limit
 // (supabase/schema-rate-limits.sql) is the real limiter.
 const fallbackHits = new Map<string, number[]>();
-function fallbackIsRateLimited(key: string): boolean {
+function fallbackIsRateLimited(key: string, windowSeconds: number, maxRequests: number): boolean {
   const now = Date.now();
-  const recent = (fallbackHits.get(key) ?? []).filter((t) => now - t < WINDOW_SECONDS * 1000);
+  const recent = (fallbackHits.get(key) ?? []).filter((t) => now - t < windowSeconds * 1000);
   recent.push(now);
   fallbackHits.set(key, recent);
-  return recent.length > MAX_REQUESTS;
+  return recent.length > maxRequests;
 }
 
 /**
@@ -25,15 +25,29 @@ function fallbackIsRateLimited(key: string): boolean {
  * cap against casual abuse, not a hard security boundary — better to let
  * a request through during a DB hiccup than to take the whole app down
  * for every visitor.
+ *
+ * windowSeconds/maxRequests default to the original chat/contact/copilot
+ * numbers (unchanged behaviour for those callers) — Studio's AI actions
+ * (usage-limits.ts's own callers) pass tighter numbers via
+ * isStudioActionRateLimited() below, since this is burst protection on
+ * top of usage-limits.ts's monthly cap, not a replacement for it: nothing
+ * before this stopped an org's AI actions being fired in a tight script
+ * loop within an otherwise-unexceeded month.
  */
-export async function isRateLimited(key: string): Promise<boolean> {
+export async function isRateLimited(
+  key: string,
+  options?: { windowSeconds?: number; maxRequests?: number }
+): Promise<boolean> {
+  const windowSeconds = options?.windowSeconds ?? WINDOW_SECONDS;
+  const maxRequests = options?.maxRequests ?? MAX_REQUESTS;
+
   const supabase = getSupabaseAdmin();
-  if (!supabase) return fallbackIsRateLimited(key);
+  if (!supabase) return fallbackIsRateLimited(key, windowSeconds, maxRequests);
 
   const { data, error } = await supabase.rpc("check_rate_limit", {
     p_key: key,
-    p_window_seconds: WINDOW_SECONDS,
-    p_max_requests: MAX_REQUESTS,
+    p_window_seconds: windowSeconds,
+    p_max_requests: maxRequests,
   });
 
   if (error) {
@@ -42,6 +56,24 @@ export async function isRateLimited(key: string): Promise<boolean> {
   }
 
   return data === false;
+}
+
+// Shared budget across every Studio AI Server Action (prospecting,
+// ICP building, sales kit, mockups) — the risk being guarded against is
+// aggregate burst call volume against Anthropic, not any one action type
+// specifically, so one bucket per org is simpler and just as effective as
+// five separate ones.
+export async function isStudioActionRateLimited(orgId: string): Promise<boolean> {
+  return isRateLimited(`studio-ai:${orgId}`, { windowSeconds: 5 * 60, maxRequests: 15 });
+}
+
+// Separate bucket for request triage — triggered by a tenant's own
+// *client* (via /portal/requests), a genuinely different traffic pattern
+// from a tenant's own staff clicking around Studio, and one where a
+// legitimate burst (several people at one client submitting near
+// simultaneously) is more plausible.
+export async function isTriageRateLimited(orgId: string): Promise<boolean> {
+  return isRateLimited(`triage:${orgId}`, { windowSeconds: 5 * 60, maxRequests: 10 });
 }
 
 export function getClientKey(request: Request): string {

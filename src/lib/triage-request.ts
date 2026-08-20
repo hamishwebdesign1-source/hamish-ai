@@ -5,6 +5,7 @@ import { sendClientEmail } from "@/lib/send-client-email";
 import { createTaskCalendarEvent } from "@/lib/calendar-sync";
 import { logAuditEvent } from "@/lib/audit-log";
 import { getUsageStatus, recordUsageEvent } from "@/lib/usage-limits";
+import { isTriageRateLimited } from "@/lib/chat-rate-limit";
 import type { PlatformPlanSlug } from "@/lib/platform-plans";
 
 type Client = {
@@ -132,6 +133,17 @@ export async function triageRequest(clientId: string, rawText: string) {
       .single();
     if (org && !org.is_internal) {
       sender = { name: org.name, isInternal: false };
+
+      // Burst protection, checked before the monthly cap for the same
+      // reason as checkUsage() in prospects/actions.ts: a tight loop of
+      // submissions within an otherwise-unexceeded month is a different
+      // risk from exceeding the month itself. A genuinely different
+      // traffic pattern from Studio's own actions (this is triggered by a
+      // tenant's client, not their own staff), so its own budget rather
+      // than sharing isStudioActionRateLimited()'s.
+      if (await isTriageRateLimited(client.org_id)) {
+        return { error: "Too many requests submitted recently — please try again in a few minutes." as const };
+      }
 
       // Usage-metered as of the platform readiness audit — unlike every
       // other AI action in this app, this one is triggered by a tenant's
