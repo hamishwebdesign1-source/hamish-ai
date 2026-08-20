@@ -12,7 +12,7 @@ import { LayoutDashboard, Search, Users, CreditCard, Mail, Inbox, FolderKanban, 
 // layout's own server component, same split as site-header.tsx's own
 // active-link logic.
 const items = [
-  { href: "/studio", label: "Overview", icon: LayoutDashboard },
+  { href: "/studio", label: "Command Centre", icon: LayoutDashboard },
   { href: "/studio/prospects", label: "Prospects", icon: Search },
   { href: "/studio/clients", label: "Clients", icon: Users },
   { href: "/studio/requests", label: "Requests", icon: Inbox },

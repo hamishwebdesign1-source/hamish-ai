@@ -15,22 +15,42 @@ import {
   BellRing,
   Inbox,
   PoundSterling,
+  Activity,
+  AlertTriangle,
+  FolderClock,
 } from "lucide-react";
 import { createServerSupabaseClient } from "@/lib/supabase-server-auth";
 import { getOrgMembership } from "@/lib/org-membership";
 import { getStudioBriefing } from "@/lib/studio-briefing";
+import { computeAgencyHealth } from "@/lib/client-health";
 import { Card, CardContent } from "@/components/ui/card";
 import { Eyebrow } from "@/components/eyebrow";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 
-// The end of the onboarding journey (Section 5, step 6 — "workspace
-// generated"). Prospecting, client management, billing and integrations
-// are all real past this confirmation screen. The "Reporting" tile that
-// used to sit here as a "Coming soon" placeholder is gone — the stats row
-// above is a real, honest first version of it (actual counts, not the
-// homepage's illustrative marketing numbers), not a promise of something
-// not built yet.
+// Pulled out of the component body, same reasoning as clients/page.tsx's
+// thirtyDaysAgoIso() — react-hooks/purity flags a current-time read
+// called directly during a component's own render, even a Server
+// Component's. A coarse UK-hours greeting, not a per-viewer-timezone one
+// — every real tenant so far is a UK business, and the gap between server
+// time and Europe/London is at most an hour, not worth the complexity of
+// a client-side clock for a "good morning" line.
+function timeOfDayGreeting(): string {
+  const hour = new Date().getHours();
+  if (hour < 12) return "Good morning";
+  if (hour < 18) return "Good afternoon";
+  return "Good evening";
+}
+
+function todayIso(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+// Command Centre (Phase 1 of the Studio Command Centre plan) — the end of
+// the onboarding journey, reframed around "what do I need to know and do
+// right now" rather than a static welcome screen. Business Health,
+// Actions Required, and the briefing all read real platform data; nothing
+// here is fabricated or illustrative.
 export default async function StudioHomePage() {
   const supabase = await createServerSupabaseClient();
   const {
@@ -49,26 +69,11 @@ export default async function StudioHomePage() {
 
   const config = (org?.prospecting_config ?? {}) as { agencyType?: string; services?: string[] };
   const briefing = await getStudioBriefing(supabase, membership.orgId);
-  const hasBriefingContent =
-    briefing.newThisWeek > 0 || briefing.needsResearch > 0 || briefing.readyToContact > 0 || briefing.followUpsDue > 0;
+  const hasBriefingContent = briefing.newThisWeek > 0 || briefing.needsResearch > 0 || briefing.readyToContact > 0;
 
-  // Real counts, not the illustrative marketing-page numbers — the
-  // homepage's KPI teaser is fictional-data-and-labelled-as-such
-  // (aiInsights/dashboardKpis), deliberately kept out of Studio entirely.
-  // Head-count queries only (no rows fetched) since this page just needs
-  // the totals, and RLS scopes both to this org independently of the
-  // .eq() below getting it right.
-  const [{ count: prospectCount }, { count: clientCount }, { count: openRequestCount }, { data: activeDeals }, { count: emailConnectionCount }] = await Promise.all([
+  const [{ count: prospectCount }, { data: clients }, { data: activeDeals }, { count: emailConnectionCount }] = await Promise.all([
     supabase.from("prospects").select("id", { count: "exact", head: true }).eq("org_id", membership.orgId),
-    supabase.from("clients").select("id", { count: "exact", head: true }).eq("org_id", membership.orgId),
-    // requests has no org_id column of its own — scoped one join out via
-    // its client, same relationship requests_select_own_org (schema-rls-
-    // requests-tasks-org-staff.sql) is built on.
-    supabase
-      .from("requests")
-      .select("id, clients!inner(org_id)", { count: "exact", head: true })
-      .eq("clients.org_id", membership.orgId)
-      .is("responded_at", null),
+    supabase.from("clients").select("id").eq("org_id", membership.orgId),
     // Pipeline value — a tenant's own optional estimate per prospect
     // (deal_value_pence, schema-prospect-pipeline.sql), summed client-side
     // over anything still active (not yet won or lost). Never AI-estimated,
@@ -81,11 +86,51 @@ export default async function StudioHomePage() {
       .not("deal_value_pence", "is", null),
     supabase.from("email_connections").select("id", { count: "exact", head: true }).eq("org_id", membership.orgId),
   ]);
-  const conversionRate =
-    prospectCount && prospectCount > 0 && clientCount != null
-      ? `${Math.round((clientCount / prospectCount) * 100)}%`
-      : "—";
+  const clientCount = clients?.length ?? 0;
+  const clientIds = (clients ?? []).map((c) => c.id);
+
+  // Business Health + Actions Required both need real rows (not just
+  // counts) across every client — same shape of query clients/page.tsx
+  // already runs per-client, just aggregated across the whole org here.
+  const [{ data: requests }, { data: invoices }, { data: siteChecks }, { data: projects }] = clientIds.length
+    ? await Promise.all([
+        supabase.from("requests").select("id, client_id, status, responded_at").in("client_id", clientIds),
+        supabase.from("invoices").select("status, due_date, paid_at").in("client_id", clientIds),
+        supabase.from("site_checks").select("uptime_ok").in("client_id", clientIds),
+        supabase.from("projects").select("status, target_date").in("client_id", clientIds),
+      ])
+    : [{ data: [] }, { data: [] }, { data: [] }, { data: []}];
+
+  const requestIds = (requests ?? []).map((r) => r.id);
+  const { data: tasks } = requestIds.length
+    ? await supabase.from("tasks").select("id, request_id, status").in("request_id", requestIds)
+    : { data: [] };
+
+  const openRequestCount = (requests ?? []).filter((r) => !r.responded_at).length;
+  const conversionRate = prospectCount && prospectCount > 0 ? `${Math.round((clientCount / prospectCount) * 100)}%` : "—";
   const pipelineValuePence = (activeDeals ?? []).reduce((sum, p) => sum + (p.deal_value_pence ?? 0), 0);
+
+  const agencyHealth = computeAgencyHealth({
+    requests: requests ?? [],
+    tasks: tasks ?? [],
+    invoices: invoices ?? [],
+    siteChecks: siteChecks ?? [],
+    prospectCount: prospectCount ?? 0,
+    clientCount,
+  });
+
+  const today = todayIso();
+  const overdueProjectCount = (projects ?? []).filter((p) => p.status === "active" && p.target_date && p.target_date < today).length;
+
+  // Actions Required (Command Centre Phase 1) — the genuinely urgent
+  // subset of what used to be scattered across the checklist, the
+  // briefing, and the Requests page's own count, gathered in one place.
+  // Only real, only shown when non-zero — no "0 actions required" noise.
+  const actionsRequired = [
+    { count: briefing.followUpsDue, label: "follow-up", href: "/studio/prospects", icon: BellRing },
+    { count: overdueProjectCount, label: "overdue project", href: "/studio/projects", icon: FolderClock },
+    { count: openRequestCount, label: "request awaiting your reply", href: "/studio/requests", icon: Inbox },
+  ].filter((a) => a.count > 0);
 
   // Onboarding checklist (P1 platform readiness item) — four real,
   // independently checkable states, not a fixed "step 1 of 5" wizard
@@ -96,16 +141,16 @@ export default async function StudioHomePage() {
   const checklist = [
     { label: "Run your first discovery search", done: (prospectCount ?? 0) > 0, href: "/studio/prospects" },
     { label: "Connect your inbox for reply detection", done: (emailConnectionCount ?? 0) > 0, href: "/studio/settings" },
-    { label: "Convert your first prospect into a client", done: (clientCount ?? 0) > 0, href: "/studio/prospects" },
+    { label: "Convert your first prospect into a client", done: clientCount > 0, href: "/studio/prospects" },
     { label: "Connect Stripe to invoice clients", done: stripeReady, href: "/studio/settings" },
   ];
   const checklistComplete = checklist.every((item) => item.done);
 
   return (
     <div>
-      <Eyebrow>Workspace ready</Eyebrow>
+      <Eyebrow>Command Centre</Eyebrow>
       <h1 className="mt-3 font-heading text-2xl font-semibold md:text-3xl">
-        Welcome to {org?.name ?? "your agency"}.
+        {timeOfDayGreeting()}, {org?.name ?? "your agency"}.
       </h1>
       <p className="mt-2 max-w-xl text-muted-foreground">
         Find prospects, convert them into clients, and manage your subscription — all from here.
@@ -116,13 +161,41 @@ export default async function StudioHomePage() {
         <Badge variant="secondary" className="capitalize">{org?.plan ?? "starter"} plan</Badge>
       </div>
 
-      {/* Three real cards, not one shared box split into columns — matches
-          the tile grid's own visual language further down the page, and
-          gives each number room to breathe now that this page isn't
-          artificially choked to a 672px column (the actual cause of the
-          "off centre" look — the header/nav span the full width, this
-          content used to be stuck in a narrow max-w-2xl inside it). */}
-      <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+      {/* Business Health (Command Centre Phase 1) — the same real,
+          no-fabrication computation client-health.ts already uses per
+          client, aggregated across the whole agency. Sits first among the
+          stat cards, sized to stand out, not just another number in the
+          row. */}
+      <div className="mt-6 grid gap-4 lg:grid-cols-[minmax(0,1.3fr)_repeat(4,minmax(0,1fr))]">
+        <Card>
+          <CardContent>
+            <div className="flex items-center gap-2">
+              <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-accent/10 text-accent">
+                <Activity className="size-4.5" />
+              </span>
+              <p className="text-xs font-semibold text-muted-foreground">Business Health</p>
+            </div>
+            {agencyHealth.healthScore === null ? (
+              <p className="mt-3 text-sm text-muted-foreground">
+                Not enough data yet — this fills in once you have clients with real requests, invoices, or projects.
+              </p>
+            ) : (
+              <>
+                <p className="mt-2 font-heading text-3xl font-semibold tabular-nums">
+                  {agencyHealth.healthScore}
+                  <span className="text-lg text-muted-foreground">/100</span>
+                </p>
+                <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1">
+                  {agencyHealth.components.map((c) => (
+                    <span key={c.label} className="font-mono text-[10px] text-muted-foreground">
+                      {c.label} <span className="text-foreground">{c.value}%</span>
+                    </span>
+                  ))}
+                </div>
+              </>
+            )}
+          </CardContent>
+        </Card>
         <Card>
           <CardContent className="flex items-center gap-3.5">
             <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-accent/10 text-accent">
@@ -140,7 +213,7 @@ export default async function StudioHomePage() {
               <Users className="size-5" />
             </span>
             <div>
-              <p className="font-heading text-2xl font-semibold tabular-nums">{clientCount ?? 0}</p>
+              <p className="font-heading text-2xl font-semibold tabular-nums">{clientCount}</p>
               <p className="text-xs text-muted-foreground">Clients</p>
             </div>
           </CardContent>
@@ -159,17 +232,6 @@ export default async function StudioHomePage() {
         <Card>
           <CardContent className="flex items-center gap-3.5">
             <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-accent/10 text-accent">
-              <Inbox className="size-5" />
-            </span>
-            <div>
-              <p className="font-heading text-2xl font-semibold tabular-nums">{openRequestCount ?? 0}</p>
-              <p className="text-xs text-muted-foreground">Open requests</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="flex items-center gap-3.5">
-            <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-accent/10 text-accent">
               <PoundSterling className="size-5" />
             </span>
             <div>
@@ -181,6 +243,34 @@ export default async function StudioHomePage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Actions Required (Command Centre Phase 1) — the urgent subset,
+          gathered from three previously-scattered sources (follow-up
+          cadence, project deadlines, unresponded requests). Only rendered
+          when something real is actually due. */}
+      {actionsRequired.length > 0 && (
+        <Card className="mt-6 border-destructive/30">
+          <CardContent>
+            <p className="flex items-center gap-1.5 font-heading text-sm font-semibold">
+              <AlertTriangle className="size-4 shrink-0 text-destructive" /> Actions required
+            </p>
+            <ul className="mt-3 space-y-2">
+              {actionsRequired.map((a) => (
+                <li key={a.label}>
+                  <Link href={a.href} className="flex items-center gap-2 text-sm hover:text-accent">
+                    <a.icon className="size-4 shrink-0 text-destructive" />
+                    <span className="font-mono font-semibold text-destructive">{a.count}</span>
+                    <span className="text-muted-foreground">
+                      {a.label}
+                      {a.count === 1 ? "" : "s"}
+                    </span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
+      )}
 
       {!checklistComplete && (
         <Card className="mt-6">
@@ -231,13 +321,6 @@ export default async function StudioHomePage() {
                   <Send className="size-3.5 shrink-0 text-accent" />
                   <span className="font-mono font-semibold text-accent">{briefing.readyToContact}</span>
                   <span className="text-muted-foreground">ready to contact</span>
-                </span>
-              )}
-              {briefing.followUpsDue > 0 && (
-                <span className="flex items-center gap-1.5">
-                  <BellRing className="size-3.5 shrink-0 text-destructive" />
-                  <span className="font-mono font-semibold text-destructive">{briefing.followUpsDue}</span>
-                  <span className="text-muted-foreground">follow-up{briefing.followUpsDue === 1 ? "" : "s"} due</span>
                 </span>
               )}
             </div>
