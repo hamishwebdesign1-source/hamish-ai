@@ -75,8 +75,8 @@ export default function PrivacyPage() {
               <li><strong>Stripe</strong> — processes payments. Agency Platform tenants who connect their own Stripe account are paid directly by their clients; we never hold that money.</li>
               <li><strong>Resend</strong> — sends transactional emails (invoices, notifications).</li>
               <li><strong>Microsoft</strong> — only if you explicitly connect an Outlook inbox for reply detection, and only to check whether a message exists, never its content.</li>
+              <li><strong>PostHog</strong> — first-party product analytics (which pages are visited, which features are used). No advertising trackers, no cross-site tracking, and no data sold or shared with ad networks.</li>
             </ul>
-            <p>We don&apos;t use third-party analytics or advertising trackers on this site.</p>
           </div>
 
           <div>

@@ -6,6 +6,7 @@ import { getOrgMembership } from "@/lib/org-membership";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { createInvoice } from "@/lib/create-invoice";
 import { logAuditEvent } from "@/lib/audit-log";
+import { trackServerEvent } from "@/lib/analytics";
 
 // Same session-derivation as every other /studio actions.ts file.
 async function requireOrgId(): Promise<string> {
@@ -43,6 +44,8 @@ export async function createClientInvoice(clientId: string, amountPounds: number
   });
 
   if ("error" in result) return { error: result.error };
+
+  await trackServerEvent(orgId, "invoice_created", { client_id: clientId, amount_pence: Math.round(amountPounds * 100) });
 
   revalidatePath("/studio/clients");
   return { ok: true as const, invoiceUrl: result.invoiceUrl };

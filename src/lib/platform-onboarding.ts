@@ -1,6 +1,7 @@
 import { getSupabaseAdmin } from "@/lib/supabase";
 import type { PlatformPlanSlug } from "@/lib/platform-plans";
 import { logInfo, logError } from "@/lib/structured-log";
+import { trackServerEvent } from "@/lib/analytics";
 
 // Turns a signed-in-but-orgless session into a real organisation — the
 // step between /platform/signup (proves the email) and /studio (needs an
@@ -95,5 +96,6 @@ export async function createAgencyOrganisation(input: CreateAgencyInput): Promis
   }
 
   logInfo("platform_onboarding.org_created", { org_id: org.id, agency_type: input.agencyType });
+  await trackServerEvent(org.id, "org_signed_up", { agency_type: input.agencyType });
   return { orgId: org.id };
 }

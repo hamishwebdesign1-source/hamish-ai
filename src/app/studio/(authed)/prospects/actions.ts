@@ -12,6 +12,7 @@ import { draftSalesKit } from "@/lib/draft-sales-kit";
 import { getUsageStatus, recordUsageEvent, type UsageEventType } from "@/lib/usage-limits";
 import { isStudioActionRateLimited } from "@/lib/chat-rate-limit";
 import type { PlatformPlanSlug } from "@/lib/platform-plans";
+import { trackServerEvent } from "@/lib/analytics";
 
 // Every action here re-derives the caller's org from their own session
 // rather than trusting an orgId argument from the client — Server Actions
@@ -127,6 +128,7 @@ export async function runDiscovery() {
   }
 
   const result = await discoverLeads(orgId);
+  if ("inserted" in result) await trackServerEvent(orgId, "discovery_run", { prospects_found: result.inserted.length });
   revalidatePath("/studio/prospects");
   return result;
 }
@@ -283,6 +285,8 @@ export async function convertProspectToClient(prospectId: string, email: string)
   if (memberError) console.error("Failed to grant portal access on client creation:", memberError);
 
   await admin.from("prospects").update({ status: "converted" }).eq("id", prospectId);
+
+  await trackServerEvent(orgId, "prospect_converted", { client_id: client.id });
 
   revalidatePath("/studio/prospects");
   revalidatePath("/studio/clients");

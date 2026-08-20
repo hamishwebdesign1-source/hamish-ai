@@ -4,6 +4,7 @@ import { getStripe } from "@/lib/stripe";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { sendErrorAlert } from "@/lib/send-error-alert";
 import { logInfo, logWarn, logError } from "@/lib/structured-log";
+import { trackServerEvent } from "@/lib/analytics";
 
 // Stripe's own callback when an invoice's status changes — verified via
 // its signature header rather than the admin cookie (Stripe has no way
@@ -114,12 +115,19 @@ export async function POST(request: Request) {
     // branching on event metadata) is a harmless no-op on whichever
     // table this particular subscription isn't in — same pattern as the
     // dual "clients"/"organisations" checks throughout this Week's work.
-    const { error: orgError } = await supabase
+    const { data: updatedOrg, error: orgError } = await supabase
       .from("organisations")
       .update({ subscription_status: subscription.status })
-      .eq("stripe_subscription_id", subscription.id);
+      .eq("stripe_subscription_id", subscription.id)
+      .select("id")
+      .maybeSingle();
     if (orgError) {
       logError("stripe_webhook.platform_subscription_status_sync_failed", { stripe_subscription_id: subscription.id, message: orgError.message });
+    } else if (updatedOrg && (event.type === "customer.subscription.deleted" || subscription.status === "canceled")) {
+      // The platform's own revenue-churn signal — a tenant's paid
+      // subscription actually ending, not a client's subscription to that
+      // tenant (this table doubles for both, see the comment above).
+      await trackServerEvent(updatedOrg.id, "platform_subscription_cancelled", { stripe_subscription_id: subscription.id });
     }
   }
 
@@ -154,6 +162,7 @@ export async function POST(request: Request) {
         await sendErrorAlert("Stripe webhook", `Agency Platform checkout completed for org ${orgId} but failed to save it: ${error.message}`);
       } else {
         logInfo("stripe_webhook.platform_subscription_started", { org_id: orgId, plan });
+        await trackServerEvent(orgId, "platform_subscription_started", { plan });
       }
     }
   }
