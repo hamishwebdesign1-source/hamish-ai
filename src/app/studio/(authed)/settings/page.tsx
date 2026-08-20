@@ -5,6 +5,7 @@ import { getOrgMembership } from "@/lib/org-membership";
 import { hasPlatformMsConfig } from "@/lib/tenant-graph-auth";
 import { SettingsPanel } from "@/components/platform/settings-panel";
 import { BrandingPanel } from "@/components/platform/branding-panel";
+import { DataPrivacyPanel } from "@/components/platform/data-privacy-panel";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -46,7 +47,7 @@ export default async function StudioSettingsPage({
   // every other /studio page's org read already relies on.
   const { data: org } = await supabase
     .from("organisations")
-    .select("brand, is_internal, stripe_connect_account_id, stripe_connect_charges_enabled")
+    .select("name, brand, is_internal, stripe_connect_account_id, stripe_connect_charges_enabled, deletion_requested_at")
     .eq("id", membership.orgId)
     .single();
   const brand = (org?.brand ?? {}) as { accentColor?: string };
@@ -133,6 +134,8 @@ export default async function StudioSettingsPage({
           portal always reads as "HamishAI"), so this control would
           visibly do nothing for that one row. */}
       {!org?.is_internal && <BrandingPanel accentColor={brand.accentColor ?? null} />}
+
+      <DataPrivacyPanel orgName={org?.name ?? ""} deletionRequestedAt={org?.deletion_requested_at ?? null} />
     </div>
   );
 }

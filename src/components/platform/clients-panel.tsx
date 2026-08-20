@@ -10,13 +10,14 @@ import {
   Receipt,
   CircleAlert,
   LoaderCircle,
+  Trash2,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { createClientInvoice } from "@/app/studio/(authed)/clients/actions";
+import { createClientInvoice, deleteClientData } from "@/app/studio/(authed)/clients/actions";
 
 type Client = {
   id: string;
@@ -135,6 +136,66 @@ function InvoiceForm({ clientId }: { clientId: string }) {
   );
 }
 
+// GDPR erasure control — type-to-confirm rather than the lighter two-step
+// pattern used elsewhere (RemoveProspectControl): this permanently
+// deletes real personal data across several tables, not a prospect
+// record that was never a live client relationship. Matching the weight
+// of the action to the weight of the confirmation.
+function DeleteClientControl({ client }: { client: Client }) {
+  const [confirming, setConfirming] = useState(false);
+  const [typedName, setTypedName] = useState("");
+  const [pending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+
+  if (!confirming) {
+    return (
+      <Button size="sm" variant="ghost" className="text-muted-foreground hover:text-destructive" onClick={() => setConfirming(true)}>
+        <Trash2 className="size-3.5" /> Delete this client&apos;s data
+      </Button>
+    );
+  }
+
+  const nameMatches = typedName.trim() === client.business_name;
+
+  return (
+    <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3">
+      <p className="text-xs font-medium text-destructive">
+        This permanently deletes {client.business_name}&apos;s data — invoices, requests, portal access, everything.
+        There&apos;s no undo.
+      </p>
+      <p className="mt-2 text-xs text-muted-foreground">
+        Type <span className="font-mono font-medium text-foreground">{client.business_name}</span> to confirm.
+      </p>
+      <Input
+        value={typedName}
+        onChange={(e) => setTypedName(e.target.value)}
+        className="mt-2 h-8 text-sm"
+        autoFocus
+      />
+      <div className="mt-2 flex items-center gap-2">
+        <Button
+          size="sm"
+          variant="destructive"
+          disabled={!nameMatches || pending}
+          onClick={() =>
+            startTransition(async () => {
+              setError(null);
+              const r = await deleteClientData(client.id);
+              if (r && "error" in r) setError(r.error ?? "Failed to delete.");
+            })
+          }
+        >
+          {pending ? "Deleting…" : "Permanently delete"}
+        </Button>
+        <Button size="sm" variant="ghost" onClick={() => setConfirming(false)}>
+          Cancel
+        </Button>
+      </div>
+      {error && <p className="mt-2 text-xs text-destructive">{error}</p>}
+    </div>
+  );
+}
+
 function ClientCard({ client, invoices, stripeReady }: { client: Client; invoices: Invoice[]; stripeReady: boolean }) {
   const [open, setOpen] = useState(false);
 
@@ -220,6 +281,10 @@ function ClientCard({ client, invoices, stripeReady }: { client: Client; invoice
                 before you can invoice this client.
               </p>
             )}
+
+            <div className="flex justify-end border-t border-border pt-3">
+              <DeleteClientControl client={client} />
+            </div>
           </div>
         )}
       </CardContent>

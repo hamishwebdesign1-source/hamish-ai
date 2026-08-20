@@ -5,6 +5,8 @@ import { createServerSupabaseClient } from "@/lib/supabase-server-auth";
 import { getOrgMembership } from "@/lib/org-membership";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { checkForReplies } from "@/lib/detect-replies";
+import { sendErrorAlert } from "@/lib/send-error-alert";
+import { logAuditEvent } from "@/lib/audit-log";
 
 // Same session-derivation as prospects/actions.ts's requireOrgId() — kept
 // as its own local copy, same convention billing/actions.ts documents.
@@ -82,4 +84,42 @@ export async function resetBrandAccent() {
 
   revalidatePath("/studio/settings");
   return { ok: true as const };
+}
+
+// GDPR minimum-viable compliance, part 3 — see schema-account-deletion-
+// request.sql's own comment for why this is a request, not an instant
+// hard delete: destroying an entire org (prospects, clients, invoices, a
+// live Stripe Connect account) in one unconfirmed click is a different
+// order of risk from deleteClientData()'s per-client erasure, and
+// deserves a human checkpoint before this codebase automates it. Records
+// the request, alerts the operator immediately (sendErrorAlert is
+// generic enough for "something urgent needs a human," despite the
+// name), and the UI refuses to submit a second request once one is
+// already pending.
+export async function requestAccountDeletion() {
+  const orgId = await requireOrgId();
+  const admin = getSupabaseAdmin();
+  if (!admin) return { error: "Supabase is not configured." };
+
+  const { data: org } = await admin.from("organisations").select("name, deletion_requested_at").eq("id", orgId).single();
+  if (org?.deletion_requested_at) return { error: "A deletion request is already pending for your account." };
+
+  const requestedAt = new Date().toISOString();
+  const { error } = await admin.from("organisations").update({ deletion_requested_at: requestedAt }).eq("id", orgId);
+  if (error) return { error: "Failed to record your request — try again or contact us directly." };
+
+  await logAuditEvent({
+    actor: orgId,
+    actorType: "admin",
+    action: "organisation.deletion_requested",
+    targetType: "organisation",
+    targetId: orgId,
+  });
+  await sendErrorAlert(
+    "Account deletion requested",
+    `${org?.name ?? "An organisation"} (${orgId}) has requested full account deletion via Studio Settings. This needs a human to actually carry out — not automated.`
+  );
+
+  revalidatePath("/studio/settings");
+  return { ok: true as const, requestedAt };
 }
