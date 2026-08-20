@@ -1,6 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { stripMarkdownEmphasis } from "@/lib/strip-markdown-emphasis";
+import { logAuditEvent } from "@/lib/audit-log";
 
 // The client-embeddable half of "sell a chatbot to your client's own
 // website" — deliberately a much narrower tool than either of this app's
@@ -61,6 +62,19 @@ Plain English, warm and direct, no markdown formatting. Keep answers to 1-3 sent
 
     const textBlock = response.content.find((block): block is Anthropic.TextBlock => block.type === "text");
     if (!textBlock) return { error: "No reply generated." as const };
+
+    // Phase 4 usage visibility — reuses audit_log (already exists, no new
+    // table) rather than inventing a parallel event-tracking mechanism.
+    // Fire-and-forget: logAuditEvent() never throws, and a lost usage-
+    // count entry should never be able to break a real visitor's chat.
+    await logAuditEvent({
+      actor: "embed-widget",
+      actorType: "system",
+      action: "embed_chat.message",
+      targetType: "client",
+      targetId: clientId,
+      clientId,
+    });
 
     return { reply: stripMarkdownEmphasis(textBlock.text) };
   } catch (error) {

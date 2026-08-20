@@ -19,6 +19,15 @@ type InvoiceRow = {
 type RequestRow = { id: string; client_id: string; status: string };
 type TaskRow = { id: string; request_id: string | null; status: string };
 type SiteCheckRow = { client_id: string; uptime_ok: boolean | null };
+type AuditLogRow = { client_id: string | null };
+
+// Pulled out of the component body — react-hooks/purity flags Date.now()
+// (or any current-time read) called directly during a component's own
+// render, even a Server Component's, since the lint rule can't tell that
+// one only ever runs once per request.
+function thirtyDaysAgoIso(): string {
+  return new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+}
 
 // Session-scoped client, RLS-enforced via clients_select_own_org /
 // invoices_select_own_org (schema-rls-clients-org-staff.sql,
@@ -47,8 +56,9 @@ export default async function StudioClientsPage() {
       .single(),
   ]);
 
+  const thirtyDaysAgo = thirtyDaysAgoIso();
   const clientIds = (clients ?? []).map((c) => c.id);
-  const [{ data: invoices }, { data: requests }, { data: siteChecks }] = clientIds.length
+  const [{ data: invoices }, { data: requests }, { data: siteChecks }, { data: embedChatEvents }] = clientIds.length
     ? await Promise.all([
         supabase
           .from("invoices")
@@ -57,8 +67,17 @@ export default async function StudioClientsPage() {
           .order("created_at", { ascending: false }),
         supabase.from("requests").select("id, client_id, status").in("client_id", clientIds),
         supabase.from("site_checks").select("client_id, uptime_ok").in("client_id", clientIds),
+        // Phase 4 usage visibility — RLS (audit_log_select_embed_chat_own_org,
+        // schema-rls-audit-log-embed-chat.sql) scopes this to just this one
+        // event type, never any other audit_log content.
+        supabase
+          .from("audit_log")
+          .select("client_id")
+          .eq("action", "embed_chat.message")
+          .in("client_id", clientIds)
+          .gte("created_at", thirtyDaysAgo),
       ])
-    : [{ data: [] as InvoiceRow[] }, { data: [] as RequestRow[] }, { data: [] as SiteCheckRow[] }];
+    : [{ data: [] as InvoiceRow[] }, { data: [] as RequestRow[] }, { data: [] as SiteCheckRow[] }, { data: [] as AuditLogRow[] }];
 
   const requestIds = (requests ?? []).map((r) => r.id);
   const { data: tasks } = requestIds.length
@@ -90,10 +109,17 @@ export default async function StudioClientsPage() {
   // "ready," no Connect account needed.
   const stripeReady = Boolean(org?.is_internal || org?.stripe_connect_charges_enabled);
 
+  const embedUsageByClient: Record<string, number> = {};
+  for (const event of embedChatEvents ?? []) {
+    if (!event.client_id) continue;
+    embedUsageByClient[event.client_id] = (embedUsageByClient[event.client_id] ?? 0) + 1;
+  }
+
   return (
     <ClientsPanel
       clients={clients ?? []}
       invoicesByClient={invoicesByClient}
+      embedUsageByClient={embedUsageByClient}
       healthByClient={healthByClient}
       stripeReady={stripeReady}
     />

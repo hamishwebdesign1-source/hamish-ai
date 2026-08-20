@@ -266,7 +266,7 @@ function GenerateReportControl({ clientId }: { clientId: string }) {
 // toggle + embed snippet. Uses window.location.origin rather than a
 // hardcoded domain for the snippet, so this keeps working correctly
 // regardless of what domain Studio itself is ever served from.
-function EmbedChatbotControl({ client }: { client: Client }) {
+function EmbedChatbotControl({ client, usageCount }: { client: Client; usageCount: number }) {
   const [enabled, setEnabled] = useState(client.chatbot_embed_enabled);
   const [origin, setOrigin] = useState(client.chatbot_embed_allowed_origin ?? "");
   const [pending, startTransition] = useTransition();
@@ -293,9 +293,16 @@ function EmbedChatbotControl({ client }: { client: Client }) {
 
   return (
     <div className="rounded-lg border border-border p-3">
-      <p className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
-        <MessageCircle className="size-3.5 shrink-0" /> Chatbot for their website
-      </p>
+      <div className="flex items-center justify-between gap-2">
+        <p className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
+          <MessageCircle className="size-3.5 shrink-0" /> Chatbot for their website
+        </p>
+        {client.chatbot_embed_enabled && (
+          <span className="font-mono text-[11px] text-muted-foreground">
+            {usageCount} message{usageCount === 1 ? "" : "s"} · last 30 days
+          </span>
+        )}
+      </div>
       <p className="mt-1 text-xs text-muted-foreground">
         Answers visitor questions using entries from{" "}
         <Link href="/studio/knowledge" className="text-accent underline underline-offset-2">
@@ -356,11 +363,13 @@ function ClientCard({
   client,
   invoices,
   health,
+  embedUsage,
   stripeReady,
 }: {
   client: Client;
   invoices: Invoice[];
   health: ClientHealth | undefined;
+  embedUsage: number;
   stripeReady: boolean;
 }) {
   const [open, setOpen] = useState(false);
@@ -423,7 +432,7 @@ function ClientCard({
 
             <GenerateReportControl clientId={client.id} />
 
-            <EmbedChatbotControl client={client} />
+            <EmbedChatbotControl client={client} usageCount={embedUsage} />
 
             <p className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
               <Receipt className="size-3.5 shrink-0" /> Invoices
@@ -482,11 +491,13 @@ export function ClientsPanel({
   clients,
   invoicesByClient,
   healthByClient,
+  embedUsageByClient,
   stripeReady,
 }: {
   clients: Client[];
   invoicesByClient: Record<string, Invoice[]>;
   healthByClient: Record<string, ClientHealth>;
+  embedUsageByClient: Record<string, number>;
   stripeReady: boolean;
 }) {
   return (
@@ -524,6 +535,7 @@ export function ClientsPanel({
                 client={c}
                 invoices={invoicesByClient[c.id] ?? []}
                 health={healthByClient[c.id]}
+                embedUsage={embedUsageByClient[c.id] ?? 0}
                 stripeReady={stripeReady}
               />
             ))}
