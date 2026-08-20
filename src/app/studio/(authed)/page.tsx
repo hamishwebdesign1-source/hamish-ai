@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import {
@@ -27,6 +28,7 @@ import { getStudioBriefing } from "@/lib/studio-briefing";
 import { computeAgencyHealth } from "@/lib/client-health";
 import { getStudioAnalytics } from "@/lib/studio-analytics";
 import { generateInsights, type InsightCategory } from "@/lib/studio-insights";
+import { resolveCardOrder, type CommandCentreCardId } from "@/lib/command-centre-layout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Eyebrow } from "@/components/eyebrow";
 import { Badge } from "@/components/ui/badge";
@@ -81,9 +83,10 @@ export default async function StudioHomePage() {
 
   const { data: org } = await supabase
     .from("organisations")
-    .select("name, plan, prospecting_config, is_internal, stripe_connect_charges_enabled")
+    .select("name, plan, prospecting_config, is_internal, stripe_connect_charges_enabled, command_centre_cards")
     .eq("id", membership.orgId)
     .single();
+  const cardOrder = resolveCardOrder(org?.command_centre_cards);
 
   const config = (org?.prospecting_config ?? {}) as { agencyType?: string; services?: string[] };
   const briefing = await getStudioBriefing(supabase, membership.orgId);
@@ -172,6 +175,104 @@ export default async function StudioHomePage() {
   ];
   const checklistComplete = checklist.every((item) => item.done);
 
+  // Command Centre Phase 5, first real slice — which of these 5 cards
+  // render and in what order is now per-org (Settings → Command Centre
+  // layout), not fixed. Business Health no longer assumes it's always
+  // first: a reorderable card can't keep a "sized to stand out" special
+  // grid column, so every card in this set now renders at the same
+  // width. Keyed by the same CommandCentreCardId the settings panel and
+  // resolveCardOrder() share, so there's one real list, not two.
+  const cardContent: Record<CommandCentreCardId, ReactNode> = {
+    health: (
+      <Card className="h-full">
+        <CardContent>
+          <div className="flex items-center gap-2">
+            <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-accent/10 text-accent">
+              <Activity className="size-4.5" />
+            </span>
+            <p className="flex items-center gap-1 text-xs font-semibold text-muted-foreground">
+              Business Health
+              <HelpTip explanation="An average of real, measured components across your whole client roster — site uptime, on-time payment, work completed, requests moving, and pipeline conversion. Only components with real data are included." />
+            </p>
+          </div>
+          {agencyHealth.healthScore === null ? (
+            <p className="mt-3 text-sm text-muted-foreground">
+              Not enough data yet — this fills in once you have clients with real requests, invoices, or projects.
+            </p>
+          ) : (
+            <>
+              <p className="mt-2 font-heading text-3xl font-semibold tabular-nums">
+                {agencyHealth.healthScore}
+                <span className="text-lg text-muted-foreground">/100</span>
+              </p>
+              <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1">
+                {agencyHealth.components.map((c) => (
+                  <span key={c.label} className="font-mono text-[10px] text-muted-foreground">
+                    {c.label} <span className="text-foreground">{c.value}%</span>
+                  </span>
+                ))}
+              </div>
+            </>
+          )}
+        </CardContent>
+      </Card>
+    ),
+    prospects: (
+      <Card className="h-full">
+        <CardContent className="flex items-center gap-3.5">
+          <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-accent/10 text-accent">
+            <Search className="size-5" />
+          </span>
+          <div>
+            <p className="font-heading text-2xl font-semibold tabular-nums">{prospectCount ?? 0}</p>
+            <p className="text-xs text-muted-foreground">Prospects found</p>
+          </div>
+        </CardContent>
+      </Card>
+    ),
+    clients: (
+      <Card className="h-full">
+        <CardContent className="flex items-center gap-3.5">
+          <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-accent/10 text-accent">
+            <Users className="size-5" />
+          </span>
+          <div>
+            <p className="font-heading text-2xl font-semibold tabular-nums">{clientCount}</p>
+            <p className="text-xs text-muted-foreground">Clients</p>
+          </div>
+        </CardContent>
+      </Card>
+    ),
+    conversion: (
+      <Card className="h-full">
+        <CardContent className="flex items-center gap-3.5">
+          <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-accent/10 text-accent">
+            <TrendingUp className="size-5" />
+          </span>
+          <div>
+            <p className="font-heading text-2xl font-semibold tabular-nums">{conversionRate}</p>
+            <p className="text-xs text-muted-foreground">Conversion rate</p>
+          </div>
+        </CardContent>
+      </Card>
+    ),
+    pipeline: (
+      <Card className="h-full">
+        <CardContent className="flex items-center gap-3.5">
+          <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-accent/10 text-accent">
+            <PoundSterling className="size-5" />
+          </span>
+          <div>
+            <p className="font-heading text-2xl font-semibold tabular-nums">
+              {pipelineValuePence > 0 ? `£${Math.round(pipelineValuePence / 100).toLocaleString("en-GB")}` : "—"}
+            </p>
+            <p className="text-xs text-muted-foreground">Pipeline value</p>
+          </div>
+        </CardContent>
+      </Card>
+    ),
+  };
+
   return (
     <div>
       <Eyebrow>Command Centre</Eyebrow>
@@ -187,90 +288,14 @@ export default async function StudioHomePage() {
         <Badge variant="secondary" className="capitalize">{org?.plan ?? "starter"} plan</Badge>
       </div>
 
-      {/* Business Health (Command Centre Phase 1) — the same real,
-          no-fabrication computation client-health.ts already uses per
-          client, aggregated across the whole agency. Sits first among the
-          stat cards, sized to stand out, not just another number in the
-          row. */}
-      <div className="mt-6 grid gap-4 lg:grid-cols-[minmax(0,1.3fr)_repeat(4,minmax(0,1fr))]">
-        <Card>
-          <CardContent>
-            <div className="flex items-center gap-2">
-              <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-accent/10 text-accent">
-                <Activity className="size-4.5" />
-              </span>
-              <p className="flex items-center gap-1 text-xs font-semibold text-muted-foreground">
-                Business Health
-                <HelpTip explanation="An average of real, measured components across your whole client roster — site uptime, on-time payment, work completed, requests moving, and pipeline conversion. Only components with real data are included." />
-              </p>
-            </div>
-            {agencyHealth.healthScore === null ? (
-              <p className="mt-3 text-sm text-muted-foreground">
-                Not enough data yet — this fills in once you have clients with real requests, invoices, or projects.
-              </p>
-            ) : (
-              <>
-                <p className="mt-2 font-heading text-3xl font-semibold tabular-nums">
-                  {agencyHealth.healthScore}
-                  <span className="text-lg text-muted-foreground">/100</span>
-                </p>
-                <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1">
-                  {agencyHealth.components.map((c) => (
-                    <span key={c.label} className="font-mono text-[10px] text-muted-foreground">
-                      {c.label} <span className="text-foreground">{c.value}%</span>
-                    </span>
-                  ))}
-                </div>
-              </>
-            )}
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="flex items-center gap-3.5">
-            <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-accent/10 text-accent">
-              <Search className="size-5" />
-            </span>
-            <div>
-              <p className="font-heading text-2xl font-semibold tabular-nums">{prospectCount ?? 0}</p>
-              <p className="text-xs text-muted-foreground">Prospects found</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="flex items-center gap-3.5">
-            <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-accent/10 text-accent">
-              <Users className="size-5" />
-            </span>
-            <div>
-              <p className="font-heading text-2xl font-semibold tabular-nums">{clientCount}</p>
-              <p className="text-xs text-muted-foreground">Clients</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="flex items-center gap-3.5">
-            <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-accent/10 text-accent">
-              <TrendingUp className="size-5" />
-            </span>
-            <div>
-              <p className="font-heading text-2xl font-semibold tabular-nums">{conversionRate}</p>
-              <p className="text-xs text-muted-foreground">Conversion rate</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="flex items-center gap-3.5">
-            <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-accent/10 text-accent">
-              <PoundSterling className="size-5" />
-            </span>
-            <div>
-              <p className="font-heading text-2xl font-semibold tabular-nums">
-                {pipelineValuePence > 0 ? `£${Math.round(pipelineValuePence / 100).toLocaleString("en-GB")}` : "—"}
-              </p>
-              <p className="text-xs text-muted-foreground">Pipeline value</p>
-            </div>
-          </CardContent>
-        </Card>
+      {/* Stat cards (Command Centre Phase 1, reorderable per-org since
+          Phase 5 — see Settings → Command Centre layout). Same real,
+          no-fabrication data as before; only which cards show and their
+          order can now differ per tenant. */}
+      <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+        {cardOrder.map((id) => (
+          <div key={id}>{cardContent[id]}</div>
+        ))}
       </div>
 
       {/* Actions Required (Command Centre Phase 1) — the urgent subset,

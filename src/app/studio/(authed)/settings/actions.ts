@@ -7,6 +7,7 @@ import { getSupabaseAdmin } from "@/lib/supabase";
 import { checkForReplies } from "@/lib/detect-replies";
 import { sendErrorAlert } from "@/lib/send-error-alert";
 import { logAuditEvent } from "@/lib/audit-log";
+import { isValidCardId } from "@/lib/command-centre-layout";
 
 // Same session-derivation as prospects/actions.ts's requireOrgId() — kept
 // as its own local copy, same convention billing/actions.ts documents.
@@ -67,6 +68,45 @@ export async function updateBrandAccent(color: string) {
   if (error) return { error: "Failed to save your portal colour." };
 
   revalidatePath("/studio/settings");
+  return { ok: true as const };
+}
+
+// Command Centre Phase 5, first real slice (§22-23 rescoped, see
+// schema-command-centre-layout.sql's own comment) — a no-code control
+// over which of the 5 real stat cards show on the Command Centre and in
+// what order, saved per-org. `cards` is the full list the client wants
+// to persist: an id present but toggled off simply isn't included (the
+// Command Centre page treats "not in the array" as "hidden"), so this
+// one array carries both visibility and order. Rejects anything that
+// isn't a known card id rather than trusting client input.
+export async function updateCommandCentreCards(cards: string[]) {
+  const orgId = await requireOrgId();
+  const admin = getSupabaseAdmin();
+  if (!admin) return { error: "Supabase is not configured." };
+
+  const deduped = Array.from(new Set(cards));
+  if (deduped.length === 0 || !deduped.every(isValidCardId)) {
+    return { error: "Invalid card selection." };
+  }
+
+  const { error } = await admin.from("organisations").update({ command_centre_cards: deduped }).eq("id", orgId);
+  if (error) return { error: "Failed to save your layout." };
+
+  revalidatePath("/studio/settings");
+  revalidatePath("/studio");
+  return { ok: true as const };
+}
+
+export async function resetCommandCentreCards() {
+  const orgId = await requireOrgId();
+  const admin = getSupabaseAdmin();
+  if (!admin) return { error: "Supabase is not configured." };
+
+  const { error } = await admin.from("organisations").update({ command_centre_cards: null }).eq("id", orgId);
+  if (error) return { error: "Failed to reset your layout." };
+
+  revalidatePath("/studio/settings");
+  revalidatePath("/studio");
   return { ok: true as const };
 }
 

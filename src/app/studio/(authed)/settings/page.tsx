@@ -6,6 +6,8 @@ import { hasPlatformMsConfig } from "@/lib/tenant-graph-auth";
 import { SettingsPanel } from "@/components/platform/settings-panel";
 import { BrandingPanel } from "@/components/platform/branding-panel";
 import { DataPrivacyPanel } from "@/components/platform/data-privacy-panel";
+import { CommandCentreLayoutPanel } from "@/components/platform/command-centre-layout-panel";
+import { resolveCardOrder } from "@/lib/command-centre-layout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -47,10 +49,13 @@ export default async function StudioSettingsPage({
   // every other /studio page's org read already relies on.
   const { data: org } = await supabase
     .from("organisations")
-    .select("name, brand, is_internal, stripe_connect_account_id, stripe_connect_charges_enabled, deletion_requested_at")
+    .select(
+      "name, brand, is_internal, stripe_connect_account_id, stripe_connect_charges_enabled, deletion_requested_at, command_centre_cards"
+    )
     .eq("id", membership.orgId)
     .single();
   const brand = (org?.brand ?? {}) as { accentColor?: string };
+  const commandCentreOrder = resolveCardOrder(org?.command_centre_cards);
 
   const params = await searchParams;
 
@@ -137,6 +142,13 @@ export default async function StudioSettingsPage({
               </CardContent>
             </Card>
           )}
+        </div>
+      </div>
+
+      <div>
+        <h2 className="font-heading text-xs font-semibold tracking-wide text-muted-foreground uppercase">Command Centre</h2>
+        <div className="mt-3">
+          <CommandCentreLayoutPanel initialOrder={commandCentreOrder} />
         </div>
       </div>
 
