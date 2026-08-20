@@ -37,7 +37,7 @@ export default async function StudioClientsPage() {
   const [{ data: clients }, { data: org }] = await Promise.all([
     supabase
       .from("clients")
-      .select("id, business_name, email, website_url, maintenance_plan, created_at")
+      .select("id, business_name, email, website_url, maintenance_plan, created_at, chatbot_embed_enabled, chatbot_embed_allowed_origin")
       .eq("org_id", membership.orgId)
       .order("created_at", { ascending: false }),
     supabase

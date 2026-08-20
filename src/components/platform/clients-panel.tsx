@@ -13,13 +13,21 @@ import {
   Trash2,
   HeartPulse,
   FileText,
+  MessageCircle,
+  Copy,
+  Check,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { createClientInvoice, deleteClientData, generateClientReportNow } from "@/app/studio/(authed)/clients/actions";
+import {
+  createClientInvoice,
+  deleteClientData,
+  generateClientReportNow,
+  updateChatbotEmbedConfig,
+} from "@/app/studio/(authed)/clients/actions";
 import type { ClientHealth } from "@/lib/client-health";
 import { ClientsCopilot } from "@/components/platform/clients-copilot";
 
@@ -30,6 +38,8 @@ type Client = {
   website_url: string | null;
   maintenance_plan: string | null;
   created_at: string;
+  chatbot_embed_enabled: boolean;
+  chatbot_embed_allowed_origin: string | null;
 };
 
 type Invoice = {
@@ -252,6 +262,96 @@ function GenerateReportControl({ clientId }: { clientId: string }) {
   );
 }
 
+// Phase 3 of "sell a chatbot to your client's own website" — the Studio
+// toggle + embed snippet. Uses window.location.origin rather than a
+// hardcoded domain for the snippet, so this keeps working correctly
+// regardless of what domain Studio itself is ever served from.
+function EmbedChatbotControl({ client }: { client: Client }) {
+  const [enabled, setEnabled] = useState(client.chatbot_embed_enabled);
+  const [origin, setOrigin] = useState(client.chatbot_embed_allowed_origin ?? "");
+  const [pending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const appOrigin = typeof window !== "undefined" ? window.location.origin : "";
+  const snippet = `<script src="${appOrigin}/api/embed/widget" data-client="${client.id}" async></script>`;
+
+  function save(nextEnabled: boolean) {
+    setError(null);
+    setSaved(false);
+    startTransition(async () => {
+      const r = await updateChatbotEmbedConfig(client.id, nextEnabled, origin);
+      if (r && "error" in r) {
+        setError(r.error ?? "Failed to save.");
+        return;
+      }
+      setEnabled(nextEnabled);
+      setSaved(true);
+    });
+  }
+
+  return (
+    <div className="rounded-lg border border-border p-3">
+      <p className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
+        <MessageCircle className="size-3.5 shrink-0" /> Chatbot for their website
+      </p>
+      <p className="mt-1 text-xs text-muted-foreground">
+        Answers visitor questions using entries from{" "}
+        <Link href="/studio/knowledge" className="text-accent underline underline-offset-2">
+          Knowledge base
+        </Link>{" "}
+        — no account or order data, ever.
+      </p>
+
+      <div className="mt-2 flex items-center gap-2">
+        <Label htmlFor={`embed-origin-${client.id}`} className="text-xs whitespace-nowrap">
+          Their website
+        </Label>
+        <Input
+          id={`embed-origin-${client.id}`}
+          value={origin}
+          onChange={(e) => {
+            setOrigin(e.target.value);
+            setSaved(false);
+          }}
+          placeholder="https://theirsite.com"
+          className="h-8 text-sm"
+        />
+      </div>
+
+      <div className="mt-2 flex items-center gap-2">
+        <Button size="sm" variant={enabled ? "outline" : "default"} disabled={pending} onClick={() => save(!enabled)}>
+          {pending ? "Saving…" : enabled ? "Disable" : "Enable"}
+        </Button>
+        {saved && <span className="text-xs text-accent">Saved.</span>}
+      </div>
+      {error && <p className="mt-2 text-xs text-destructive">{error}</p>}
+
+      {enabled && client.chatbot_embed_allowed_origin && (
+        <div className="mt-3 rounded-lg border border-dashed border-border p-3">
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-xs font-medium">Give this to whoever manages their website</p>
+            <button
+              type="button"
+              onClick={() => {
+                navigator.clipboard.writeText(snippet);
+                setCopied(true);
+                setTimeout(() => setCopied(false), 1500);
+              }}
+              className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-accent"
+            >
+              {copied ? <Check className="size-3" /> : <Copy className="size-3" />}
+              {copied ? "Copied" : "Copy"}
+            </button>
+          </div>
+          <code className="mt-1.5 block overflow-x-auto rounded bg-secondary/60 px-2 py-1.5 text-[11px]">{snippet}</code>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ClientCard({
   client,
   invoices,
@@ -322,6 +422,8 @@ function ClientCard({
             )}
 
             <GenerateReportControl clientId={client.id} />
+
+            <EmbedChatbotControl client={client} />
 
             <p className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
               <Receipt className="size-3.5 shrink-0" /> Invoices

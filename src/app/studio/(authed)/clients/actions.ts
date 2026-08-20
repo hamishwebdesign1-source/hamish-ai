@@ -192,3 +192,43 @@ export async function askClientsCopilot(messages: { role: "user" | "assistant"; 
 
   return result;
 }
+
+// Phase 3 of "sell a chatbot to your client's own website" — the Studio
+// side of turning it on. The real security boundary is enforced
+// server-side in /api/embed/chat (an origin check on every request), not
+// here — this action just writes the two config fields
+// (schema-chatbot-embed.sql). A basic shape check on the origin (must
+// look like an actual origin, not a full URL with a path) catches the
+// most likely mistake — pasting a full page URL — without trying to be a
+// complete URL validator.
+export async function updateChatbotEmbedConfig(clientId: string, enabled: boolean, allowedOrigin: string) {
+  const orgId = await requireOrgId();
+  const admin = getSupabaseAdmin();
+  if (!admin) return { error: "Supabase is not configured." };
+
+  const { data: client } = await admin.from("clients").select("id").eq("id", clientId).eq("org_id", orgId).maybeSingle();
+  if (!client) return { error: "Client not found." };
+
+  const trimmedOrigin = allowedOrigin.trim().replace(/\/$/, "");
+  if (enabled) {
+    if (!trimmedOrigin) return { error: "Enter the website this chatbot will live on first." };
+    let parsed: URL;
+    try {
+      parsed = new URL(trimmedOrigin);
+    } catch {
+      return { error: "Enter a full URL, e.g. https://theirsite.com" };
+    }
+    if (parsed.pathname !== "/" && parsed.pathname !== "") {
+      return { error: "Enter just the site's domain, not a specific page — e.g. https://theirsite.com" };
+    }
+  }
+
+  const { error } = await admin
+    .from("clients")
+    .update({ chatbot_embed_enabled: enabled, chatbot_embed_allowed_origin: trimmedOrigin || null })
+    .eq("id", clientId);
+  if (error) return { error: "Failed to save." };
+
+  revalidatePath("/studio/clients");
+  return { ok: true as const };
+}
