@@ -28,12 +28,13 @@ import { getStudioBriefing } from "@/lib/studio-briefing";
 import { computeAgencyHealth } from "@/lib/client-health";
 import { getStudioAnalytics } from "@/lib/studio-analytics";
 import { generateInsights, type InsightCategory } from "@/lib/studio-insights";
-import { resolveLayout, isStatBlockId, type StatBlockId } from "@/lib/command-centre-layout";
+import { resolveLayout, CHART_METRIC_LABELS, type StatCardId } from "@/lib/command-centre-layout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Eyebrow } from "@/components/eyebrow";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { HelpTip } from "@/components/platform/help-tip";
+import { AnalyticsChart } from "@/components/platform/analytics-chart";
 
 const INSIGHT_ICON: Record<InsightCategory, typeof Sparkles> = {
   opportunity: Sparkles,
@@ -175,12 +176,12 @@ export default async function StudioHomePage() {
   ];
   const checklistComplete = checklist.every((item) => item.done);
 
-  // Command Centre Phase 5b — which blocks render, their order, and (for
-  // stat cards) their width is now per-org (Settings → Command Centre
-  // layout), not fixed. Keyed by the same StatBlockId the settings panel
-  // and resolveLayout() share, so there's one real list, not two.
-  const statContent: Record<StatBlockId, ReactNode> = {
-    "stat:health": (
+  // Command Centre Phase 5b/5c — which blocks render, their order, and
+  // (for stat cards) their width is now per-org (Settings → Command
+  // Centre layout), not fixed. Keyed by the same StatCardId the settings
+  // panel and resolveLayout() share, so there's one real list, not two.
+  const statContent: Record<StatCardId, ReactNode> = {
+    health: (
       <Card className="h-full">
         <CardContent>
           <div className="flex items-center gap-2">
@@ -214,7 +215,7 @@ export default async function StudioHomePage() {
         </CardContent>
       </Card>
     ),
-    "stat:prospects": (
+    prospects: (
       <Card className="h-full">
         <CardContent className="flex items-center gap-3.5">
           <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-accent/10 text-accent">
@@ -227,7 +228,7 @@ export default async function StudioHomePage() {
         </CardContent>
       </Card>
     ),
-    "stat:clients": (
+    clients: (
       <Card className="h-full">
         <CardContent className="flex items-center gap-3.5">
           <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-accent/10 text-accent">
@@ -240,7 +241,7 @@ export default async function StudioHomePage() {
         </CardContent>
       </Card>
     ),
-    "stat:conversion": (
+    conversion: (
       <Card className="h-full">
         <CardContent className="flex items-center gap-3.5">
           <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-accent/10 text-accent">
@@ -253,7 +254,7 @@ export default async function StudioHomePage() {
         </CardContent>
       </Card>
     ),
-    "stat:pipeline": (
+    pipeline: (
       <Card className="h-full">
         <CardContent className="flex items-center gap-3.5">
           <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-accent/10 text-accent">
@@ -395,29 +396,84 @@ export default async function StudioHomePage() {
         <Badge variant="secondary" className="capitalize">{org?.plan ?? "starter"} plan</Badge>
       </div>
 
-      {/* Block canvas (Command Centre Phase 5b — see Settings → Command
-          Centre layout). Stat cards and the three section cards
-          (Actions required / Insights / Your briefing) now live in one
-          reorderable grid: a stat block occupies 1 or 2 of 5 columns
-          depending on its saved width, a section block always spans the
-          full row (see command-centre-layout.ts's own comment on why),
-          and a section block with no real content right now renders
-          nothing for its slot rather than an empty card. */}
+      {/* Block canvas (Command Centre Phase 5b/5c — see Settings →
+          Command Centre layout). Stat cards, the three section cards
+          (Actions required / Insights / Your briefing), and — since
+          Phase 5c — chart/text/call-to-action blocks all live in one
+          reorderable grid: a stat/chart/text/cta block occupies 1 or 2
+          of 5 columns depending on its saved width, a section block
+          always spans the full row (see command-centre-layout.ts's own
+          comment on why), and a section block with no real content
+          right now renders nothing for its slot rather than an empty
+          card. Chart blocks read from the same 30-day analytics already
+          fetched for Insights above — never a second query. */}
       <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
         {blocks.map((block) => {
-          if (isStatBlockId(block.id)) {
-            const span = (block as { id: StatBlockId; span: 1 | 2 }).span;
+          if (block.type === "stat") {
             return (
-              <div key={block.id} className={span === 2 ? "sm:col-span-2" : undefined}>
-                {statContent[block.id]}
+              <div key={block.id} className={block.span === 2 ? "sm:col-span-2" : undefined}>
+                {statContent[block.cardId]}
               </div>
             );
           }
-          const content = sectionContent[block.id];
-          if (!content) return null;
+          if (block.type === "actions_required" || block.type === "insights" || block.type === "briefing") {
+            const content = sectionContent[block.type];
+            if (!content) return null;
+            return (
+              <div key={block.id} className="sm:col-span-2 lg:col-span-5">
+                {content}
+              </div>
+            );
+          }
+          if (block.type === "chart") {
+            const series = block.metric === "revenue" ? analytics.revenueSeries : analytics.prospectsSeries;
+            return (
+              <div key={block.id} className={block.span === 2 ? "sm:col-span-2" : undefined}>
+                <Card className="h-full">
+                  <CardContent>
+                    <p className="text-sm font-semibold">{CHART_METRIC_LABELS[block.metric]} over time</p>
+                    <AnalyticsChart
+                      series={series}
+                      kind={block.kind}
+                      format={block.metric === "revenue" ? "money" : "count"}
+                      height={180}
+                      emptyMessage="No data in this period yet."
+                    />
+                  </CardContent>
+                </Card>
+              </div>
+            );
+          }
+          if (block.type === "text") {
+            return (
+              <div key={block.id} className={block.span === 2 ? "sm:col-span-2" : undefined}>
+                <Card className="h-full">
+                  <CardContent>
+                    <p className="font-heading text-sm font-semibold">{block.title}</p>
+                    <p className="mt-2 text-sm whitespace-pre-wrap text-muted-foreground">{block.body}</p>
+                  </CardContent>
+                </Card>
+              </div>
+            );
+          }
+          // cta — an external https link (isSafeHref() in command-centre-
+          // layout.ts already rejected anything else) opens in a new tab
+          // with rel="noopener noreferrer"; an internal path uses Next's
+          // own Link like every other in-app link on this page.
+          const isExternal = block.href.startsWith("https://");
+          const ctaClassName =
+            "flex h-full items-center justify-center rounded-xl border border-accent/40 bg-accent/5 p-4 text-center font-heading text-sm font-semibold text-accent transition-colors hover:bg-accent/10";
           return (
-            <div key={block.id} className="sm:col-span-2 lg:col-span-5">
-              {content}
+            <div key={block.id} className={block.span === 2 ? "sm:col-span-2" : undefined}>
+              {isExternal ? (
+                <a href={block.href} target="_blank" rel="noopener noreferrer" className={ctaClassName}>
+                  {block.label}
+                </a>
+              ) : (
+                <Link href={block.href} className={ctaClassName}>
+                  {block.label}
+                </Link>
+              )}
             </div>
           );
         })}

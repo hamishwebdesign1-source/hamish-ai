@@ -71,16 +71,16 @@ export async function updateBrandAccent(color: string) {
   return { ok: true as const };
 }
 
-// Command Centre Phase 5b (§22-23 rescoped, see
+// Command Centre Phase 5b/5c (§22-23 rescoped, see
 // schema-command-centre-layout-v2.sql's own comment) — a no-code control
-// over which blocks show on the Command Centre, their order, and (for
-// stat cards) their width, saved per-org. `blocks` is the client's
-// proposed layout in full: a block missing from the list simply isn't
-// included (the Command Centre page treats "not in the array" as
-// "hidden"). Re-validated through sanitizeBlocksForWrite() rather than
-// trusted structurally — a Server Action argument is just parsed JSON
-// over the wire, the caller's TypeScript type is never checked at
-// runtime.
+// over which blocks show on the Command Centre, their order, width, and
+// (for chart/text/cta blocks, Phase 5c) their own content, saved per-org.
+// `blocks` is the client's proposed layout in full: a singleton block
+// (stat/section) missing from the list is "hidden"; a chart/text/cta
+// block missing from the list simply no longer exists. Re-validated
+// through sanitizeBlocksForWrite() rather than trusted structurally — a
+// Server Action argument is just parsed JSON over the wire, the caller's
+// TypeScript type is never checked at runtime.
 export async function updateCommandCentreLayout(blocks: Block[]) {
   const orgId = await requireOrgId();
   const admin = getSupabaseAdmin();
@@ -89,7 +89,7 @@ export async function updateCommandCentreLayout(blocks: Block[]) {
   const clean = sanitizeBlocksForWrite(blocks);
   if (!clean) return { error: "Invalid layout." };
 
-  const layout: CommandCentreLayout = { version: 1, blocks: clean };
+  const layout: CommandCentreLayout = { version: 2, blocks: clean };
   const { error } = await admin.from("organisations").update({ command_centre_layout: layout }).eq("id", orgId);
   if (error) return { error: "Failed to save your layout." };
 

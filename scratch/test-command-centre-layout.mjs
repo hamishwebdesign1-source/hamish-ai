@@ -1,8 +1,9 @@
-// Live round-trip test for Command Centre Phase 5b's command_centre_layout
-// column, against the real Edinburgh solutions test tenant. Confirms:
+// Live round-trip test for Command Centre Phase 5c's command_centre_layout
+// column (version 2 — typed blocks including chart/text/cta), against the
+// real Edinburgh solutions test tenant. Confirms:
 // 1) column starts null (default, no behaviour change)
-// 2) writing a custom block layout (reordered, one hidden, one widened)
-//    persists exactly
+// 2) writing a custom layout with a stat block, a section block, a
+//    chart block, a text block, and a cta block persists exactly
 // 3) resetting back to null works
 import { createClient } from "@supabase/supabase-js";
 import { readFileSync } from "fs";
@@ -30,12 +31,13 @@ async function main() {
   console.log("Before:", before.command_centre_layout);
 
   const custom = {
-    version: 1,
+    version: 2,
     blocks: [
-      { id: "stat:pipeline", span: 2 },
-      { id: "stat:health", span: 1 },
-      { id: "actions_required" },
-      { id: "stat:clients", span: 1 },
+      { id: "stat:pipeline", type: "stat", cardId: "pipeline", span: 2 },
+      { id: "actions_required", type: "actions_required" },
+      { id: "chart:test1", type: "chart", metric: "revenue", kind: "area", span: 2 },
+      { id: "text:test1", type: "text", title: "Note", body: "Hello team", span: 2 },
+      { id: "cta:test1", type: "cta", label: "Go", href: "/studio/prospects", span: 1 },
     ],
   };
   const { error: writeErr } = await supabase.from("organisations").update({ command_centre_layout: custom }).eq("id", ORG_ID);
@@ -43,16 +45,14 @@ async function main() {
 
   const { data: after } = await supabase.from("organisations").select("command_centre_layout").eq("id", ORG_ID).single();
   console.log("After write:", JSON.stringify(after.command_centre_layout));
-  // Structural comparison, not string equality — Postgres jsonb doesn't
-  // preserve key insertion order, so {version, blocks} can legitimately
-  // round-trip as {blocks, version}. The app's own resolveLayout() reads
-  // by key, never by serialized string, so this is the correct check.
+
   const stored = after.command_centre_layout;
   const matches =
     stored.version === custom.version &&
     Array.isArray(stored.blocks) &&
     stored.blocks.length === custom.blocks.length &&
-    stored.blocks.every((b, i) => b.id === custom.blocks[i].id && b.span === custom.blocks[i].span);
+    stored.blocks.every((b, i) => JSON.stringify(Object.keys(b).sort()) === JSON.stringify(Object.keys(custom.blocks[i]).sort())
+      && Object.keys(custom.blocks[i]).every((k) => b[k] === custom.blocks[i][k]));
   console.log("Round-trip matches:", matches);
 
   const { error: resetErr } = await supabase.from("organisations").update({ command_centre_layout: null }).eq("id", ORG_ID);
