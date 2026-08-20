@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { BookOpen, Plus, Pencil, Trash2, X } from "lucide-react";
+import { BookOpen, Plus, Pencil, Trash2, X, Sparkles } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -10,8 +10,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { createKnowledgeEntry, updateKnowledgeEntry, deleteKnowledgeEntry } from "@/app/studio/(authed)/knowledge/actions";
 
-type Client = { id: string; business_name: string };
+type Client = { id: string; business_name: string; source_lead_id?: string | null };
 type Entry = { id: string; client_id: string | null; title: string; content: string; created_at: string };
+type Research = { business_summary: string; services: string[] };
+type Draft = { clientId: string; title: string; content: string };
 
 const selectClasses =
   "h-9 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50";
@@ -21,21 +23,36 @@ function clientName(clientId: string | null, clients: Client[]) {
   return clients.find((c) => c.id === clientId)?.business_name ?? "Unknown client";
 }
 
-function NewEntryForm({ clients }: { clients: Client[] }) {
-  const [open, setOpen] = useState(false);
-  const [clientId, setClientId] = useState("");
-  const [title, setTitle] = useState("");
-  const [content, setContent] = useState("");
+function researchToDraft(client: Client, research: Research): Draft {
+  const content = research.services.length
+    ? `${research.business_summary}\n\nServices: ${research.services.join(", ")}`
+    : research.business_summary;
+  return { clientId: client.id, title: `About ${client.business_name}`, content };
+}
+
+// A single controlled form, driven by KnowledgePanel's own `draft` state —
+// used both for a plain manual "Add entry" click (empty draft) and for
+// "Add to knowledge base" on a research-import card (pre-filled draft).
+// Same createKnowledgeEntry() Server Action either way — importing
+// research doesn't skip the human-reviews-before-it-saves step every
+// other AI-touched save in this app follows, it just saves the tenant
+// from retyping what's already real.
+function EntryForm({
+  draft,
+  clients,
+  onCancel,
+  onSaved,
+}: {
+  draft: Draft;
+  clients: Client[];
+  onCancel: () => void;
+  onSaved: () => void;
+}) {
+  const [clientId, setClientId] = useState(draft.clientId);
+  const [title, setTitle] = useState(draft.title);
+  const [content, setContent] = useState(draft.content);
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
-
-  if (!open) {
-    return (
-      <Button size="sm" onClick={() => setOpen(true)}>
-        <Plus className="size-3.5" /> Add entry
-      </Button>
-    );
-  }
 
   function submit() {
     setError(null);
@@ -45,10 +62,7 @@ function NewEntryForm({ clients }: { clients: Client[] }) {
         setError(r.error ?? "Failed to save.");
         return;
       }
-      setClientId("");
-      setTitle("");
-      setContent("");
-      setOpen(false);
+      onSaved();
     });
   }
 
@@ -67,26 +81,44 @@ function NewEntryForm({ clients }: { clients: Client[] }) {
           </select>
         </div>
         <div>
-          <Label htmlFor="new-kb-title" className="text-xs">
+          <Label htmlFor="kb-title" className="text-xs">
             Question / topic
           </Label>
-          <Input id="new-kb-title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="What are your opening hours?" />
+          <Input id="kb-title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="What are your opening hours?" />
         </div>
         <div>
-          <Label htmlFor="new-kb-content" className="text-xs">
+          <Label htmlFor="kb-content" className="text-xs">
             Answer
           </Label>
-          <Textarea id="new-kb-content" value={content} onChange={(e) => setContent(e.target.value)} rows={3} placeholder="Mon–Fri 9am–5pm, closed weekends." />
+          <Textarea id="kb-content" value={content} onChange={(e) => setContent(e.target.value)} rows={4} placeholder="Mon–Fri 9am–5pm, closed weekends." />
         </div>
         <div className="flex items-center gap-2">
           <Button size="sm" disabled={pending || !title.trim() || !content.trim()} onClick={submit}>
             {pending ? "Saving…" : "Save entry"}
           </Button>
-          <Button size="sm" variant="ghost" onClick={() => setOpen(false)}>
+          <Button size="sm" variant="ghost" onClick={onCancel}>
             Cancel
           </Button>
         </div>
         {error && <p className="text-xs text-destructive">{error}</p>}
+      </CardContent>
+    </Card>
+  );
+}
+
+function ResearchImportCard({ client, research, onImport }: { client: Client; research: Research; onImport: () => void }) {
+  return (
+    <Card className="border-dashed">
+      <CardContent className="flex items-start justify-between gap-3 py-3">
+        <div className="min-w-0">
+          <p className="flex items-center gap-1.5 text-xs font-semibold text-accent">
+            <Sparkles className="size-3.5 shrink-0" /> Already researched — {client.business_name}
+          </p>
+          <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">{research.business_summary}</p>
+        </div>
+        <Button size="sm" variant="outline" className="shrink-0" onClick={onImport}>
+          Add to knowledge base
+        </Button>
       </CardContent>
     </Card>
   );
@@ -176,7 +208,18 @@ function EntryCard({ entry, clients }: { entry: Entry; clients: Client[] }) {
   );
 }
 
-export function KnowledgePanel({ clients, entries }: { clients: Client[]; entries: Entry[] }) {
+export function KnowledgePanel({
+  clients,
+  entries,
+  researchByClient,
+}: {
+  clients: Client[];
+  entries: Entry[];
+  researchByClient: Record<string, Research>;
+}) {
+  const [draft, setDraft] = useState<Draft | null>(null);
+  const researchClients = clients.filter((c) => researchByClient[c.id]);
+
   return (
     <div className="mx-auto max-w-3xl">
       <h1 className="font-heading text-2xl font-semibold md:text-3xl">Knowledge base</h1>
@@ -185,8 +228,27 @@ export function KnowledgePanel({ clients, entries }: { clients: Client[]; entrie
         unset for answers that apply to everyone.
       </p>
 
+      {researchClients.length > 0 && (
+        <div className="mt-6 space-y-2">
+          {researchClients.map((c) => (
+            <ResearchImportCard
+              key={c.id}
+              client={c}
+              research={researchByClient[c.id]}
+              onImport={() => setDraft(researchToDraft(c, researchByClient[c.id]))}
+            />
+          ))}
+        </div>
+      )}
+
       <div className="mt-6">
-        <NewEntryForm clients={clients} />
+        {draft ? (
+          <EntryForm draft={draft} clients={clients} onCancel={() => setDraft(null)} onSaved={() => setDraft(null)} />
+        ) : (
+          <Button size="sm" onClick={() => setDraft({ clientId: "", title: "", content: "" })}>
+            <Plus className="size-3.5" /> Add entry
+          </Button>
+        )}
       </div>
 
       {entries.length === 0 ? (
