@@ -54,10 +54,10 @@ export async function GET() {
     admin.from("knowledge_base").select("id, title, content, created_at").eq("org_id", orgId),
   ]);
 
-  const { data: projects } = await admin
-    .from("projects")
-    .select("id, client_id, name, target_date, status, created_at")
-    .eq("org_id", orgId);
+  const [{ data: projects }, { data: monthlyReports }] = await Promise.all([
+    admin.from("projects").select("id, client_id, name, target_date, status, created_at").eq("org_id", orgId),
+    admin.from("monthly_reports").select("id, client_id, period_start, period_end, snapshot, created_at").eq("org_id", orgId),
+  ]);
 
   const clientIds = (clients ?? []).map((c) => c.id);
   const [{ data: clientMembers }, { data: requests }, { data: invoices }] = await Promise.all([
@@ -90,6 +90,7 @@ export async function GET() {
     requests: requests ?? [],
     tasks: tasks ?? [],
     projects: projects ?? [],
+    monthly_reports: monthlyReports ?? [],
     invoices: invoices ?? [],
     email_connection: emailConnection ?? null,
     knowledge_base: knowledgeBase ?? [],

@@ -7,6 +7,7 @@ import { getSupabaseAdmin } from "@/lib/supabase";
 import { createInvoice } from "@/lib/create-invoice";
 import { logAuditEvent } from "@/lib/audit-log";
 import { trackServerEvent } from "@/lib/analytics";
+import { generateMonthlyReport } from "@/lib/monthly-report";
 
 // Same session-derivation as every other /studio actions.ts file.
 async function requireOrgId(): Promise<string> {
@@ -108,11 +109,13 @@ export async function deleteClientData(clientId: string) {
   await admin.from("processed_emails").update({ client_id: null }).eq("client_id", clientId);
   await admin.from("site_checks").delete().eq("client_id", clientId);
 
-  // projects.client_id is also NOT NULL (schema-projects.sql) — same
-  // "delete outright" rule as site_checks. Tasks are already gone by this
-  // point (deleted above via request_id), so there's nothing left
-  // pointing at these projects to orphan.
+  // projects.client_id and monthly_reports.client_id are also NOT NULL
+  // (schema-projects.sql, schema-monthly-reports.sql) — same "delete
+  // outright" rule as site_checks. Tasks are already gone by this point
+  // (deleted above via request_id), so there's nothing left pointing at
+  // these projects to orphan.
   await admin.from("projects").delete().eq("client_id", clientId);
+  await admin.from("monthly_reports").delete().eq("client_id", clientId);
 
   const { error } = await admin.from("clients").delete().eq("id", clientId);
   if (error) return { error: "Failed to delete this client's data." };
@@ -125,6 +128,28 @@ export async function deleteClientData(clientId: string) {
     targetId: clientId,
     metadata: { business_name: client.business_name, email: client.email },
   });
+
+  revalidatePath("/studio/clients");
+  return { ok: true as const };
+}
+
+// Manual trigger for the monthly report the cron (/api/cron/monthly-reports)
+// generates automatically on the 1st — lets an agency owner get their
+// client's first report without waiting for month-end, and is the same
+// function the cron calls, so this is a real test of the real path, not a
+// separate one. Idempotent against the same month via
+// generateMonthlyReport()'s own unique-index check.
+export async function generateClientReportNow(clientId: string) {
+  const orgId = await requireOrgId();
+  const admin = getSupabaseAdmin();
+  if (!admin) return { error: "Supabase is not configured." };
+
+  const { data: client } = await admin.from("clients").select("id").eq("id", clientId).eq("org_id", orgId).maybeSingle();
+  if (!client) return { error: "Client not found." };
+
+  const result = await generateMonthlyReport(clientId);
+  if ("error" in result) return { error: result.error };
+  if ("skipped" in result) return { error: "Already generated for this month." };
 
   revalidatePath("/studio/clients");
   return { ok: true as const };

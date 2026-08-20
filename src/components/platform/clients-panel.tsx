@@ -12,13 +12,14 @@ import {
   LoaderCircle,
   Trash2,
   HeartPulse,
+  FileText,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { createClientInvoice, deleteClientData } from "@/app/studio/(authed)/clients/actions";
+import { createClientInvoice, deleteClientData, generateClientReportNow } from "@/app/studio/(authed)/clients/actions";
 import type { ClientHealth } from "@/lib/client-health";
 
 type Client = {
@@ -221,6 +222,35 @@ function DeleteClientControl({ client }: { client: Client }) {
   );
 }
 
+// P1 platform readiness item — same function the monthly cron calls
+// (monthly-report.ts), triggered on demand so an agency owner doesn't have
+// to wait for month-end to see their first report.
+function GenerateReportControl({ clientId }: { clientId: string }) {
+  const [pending, startTransition] = useTransition();
+  const [message, setMessage] = useState<{ text: string; ok: boolean } | null>(null);
+
+  function generate() {
+    setMessage(null);
+    startTransition(async () => {
+      const r = await generateClientReportNow(clientId);
+      if (r && "error" in r) {
+        setMessage({ text: r.error ?? "Failed to generate the report.", ok: false });
+        return;
+      }
+      setMessage({ text: "Generated — visible in their portal now.", ok: true });
+    });
+  }
+
+  return (
+    <div className="flex items-center gap-2">
+      <Button size="sm" variant="outline" disabled={pending} onClick={generate}>
+        <FileText className="size-3.5" /> {pending ? "Generating…" : "Generate this month's report"}
+      </Button>
+      {message && <span className={`text-xs ${message.ok ? "text-accent" : "text-destructive"}`}>{message.text}</span>}
+    </div>
+  );
+}
+
 function ClientCard({
   client,
   invoices,
@@ -289,6 +319,8 @@ function ClientCard({
                 </div>
               </div>
             )}
+
+            <GenerateReportControl clientId={client.id} />
 
             <p className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
               <Receipt className="size-3.5 shrink-0" /> Invoices

@@ -3,6 +3,7 @@ import { createServerSupabaseClient } from "@/lib/supabase-server-auth";
 import { getPortalMembership } from "@/lib/portal-membership";
 import { buildPortalInsights } from "@/lib/portal-insights-data";
 import { InsightsCentre } from "@/components/portal/insights-centre";
+import { MonthlyReportsList, type MonthlyReportRow } from "@/components/portal/monthly-reports-list";
 
 export default async function PortalInsightsPage() {
   const supabase = await createServerSupabaseClient();
@@ -19,6 +20,15 @@ export default async function PortalInsightsPage() {
   if (!membership) redirect("/portal/login");
 
   const insights = await buildPortalInsights(supabase, membership.clientId);
+
+  // RLS-protected the same way as everything else on this page
+  // (monthly_reports_select_own, schema-rls-monthly-reports.sql).
+  const { data: reports } = await supabase
+    .from("monthly_reports")
+    .select("id, period_start, period_end, snapshot")
+    .eq("client_id", membership.clientId)
+    .order("period_start", { ascending: false });
+
   if ("error" in insights) {
     return (
       <div>
@@ -38,6 +48,16 @@ export default async function PortalInsightsPage() {
 
       <div className="mt-6">
         <InsightsCentre data={insights} />
+      </div>
+
+      <div className="mt-8">
+        <h2 className="text-lg font-semibold">Monthly reports</h2>
+        <p className="mt-1 max-w-xl text-sm text-muted-foreground">
+          A dated snapshot at the end of each month — this doesn&apos;t change after the fact, unlike the live numbers above.
+        </p>
+        <div className="mt-3">
+          <MonthlyReportsList reports={(reports ?? []) as MonthlyReportRow[]} />
+        </div>
       </div>
     </div>
   );

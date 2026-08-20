@@ -5,15 +5,27 @@ import { sendClientEmail } from "@/lib/send-client-email";
 // still open, so they don't have to remember to check the portal. Clients
 // with nothing outstanding are skipped entirely; an empty "nothing to
 // report" email is exactly the noise this feature exists to avoid.
+//
+// Gated to HamishAI's own internal org, same reason every sendClientEmail()
+// call in triage-request.ts is isInternal-gated: the from-address is
+// hardcoded to hello@hamishai.org (send-client-email.ts — Resend requires
+// a verified domain, and only hamishai.org is verified). Before this fix,
+// this cron ran across every org's clients with weekly_digest_enabled set,
+// meaning a real tenant's client would get a weekly email signed "— Hamish
+// AI" — a live, in-production cross-tenant identity leak, same class as
+// the ones already found and fixed in triage-request.ts and
+// createTaskCalendarEvent() this session. Found while building the
+// adjacent packaged-monthly-report feature, not by code review.
 export async function sendWeeklyDigests() {
   const supabase = getSupabaseAdmin();
   if (!supabase) return { error: "Supabase is not configured." as const };
 
   const { data: clients, error: clientsError } = await supabase
     .from("clients")
-    .select("id, business_name, email")
+    .select("id, business_name, email, organisations!inner(is_internal)")
     .eq("status", "active")
     .eq("weekly_digest_enabled", true)
+    .eq("organisations.is_internal", true)
     .not("email", "is", null);
 
   if (clientsError) return { error: "Failed to fetch clients." as const };

@@ -107,6 +107,14 @@ export async function buildPortalInsights(supabase: SupabaseClient, clientId: st
     : { data: [] };
   const siteChecks: SiteCheckRow[] = siteChecksData ?? [];
 
+  const { data: monthlyReportsData } = await supabase
+    .from("monthly_reports")
+    .select("id, period_start, created_at")
+    .eq("client_id", clientId)
+    .order("created_at", { ascending: false })
+    .limit(12);
+  const monthlyReports = monthlyReportsData ?? [];
+
   // --- Health score components (only real, only included when we have the
   // underlying data) — shared with Studio's own client health score
   // (client-health.ts), so the agency and the client always see the same
@@ -181,7 +189,7 @@ export async function buildPortalInsights(supabase: SupabaseClient, clientId: st
 
   // --- Automation events (real, chronological) — shared with the header
   // notification bell's lean fetch, see portal-events.ts ---
-  const automationEvents = buildAutomationEvents(requests, siteChecks, invoices, 12);
+  const automationEvents = buildAutomationEvents(requests, siteChecks, invoices, 12, monthlyReports);
 
   const autoReplyCount = requests.filter((r) => r.auto_sent).length;
   const siteCheckCount = siteChecks.length;
