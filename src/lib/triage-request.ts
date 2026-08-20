@@ -13,10 +13,29 @@ type Client = {
   maintenance_plan: string;
   tech_stack: string | null;
   brand_notes: string | null;
+  org_id?: string | null;
 };
 
-function buildTriageSystemPrompt(client: Client) {
-  return `You are the Request Triage Agent for Hamish AI, an Edinburgh AI consultancy. You analyse incoming client requests and prepare everything Hamish needs before he looks at it: category, complexity, a suggested implementation approach, whether it's covered under the client's maintenance plan, a draft reply to send the client, priority, and any missing information needed before work can start.
+// Who this triage run is on behalf of — resolved from the client's own
+// org (clients.org_id -> organisations.name/is_internal) inside
+// triageRequest() below, the same tenant-safety pattern already used by
+// draft-sales-kit.ts and discover-leads.ts: a shared engine takes an
+// explicit sender rather than trusting a hardcoded "Hamish AI" to happen
+// to stay correct. Real bug found and fixed here — the prompt and every
+// signed email previously said "Hamish AI" unconditionally, even for a
+// Studio tenant's own client, since /portal/requests never gated
+// submission to HamishAI's own clients in the first place.
+type Sender = { name: string; isInternal: boolean };
+
+function buildTriageSystemPrompt(client: Client, sender: Sender) {
+  const agentIntro = sender.isInternal
+    ? `You are the Request Triage Agent for Hamish AI, an Edinburgh AI consultancy.`
+    : `You are the Request Triage Agent for ${sender.name}, prepared on their behalf.`;
+  const voiceInstruction = sender.isInternal
+    ? "The draft_response should sound like Hamish: plain English, warm but direct, no jargon"
+    : `The draft_response should sound like a helpful member of ${sender.name}'s own team: plain English, warm but direct, no jargon`;
+
+  return `${agentIntro} You analyse incoming client requests and prepare everything the team needs before a human looks at it: category, complexity, a suggested implementation approach, whether it's covered under the client's maintenance plan, a draft reply to send the client, priority, and any missing information needed before work can start.
 
 Client context:
 - Business: ${client.business_name}
@@ -32,7 +51,7 @@ Maintenance plan coverage guide:
 
 Be a sharp, senior analyst: don't rubber-stamp everything as covered to be agreeable, and don't refuse everything to be safe — reason about genuine scope. If the request is too vague to size or scope confidently, list specific missing_info questions rather than guessing — better to ask than to draft a wrong response.
 
-The draft_response should sound like Hamish: plain English, warm but direct, no jargon — and if not covered by maintenance, transparent that this is additional scope without being pushy about it. Do not use markdown formatting (no asterisks, headings, or bullet syntax) — plain sentences and simple dashes only.
+${voiceInstruction} — and if not covered by maintenance, transparent that this is additional scope without being pushy about it. Do not use markdown formatting (no asterisks, headings, or bullet syntax) — plain sentences and simple dashes only.
 
 Only include suggested_task if there's real implementation work to do — a pure question needs no task.`;
 }
@@ -91,11 +110,26 @@ export async function triageRequest(clientId: string, rawText: string) {
 
   const { data: client, error: clientError } = await supabase
     .from("clients")
-    .select("id, business_name, email, package, maintenance_plan, tech_stack, brand_notes")
+    .select("id, business_name, email, package, maintenance_plan, tech_stack, brand_notes, org_id")
     .eq("id", clientId)
     .single();
 
   if (clientError || !client) return { error: "Client not found." as const };
+
+  // Resolves who this request actually belongs to — see the Sender type's
+  // own comment above for why this can no longer default to "Hamish AI."
+  // Falls back to internal/Hamish framing only if org_id is somehow
+  // missing (shouldn't happen post-backfill), never silently to a
+  // tenant's own client.
+  let sender: Sender = { name: "Hamish AI", isInternal: true };
+  if (client.org_id) {
+    const { data: org } = await supabase
+      .from("organisations")
+      .select("name, is_internal")
+      .eq("id", client.org_id)
+      .single();
+    if (org && !org.is_internal) sender = { name: org.name, isInternal: false };
+  }
 
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return { error: "ANTHROPIC_API_KEY is not configured." as const };
@@ -108,7 +142,7 @@ export async function triageRequest(clientId: string, rawText: string) {
     const response = await anthropic.messages.create({
       model,
       max_tokens: 1000,
-      system: buildTriageSystemPrompt(client),
+      system: buildTriageSystemPrompt(client, sender),
       tools: [SUBMIT_TRIAGE_TOOL],
       tool_choice: { type: "tool", name: "submit_triage" },
       messages: [{ role: "user", content: rawText }],
@@ -188,7 +222,14 @@ export async function triageRequest(clientId: string, rawText: string) {
 
     if (taskError) console.error("Failed to save suggested task:", taskError);
 
-    if (savedTask) {
+    // Real cross-tenant leak, found while making this function
+    // tenant-safe: calendar-sync.ts writes into Hamish's own personal
+    // Google Calendar (getGoogleAuthClient() — single-account, not the
+    // tenant-scoped Microsoft Graph flow built for inbox connections).
+    // A tenant's task would otherwise have silently landed on Hamish's
+    // own calendar. Gated to isInternal until a tenant-scoped calendar
+    // integration exists — not something to build speculatively here.
+    if (savedTask && sender.isInternal) {
       const calendarResult = await createTaskCalendarEvent({
         taskId: savedTask.id,
         title: savedTask.title,
@@ -206,7 +247,17 @@ export async function triageRequest(clientId: string, rawText: string) {
   // Only the "we need something from you" transition gets an email — a
   // freshly-triaged request doesn't, since nothing is expected of the client
   // yet, and pinging them for every internal status change would just be noise.
-  if (status === "awaiting_info" && client.email) {
+  //
+  // Gated to isInternal: sendClientEmail sends from a hardcoded
+  // "Hamish AI <hello@hamishai.org>" address (send-client-email.ts) —
+  // there's no per-tenant email-sending wired up yet (same reason
+  // studio-briefing.ts stays in-app only, not emailed). Sending a tenant's
+  // client an email from HamishAI's own domain, signed as HamishAI, would
+  // be the exact identity leak this whole change exists to close. A
+  // tenant sees this in their /studio/requests inbox and handles it
+  // themselves instead — manual, not automated, same call as the
+  // follow-up tracker.
+  if (sender.isInternal && status === "awaiting_info" && client.email) {
     const questions = triage.missing_info.map((q) => `- ${q}`).join("\n");
     await sendClientEmail(
       client.email,
@@ -220,7 +271,13 @@ export async function triageRequest(clientId: string, rawText: string) {
   // (XS/S), and not urgent (urgent always gets a human's eyes first).
   // Hamish gets a copy of everything sent this way so nothing goes out
   // silently, even when he isn't the one reviewing it.
+  //
+  // isInternal-gated for the same reason as the email above — auto-send
+  // is Hamish trusting his own AI to email his own clients unsupervised;
+  // that trust doesn't transfer to a tenant who's never seen this system
+  // work. A tenant's requests always wait for a human in Studio, full stop.
   const isAutoSendEligible =
+    sender.isInternal &&
     status === "triaged" &&
     triage.covered_by_maintenance &&
     (triage.complexity === "XS" || triage.complexity === "S") &&

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Search, Users, CreditCard, Mail } from "lucide-react";
+import { LayoutDashboard, Search, Users, CreditCard, Mail, Inbox } from "lucide-react";
 
 // The gap this fixes: every /studio/(authed) page had a header with just
 // the org name and a sign-out button — the only way from, say, Prospects
@@ -15,6 +15,7 @@ const items = [
   { href: "/studio", label: "Overview", icon: LayoutDashboard },
   { href: "/studio/prospects", label: "Prospects", icon: Search },
   { href: "/studio/clients", label: "Clients", icon: Users },
+  { href: "/studio/requests", label: "Requests", icon: Inbox },
   { href: "/studio/billing", label: "Billing", icon: CreditCard },
   { href: "/studio/settings", label: "Settings", icon: Mail },
 ];

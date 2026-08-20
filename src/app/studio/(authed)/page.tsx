@@ -12,6 +12,7 @@ import {
   Sparkles,
   Send,
   BellRing,
+  Inbox,
 } from "lucide-react";
 import { createServerSupabaseClient } from "@/lib/supabase-server-auth";
 import { getOrgMembership } from "@/lib/org-membership";
@@ -55,9 +56,17 @@ export default async function StudioHomePage() {
   // Head-count queries only (no rows fetched) since this page just needs
   // the totals, and RLS scopes both to this org independently of the
   // .eq() below getting it right.
-  const [{ count: prospectCount }, { count: clientCount }] = await Promise.all([
+  const [{ count: prospectCount }, { count: clientCount }, { count: openRequestCount }] = await Promise.all([
     supabase.from("prospects").select("id", { count: "exact", head: true }).eq("org_id", membership.orgId),
     supabase.from("clients").select("id", { count: "exact", head: true }).eq("org_id", membership.orgId),
+    // requests has no org_id column of its own — scoped one join out via
+    // its client, same relationship requests_select_own_org (schema-rls-
+    // requests-tasks-org-staff.sql) is built on.
+    supabase
+      .from("requests")
+      .select("id, clients!inner(org_id)", { count: "exact", head: true })
+      .eq("clients.org_id", membership.orgId)
+      .is("responded_at", null),
   ]);
   const conversionRate =
     prospectCount && prospectCount > 0 && clientCount != null
@@ -85,7 +94,7 @@ export default async function StudioHomePage() {
           artificially choked to a 672px column (the actual cause of the
           "off centre" look — the header/nav span the full width, this
           content used to be stuck in a narrow max-w-2xl inside it). */}
-      <div className="mt-6 grid gap-4 sm:grid-cols-3">
+      <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardContent className="flex items-center gap-3.5">
             <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-accent/10 text-accent">
@@ -116,6 +125,17 @@ export default async function StudioHomePage() {
             <div>
               <p className="font-heading text-2xl font-semibold tabular-nums">{conversionRate}</p>
               <p className="text-xs text-muted-foreground">Conversion rate</p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="flex items-center gap-3.5">
+            <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-accent/10 text-accent">
+              <Inbox className="size-5" />
+            </span>
+            <div>
+              <p className="font-heading text-2xl font-semibold tabular-nums">{openRequestCount ?? 0}</p>
+              <p className="text-xs text-muted-foreground">Open requests</p>
             </div>
           </CardContent>
         </Card>
@@ -192,7 +212,7 @@ export default async function StudioHomePage() {
         </Card>
       )}
 
-      <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
         <Link href="/studio/prospects" className="rounded-xl border border-accent/40 bg-accent/5 p-4 text-center transition-colors hover:bg-accent/10">
           <Search className="mx-auto size-5 text-accent" />
           <p className="mt-2 font-heading text-sm font-semibold">Prospecting</p>
@@ -201,6 +221,11 @@ export default async function StudioHomePage() {
         <Link href="/studio/clients" className="rounded-xl border border-accent/40 bg-accent/5 p-4 text-center transition-colors hover:bg-accent/10">
           <Users className="mx-auto size-5 text-accent" />
           <p className="mt-2 font-heading text-sm font-semibold">Client management</p>
+          <p className="mt-1 font-mono text-[11px] tracking-wide text-accent uppercase">Ready</p>
+        </Link>
+        <Link href="/studio/requests" className="rounded-xl border border-accent/40 bg-accent/5 p-4 text-center transition-colors hover:bg-accent/10">
+          <Inbox className="mx-auto size-5 text-accent" />
+          <p className="mt-2 font-heading text-sm font-semibold">Requests</p>
           <p className="mt-1 font-mono text-[11px] tracking-wide text-accent uppercase">Ready</p>
         </Link>
         <Link href="/studio/billing" className="rounded-xl border border-accent/40 bg-accent/5 p-4 text-center transition-colors hover:bg-accent/10">
