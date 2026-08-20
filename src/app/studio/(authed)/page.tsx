@@ -5,6 +5,7 @@ import {
   Users,
   CreditCard,
   CheckCircle2,
+  Circle,
   Lightbulb,
   ArrowRight,
   Mail,
@@ -42,7 +43,7 @@ export default async function StudioHomePage() {
 
   const { data: org } = await supabase
     .from("organisations")
-    .select("name, plan, prospecting_config")
+    .select("name, plan, prospecting_config, is_internal, stripe_connect_charges_enabled")
     .eq("id", membership.orgId)
     .single();
 
@@ -57,7 +58,7 @@ export default async function StudioHomePage() {
   // Head-count queries only (no rows fetched) since this page just needs
   // the totals, and RLS scopes both to this org independently of the
   // .eq() below getting it right.
-  const [{ count: prospectCount }, { count: clientCount }, { count: openRequestCount }, { data: activeDeals }] = await Promise.all([
+  const [{ count: prospectCount }, { count: clientCount }, { count: openRequestCount }, { data: activeDeals }, { count: emailConnectionCount }] = await Promise.all([
     supabase.from("prospects").select("id", { count: "exact", head: true }).eq("org_id", membership.orgId),
     supabase.from("clients").select("id", { count: "exact", head: true }).eq("org_id", membership.orgId),
     // requests has no org_id column of its own — scoped one join out via
@@ -78,12 +79,27 @@ export default async function StudioHomePage() {
       .eq("org_id", membership.orgId)
       .not("status", "in", "(converted,lost)")
       .not("deal_value_pence", "is", null),
+    supabase.from("email_connections").select("id", { count: "exact", head: true }).eq("org_id", membership.orgId),
   ]);
   const conversionRate =
     prospectCount && prospectCount > 0 && clientCount != null
       ? `${Math.round((clientCount / prospectCount) * 100)}%`
       : "—";
   const pipelineValuePence = (activeDeals ?? []).reduce((sum, p) => sum + (p.deal_value_pence ?? 0), 0);
+
+  // Onboarding checklist (P1 platform readiness item) — four real,
+  // independently checkable states, not a fixed "step 1 of 5" wizard
+  // that could drift out of sync with what's actually true. Only shown
+  // while incomplete: a permanently-visible "you're all set up" card
+  // past this point would just be clutter on every future visit.
+  const stripeReady = Boolean(org?.is_internal || org?.stripe_connect_charges_enabled);
+  const checklist = [
+    { label: "Run your first discovery search", done: (prospectCount ?? 0) > 0, href: "/studio/prospects" },
+    { label: "Connect your inbox for reply detection", done: (emailConnectionCount ?? 0) > 0, href: "/studio/settings" },
+    { label: "Convert your first prospect into a client", done: (clientCount ?? 0) > 0, href: "/studio/prospects" },
+    { label: "Connect Stripe to invoice clients", done: stripeReady, href: "/studio/settings" },
+  ];
+  const checklistComplete = checklist.every((item) => item.done);
 
   return (
     <div>
@@ -165,6 +181,31 @@ export default async function StudioHomePage() {
           </CardContent>
         </Card>
       </div>
+
+      {!checklistComplete && (
+        <Card className="mt-6">
+          <CardContent>
+            <p className="font-heading text-sm font-semibold">Getting set up</p>
+            <ul className="mt-3 space-y-2">
+              {checklist.map((item) => (
+                <li key={item.label}>
+                  <Link
+                    href={item.href}
+                    className={`flex items-center gap-2 text-sm ${item.done ? "text-muted-foreground" : "text-foreground hover:text-accent"}`}
+                  >
+                    {item.done ? (
+                      <CheckCircle2 className="size-4 shrink-0 text-accent" />
+                    ) : (
+                      <Circle className="size-4 shrink-0 text-muted-foreground" />
+                    )}
+                    <span className={item.done ? "line-through" : ""}>{item.label}</span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
+      )}
 
       {hasBriefingContent && (
         <Card className="mt-6">
