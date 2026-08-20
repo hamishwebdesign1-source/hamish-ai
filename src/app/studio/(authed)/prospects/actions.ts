@@ -331,6 +331,72 @@ export async function markProspectReplied(prospectId: string) {
   return { ok: true as const };
 }
 
+// Platform readiness audit P1: a real pipeline beyond the original three
+// statuses (needs_verification -> contacted -> converted), which had no
+// room for "we reviewed this and it's worth pursuing" or "we pursued
+// this and it didn't work out" — a prospect either sat forever or
+// disappeared into "converted," with nothing for the (normal, common)
+// outcome of a lead simply not going anywhere. No CHECK constraint on
+// prospects.status (schema-leads.sql), so these two new values need no
+// migration of their own — deliberately not renaming "converted" to
+// "won" alongside them, since that value is load-bearing across this
+// file, RemoveProspectControl, and ConvertToClientControl already, and
+// renaming it for cosmetic consistency risks a real bug for no real
+// benefit.
+export async function markProspectQualified(prospectId: string) {
+  const orgId = await requireOrgId();
+  const admin = getSupabaseAdmin();
+  if (!admin) return { error: "Supabase is not configured." };
+
+  const { error } = await admin
+    .from("prospects")
+    .update({ status: "qualified" })
+    .eq("id", prospectId)
+    .eq("org_id", orgId);
+  if (error) return { error: "Failed to mark as qualified." };
+
+  revalidatePath("/studio/prospects");
+  return { ok: true as const };
+}
+
+export async function markProspectLost(prospectId: string) {
+  const orgId = await requireOrgId();
+  const admin = getSupabaseAdmin();
+  if (!admin) return { error: "Supabase is not configured." };
+
+  const { error } = await admin
+    .from("prospects")
+    .update({ status: "lost" })
+    .eq("id", prospectId)
+    .eq("org_id", orgId);
+  if (error) return { error: "Failed to mark as lost." };
+
+  revalidatePath("/studio/prospects");
+  return { ok: true as const };
+}
+
+// A tenant's own estimate of what this prospect is worth if it converts —
+// entirely optional (null is a valid, common state: "haven't sized this
+// one yet"), never AI-generated, since a made-up deal value dressed up as
+// a real number would be worse than no number at all.
+export async function updateProspectDealValue(prospectId: string, poundsValue: number | null) {
+  const orgId = await requireOrgId();
+  const admin = getSupabaseAdmin();
+  if (!admin) return { error: "Supabase is not configured." };
+
+  const pence = poundsValue !== null && poundsValue > 0 ? Math.round(poundsValue * 100) : null;
+
+  const { error } = await admin
+    .from("prospects")
+    .update({ deal_value_pence: pence })
+    .eq("id", prospectId)
+    .eq("org_id", orgId);
+  if (error) return { error: "Failed to save the deal value." };
+
+  revalidatePath("/studio/prospects");
+  return { ok: true as const };
+}
+
 // A converted prospect can't be removed — it's now a client
 // (clients.source_lead_id references this row), and deleting it would
 // either fail on that foreign key or, worse, silently orphan the client's

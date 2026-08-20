@@ -36,7 +36,7 @@ export default async function StudioProspectsPage() {
   // org boundary independently of this .eq() getting it right.
   const { data: prospects } = await supabase
     .from("prospects")
-    .select("id, business_name, category, neighbourhood, website, email, phone, status, score, score_breakdown, research, research_generated_at, website_mockup, sales_kit, contacted_at, last_contact_method, replied_at, created_at")
+    .select("id, business_name, category, neighbourhood, website, email, phone, status, score, score_breakdown, research, research_generated_at, website_mockup, sales_kit, contacted_at, last_contact_method, replied_at, deal_value_pence, created_at")
     .eq("org_id", membership.orgId)
     .order("created_at", { ascending: false })
     .limit(50);

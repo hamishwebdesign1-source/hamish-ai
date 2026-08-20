@@ -32,6 +32,8 @@ import {
   MessageSquareText,
   BellRing,
   Trash2,
+  CheckCheck,
+  PoundSterling,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -50,6 +52,9 @@ import {
   generateSalesKit,
   markProspectContacted,
   markProspectReplied,
+  markProspectQualified,
+  markProspectLost,
+  updateProspectDealValue,
   deleteProspect,
 } from "@/app/studio/(authed)/prospects/actions";
 import type { UsageStatus } from "@/lib/usage-limits";
@@ -76,8 +81,13 @@ type Prospect = {
   contacted_at: string | null;
   last_contact_method: string | null;
   replied_at: string | null;
+  deal_value_pence: number | null;
   created_at: string;
 };
+
+function formatMoney(pence: number) {
+  return `£${(pence / 100).toLocaleString("en-GB", { maximumFractionDigits: 0 })}`;
+}
 
 function formatDaysAgo(iso: string) {
   const days = Math.floor((Date.now() - new Date(iso).getTime()) / (1000 * 60 * 60 * 24));
@@ -255,6 +265,103 @@ function RemoveProspectControl({ prospect }: { prospect: Prospect }) {
         Cancel
       </Button>
       {error && <span className="text-xs text-destructive">{error}</span>}
+    </div>
+  );
+}
+
+// Platform readiness audit P1: a real pipeline beyond needs_verification
+// -> contacted -> converted, which had no room for "reviewed, worth
+// pursuing" or "pursued, didn't work out." Hidden once the prospect has
+// reached either of its own terminal states (converted, or already
+// lost) — a won or lost deal isn't still "qualifiable."
+function PipelineStageControl({ prospect }: { prospect: Prospect }) {
+  const [pending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+
+  if (prospect.status === "converted" || prospect.status === "lost") return null;
+
+  return (
+    <div className="flex items-center gap-2">
+      {prospect.status !== "qualified" && (
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={pending}
+          onClick={() =>
+            startTransition(async () => {
+              setError(null);
+              const r = await markProspectQualified(prospect.id);
+              if (r && "error" in r) setError(r.error ?? "Failed to update.");
+            })
+          }
+        >
+          <CheckCheck className="size-3.5" /> Mark as qualified
+        </Button>
+      )}
+      <Button
+        size="sm"
+        variant="ghost"
+        className="text-muted-foreground hover:text-destructive"
+        disabled={pending}
+        onClick={() =>
+          startTransition(async () => {
+            setError(null);
+            const r = await markProspectLost(prospect.id);
+            if (r && "error" in r) setError(r.error ?? "Failed to update.");
+          })
+        }
+      >
+        <ThumbsDown className="size-3.5" /> Mark as lost
+      </Button>
+      {error && <span className="text-xs text-destructive">{error}</span>}
+    </div>
+  );
+}
+
+// Entirely optional, never AI-generated — see updateProspectDealValue()'s
+// own comment on why a made-up number would be worse than no number.
+function DealValueControl({ prospect }: { prospect: Prospect }) {
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState(prospect.deal_value_pence ? String(prospect.deal_value_pence / 100) : "");
+  const [pending, startTransition] = useTransition();
+
+  function save() {
+    startTransition(async () => {
+      const parsed = value.trim() ? parseFloat(value) : null;
+      await updateProspectDealValue(prospect.id, parsed);
+      setEditing(false);
+    });
+  }
+
+  if (!editing) {
+    return (
+      <button
+        type="button"
+        onClick={() => setEditing(true)}
+        className="flex items-center gap-1 text-xs text-muted-foreground hover:text-accent"
+      >
+        <PoundSterling className="size-3" />
+        {prospect.deal_value_pence ? formatMoney(prospect.deal_value_pence) : "Add deal value"}
+      </button>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-1.5">
+      <Input
+        type="number"
+        min="0"
+        step="1"
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        onKeyDown={(e) => e.key === "Enter" && save()}
+        autoFocus
+        className="h-7 w-24 text-xs"
+        placeholder="£"
+      />
+      <Button size="xs" disabled={pending} onClick={save}>
+        {pending ? "…" : "Save"}
+      </Button>
     </div>
   );
 }
@@ -642,7 +749,10 @@ function ProspectCard({ prospect }: { prospect: Prospect }) {
               </span>
             )}
             {prospect.status !== "converted" && (
-              <Badge variant="secondary" className="capitalize">
+              <Badge
+                variant={prospect.status === "qualified" ? "accent" : "secondary"}
+                className={`capitalize ${prospect.status === "lost" ? "opacity-60" : ""}`}
+              >
                 {prospect.status.replace(/_/g, " ")}
               </Badge>
             )}
@@ -711,6 +821,11 @@ function ProspectCard({ prospect }: { prospect: Prospect }) {
             ) : (
               <ResearchTrigger prospectId={prospect.id} />
             )}
+
+            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
+              <DealValueControl prospect={prospect} />
+              <PipelineStageControl prospect={prospect} />
+            </div>
 
             <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
               <ContactTrackingControl prospect={prospect} />
@@ -810,7 +925,9 @@ export function ProspectingPanel({
   const atLimit = usage !== null && !usage.allowed;
 
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<"all" | "needs_verification" | "contacted" | "needs_followup" | "converted">("all");
+  const [statusFilter, setStatusFilter] = useState<
+    "all" | "needs_verification" | "qualified" | "contacted" | "needs_followup" | "converted" | "lost"
+  >("all");
   const [sortBy, setSortBy] = useState<"score" | "newest" | "oldest" | "name">("score");
 
   // Client-side over the full prospect list, not a server round-trip —
@@ -1011,9 +1128,11 @@ export function ProspectingPanel({
               >
                 <option value="all">All statuses</option>
                 <option value="needs_verification">Needs verification</option>
+                <option value="qualified">Qualified</option>
                 <option value="contacted">Contacted</option>
                 <option value="needs_followup">Follow-up due</option>
                 <option value="converted">Converted</option>
+                <option value="lost">Lost</option>
               </select>
               <select
                 value={sortBy}

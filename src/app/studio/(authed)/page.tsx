@@ -13,6 +13,7 @@ import {
   Send,
   BellRing,
   Inbox,
+  PoundSterling,
 } from "lucide-react";
 import { createServerSupabaseClient } from "@/lib/supabase-server-auth";
 import { getOrgMembership } from "@/lib/org-membership";
@@ -56,7 +57,7 @@ export default async function StudioHomePage() {
   // Head-count queries only (no rows fetched) since this page just needs
   // the totals, and RLS scopes both to this org independently of the
   // .eq() below getting it right.
-  const [{ count: prospectCount }, { count: clientCount }, { count: openRequestCount }] = await Promise.all([
+  const [{ count: prospectCount }, { count: clientCount }, { count: openRequestCount }, { data: activeDeals }] = await Promise.all([
     supabase.from("prospects").select("id", { count: "exact", head: true }).eq("org_id", membership.orgId),
     supabase.from("clients").select("id", { count: "exact", head: true }).eq("org_id", membership.orgId),
     // requests has no org_id column of its own — scoped one join out via
@@ -67,11 +68,22 @@ export default async function StudioHomePage() {
       .select("id, clients!inner(org_id)", { count: "exact", head: true })
       .eq("clients.org_id", membership.orgId)
       .is("responded_at", null),
+    // Pipeline value — a tenant's own optional estimate per prospect
+    // (deal_value_pence, schema-prospect-pipeline.sql), summed client-side
+    // over anything still active (not yet won or lost). Never AI-estimated,
+    // same reasoning as updateProspectDealValue()'s own comment.
+    supabase
+      .from("prospects")
+      .select("deal_value_pence")
+      .eq("org_id", membership.orgId)
+      .not("status", "in", "(converted,lost)")
+      .not("deal_value_pence", "is", null),
   ]);
   const conversionRate =
     prospectCount && prospectCount > 0 && clientCount != null
       ? `${Math.round((clientCount / prospectCount) * 100)}%`
       : "—";
+  const pipelineValuePence = (activeDeals ?? []).reduce((sum, p) => sum + (p.deal_value_pence ?? 0), 0);
 
   return (
     <div>
@@ -94,7 +106,7 @@ export default async function StudioHomePage() {
           artificially choked to a 672px column (the actual cause of the
           "off centre" look — the header/nav span the full width, this
           content used to be stuck in a narrow max-w-2xl inside it). */}
-      <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
         <Card>
           <CardContent className="flex items-center gap-3.5">
             <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-accent/10 text-accent">
@@ -136,6 +148,19 @@ export default async function StudioHomePage() {
             <div>
               <p className="font-heading text-2xl font-semibold tabular-nums">{openRequestCount ?? 0}</p>
               <p className="text-xs text-muted-foreground">Open requests</p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="flex items-center gap-3.5">
+            <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-accent/10 text-accent">
+              <PoundSterling className="size-5" />
+            </span>
+            <div>
+              <p className="font-heading text-2xl font-semibold tabular-nums">
+                {pipelineValuePence > 0 ? `£${Math.round(pipelineValuePence / 100).toLocaleString("en-GB")}` : "—"}
+              </p>
+              <p className="text-xs text-muted-foreground">Pipeline value</p>
             </div>
           </CardContent>
         </Card>
