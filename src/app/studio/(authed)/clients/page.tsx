@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { createServerSupabaseClient } from "@/lib/supabase-server-auth";
 import { getOrgMembership } from "@/lib/org-membership";
 import { ClientsPanel } from "@/components/platform/clients-panel";
+import { computeClientHealth, type ClientHealth } from "@/lib/client-health";
 
 type InvoiceRow = {
   id: string;
@@ -10,9 +11,14 @@ type InvoiceRow = {
   description: string;
   status: string;
   due_date: string | null;
+  paid_at: string | null;
   stripe_hosted_invoice_url: string | null;
   created_at: string;
 };
+
+type RequestRow = { id: string; client_id: string; status: string };
+type TaskRow = { id: string; request_id: string | null; status: string };
+type SiteCheckRow = { client_id: string; uptime_ok: boolean | null };
 
 // Session-scoped client, RLS-enforced via clients_select_own_org /
 // invoices_select_own_org (schema-rls-clients-org-staff.sql,
@@ -42,18 +48,41 @@ export default async function StudioClientsPage() {
   ]);
 
   const clientIds = (clients ?? []).map((c) => c.id);
-  const { data: invoices } =
-    clientIds.length > 0
-      ? await supabase
+  const [{ data: invoices }, { data: requests }, { data: siteChecks }] = clientIds.length
+    ? await Promise.all([
+        supabase
           .from("invoices")
-          .select("id, client_id, amount_pence, description, status, due_date, stripe_hosted_invoice_url, created_at")
+          .select("id, client_id, amount_pence, description, status, due_date, paid_at, stripe_hosted_invoice_url, created_at")
           .in("client_id", clientIds)
-          .order("created_at", { ascending: false })
-      : { data: [] as InvoiceRow[] };
+          .order("created_at", { ascending: false }),
+        supabase.from("requests").select("id, client_id, status").in("client_id", clientIds),
+        supabase.from("site_checks").select("client_id, uptime_ok").in("client_id", clientIds),
+      ])
+    : [{ data: [] as InvoiceRow[] }, { data: [] as RequestRow[] }, { data: [] as SiteCheckRow[] }];
+
+  const requestIds = (requests ?? []).map((r) => r.id);
+  const { data: tasks } = requestIds.length
+    ? await supabase.from("tasks").select("id, request_id, status").in("request_id", requestIds)
+    : { data: [] as TaskRow[] };
 
   const invoicesByClient: Record<string, InvoiceRow[]> = {};
   for (const inv of invoices ?? []) {
     (invoicesByClient[inv.client_id] ??= []).push(inv);
+  }
+
+  // Client health score (P1 platform readiness item) — same real, non-
+  // fabricated components the client portal already computes for itself
+  // (client-health.ts), just rolled up across every client in one place
+  // so the agency owner can actually see who needs attention without
+  // opening each client's own portal one at a time.
+  const healthByClient: Record<string, ClientHealth> = {};
+  for (const client of clients ?? []) {
+    const clientRequests = (requests ?? []).filter((r) => r.client_id === client.id);
+    const clientRequestIds = new Set(clientRequests.map((r) => r.id));
+    const clientTasks = (tasks ?? []).filter((t) => t.request_id && clientRequestIds.has(t.request_id));
+    const clientInvoices = invoicesByClient[client.id] ?? [];
+    const clientSiteChecks = (siteChecks ?? []).filter((s) => s.client_id === client.id);
+    healthByClient[client.id] = computeClientHealth(clientRequests, clientTasks, clientInvoices, clientSiteChecks);
   }
 
   // HamishAI's own internal org invoices on the platform's own Stripe
@@ -61,5 +90,12 @@ export default async function StudioClientsPage() {
   // "ready," no Connect account needed.
   const stripeReady = Boolean(org?.is_internal || org?.stripe_connect_charges_enabled);
 
-  return <ClientsPanel clients={clients ?? []} invoicesByClient={invoicesByClient} stripeReady={stripeReady} />;
+  return (
+    <ClientsPanel
+      clients={clients ?? []}
+      invoicesByClient={invoicesByClient}
+      healthByClient={healthByClient}
+      stripeReady={stripeReady}
+    />
+  );
 }

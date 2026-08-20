@@ -11,6 +11,7 @@ import {
   CircleAlert,
   LoaderCircle,
   Trash2,
+  HeartPulse,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -18,6 +19,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { createClientInvoice, deleteClientData } from "@/app/studio/(authed)/clients/actions";
+import type { ClientHealth } from "@/lib/client-health";
 
 type Client = {
   id: string;
@@ -49,6 +51,29 @@ const invoiceStatusVariant: Record<string, "secondary" | "warning" | "success" |
 
 function formatMoney(pence: number) {
   return `£${(pence / 100).toFixed(2)}`;
+}
+
+// Client health score (P1 platform readiness item) — same thresholds as
+// the client portal's own presentation of this number, just applied
+// here so an agency owner scanning their whole client list can spot who
+// needs attention without opening each portal individually. "No data
+// yet" (null) is a real, distinct state — not a fabricated 0 — for a
+// brand-new client with no requests, invoices, or uptime checks yet.
+function healthBadgeVariant(score: number | null): "success" | "warning" | "destructive" | "secondary" {
+  if (score === null) return "secondary";
+  if (score >= 80) return "success";
+  if (score >= 50) return "warning";
+  return "destructive";
+}
+
+function HealthBadge({ health }: { health: ClientHealth | undefined }) {
+  const score = health?.healthScore ?? null;
+  return (
+    <Badge variant={healthBadgeVariant(score)} className="gap-1">
+      <HeartPulse className="size-3" />
+      {score === null ? "No data yet" : `${score}%`}
+    </Badge>
+  );
 }
 
 function InvoiceForm({ clientId }: { clientId: string }) {
@@ -196,7 +221,17 @@ function DeleteClientControl({ client }: { client: Client }) {
   );
 }
 
-function ClientCard({ client, invoices, stripeReady }: { client: Client; invoices: Invoice[]; stripeReady: boolean }) {
+function ClientCard({
+  client,
+  invoices,
+  health,
+  stripeReady,
+}: {
+  client: Client;
+  invoices: Invoice[];
+  health: ClientHealth | undefined;
+  stripeReady: boolean;
+}) {
   const [open, setOpen] = useState(false);
 
   return (
@@ -213,6 +248,7 @@ function ClientCard({ client, invoices, stripeReady }: { client: Client; invoice
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-3">
+            <HealthBadge health={health} />
             {client.website_url && (
               <a
                 href={client.website_url.startsWith("http") ? client.website_url : `https://${client.website_url}`}
@@ -239,6 +275,21 @@ function ClientCard({ client, invoices, stripeReady }: { client: Client; invoice
 
         {open && (
           <div className="mt-4 space-y-3 border-t border-border pt-4">
+            {health && health.components.length > 0 && (
+              <div>
+                <p className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
+                  <HeartPulse className="size-3.5 shrink-0" /> Health score
+                </p>
+                <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1">
+                  {health.components.map((c) => (
+                    <p key={c.label} className="font-mono text-[11px] text-muted-foreground">
+                      {c.label}: <span className="text-foreground">{c.value}%</span>
+                    </p>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <p className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
               <Receipt className="size-3.5 shrink-0" /> Invoices
             </p>
@@ -295,10 +346,12 @@ function ClientCard({ client, invoices, stripeReady }: { client: Client; invoice
 export function ClientsPanel({
   clients,
   invoicesByClient,
+  healthByClient,
   stripeReady,
 }: {
   clients: Client[];
   invoicesByClient: Record<string, Invoice[]>;
+  healthByClient: Record<string, ClientHealth>;
   stripeReady: boolean;
 }) {
   return (
@@ -328,7 +381,13 @@ export function ClientsPanel({
           </p>
           <div className="mt-3 space-y-2">
             {clients.map((c) => (
-              <ClientCard key={c.id} client={c} invoices={invoicesByClient[c.id] ?? []} stripeReady={stripeReady} />
+              <ClientCard
+                key={c.id}
+                client={c}
+                invoices={invoicesByClient[c.id] ?? []}
+                health={healthByClient[c.id]}
+                stripeReady={stripeReady}
+              />
             ))}
           </div>
         </>

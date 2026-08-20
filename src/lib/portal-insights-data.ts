@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { buildAutomationEvents } from "@/lib/portal-events";
 import { getPortalOrgBranding } from "@/lib/portal-org-branding";
+import { computeClientHealth } from "@/lib/client-health";
 
 // Real-data equivalent of the marketing site's illustrative AI Command
 // Centre. Every number here is computed from tables we actually have for
@@ -55,10 +56,6 @@ function lastNMonths(n: number) {
   return months;
 }
 
-function average(nums: number[]) {
-  return nums.length ? nums.reduce((s, n) => s + n, 0) / nums.length : null;
-}
-
 // Simple two-point trend projection off real monthly totals — deliberately
 // not a "forecast" in the marketing-demo sense (no confidence interval, no
 // AI model), just "if the last couple of months' pace continues." Returns
@@ -110,35 +107,16 @@ export async function buildPortalInsights(supabase: SupabaseClient, clientId: st
     : { data: [] };
   const siteChecks: SiteCheckRow[] = siteChecksData ?? [];
 
-  // --- Health score components (only real, only included when we have the underlying data) ---
+  // --- Health score components (only real, only included when we have the
+  // underlying data) — shared with Studio's own client health score
+  // (client-health.ts), so the agency and the client always see the same
+  // number computed the same way. ---
+  const { healthScore, components } = computeClientHealth(requests, tasks, invoices, siteChecks);
   const withUptimeResult = siteChecks.filter((c) => c.uptime_ok !== null);
   const uptimePct = withUptimeResult.length
     ? Math.round((withUptimeResult.filter((c) => c.uptime_ok).length / withUptimeResult.length) * 100)
     : null;
-
   const paidInvoices = invoices.filter((i) => i.status === "paid" && i.paid_at);
-  const onTimePct = paidInvoices.length
-    ? Math.round(
-        (paidInvoices.filter((i) => !i.due_date || i.paid_at! <= `${i.due_date}T23:59:59`).length / paidInvoices.length) * 100
-      )
-    : null;
-
-  const completionPct = tasks.length
-    ? Math.round((tasks.filter((t) => t.status === "done").length / tasks.length) * 100)
-    : null;
-
-  const responsivenessPct = requests.length
-    ? Math.round(((requests.length - requests.filter((r) => r.status === "awaiting_info").length) / requests.length) * 100)
-    : null;
-
-  const components = [
-    { label: "Site uptime", value: uptimePct },
-    { label: "On-time payment", value: onTimePct },
-    { label: "Work completed", value: completionPct },
-    { label: "Requests moving", value: responsivenessPct },
-  ].filter((c): c is { label: string; value: number } => c.value !== null);
-
-  const healthScore = components.length ? Math.round(average(components.map((c) => c.value))!) : null;
 
   // --- Monthly series (12 months, matching the marketing demo's trend
   // depth — Phase 2 of the roadmap: bring the real dashboard closer to the
