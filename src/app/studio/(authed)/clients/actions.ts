@@ -8,6 +8,10 @@ import { createInvoice } from "@/lib/create-invoice";
 import { logAuditEvent } from "@/lib/audit-log";
 import { trackServerEvent } from "@/lib/analytics";
 import { generateMonthlyReport } from "@/lib/monthly-report";
+import { answerClientsQuestion } from "@/lib/answer-clients-question";
+import { getUsageStatus, recordUsageEvent } from "@/lib/usage-limits";
+import { isRateLimited } from "@/lib/chat-rate-limit";
+import type { PlatformPlanSlug } from "@/lib/platform-plans";
 
 // Same session-derivation as every other /studio actions.ts file.
 async function requireOrgId(): Promise<string> {
@@ -153,4 +157,38 @@ export async function generateClientReportNow(clientId: string) {
 
   revalidatePath("/studio/clients");
   return { ok: true as const };
+}
+
+// Studio's own AI Copilot for the Clients page — read-only, answers
+// questions about the org's real client roster (answer-clients-question.ts).
+// Two layers of protection on top of the answer itself never fabricating a
+// number: a burst-protection rate limit (same shape as the portal's own
+// copilot) and a monthly usage cap (same shape as every other AI-cost
+// Server Action in this file), since this is a new Anthropic-calling
+// surface that didn't exist before.
+export async function askClientsCopilot(messages: { role: "user" | "assistant"; content: string }[]) {
+  const orgId = await requireOrgId();
+  const admin = getSupabaseAdmin();
+  if (!admin) return { error: "Supabase is not configured." };
+
+  const { data: org } = await admin.from("organisations").select("name, plan, is_internal").eq("id", orgId).single();
+  if (!org) return { error: "Organisation not found." };
+
+  if (!org.is_internal) {
+    if (await isRateLimited(`clients-copilot:${orgId}`)) {
+      return { error: "Too many questions in a short time — try again in a few minutes." };
+    }
+
+    const usage = await getUsageStatus(orgId, "clients_copilot_question", org.plan as PlatformPlanSlug);
+    if (!usage.allowed) {
+      return { error: `Monthly limit reached (${usage.used} of ${usage.limit}) — try again next month.` };
+    }
+  }
+
+  const trimmed = messages.slice(-12).map((m) => ({ role: m.role, content: String(m.content || "").slice(0, 4000) }));
+  const result = await answerClientsQuestion(orgId, org.name, trimmed);
+
+  if (!org.is_internal && "reply" in result) await recordUsageEvent(orgId, "clients_copilot_question");
+
+  return result;
 }

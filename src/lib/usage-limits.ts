@@ -13,7 +13,8 @@ export type UsageEventType =
   | "sales_kit_generated"
   | "website_mockup_generated"
   | "icp_built"
-  | "request_triaged";
+  | "request_triaged"
+  | "clients_copilot_question";
 
 // Calendar month, not a rolling 30 days — matches how the pricing page
 // already describes each plan ("up to 30 researched prospects a month"),
@@ -40,6 +41,12 @@ const USAGE_MULTIPLIER: Record<Exclude<UsageEventType, "prospect_researched">, n
   website_mockup_generated: 2,
   icp_built: 3,
   request_triaged: 5,
+  // A chat interaction naturally runs more questions per session than a
+  // one-off generation action, but each individual call is cheap (same
+  // Haiku model, a short prompt, no per-question research/API cost) —
+  // generous headroom for a real working session, still a real ceiling
+  // against a runaway loop.
+  clients_copilot_question: 10,
 };
 
 function limitFor(eventType: UsageEventType, plan: PlatformPlanSlug): number {

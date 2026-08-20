@@ -21,6 +21,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { createClientInvoice, deleteClientData, generateClientReportNow } from "@/app/studio/(authed)/clients/actions";
 import type { ClientHealth } from "@/lib/client-health";
+import { ClientsCopilot } from "@/components/platform/clients-copilot";
 
 type Client = {
   id: string;
@@ -411,6 +412,9 @@ export function ClientsPanel({
             <span className="font-mono font-semibold text-foreground">{clients.length}</span> client
             {clients.length === 1 ? "" : "s"}
           </p>
+          <div className="mt-3">
+            <ClientsCopilot />
+          </div>
           <div className="mt-3 space-y-2">
             {clients.map((c) => (
               <ClientCard
