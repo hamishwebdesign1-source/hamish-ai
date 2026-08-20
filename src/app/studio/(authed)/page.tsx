@@ -31,6 +31,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Eyebrow } from "@/components/eyebrow";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { HelpTip } from "@/components/platform/help-tip";
 
 const INSIGHT_ICON: Record<InsightCategory, typeof Sparkles> = {
   opportunity: Sparkles,
@@ -198,7 +199,10 @@ export default async function StudioHomePage() {
               <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-accent/10 text-accent">
                 <Activity className="size-4.5" />
               </span>
-              <p className="text-xs font-semibold text-muted-foreground">Business Health</p>
+              <p className="flex items-center gap-1 text-xs font-semibold text-muted-foreground">
+                Business Health
+                <HelpTip explanation="An average of real, measured components across your whole client roster — site uptime, on-time payment, work completed, requests moving, and pipeline conversion. Only components with real data are included." />
+              </p>
             </div>
             {agencyHealth.healthScore === null ? (
               <p className="mt-3 text-sm text-muted-foreground">
@@ -278,6 +282,7 @@ export default async function StudioHomePage() {
           <CardContent>
             <p className="flex items-center gap-1.5 font-heading text-sm font-semibold">
               <AlertTriangle className="size-4 shrink-0 text-destructive" /> Actions required
+              <HelpTip explanation="Real items pulled together from three places — prospects due a follow-up, projects past their target date, and client requests you haven't replied to yet. Only shown when something's actually due." />
             </p>
             <ul className="mt-3 space-y-2">
               {actionsRequired.map((a) => (
@@ -303,7 +308,10 @@ export default async function StudioHomePage() {
       {insights.length > 0 && (
         <Card className="mt-6">
           <CardContent>
-            <p className="font-heading text-sm font-semibold">Insights</p>
+            <p className="flex items-center gap-1 font-heading text-sm font-semibold">
+              Insights
+              <HelpTip explanation="AI-generated observations based on your latest platform data — real deltas and thresholds, never invented patterns. Each one shows the exact numbers behind it." />
+            </p>
             <div className="mt-3 space-y-3">
               {insights.map((insight) => {
                 const Icon = INSIGHT_ICON[insight.category];

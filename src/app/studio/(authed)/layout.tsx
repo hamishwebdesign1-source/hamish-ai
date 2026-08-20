@@ -5,6 +5,8 @@ import { createServerSupabaseClient } from "@/lib/supabase-server-auth";
 import { getOrgMembership } from "@/lib/org-membership";
 import { Button } from "@/components/ui/button";
 import { StudioNav } from "@/components/platform/studio-nav";
+import { HelpModeProvider } from "@/components/platform/help-mode-context";
+import { HelpModeToggle } from "@/components/platform/help-mode-toggle";
 
 // Same shape as portal/(authed)/layout.tsx, one level up: session check,
 // then a membership-based gate, session-scoped client throughout so RLS
@@ -29,25 +31,30 @@ export default async function StudioAuthedLayout({ children }: { children: React
   const { data: org } = await supabase.from("organisations").select("name").eq("id", membership.orgId).single();
 
   return (
-    <div className="min-h-screen bg-secondary/20">
-      <header className="border-b border-border/60 bg-background">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
-          <Link href="/studio" className="font-heading text-lg font-semibold">
-            {org?.name ?? "Your Agency"}
-            <span className="ml-2 font-mono text-xs font-normal tracking-wide text-muted-foreground uppercase">
-              Studio
-            </span>
-          </Link>
-          <form action="/api/platform/logout" method="post">
-            <Button type="submit" variant="ghost" size="sm" className="text-muted-foreground">
-              <LogOut className="size-4" />
-              Sign out
-            </Button>
-          </form>
-        </div>
-      </header>
-      <StudioNav />
-      <main className="mx-auto max-w-6xl px-6 py-10">{children}</main>
-    </div>
+    <HelpModeProvider>
+      <div className="min-h-screen bg-secondary/20">
+        <header className="border-b border-border/60 bg-background">
+          <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
+            <Link href="/studio" className="font-heading text-lg font-semibold">
+              {org?.name ?? "Your Agency"}
+              <span className="ml-2 font-mono text-xs font-normal tracking-wide text-muted-foreground uppercase">
+                Studio
+              </span>
+            </Link>
+            <div className="flex items-center gap-2">
+              <HelpModeToggle />
+              <form action="/api/platform/logout" method="post">
+                <Button type="submit" variant="ghost" size="sm" className="text-muted-foreground">
+                  <LogOut className="size-4" />
+                  Sign out
+                </Button>
+              </form>
+            </div>
+          </div>
+        </header>
+        <StudioNav />
+        <main className="mx-auto max-w-6xl px-6 py-10">{children}</main>
+      </div>
+    </HelpModeProvider>
   );
 }

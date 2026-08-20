@@ -5,10 +5,18 @@ import { ResponsiveContainer, AreaChart, Area, BarChart, Bar, XAxis, YAxis, Tool
 import { ArrowUp, ArrowDown, Database, CheckCircle2, Circle } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { HelpTip } from "@/components/platform/help-tip";
 import type { AnalyticsData, AnalyticsRange, Kpi } from "@/lib/studio-analytics";
 import { RANGE_LABELS, percentChange } from "@/lib/studio-analytics";
 
 const RANGES: AnalyticsRange[] = ["7d", "30d", "90d", "12m"];
+
+const KPI_EXPLANATIONS: Record<string, string> = {
+  Revenue: "Paid invoices to your own clients within this period — real Stripe payment data, not an estimate.",
+  "New prospects": "Businesses your discovery searches found, created within this period.",
+  "New clients": "Prospects you converted to clients within this period.",
+  "Requests handled": "Client requests you replied to within this period.",
+};
 
 function formatKpiValue(kpi: Kpi) {
   if (kpi.format === "money") return `£${(kpi.value / 100).toLocaleString("en-GB", { maximumFractionDigits: 0 })}`;
@@ -20,7 +28,10 @@ function KpiCard({ kpi }: { kpi: Kpi }) {
   return (
     <Card>
       <CardContent>
-        <p className="text-xs font-semibold text-muted-foreground">{kpi.label}</p>
+        <p className="flex items-center gap-1 text-xs font-semibold text-muted-foreground">
+          {kpi.label}
+          {KPI_EXPLANATIONS[kpi.label] && <HelpTip explanation={KPI_EXPLANATIONS[kpi.label]} />}
+        </p>
         <p className="mt-2 font-heading text-2xl font-semibold tabular-nums">{formatKpiValue(kpi)}</p>
         {change ? (
           <p
