@@ -90,52 +90,75 @@ export default async function StudioSettingsPage({
         </p>
       )}
 
-      <SettingsPanel connection={connection ?? null} configured={hasPlatformMsConfig()} connectHref="/api/platform/ms-connect" />
+      {/* Command Centre Phase 1 (§28) — grouped into real, labelled
+          sections instead of a flat card list. Only sections with real
+          content in this app today: Integrations, Branding, Data &
+          Privacy. Not inventing Profile/Users/Permissions/AI-settings
+          placeholder sections for features that don't exist yet — same
+          "only show what's real" rule as everywhere else in Studio. */}
+      <div>
+        <h2 className="font-heading text-xs font-semibold tracking-wide text-muted-foreground uppercase">Integrations</h2>
+        <div className="mt-3 space-y-4">
+          <SettingsPanel connection={connection ?? null} configured={hasPlatformMsConfig()} connectHref="/api/platform/ms-connect" />
 
-      {/* Not rendered for HamishAI's own internal org — HamishAI invoices
-          its own clients on the platform's own Stripe account directly
-          (create-invoice.ts's isInternal branch), it has no need to
-          "connect" to itself. */}
-      {!org?.is_internal && (
-        <Card>
-          <CardContent>
-            <div className="flex items-center justify-between">
-              <p className="flex items-center gap-2.5 font-heading text-sm font-semibold">
-                <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-accent/10 text-accent">
-                  <CreditCard className="size-4" />
-                </span>
-                Client billing
-              </p>
-              {org?.stripe_connect_charges_enabled ? (
-                <Badge variant="success" className="gap-1">
-                  <CheckCircle2 className="size-3" /> Ready
-                </Badge>
-              ) : org?.stripe_connect_account_id ? (
-                <Badge variant="warning">Verification pending</Badge>
-              ) : (
-                <Badge variant="secondary">Not connected</Badge>
-              )}
-            </div>
-            <p className="mt-3 text-sm text-muted-foreground">
-              Connect your own Stripe account so you can invoice your clients directly — payments go straight to
-              you, not through us. Stripe handles the onboarding (identity, bank details); we never see or store
-              your banking details.
-            </p>
-            <Button size="sm" className="mt-4" render={<a href="/api/platform/stripe-connect/start" />}>
-              <ExternalLink className="size-3.5" />
-              {org?.stripe_connect_account_id ? "Finish Stripe setup" : "Connect Stripe"}
-            </Button>
-          </CardContent>
-        </Card>
-      )}
+          {/* Not rendered for HamishAI's own internal org — HamishAI
+              invoices its own clients on the platform's own Stripe
+              account directly (create-invoice.ts's isInternal branch),
+              it has no need to "connect" to itself. */}
+          {!org?.is_internal && (
+            <Card>
+              <CardContent>
+                <div className="flex items-center justify-between">
+                  <p className="flex items-center gap-2.5 font-heading text-sm font-semibold">
+                    <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-accent/10 text-accent">
+                      <CreditCard className="size-4" />
+                    </span>
+                    Client billing
+                  </p>
+                  {org?.stripe_connect_charges_enabled ? (
+                    <Badge variant="success" className="gap-1">
+                      <CheckCircle2 className="size-3" /> Ready
+                    </Badge>
+                  ) : org?.stripe_connect_account_id ? (
+                    <Badge variant="warning">Verification pending</Badge>
+                  ) : (
+                    <Badge variant="secondary">Not connected</Badge>
+                  )}
+                </div>
+                <p className="mt-3 text-sm text-muted-foreground">
+                  Connect your own Stripe account so you can invoice your clients directly — payments go straight
+                  to you, not through us. Stripe handles the onboarding (identity, bank details); we never see or
+                  store your banking details.
+                </p>
+                <Button size="sm" className="mt-4" render={<a href="/api/platform/stripe-connect/start" />}>
+                  <ExternalLink className="size-3.5" />
+                  {org?.stripe_connect_account_id ? "Finish Stripe setup" : "Connect Stripe"}
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      </div>
 
       {/* Not rendered for HamishAI's own internal org — getPortalOrgBranding()
           ignores brand.accentColor for is_internal orgs entirely (the
           portal always reads as "HamishAI"), so this control would
           visibly do nothing for that one row. */}
-      {!org?.is_internal && <BrandingPanel accentColor={brand.accentColor ?? null} />}
+      {!org?.is_internal && (
+        <div>
+          <h2 className="font-heading text-xs font-semibold tracking-wide text-muted-foreground uppercase">Branding</h2>
+          <div className="mt-3">
+            <BrandingPanel accentColor={brand.accentColor ?? null} />
+          </div>
+        </div>
+      )}
 
-      <DataPrivacyPanel orgName={org?.name ?? ""} deletionRequestedAt={org?.deletion_requested_at ?? null} />
+      <div>
+        <h2 className="font-heading text-xs font-semibold tracking-wide text-muted-foreground uppercase">Data &amp; Privacy</h2>
+        <div className="mt-3">
+          <DataPrivacyPanel orgName={org?.name ?? ""} deletionRequestedAt={org?.deletion_requested_at ?? null} />
+        </div>
+      </div>
     </div>
   );
 }
