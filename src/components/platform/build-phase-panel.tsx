@@ -2,18 +2,12 @@
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
-import { Copy, Check, RotateCcw, CheckCircle2, Circle, Lock, Wrench, BookOpen } from "lucide-react";
+import { Copy, Check, RotateCcw, CheckCircle2, Circle, Lock, Loader2, Wrench, BookOpen } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import {
-  canGenerateWebsitePhases,
-  generateWebsitePhaseGroup,
-  saveWebsiteBuildPhases,
-  toggleChecklistItem,
-  advanceBuildPhase,
-} from "@/app/studio/(authed)/website-builder/actions";
+import { startBuildPhaseGeneration, generateNextBuildPhase, toggleChecklistItem, advanceBuildPhase } from "@/app/studio/(authed)/website-builder/actions";
 import { AI_CODING_TOOLS, type ToolId } from "@/lib/ai-coding-tools";
-import { PHASE_GROUPS, type BuildPhase } from "@/lib/website-build-phases";
+import { BUILD_PHASE_ORDER, BUILD_PHASE_LABELS, type BuildPhase } from "@/lib/website-build-phases";
 
 function CopyInstructionsButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
@@ -33,14 +27,27 @@ function CopyInstructionsButton({ text }: { text: string }) {
   );
 }
 
-// AI Website Creation Guide, WB2 — §10-11: every phase gets a Copy
-// Instructions button and a Completion Checklist, and the agency can
-// only continue once the current phase's checklist is genuinely
-// checked off (re-verified server-side in advanceBuildPhase(), not just
-// gated in this component's own state). Phase 1's instructions are
-// prefixed with the confirmed tool's real setup mechanics
+// AI Website Creation Guide, WB2 (rewritten WB9) — §10-11: every phase
+// gets a Copy Instructions button and a Completion Checklist, and the
+// agency can only continue once the current phase's checklist is
+// genuinely checked off (re-verified server-side in advanceBuildPhase(),
+// not just gated in this component's own state). Phase 1's instructions
+// are prefixed with the confirmed tool's real setup mechanics
 // (ai-coding-tools.ts) — the one part of the process that's genuinely
 // tool-specific rather than "agentic coding assistant in general."
+//
+// WB9: generation is incremental and progressively rendered. Phase 1
+// becomes a real, usable card the moment it lands (~20-40s), not after
+// all 10 finish (several minutes) — the single biggest friction point
+// found live-testing this. Local `phases` state is the accumulator
+// during an active generation run (explicit setState per phase, not
+// relying on revalidatePath's automatic re-render to land mid-transition
+// — the same reliable pattern the old sequential design already used).
+// The full BUILD_PHASE_ORDER/BUILD_PHASE_LABELS list is always the
+// structural spine for what renders — phases not yet generated still
+// show a real, named placeholder card, they just aren't "locked" for
+// the same reason a genuinely reached-but-not-yet-generated phase isn't
+// either.
 export function BuildPhasePanel({
   projectId,
   recommendedTool,
@@ -52,52 +59,41 @@ export function BuildPhasePanel({
   buildPhases: BuildPhase[] | null;
   currentPhaseIndex: number;
 }) {
+  const [phases, setPhases] = useState<BuildPhase[]>(buildPhases ?? []);
   const [generating, startGenerateTransition] = useTransition();
-  const [phasesDone, setPhasesDone] = useState<BuildPhase[]>([]);
-  const [failedAt, setFailedAt] = useState<number | null>(null);
   const [checklistPending, startChecklistTransition] = useTransition();
   const [advancing, startAdvanceTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
-  // Generates one phase per Server Action call, sequentially — not the
-  // "fire all in parallel" design this started with. Real-world testing
-  // found that design didn't actually run concurrently on this app's
-  // Vercel plan (the request log showed calls landing 25-90s apart
-  // regardless), and the old code's Promise.all had no real per-call
-  // failure handling — one bad response silently saved placeholder text
-  // for several phases with no error shown. Sequential is honest about
-  // what actually happens, and resumable: a failure stops the loop and
-  // keeps everything generated so far, so retrying only re-attempts the
-  // phase that actually failed rather than starting over and re-paying
-  // for phases that already worked.
+  const hasStarted = buildPhases !== null;
+  const isComplete = phases.length === BUILD_PHASE_ORDER.length;
+
+  // fromIndex === 0 is a genuine fresh start (first generation, or an
+  // explicit "Regenerate all") — only that case resets the project
+  // server-side (startBuildPhaseGeneration). Any other fromIndex is a
+  // resume (a real failure, or just continuing a run left unfinished
+  // from an earlier session) and picks up exactly where the project's
+  // own build_phases array already is.
   function generate(fromIndex = 0) {
     setError(null);
-    setFailedAt(null);
-    if (fromIndex === 0) setPhasesDone([]);
+    if (fromIndex === 0) setPhases([]);
     startGenerateTransition(async () => {
       if (fromIndex === 0) {
-        const gate = await canGenerateWebsitePhases(projectId);
-        if ("error" in gate) {
-          setError(gate.error);
+        const startResult = await startBuildPhaseGeneration(projectId);
+        if ("error" in startResult) {
+          setError(startResult.error);
           return;
         }
       }
 
-      const collected = fromIndex === 0 ? [] : [...phasesDone];
-      for (let i = fromIndex; i < PHASE_GROUPS.length; i++) {
-        const r = await generateWebsitePhaseGroup(projectId, i);
+      for (let i = fromIndex; i < BUILD_PHASE_ORDER.length; i++) {
+        const r = await generateNextBuildPhase(projectId);
         if ("error" in r) {
           setError(r.error);
-          setFailedAt(i);
-          setPhasesDone(collected);
           return;
         }
-        collected.push(...r.phases);
-        setPhasesDone([...collected]);
+        setPhases((prev) => [...prev, r.phase]);
       }
-
-      const saveResult = await saveWebsiteBuildPhases(projectId, collected);
-      if ("error" in saveResult) setError(saveResult.error);
     });
   }
 
@@ -117,7 +113,7 @@ export function BuildPhasePanel({
     });
   }
 
-  if (!buildPhases) {
+  if (!hasStarted && phases.length === 0) {
     return (
       <Card>
         <CardContent className="py-8 text-center">
@@ -126,23 +122,10 @@ export function BuildPhasePanel({
             {recommendedTool ? "Ready to generate your step-by-step build instructions." : "Choose an AI coding tool above first."}
           </p>
           <Button size="sm" className="mt-4" disabled={generating || !recommendedTool} onClick={() => generate()}>
-            {generating ? "Generating…" : "Generate build instructions"}
+            {generating ? "Writing Phase 1…" : "Generate build instructions"}
           </Button>
-          {generating && (
-            <p className="mt-2 text-xs text-muted-foreground">
-              Writing one phase at a time… {phasesDone.length} of {PHASE_GROUPS.length} done. This takes a few minutes.
-            </p>
-          )}
-          {error && (
-            <div className="mt-2">
-              <p className="text-xs text-destructive">{error}</p>
-              {failedAt !== null && (
-                <Button size="xs" variant="outline" className="mt-1.5" disabled={generating} onClick={() => generate(failedAt)}>
-                  <RotateCcw className="size-3.5" /> Retry from where it stopped
-                </Button>
-              )}
-            </div>
-          )}
+          {generating && <p className="mt-2 text-xs text-muted-foreground">Phase 1 is usually ready in well under a minute.</p>}
+          {error && <p className="mt-2 text-xs text-destructive">{error}</p>}
         </CardContent>
       </Card>
     );
@@ -166,41 +149,46 @@ export function BuildPhasePanel({
             </Link>
           )}
         </div>
-        <Button size="xs" variant="ghost" disabled={generating} onClick={() => generate()}>
-          <RotateCcw className="size-3.5" /> {generating ? "Regenerating…" : "Regenerate all phases"}
-        </Button>
+        {isComplete && (
+          <Button size="xs" variant="ghost" disabled={generating} onClick={() => generate()}>
+            <RotateCcw className="size-3.5" /> {generating ? "Regenerating…" : "Regenerate all phases"}
+          </Button>
+        )}
       </div>
-      {generating && (
-        <p className="text-xs text-muted-foreground">
-          Writing one phase at a time… {phasesDone.length} of {PHASE_GROUPS.length} done. This takes a few minutes.
-        </p>
-      )}
-      {error && (
-        <div>
-          <p className="text-xs text-destructive">{error}</p>
-          {failedAt !== null && (
-            <Button size="xs" variant="outline" className="mt-1.5" disabled={generating} onClick={() => generate(failedAt)}>
-              <RotateCcw className="size-3.5" /> Retry from where it stopped
-            </Button>
-          )}
+
+      {!isComplete && !generating && (
+        <div className="flex items-center justify-between gap-3 rounded-lg border border-dashed border-border p-3">
+          <p className="text-xs text-muted-foreground">
+            {phases.length} of {BUILD_PHASE_ORDER.length} phases written.
+          </p>
+          <Button size="xs" variant="outline" onClick={() => generate(phases.length)}>
+            <RotateCcw className="size-3.5" /> {error ? "Retry from where it stopped" : "Continue generating the rest"}
+          </Button>
         </div>
       )}
+      {generating && (
+        <p className="text-xs text-muted-foreground">
+          Writing phase {Math.min(phases.length + 1, BUILD_PHASE_ORDER.length)} of {BUILD_PHASE_ORDER.length}…
+        </p>
+      )}
+      {error && <p className="text-xs text-destructive">{error}</p>}
 
       <ul className="space-y-2">
-        {buildPhases.map((phase, index) => {
+        {BUILD_PHASE_ORDER.map((phaseId, index) => {
+          const phase = phases[index];
           const isDone = index < currentPhaseIndex;
-          const isLocked = index > currentPhaseIndex;
-          const allChecked = phase.checklist.every((c) => c.done);
-          const instructions = index === 0 && tool ? `${tool.setupPreamble}\n\n${phase.instructions}` : phase.instructions;
+          const isReached = index === currentPhaseIndex;
+          const isTrueLast = index === BUILD_PHASE_ORDER.length - 1;
+          const nextPhaseReady = isTrueLast || phases.length > index + 1;
 
-          if (isLocked) {
+          if (!isReached && !isDone) {
             return (
-              <li key={phase.id}>
+              <li key={phaseId}>
                 <Card className="opacity-60">
                   <CardContent className="flex items-center gap-2.5 py-3">
                     <Lock className="size-4 shrink-0 text-muted-foreground" />
                     <p className="text-sm text-muted-foreground">
-                      Phase {index + 1} — {phase.name}
+                      Phase {index + 1} — {BUILD_PHASE_LABELS[phaseId]}
                     </p>
                   </CardContent>
                 </Card>
@@ -210,12 +198,12 @@ export function BuildPhasePanel({
 
           if (isDone) {
             return (
-              <li key={phase.id}>
+              <li key={phaseId}>
                 <Card>
                   <CardContent className="flex items-center gap-2.5 py-3">
                     <CheckCircle2 className="size-4 shrink-0 text-accent" />
                     <p className="text-sm">
-                      Phase {index + 1} — {phase.name}
+                      Phase {index + 1} — {BUILD_PHASE_LABELS[phaseId]}
                     </p>
                   </CardContent>
                 </Card>
@@ -223,8 +211,29 @@ export function BuildPhasePanel({
             );
           }
 
+          // Reached, but not yet generated — this is genuinely current
+          // (not locked), the agency just needs a moment before it's
+          // ready to read.
+          if (!phase) {
+            return (
+              <li key={phaseId}>
+                <Card className="border-accent/40">
+                  <CardContent className="flex items-center gap-2.5 py-3">
+                    <Loader2 className="size-4 shrink-0 animate-spin text-accent" />
+                    <p className="text-sm">
+                      Phase {index + 1} — {BUILD_PHASE_LABELS[phaseId]} — still being written
+                    </p>
+                  </CardContent>
+                </Card>
+              </li>
+            );
+          }
+
+          const allChecked = phase.checklist.every((c) => c.done);
+          const instructions = index === 0 && tool ? `${tool.setupPreamble}\n\n${phase.instructions}` : phase.instructions;
+
           return (
-            <li key={phase.id}>
+            <li key={phaseId}>
               <Card className="border-accent/40">
                 <CardContent className="space-y-3">
                   <p className="font-heading text-sm font-semibold">
@@ -258,9 +267,16 @@ export function BuildPhasePanel({
                     </ul>
                   </div>
 
-                  <Button size="sm" disabled={!allChecked || advancing} onClick={advance}>
-                    {advancing ? "Continuing…" : index === buildPhases.length - 1 ? "Finish" : "Continue to next phase"}
-                  </Button>
+                  <div>
+                    <Button size="sm" disabled={!allChecked || advancing || !nextPhaseReady} onClick={advance}>
+                      {advancing ? "Continuing…" : isTrueLast ? "Finish" : "Continue to next phase"}
+                    </Button>
+                    {allChecked && !nextPhaseReady && (
+                      <p className="mt-1.5 text-xs text-muted-foreground">
+                        {generating ? "Waiting for the next phase to finish writing…" : "Click “Continue generating the rest” above first."}
+                      </p>
+                    )}
+                  </div>
                 </CardContent>
               </Card>
             </li>

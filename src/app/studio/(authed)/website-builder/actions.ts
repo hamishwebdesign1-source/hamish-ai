@@ -6,7 +6,7 @@ import { createServerSupabaseClient, getUserWithRetry } from "@/lib/supabase-ser
 import { getOrgMembership } from "@/lib/org-membership";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { generateWebsiteBrief, WEBSITE_OBJECTIVES, SITEMAP_PAGE_OPTIONS, type WebsiteBrief, type WebsiteDiscovery } from "@/lib/website-brief";
-import { generateBuildPhaseGroup, PHASE_GROUPS, BUILD_PHASE_ORDER, type BuildPhase } from "@/lib/website-build-phases";
+import { generateBuildPhaseGroup, BUILD_PHASE_ORDER, type BuildPhase } from "@/lib/website-build-phases";
 import { generateTroubleshootingHelp, type TroubleshootingEntry } from "@/lib/website-troubleshooting";
 import { uploadWebsiteProjectFile, deleteWebsiteProjectFile, FILE_KINDS, MAX_FILES_PER_PROJECT, type FileKind } from "@/lib/website-project-files";
 import { recommendTool, AI_CODING_TOOLS, type ToolId, type ToolQuizAnswers } from "@/lib/ai-coding-tools";
@@ -201,24 +201,38 @@ export async function confirmWebsiteTool(projectId: string, toolId: ToolId): Pro
 
 // The technical heart of the whole capability (§4-5) — real,
 // phase-by-phase build instructions from the brief + confirmed tool.
-// Split into 3 Server Actions rather than 1, purely because of a real
-// platform constraint: this app runs on Vercel's Hobby plan (confirmed
-// directly with the user), which caps a serverless function at 60
-// seconds, and generating all 10 phases in a single call was
-// live-tested at 90-150 seconds. Generating one phase per Server Action
-// keeps each call comfortably inside that budget; the client
-// (build-phase-panel.tsx) calls generateWebsitePhaseGroup() once per
-// phase strictly sequentially (not in parallel — real production
-// testing found Vercel Hobby doesn't run "parallel" Server Action calls
-// concurrently anyway, see website-build-phases.ts's file header), then
-// calls saveWebsiteBuildPhases() once with the combined result — never
-// two of these writing to the same jsonb column concurrently.
+//
+// WB9 rewrite — generation is now genuinely incremental: each phase is
+// generated AND saved to build_phases the moment it's ready, so Phase 1
+// is real, saved, and actionable within ~20-40s instead of the agency
+// staring at a spinner for several minutes while all 10 generate before
+// any of them are usable. Two actions, not three: startBuildPhaseGeneration()
+// resets the project to a fresh, empty, in-progress generation (called
+// once, only when starting from phase 0 — never on a resume from
+// failure, which continues the same in-progress run); generateNextBuildPhase()
+// determines the next phase from the project's own build_phases length
+// (server-authoritative, not a client-passed index — can't desync
+// across tabs) and appends it. Still one phase per Server Action call,
+// still strictly sequential (Vercel Hobby's 60s cap and the real finding
+// that "parallel" calls don't actually run concurrently on this plan —
+// see website-build-phases.ts's file header — haven't changed).
+//
+// The usage event now records at start, not at completion — a
+// deliberate change from the old batch design. Partial generation
+// (stop after phase 3, walk away) is now a normal, expected outcome
+// rather than only a failure path, and each phase still costs real
+// Anthropic spend regardless of whether the run is ever "finished" — so
+// charging at the point the agency commits to a generation run is the
+// only version of this that can't be repeated for free by starting and
+// abandoning forever.
 
-// Checked once before the client fires off the parallel group calls —
-// each group call also re-checks (see below) since a Server Action is
-// technically callable directly, but the up-front check is what the UI
-// actually gates on.
-export async function canGenerateWebsitePhases(projectId: string): Promise<{ error: string } | { ok: true }> {
+// Resets the project to a fresh, empty, in-progress generation.
+// current_phase_index only gets reset here — nowhere else touches it
+// during generation, so a phase landing while the agency has already
+// started working through Phase 1 (or beyond) never wipes their
+// progress. Only ever called for fromIndex === 0 (a genuine fresh start
+// or explicit "Regenerate all"), never for a resume-from-failure.
+export async function startBuildPhaseGeneration(projectId: string): Promise<{ error: string } | { ok: true }> {
   const orgId = await requireOrgId();
   const admin = getSupabaseAdmin();
   if (!admin) return { error: "Supabase is not configured." };
@@ -229,59 +243,59 @@ export async function canGenerateWebsitePhases(projectId: string): Promise<{ err
 
   const usageCheck = await checkAiUsage(orgId, "website_build_prompt_generated");
   if (!usageCheck.allowed) return { error: aiUsageErrorMessage(usageCheck) };
-
-  return { ok: true as const };
-}
-
-// Generates exactly one group from PHASE_GROUPS — read-only, never
-// writes to the database itself, so several of these can safely run in
-// parallel without racing each other over the same row.
-export async function generateWebsitePhaseGroup(projectId: string, groupIndex: number): Promise<{ error: string } | { ok: true; phases: BuildPhase[] }> {
-  const orgId = await requireOrgId();
-  const admin = getSupabaseAdmin();
-  if (!admin) return { error: "Supabase is not configured." };
-
-  const group = PHASE_GROUPS[groupIndex];
-  if (!group) return { error: "Invalid phase group." };
-
-  const { data: project } = await admin.from("website_projects").select("brief, recommended_tool").eq("id", projectId).eq("org_id", orgId).single();
-  if (!project?.brief) return { error: "This project needs a brief before build instructions can be generated." };
-  if (!project.recommended_tool) return { error: "Choose an AI coding tool first." };
-
-  const usageCheck = await checkAiUsage(orgId, "website_build_prompt_generated");
-  if (!usageCheck.allowed) return { error: aiUsageErrorMessage(usageCheck) };
-
-  const result = await generateBuildPhaseGroup(project.brief as WebsiteBrief, project.recommended_tool as ToolId, group);
-  if ("error" in result) return { error: result.error };
-  return { ok: true as const, phases: result.phases };
-}
-
-// The one write, called once by the client after all groups have
-// resolved — combines them into the full 10-phase array, validates
-// coverage, and records the single usage event for the whole
-// generation (one user-initiated action, one usage event, regardless of
-// how many API calls it took internally).
-export async function saveWebsiteBuildPhases(projectId: string, phases: BuildPhase[]): Promise<{ error: string } | { ok: true }> {
-  const orgId = await requireOrgId();
-  const admin = getSupabaseAdmin();
-  if (!admin) return { error: "Supabase is not configured." };
-
-  const ids = new Set(phases.map((p) => p.id));
-  if (!BUILD_PHASE_ORDER.every((id) => ids.has(id))) return { error: "Incomplete build instructions — try generating again." };
-
-  const { data: org } = await admin.from("organisations").select("is_internal").eq("id", orgId).single();
 
   const { error } = await admin
     .from("website_projects")
-    .update({ build_phases: phases, build_phases_generated_at: new Date().toISOString(), current_phase_index: 0, stage: "build" })
+    .update({ build_phases: [], build_phases_generated_at: null, current_phase_index: 0, stage: "build" })
     .eq("id", projectId)
     .eq("org_id", orgId);
-  if (error) return { error: "Build instructions generated but failed to save." };
+  if (error) return { error: "Failed to start generating." };
 
-  if (!org?.is_internal) await recordUsageEvent(orgId, "website_build_prompt_generated");
+  if (!usageCheck.isInternal) await recordUsageEvent(orgId, "website_build_prompt_generated");
 
   revalidatePath(`/studio/website-builder/${projectId}`);
   return { ok: true as const };
+}
+
+// Generates exactly the next phase the project's own build_phases array
+// says is missing, and appends it — the only write this makes to
+// build_phases, current_phase_index untouched. Safe to call repeatedly
+// (a resume just calls this again; the array length is what determines
+// where it picks up, not anything the client remembers).
+export async function generateNextBuildPhase(projectId: string): Promise<{ error: string } | { ok: true; phase: BuildPhase; isLastPhase: boolean }> {
+  const orgId = await requireOrgId();
+  const admin = getSupabaseAdmin();
+  if (!admin) return { error: "Supabase is not configured." };
+
+  const { data: project } = await admin
+    .from("website_projects")
+    .select("brief, recommended_tool, build_phases")
+    .eq("id", projectId)
+    .eq("org_id", orgId)
+    .single();
+  if (!project?.brief) return { error: "This project needs a brief before build instructions can be generated." };
+  if (!project.recommended_tool) return { error: "Choose an AI coding tool first." };
+
+  const existing = Array.isArray(project.build_phases) ? (project.build_phases as BuildPhase[]) : [];
+  const nextPhaseId = BUILD_PHASE_ORDER[existing.length];
+  if (!nextPhaseId) return { error: "All phases are already generated." };
+
+  const result = await generateBuildPhaseGroup(project.brief as WebsiteBrief, project.recommended_tool as ToolId, [nextPhaseId]);
+  if ("error" in result) return { error: result.error };
+
+  const phase = result.phases[0];
+  const nextPhases = [...existing, phase];
+  const isLastPhase = nextPhases.length === BUILD_PHASE_ORDER.length;
+
+  const { error } = await admin
+    .from("website_projects")
+    .update({ build_phases: nextPhases, ...(isLastPhase ? { build_phases_generated_at: new Date().toISOString() } : {}) })
+    .eq("id", projectId)
+    .eq("org_id", orgId);
+  if (error) return { error: "Generated but failed to save — try again." };
+
+  revalidatePath(`/studio/website-builder/${projectId}`);
+  return { ok: true as const, phase, isLastPhase };
 }
 
 // Flips one checklist item within the currently-active phase. Reads,
@@ -318,12 +332,21 @@ export async function toggleChecklistItem(projectId: string, phaseId: string, it
 // same "don't trust the UI state, re-verify" instinct as everywhere else
 // AI-cost or state-progression matters in this app.
 //
-// current_phase_index is allowed to reach phases.length (one past the
-// last valid index, not capped at length-1) — that's the real signal
-// "every phase is done." Capping it at length-1 was a genuine bug: the
-// final phase's own "Finish" click would recompute the same index it
-// was already at, so it could never actually render as done. WB3's
-// launch panel appears once the index reaches this value.
+// current_phase_index is allowed to reach BUILD_PHASE_ORDER.length (one
+// past the last valid index, not capped at length-1) — that's the real
+// signal "every phase is done." Capping it at length-1 was a genuine
+// bug: the final phase's own "Finish" click would recompute the same
+// index it was already at, so it could never actually render as done.
+// WB3's launch panel appears once the index reaches this value.
+//
+// WB9: the ceiling is BUILD_PHASE_ORDER.length (the true total, always
+// 10), not phases.length — since generation is now incremental,
+// phases.length can genuinely be less than 10 while the agency is still
+// working through Phase 1 and later phases are still being written.
+// Advancing into a phase that hasn't been generated yet is refused with
+// a real error rather than silently treating "not generated yet" as
+// "every phase is done" (which phases.length as the ceiling would have
+// done the moment only 1 of 10 phases existed).
 export async function advanceBuildPhase(projectId: string): Promise<{ error: string } | { ok: true }> {
   const orgId = await requireOrgId();
   const admin = getSupabaseAdmin();
@@ -343,7 +366,11 @@ export async function advanceBuildPhase(projectId: string): Promise<{ error: str
   if (!currentPhase) return { error: "Invalid phase." };
   if (!currentPhase.checklist.every((c) => c.done)) return { error: "Complete this phase's checklist first." };
 
-  const nextIndex = Math.min(currentIndex + 1, phases.length);
+  const nextIndex = Math.min(currentIndex + 1, BUILD_PHASE_ORDER.length);
+  if (nextIndex < BUILD_PHASE_ORDER.length && nextIndex >= phases.length) {
+    return { error: "The next phase is still being written — wait a moment and try again." };
+  }
+
   // Once the agency reaches the QA phase (or anything after it), the
   // project is genuinely in its quality-checking/finishing stretch —
   // real signal for the stage tracker, not just "still building."

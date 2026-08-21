@@ -28,6 +28,13 @@ import type { WebsiteBrief } from "@/lib/website-brief";
 //    failure (never silently degraded), and the client now generates
 //    sequentially with an honest "phase X of 10" progress readout
 //    instead of a misleading "parallel" one.
+//
+// WB9: generation is now also incrementally SAVED, not just
+// sequentially requested — each phase lands in the DB and becomes
+// immediately usable (checklist-checkable, advanceable) the moment it's
+// ready, rather than the agency waiting for all 10 before any of them
+// are real. See startBuildPhaseGeneration()/generateNextBuildPhase() in
+// website-builder/actions.ts.
 
 export type BuildPhaseId =
   | "setup"
@@ -66,14 +73,6 @@ export const BUILD_PHASE_LABELS: Record<BuildPhaseId, string> = {
   polish: "Final polish",
   deployment: "Deployment",
 };
-
-// One phase per call — see the file header for why "2-3 phases per
-// call" wasn't actually safe once real production behaviour (near-
-// sequential execution, not true concurrency) was accounted for. Kept
-// as an array-of-arrays (rather than just BUILD_PHASE_ORDER directly)
-// so the caller's "generate group N" shape in website-builder/actions.ts
-// didn't need to change, only what each "group" contains.
-export const PHASE_GROUPS: BuildPhaseId[][] = BUILD_PHASE_ORDER.map((id) => [id]);
 
 export type ChecklistItem = { item: string; done: boolean };
 export type BuildPhase = { id: BuildPhaseId; name: string; instructions: string; checklist: ChecklistItem[] };
