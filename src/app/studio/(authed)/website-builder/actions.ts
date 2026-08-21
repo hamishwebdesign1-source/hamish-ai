@@ -8,6 +8,7 @@ import { getSupabaseAdmin } from "@/lib/supabase";
 import { generateWebsiteBrief, WEBSITE_OBJECTIVES, SITEMAP_PAGE_OPTIONS, type WebsiteBrief, type WebsiteDiscovery } from "@/lib/website-brief";
 import { generateBuildPhaseGroup, PHASE_GROUPS, BUILD_PHASE_ORDER, type BuildPhase } from "@/lib/website-build-phases";
 import { generateTroubleshootingHelp, type TroubleshootingEntry } from "@/lib/website-troubleshooting";
+import { uploadWebsiteProjectFile, deleteWebsiteProjectFile, FILE_KINDS, MAX_FILES_PER_PROJECT, type FileKind } from "@/lib/website-project-files";
 import { recommendTool, AI_CODING_TOOLS, type ToolId, type ToolQuizAnswers } from "@/lib/ai-coding-tools";
 import { getUsageStatus, recordUsageEvent } from "@/lib/usage-limits";
 import { isStudioActionRateLimited } from "@/lib/chat-rate-limit";
@@ -439,4 +440,60 @@ export async function getTroubleshootingHelp(projectId: string, issue: string): 
 
   revalidatePath(`/studio/website-builder/${projectId}`);
   return { ok: true as const, entry };
+}
+
+// AI Website Creation Guide, WB8 — real browser file uploads (plan doc
+// §2). No AI call, no usage metering — this is plumbing, not an AI-cost
+// surface. formData carries "file" (the File itself) and "kind" (one of
+// FILE_KINDS); both re-validated here rather than trusted from the
+// client, same instinct as everywhere else content crosses the wire.
+export async function uploadProjectFile(projectId: string, formData: FormData): Promise<{ error: string } | { ok: true }> {
+  const orgId = await requireOrgId();
+  const admin = getSupabaseAdmin();
+  if (!admin) return { error: "Supabase is not configured." };
+
+  const { data: project } = await admin.from("website_projects").select("id").eq("id", projectId).eq("org_id", orgId).single();
+  if (!project) return { error: "Project not found." };
+
+  const file = formData.get("file");
+  if (!(file instanceof File) || file.size === 0) return { error: "Choose a file first." };
+
+  const kindRaw = formData.get("kind");
+  const kind: FileKind = typeof kindRaw === "string" && (FILE_KINDS as string[]).includes(kindRaw) ? (kindRaw as FileKind) : "other";
+
+  const { count } = await admin
+    .from("website_project_files")
+    .select("id", { count: "exact", head: true })
+    .eq("website_project_id", projectId);
+  if ((count ?? 0) >= MAX_FILES_PER_PROJECT) return { error: `This project already has ${MAX_FILES_PER_PROJECT} files — delete one before adding another.` };
+
+  const result = await uploadWebsiteProjectFile(orgId, projectId, file, kind);
+  if ("error" in result) return { error: result.error };
+
+  revalidatePath(`/studio/website-builder/${projectId}`);
+  return { ok: true as const };
+}
+
+export async function deleteProjectFile(projectId: string, fileId: string): Promise<{ error: string } | { ok: true }> {
+  const orgId = await requireOrgId();
+  const admin = getSupabaseAdmin();
+  if (!admin) return { error: "Supabase is not configured." };
+
+  const { data: file } = await admin
+    .from("website_project_files")
+    .select("id, storage_path")
+    .eq("id", fileId)
+    .eq("website_project_id", projectId)
+    .eq("org_id", orgId)
+    .single();
+  if (!file) return { error: "File not found." };
+
+  const storageResult = await deleteWebsiteProjectFile(file.storage_path);
+  if ("error" in storageResult) return { error: storageResult.error };
+
+  const { error } = await admin.from("website_project_files").delete().eq("id", fileId);
+  if (error) return { error: "Removed from storage but failed to update the file list." };
+
+  revalidatePath(`/studio/website-builder/${projectId}`);
+  return { ok: true as const };
 }

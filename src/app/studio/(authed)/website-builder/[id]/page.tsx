@@ -9,11 +9,13 @@ import { BuildPhasePanel } from "@/components/platform/build-phase-panel";
 import { LaunchPanel } from "@/components/platform/launch-panel";
 import { ProjectStageTracker } from "@/components/platform/project-stage-tracker";
 import { TroubleshootingComposer } from "@/components/platform/troubleshooting-composer";
+import { WebsiteProjectFilesPanel, type ProjectFile } from "@/components/platform/website-project-files-panel";
 import { Eyebrow } from "@/components/eyebrow";
 import type { WebsiteBrief, WebsiteDiscovery } from "@/lib/website-brief";
 import type { BuildPhase } from "@/lib/website-build-phases";
 import type { ToolId, ToolQuizAnswers } from "@/lib/ai-coding-tools";
 import type { TroubleshootingEntry } from "@/lib/website-troubleshooting";
+import { getSignedFileUrl } from "@/lib/website-project-files";
 
 export default async function WebsiteProjectDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -44,6 +46,20 @@ export default async function WebsiteProjectDetailPage({ params }: { params: Pro
   const buildPhases = project.build_phases as BuildPhase[] | null;
   const allPhasesComplete = Boolean(buildPhases && project.current_phase_index >= buildPhases.length);
 
+  // website_project_files_select_own_org RLS (schema-rls-website-project-files.sql)
+  // enforces the org boundary on this read the same way every other
+  // table here does — signed URLs themselves are generated via the
+  // admin client (getSignedFileUrl), same as getSignedVideoUrl(), since
+  // that always needs storage-admin access regardless of caller.
+  const { data: fileRows } = await supabase
+    .from("website_project_files")
+    .select("id, storage_path, file_name, content_type, size_bytes, kind, created_at")
+    .eq("website_project_id", project.id)
+    .order("created_at", { ascending: true });
+  const files: ProjectFile[] = await Promise.all(
+    (fileRows ?? []).map(async (f) => ({ ...f, kind: f.kind as ProjectFile["kind"], signedUrl: await getSignedFileUrl(f.storage_path) }))
+  );
+
   return (
     <div className="mx-auto max-w-3xl">
       <Link href="/studio/website-builder" className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground">
@@ -53,6 +69,10 @@ export default async function WebsiteProjectDetailPage({ params }: { params: Pro
       <h1 className="mt-1 font-heading text-2xl font-semibold md:text-3xl">{clientName}</h1>
       <div className="mt-4">
         <ProjectStageTracker stage={project.stage} />
+      </div>
+
+      <div className="mt-8">
+        <WebsiteProjectFilesPanel projectId={project.id} files={files} />
       </div>
 
       <div className="mt-8">
