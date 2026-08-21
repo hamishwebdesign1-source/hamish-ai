@@ -1,12 +1,18 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { LayoutGrid, RotateCcw, ChevronUp, ChevronDown, Eye, EyeOff, RectangleHorizontal, Square, Trash2, LineChart, Type, Link2, Plus, Sparkles } from "lucide-react";
+import { LayoutGrid, RotateCcw, ChevronUp, ChevronDown, Eye, EyeOff, RectangleHorizontal, Square, Trash2, LineChart, Type, Link2, Plus, Sparkles, History } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { updateCommandCentreLayout, resetCommandCentreLayout, requestLayoutRedesign } from "@/app/studio/(authed)/settings/actions";
+import { timeAgo } from "@/lib/time-ago";
+import {
+  updateCommandCentreLayout,
+  resetCommandCentreLayout,
+  requestLayoutRedesign,
+  revertCommandCentreLayout,
+} from "@/app/studio/(authed)/settings/actions";
 import {
   DEFAULT_LAYOUT,
   STAT_LABELS,
@@ -57,7 +63,13 @@ function blocksToState(blocks: Block[]): { draftBlocks: Record<string, Block>; o
 // unchanged; chart/text/cta blocks are add/reorder/resize/delete with
 // their own inline fields, since "hide" doesn't mean anything for a
 // block that only exists because someone added it.
-export function CommandCentreLayoutPanel({ initialBlocks }: { initialBlocks: Block[] }) {
+export function CommandCentreLayoutPanel({
+  initialBlocks,
+  history,
+}: {
+  initialBlocks: Block[];
+  history: { id: string; created_at: string }[];
+}) {
   const [{ draftBlocks: initialDraft, order: initialOrder, hidden: initialHidden }] = useState(() => blocksToState(initialBlocks));
   const [draftBlocks, setDraftBlocks] = useState<Record<string, Block>>(initialDraft);
   const [order, setOrder] = useState<string[]>(initialOrder);
@@ -74,6 +86,10 @@ export function CommandCentreLayoutPanel({ initialBlocks }: { initialBlocks: Blo
     | { kind: "error"; message: string }
     | null
   >(null);
+
+  const [revertingId, setRevertingId] = useState<string | null>(null);
+  const [revertPending, startRevertTransition] = useTransition();
+  const [revertError, setRevertError] = useState<string | null>(null);
 
   const defaultIds = DEFAULT_LAYOUT.blocks.map((b) => b.id);
   const isCustomised =
@@ -130,7 +146,7 @@ export function CommandCentreLayoutPanel({ initialBlocks }: { initialBlocks: Blo
     });
   }
 
-// A visible, ordered block currently in the draft — shared by Save and
+  // A visible, ordered block currently in the draft — shared by Save and
   // the AI Design Assistant, which builds its proposal on top of exactly
   // what Save would persist right now (including any unsaved edits),
   // not a second, possibly-stale read of the database.
@@ -194,6 +210,32 @@ export function CommandCentreLayoutPanel({ initialBlocks }: { initialBlocks: Blo
     setAiResult(null);
     setAiInstruction("");
     setStatus("idle");
+  }
+
+  // Command Centre Phase 5e — restores a version from history and loads
+  // it straight into the draft (same as applyAiProposal), so the editor
+  // reflects what was just restored without needing a page reload. The
+  // history list itself isn't live-refreshed after this — it'll show
+  // the new entry next time Settings loads, same acceptable staleness
+  // as every other "saved" confirmation on this panel.
+  function revert(id: string) {
+    setRevertingId(id);
+    setRevertError(null);
+    startRevertTransition(async () => {
+      const r = await revertCommandCentreLayout(id);
+      if (r && "error" in r) {
+        setRevertError(r.error ?? "Failed to restore that version.");
+        setRevertingId(null);
+        return;
+      }
+      const next = blocksToState(r.blocks);
+      setDraftBlocks(next.draftBlocks);
+      setOrder(next.order);
+      setHidden(next.hidden);
+      setAiResult(null);
+      setStatus("saved");
+      setRevertingId(null);
+    });
   }
 
   return (
@@ -410,6 +452,28 @@ export function CommandCentreLayoutPanel({ initialBlocks }: { initialBlocks: Blo
           {aiResult?.kind === "unable" && <p className="mt-2 text-xs text-muted-foreground">{aiResult.reason}</p>}
           {aiResult?.kind === "error" && <p className="mt-2 text-xs text-destructive">{aiResult.message}</p>}
         </div>
+
+        {history.length > 0 && (
+          <div className="mt-5">
+            <p className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
+              <History className="size-3.5 shrink-0" /> Previous versions
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              A snapshot is kept before every save, reset, or restore — the last {history.length} are here.
+            </p>
+            <ul className="mt-2 divide-y divide-border rounded-lg border border-border">
+              {history.map((h) => (
+                <li key={h.id} className="flex items-center justify-between gap-2 px-3 py-2 text-sm">
+                  <span className="text-muted-foreground">Version from {timeAgo(h.created_at)}</span>
+                  <Button size="xs" variant="ghost" disabled={revertPending} onClick={() => revert(h.id)}>
+                    {revertPending && revertingId === h.id ? "Restoring…" : "Restore"}
+                  </Button>
+                </li>
+              ))}
+            </ul>
+            {revertError && <p className="mt-2 text-xs text-destructive">{revertError}</p>}
+          </div>
+        )}
 
         <div className="mt-4 flex flex-wrap items-center gap-3">
           <Button size="sm" disabled={pending} onClick={save}>

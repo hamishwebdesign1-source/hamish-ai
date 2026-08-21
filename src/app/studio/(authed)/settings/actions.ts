@@ -75,6 +75,47 @@ export async function updateBrandAccent(color: string) {
   return { ok: true as const };
 }
 
+const LAYOUT_HISTORY_LIMIT = 10;
+
+// Command Centre Phase 5e — undo/version history. Called right before
+// any write that would overwrite a real (non-null) layout, so the row
+// it inserts is exactly what a revert should restore: the state that
+// existed immediately before the action named by `source`. Silently a
+// no-op if there was nothing to snapshot (an org that's never
+// customised its layout has nothing worth saving a version of) or if
+// Supabase errors — history is a convenience, never something that
+// should block the actual save/reset/revert it's guarding.
+async function snapshotLayoutHistory(
+  admin: NonNullable<ReturnType<typeof getSupabaseAdmin>>,
+  orgId: string,
+  previousLayout: unknown,
+  source: "save" | "reset" | "revert"
+) {
+  if (!previousLayout || typeof previousLayout !== "object") return;
+
+  const { error } = await admin.from("command_centre_layout_history").insert({ org_id: orgId, layout: previousLayout, source });
+  if (error) {
+    console.error("Failed to snapshot layout history:", error);
+    return;
+  }
+
+  // Prune to the last LAYOUT_HISTORY_LIMIT — this is an undo stack, not
+  // a permanent audit log, so an org iterating a lot doesn't accumulate
+  // rows forever.
+  const { data: toKeep } = await admin
+    .from("command_centre_layout_history")
+    .select("id")
+    .eq("org_id", orgId)
+    .order("created_at", { ascending: false })
+    .limit(LAYOUT_HISTORY_LIMIT);
+  const keepIds = new Set((toKeep ?? []).map((r) => r.id));
+  const { data: all } = await admin.from("command_centre_layout_history").select("id").eq("org_id", orgId);
+  const staleIds = (all ?? []).map((r) => r.id).filter((id) => !keepIds.has(id));
+  if (staleIds.length > 0) {
+    await admin.from("command_centre_layout_history").delete().in("id", staleIds);
+  }
+}
+
 // Command Centre Phase 5b/5c (§22-23 rescoped, see
 // schema-command-centre-layout-v2.sql's own comment) — a no-code control
 // over which blocks show on the Command Centre, their order, width, and
@@ -92,6 +133,9 @@ export async function updateCommandCentreLayout(blocks: Block[]) {
 
   const clean = sanitizeBlocksForWrite(blocks);
   if (!clean) return { error: "Invalid layout." };
+
+  const { data: existing } = await admin.from("organisations").select("command_centre_layout").eq("id", orgId).single();
+  await snapshotLayoutHistory(admin, orgId, existing?.command_centre_layout, "save");
 
   const layout: CommandCentreLayout = { version: 2, blocks: clean };
   const { error } = await admin.from("organisations").update({ command_centre_layout: layout }).eq("id", orgId);
@@ -163,12 +207,51 @@ export async function resetCommandCentreLayout() {
   const admin = getSupabaseAdmin();
   if (!admin) return { error: "Supabase is not configured." };
 
+  const { data: existing } = await admin.from("organisations").select("command_centre_layout").eq("id", orgId).single();
+  await snapshotLayoutHistory(admin, orgId, existing?.command_centre_layout, "reset");
+
   const { error } = await admin.from("organisations").update({ command_centre_layout: null }).eq("id", orgId);
   if (error) return { error: "Failed to reset your layout." };
 
   revalidatePath("/studio/settings");
   revalidatePath("/studio");
   return { ok: true as const };
+}
+
+// Command Centre Phase 5e — restores a previous layout from history.
+// Re-validated through sanitizeBlocksForWrite() like every other write
+// path here, even though it's this app's own previously-saved data —
+// defense in depth costs nothing and this function has no other way to
+// know the row hasn't been tampered with between save and restore.
+// Snapshots the layout being replaced first, same as every other write,
+// so a revert is itself undoable rather than a one-way door.
+export async function revertCommandCentreLayout(historyId: string) {
+  const orgId = await requireOrgId();
+  const admin = getSupabaseAdmin();
+  if (!admin) return { error: "Supabase is not configured." };
+
+  const { data: historyRow, error: fetchError } = await admin
+    .from("command_centre_layout_history")
+    .select("layout")
+    .eq("id", historyId)
+    .eq("org_id", orgId)
+    .single();
+  if (fetchError || !historyRow) return { error: "That version could no longer be found." };
+
+  const stored = historyRow.layout as { blocks?: unknown } | null;
+  const clean = sanitizeBlocksForWrite(stored?.blocks);
+  if (!clean) return { error: "That version is no longer valid." };
+
+  const { data: existing } = await admin.from("organisations").select("command_centre_layout").eq("id", orgId).single();
+  await snapshotLayoutHistory(admin, orgId, existing?.command_centre_layout, "revert");
+
+  const layout: CommandCentreLayout = { version: 2, blocks: clean };
+  const { error } = await admin.from("organisations").update({ command_centre_layout: layout }).eq("id", orgId);
+  if (error) return { error: "Failed to restore that version." };
+
+  revalidatePath("/studio/settings");
+  revalidatePath("/studio");
+  return { ok: true as const, blocks: clean };
 }
 
 export async function resetBrandAccent() {

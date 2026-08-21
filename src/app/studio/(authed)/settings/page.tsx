@@ -57,6 +57,18 @@ export default async function StudioSettingsPage({
   const brand = (org?.brand ?? {}) as { accentColor?: string };
   const commandCentreBlocks = resolveLayout(org?.command_centre_layout);
 
+  // Command Centre Phase 5e — command_centre_layout_history_select_own_org
+  // RLS (schema-rls-command-centre-layout-history.sql) enforces the same
+  // org boundary independently of this .eq() getting it right. Capped to
+  // the 10 most recent server-side too (the write path already prunes to
+  // this same limit, this is just matching it on read).
+  const { data: layoutHistory } = await supabase
+    .from("command_centre_layout_history")
+    .select("id, created_at")
+    .eq("org_id", membership.orgId)
+    .order("created_at", { ascending: false })
+    .limit(10);
+
   const params = await searchParams;
 
   return (
@@ -148,7 +160,7 @@ export default async function StudioSettingsPage({
       <div>
         <h2 className="font-heading text-xs font-semibold tracking-wide text-muted-foreground uppercase">Command Centre</h2>
         <div className="mt-3">
-          <CommandCentreLayoutPanel initialBlocks={commandCentreBlocks} />
+          <CommandCentreLayoutPanel initialBlocks={commandCentreBlocks} history={layoutHistory ?? []} />
         </div>
       </div>
 
