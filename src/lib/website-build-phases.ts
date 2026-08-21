@@ -78,7 +78,10 @@ export const PHASE_GROUPS: BuildPhaseId[][] = BUILD_PHASE_ORDER.map((id) => [id]
 export type ChecklistItem = { item: string; done: boolean };
 export type BuildPhase = { id: BuildPhaseId; name: string; instructions: string; checklist: ChecklistItem[] };
 
-function briefSummary(brief: WebsiteBrief): string {
+// Exported for website-troubleshooting.ts to reuse — one summary format
+// for the brief across every AI call that needs it, rather than two
+// copies that can quietly drift apart over time.
+export function briefSummary(brief: WebsiteBrief): string {
   return `Business overview: ${brief.businessOverview}
 Target audience: ${brief.targetAudience}
 Objectives: ${brief.objectives.join("; ")}

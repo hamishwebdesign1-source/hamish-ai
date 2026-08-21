@@ -8,10 +8,12 @@ import { ToolRecommendationPanel } from "@/components/platform/tool-recommendati
 import { BuildPhasePanel } from "@/components/platform/build-phase-panel";
 import { LaunchPanel } from "@/components/platform/launch-panel";
 import { ProjectStageTracker } from "@/components/platform/project-stage-tracker";
+import { TroubleshootingComposer } from "@/components/platform/troubleshooting-composer";
 import { Eyebrow } from "@/components/eyebrow";
 import type { WebsiteBrief, WebsiteDiscovery } from "@/lib/website-brief";
 import type { BuildPhase } from "@/lib/website-build-phases";
 import type { ToolId, ToolQuizAnswers } from "@/lib/ai-coding-tools";
+import type { TroubleshootingEntry } from "@/lib/website-troubleshooting";
 
 export default async function WebsiteProjectDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -30,7 +32,7 @@ export default async function WebsiteProjectDetailPage({ params }: { params: Pro
   const { data: project } = await supabase
     .from("website_projects")
     .select(
-      "id, stage, discovery, brief, brief_generated_at, client_id, tool_quiz_answers, recommended_tool, build_phases, current_phase_index, live_url, analytics_connected, clients(business_name)"
+      "id, stage, discovery, brief, brief_generated_at, client_id, tool_quiz_answers, recommended_tool, build_phases, current_phase_index, live_url, analytics_connected, troubleshooting_log, clients(business_name)"
     )
     .eq("id", id)
     .eq("org_id", membership.orgId)
@@ -83,6 +85,12 @@ export default async function WebsiteProjectDetailPage({ params }: { params: Pro
             buildPhases={buildPhases}
             currentPhaseIndex={project.current_phase_index}
           />
+        </div>
+      )}
+
+      {project.brief && project.recommended_tool && (
+        <div className="mt-8">
+          <TroubleshootingComposer projectId={project.id} initialLog={(project.troubleshooting_log as TroubleshootingEntry[] | null) ?? []} />
         </div>
       )}
 

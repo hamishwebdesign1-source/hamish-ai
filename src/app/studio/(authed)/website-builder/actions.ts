@@ -7,6 +7,7 @@ import { getOrgMembership } from "@/lib/org-membership";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { generateWebsiteBrief, WEBSITE_OBJECTIVES, SITEMAP_PAGE_OPTIONS, type WebsiteBrief, type WebsiteDiscovery } from "@/lib/website-brief";
 import { generateBuildPhaseGroup, PHASE_GROUPS, BUILD_PHASE_ORDER, type BuildPhase } from "@/lib/website-build-phases";
+import { generateTroubleshootingHelp, type TroubleshootingEntry } from "@/lib/website-troubleshooting";
 import { recommendTool, AI_CODING_TOOLS, type ToolId, type ToolQuizAnswers } from "@/lib/ai-coding-tools";
 import { getUsageStatus, recordUsageEvent } from "@/lib/usage-limits";
 import { isStudioActionRateLimited } from "@/lib/chat-rate-limit";
@@ -33,7 +34,7 @@ async function requireOrgId(): Promise<string> {
 // brief generator is a real AI-cost surface, not exempt.
 async function checkAiUsage(
   orgId: string,
-  eventType: "website_brief_generated" | "website_build_prompt_generated"
+  eventType: "website_brief_generated" | "website_build_prompt_generated" | "website_troubleshooting_generated"
 ): Promise<
   | { allowed: true; isInternal: boolean }
   | { allowed: false; isInternal: false; rateLimited: true }
@@ -203,9 +204,12 @@ export async function confirmWebsiteTool(projectId: string, toolId: ToolId): Pro
 // platform constraint: this app runs on Vercel's Hobby plan (confirmed
 // directly with the user), which caps a serverless function at 60
 // seconds, and generating all 10 phases in a single call was
-// live-tested at 90-150 seconds. Generating one group per Server Action
+// live-tested at 90-150 seconds. Generating one phase per Server Action
 // keeps each call comfortably inside that budget; the client
-// (build-phase-panel.tsx) fires all of PHASE_GROUPS in parallel, then
+// (build-phase-panel.tsx) calls generateWebsitePhaseGroup() once per
+// phase strictly sequentially (not in parallel — real production
+// testing found Vercel Hobby doesn't run "parallel" Server Action calls
+// concurrently anyway, see website-build-phases.ts's file header), then
 // calls saveWebsiteBuildPhases() once with the combined result — never
 // two of these writing to the same jsonb column concurrently.
 
@@ -380,4 +384,59 @@ export async function launchWebsiteProject(projectId: string, liveUrl: string, a
   revalidatePath(`/studio/website-builder/${projectId}`);
   revalidatePath("/studio/website-builder");
   return { ok: true as const };
+}
+
+// AI Website Creation Guide, WB5 — the troubleshooting composer (plan
+// doc §12). The agency describes what's going wrong in plain language;
+// this generates a diagnosis plus a ready-to-paste instruction for
+// their coding tool, grounded in the real brief and (where relevant)
+// the phase they're currently on. HamishAI never touches the site's
+// actual code — same "you stay in charge of the build" boundary as
+// everything else in this capability.
+export async function getTroubleshootingHelp(projectId: string, issue: string): Promise<{ error: string } | { ok: true; entry: TroubleshootingEntry }> {
+  const orgId = await requireOrgId();
+  const admin = getSupabaseAdmin();
+  if (!admin) return { error: "Supabase is not configured." };
+
+  const trimmedIssue = issue.trim().slice(0, 2000);
+  if (!trimmedIssue) return { error: "Describe what's going wrong first." };
+
+  const { data: project } = await admin
+    .from("website_projects")
+    .select("brief, recommended_tool, build_phases, current_phase_index, troubleshooting_log")
+    .eq("id", projectId)
+    .eq("org_id", orgId)
+    .single();
+  if (!project?.brief) return { error: "This project needs a brief before troubleshooting help is available." };
+  if (!project.recommended_tool) return { error: "Choose an AI coding tool first." };
+
+  const usageCheck = await checkAiUsage(orgId, "website_troubleshooting_generated");
+  if (!usageCheck.allowed) return { error: aiUsageErrorMessage(usageCheck) };
+
+  const phases = project.build_phases as BuildPhase[] | null;
+  const currentPhase = phases?.[project.current_phase_index] ?? null;
+
+  const result = await generateTroubleshootingHelp(project.brief as WebsiteBrief, project.recommended_tool as ToolId, currentPhase, trimmedIssue);
+  if ("error" in result) return { error: result.error };
+
+  const entry: TroubleshootingEntry = {
+    id: crypto.randomUUID(),
+    issue: trimmedIssue,
+    diagnosis: result.diagnosis,
+    fixPrompt: result.fixPrompt,
+    createdAt: new Date().toISOString(),
+  };
+
+  // Newest-last, capped at 20 entries so a long-running project's log
+  // doesn't grow the jsonb column unbounded.
+  const existingLog = Array.isArray(project.troubleshooting_log) ? (project.troubleshooting_log as TroubleshootingEntry[]) : [];
+  const nextLog = [...existingLog, entry].slice(-20);
+
+  const { error } = await admin.from("website_projects").update({ troubleshooting_log: nextLog }).eq("id", projectId);
+  if (error) return { error: "Got an answer but failed to save it." };
+
+  if (!usageCheck.isInternal) await recordUsageEvent(orgId, "website_troubleshooting_generated");
+
+  revalidatePath(`/studio/website-builder/${projectId}`);
+  return { ok: true as const, entry };
 }
