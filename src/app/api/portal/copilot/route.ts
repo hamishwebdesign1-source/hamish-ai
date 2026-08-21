@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createServerSupabaseClient } from "@/lib/supabase-server-auth";
+import { createServerSupabaseClient, getUserWithRetry } from "@/lib/supabase-server-auth";
 import { getPortalMembership } from "@/lib/portal-membership";
 import { answerAccountQuestion } from "@/lib/answer-account-question";
 import { isRateLimited } from "@/lib/chat-rate-limit";
@@ -10,7 +10,7 @@ export async function POST(request: Request) {
   const supabase = await createServerSupabaseClient();
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await getUserWithRetry(supabase);
   if (!user?.email) return NextResponse.json({ error: "Not signed in." }, { status: 401 });
 
   // Session-bound client from here on, same as the insights page — RLS

@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createServerSupabaseClient } from "@/lib/supabase-server-auth";
+import { createServerSupabaseClient, getUserWithRetry } from "@/lib/supabase-server-auth";
 import { getOrgMembership } from "@/lib/org-membership";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { discoverLeads } from "@/lib/discover-leads";
@@ -23,7 +23,7 @@ async function requireOrgId(): Promise<string> {
   const supabase = await createServerSupabaseClient();
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await getUserWithRetry(supabase);
   if (!user?.email) throw new Error("Not signed in.");
 
   const membership = await getOrgMembership(supabase, user.email);

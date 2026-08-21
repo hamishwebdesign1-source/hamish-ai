@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { headers } from "next/headers";
-import { createServerSupabaseClient } from "@/lib/supabase-server-auth";
+import { createServerSupabaseClient, getUserWithRetry } from "@/lib/supabase-server-auth";
 import { getOrgMembership } from "@/lib/org-membership";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { getStripe } from "@/lib/stripe";
@@ -17,7 +17,7 @@ async function requireOrgAndEmail(): Promise<{ orgId: string; email: string }> {
   const supabase = await createServerSupabaseClient();
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await getUserWithRetry(supabase);
   if (!user?.email) throw new Error("Not signed in.");
 
   const membership = await getOrgMembership(supabase, user.email);
