@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
+import Link from "next/link";
 import {
   Inbox,
   ChevronDown,
@@ -10,14 +11,17 @@ import {
   CircleAlert,
   ListTodo,
   Lightbulb,
+  Globe,
+  ArrowRight,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { RequestStatusBadge, TaskStatusBadge, PriorityBadge } from "@/components/status-badges";
-import { markRequestResponded, updateRequestDraft, updateTaskStatus } from "@/app/studio/(authed)/requests/actions";
+import { markRequestResponded, updateRequestDraft, updateTaskStatus, turnRequestIntoWebsiteTask } from "@/app/studio/(authed)/requests/actions";
 import { assignTaskToProject } from "@/app/studio/(authed)/projects/actions";
+import type { TroubleshootingEntry } from "@/lib/website-troubleshooting";
 
 type Request = {
   id: string;
@@ -34,7 +38,19 @@ type Request = {
   priority: string | null;
   missing_info: string[] | null;
   responded_at: string | null;
+  website_project_id: string | null;
   clients: { business_name: string } | { business_name: string }[] | null;
+};
+
+type WebsiteProject = { id: string; client_id: string; stage: string };
+
+const STAGE_LABELS: Record<string, string> = {
+  discovery: "Discovery",
+  brief: "Brief ready",
+  tool: "Tool chosen",
+  build: "Building",
+  qa: "QA",
+  launched: "Launched",
 };
 
 type Task = {
@@ -142,7 +158,119 @@ function TaskRow({ task, projects }: { task: Task; projects: Project[] }) {
   );
 }
 
-function RequestCard({ request, tasks, projects }: { request: Request; tasks: Task[]; projects: Project[] }) {
+// AI Website Creation Guide, WB7 — the client-feedback-to-AI-task loop
+// (plan doc §15). Only rendered when the request's client has at least
+// one website project. Reuses the exact same diagnosis + fix-prompt
+// shape the troubleshooting composer (WB5) shows, since it's the same
+// generator underneath, just entered from Requests instead.
+function WebsiteTaskSection({
+  request,
+  websiteProjects,
+}: {
+  request: Request;
+  websiteProjects: WebsiteProject[];
+}) {
+  const [selectedProjectId, setSelectedProjectId] = useState(request.website_project_id ?? websiteProjects[0]?.id ?? "");
+  const [entry, setEntry] = useState<TroubleshootingEntry | null>(null);
+  const [linkedProjectId, setLinkedProjectId] = useState(request.website_project_id);
+  const [pending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  function generate() {
+    setError(null);
+    if (!selectedProjectId) {
+      setError("Choose a website project first.");
+      return;
+    }
+    startTransition(async () => {
+      const r = await turnRequestIntoWebsiteTask(request.id, selectedProjectId);
+      if ("error" in r) {
+        setError(r.error);
+        return;
+      }
+      setEntry(r.entry);
+      setLinkedProjectId(selectedProjectId);
+    });
+  }
+
+  return (
+    <div>
+      <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
+        <Globe className="size-3.5 shrink-0" /> Website build task
+      </p>
+
+      {!entry && linkedProjectId && (
+        <p className="text-xs text-muted-foreground">
+          Already turned into an AI coding task —{" "}
+          <Link href={`/studio/website-builder/${linkedProjectId}`} className="text-accent hover:underline">
+            view it in Website Builder
+          </Link>
+          .
+        </p>
+      )}
+
+      {!linkedProjectId && (
+        <div className="flex flex-wrap items-center gap-2">
+          {websiteProjects.length > 1 && (
+            <select
+              value={selectedProjectId}
+              onChange={(e) => setSelectedProjectId(e.target.value)}
+              disabled={pending}
+              className={selectClasses}
+            >
+              {websiteProjects.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {STAGE_LABELS[p.stage] ?? p.stage}
+                </option>
+              ))}
+            </select>
+          )}
+          <Button size="xs" variant="outline" disabled={pending} onClick={generate}>
+            {pending ? "Thinking…" : "Turn into an AI coding task"}
+          </Button>
+        </div>
+      )}
+      {error && <p className="mt-1.5 text-xs text-destructive">{error}</p>}
+
+      {entry && (
+        <div className="mt-2.5 space-y-2 rounded-lg border border-border bg-secondary/30 p-3">
+          <p className="text-xs">{entry.diagnosis}</p>
+          <pre className="max-h-40 overflow-y-auto rounded-lg border border-border bg-background p-2.5 text-xs whitespace-pre-wrap">{entry.fixPrompt}</pre>
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => {
+                navigator.clipboard.writeText(entry.fixPrompt);
+                setCopied(true);
+                setTimeout(() => setCopied(false), 1500);
+              }}
+              className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-accent"
+            >
+              {copied ? <Check className="size-3" /> : <Copy className="size-3" />}
+              {copied ? "Copied" : "Copy fix prompt"}
+            </button>
+            <Link href={`/studio/website-builder/${linkedProjectId}`} className="flex items-center gap-1 text-[11px] text-accent hover:underline">
+              View in Website Builder <ArrowRight className="size-3" />
+            </Link>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function RequestCard({
+  request,
+  tasks,
+  projects,
+  websiteProjects,
+}: {
+  request: Request;
+  tasks: Task[];
+  projects: Project[];
+  websiteProjects: WebsiteProject[];
+}) {
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState(request.draft_response ?? "");
   const [draftPending, startDraftSave] = useTransition();
@@ -232,6 +360,8 @@ function RequestCard({ request, tasks, projects }: { request: Request; tasks: Ta
               </div>
             )}
 
+            {websiteProjects.length > 0 && <WebsiteTaskSection request={request} websiteProjects={websiteProjects} />}
+
             {request.draft_response !== null && (
               <div>
                 <div className="mb-1.5 flex items-center justify-between">
@@ -277,7 +407,17 @@ function RequestCard({ request, tasks, projects }: { request: Request; tasks: Ta
   );
 }
 
-export function RequestsPanel({ requests, tasks, projects }: { requests: Request[]; tasks: Task[]; projects: Project[] }) {
+export function RequestsPanel({
+  requests,
+  tasks,
+  projects,
+  websiteProjects,
+}: {
+  requests: Request[];
+  tasks: Task[];
+  projects: Project[];
+  websiteProjects: WebsiteProject[];
+}) {
   const [filter, setFilter] = useState<"all" | "open" | "responded">("open");
 
   const tasksByRequest = useMemo(() => {
@@ -299,6 +439,16 @@ export function RequestsPanel({ requests, tasks, projects }: { requests: Request
     }
     return map;
   }, [projects]);
+
+  const websiteProjectsByClient = useMemo(() => {
+    const map = new Map<string, WebsiteProject[]>();
+    for (const p of websiteProjects) {
+      const list = map.get(p.client_id) ?? [];
+      list.push(p);
+      map.set(p.client_id, list);
+    }
+    return map;
+  }, [websiteProjects]);
 
   const visible = useMemo(() => {
     if (filter === "all") return requests;
@@ -345,6 +495,7 @@ export function RequestsPanel({ requests, tasks, projects }: { requests: Request
                   request={r}
                   tasks={tasksByRequest.get(r.id) ?? []}
                   projects={projectsByClient.get(r.client_id) ?? []}
+                  websiteProjects={websiteProjectsByClient.get(r.client_id) ?? []}
                 />
               ))}
             </div>

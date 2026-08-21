@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { createServerSupabaseClient } from "@/lib/supabase-server-auth";
+import { createServerSupabaseClient, getUserWithRetry } from "@/lib/supabase-server-auth";
 import { getOrgMembership } from "@/lib/org-membership";
 import { RequestsPanel } from "@/components/platform/requests-panel";
 
@@ -14,21 +14,26 @@ export default async function StudioRequestsPage() {
   const supabase = await createServerSupabaseClient();
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await getUserWithRetry(supabase);
   if (!user?.email) redirect("/platform/signup");
 
   const membership = await getOrgMembership(supabase, user.email);
   if (!membership) redirect("/platform/onboarding");
 
-  const [{ data: requests }, { data: projects }] = await Promise.all([
+  const [{ data: requests }, { data: projects }, { data: websiteProjects }] = await Promise.all([
     supabase
       .from("requests")
       .select(
-        "id, created_at, client_id, raw_text, status, category, complexity, suggested_approach, covered_by_maintenance, coverage_reasoning, draft_response, priority, missing_info, responded_at, clients!inner(business_name, org_id)"
+        "id, created_at, client_id, raw_text, status, category, complexity, suggested_approach, covered_by_maintenance, coverage_reasoning, draft_response, priority, missing_info, responded_at, website_project_id, clients!inner(business_name, org_id)"
       )
       .eq("clients.org_id", membership.orgId)
       .order("created_at", { ascending: false }),
     supabase.from("projects").select("id, client_id, name, status").eq("org_id", membership.orgId).eq("status", "active"),
+    // AI Website Creation Guide, WB7 — client_id + stage is all
+    // RequestsPanel needs to offer "turn this into an AI task" per
+    // request; turnRequestIntoWebsiteTask() itself re-verifies the
+    // client match and brief/tool readiness server-side.
+    supabase.from("website_projects").select("id, client_id, stage").eq("org_id", membership.orgId),
   ]);
 
   const requestIds = (requests ?? []).map((r) => r.id);
@@ -40,5 +45,5 @@ export default async function StudioRequestsPage() {
           .in("request_id", requestIds)
       : { data: [] };
 
-  return <RequestsPanel requests={requests ?? []} tasks={tasks ?? []} projects={projects ?? []} />;
+  return <RequestsPanel requests={requests ?? []} tasks={tasks ?? []} projects={projects ?? []} websiteProjects={websiteProjects ?? []} />;
 }
