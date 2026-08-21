@@ -4,8 +4,12 @@ import { ArrowLeft } from "lucide-react";
 import { createServerSupabaseClient } from "@/lib/supabase-server-auth";
 import { getOrgMembership } from "@/lib/org-membership";
 import { WebsiteBriefPanel } from "@/components/platform/website-brief-panel";
+import { ToolRecommendationPanel } from "@/components/platform/tool-recommendation-panel";
+import { BuildPhasePanel } from "@/components/platform/build-phase-panel";
 import { Eyebrow } from "@/components/eyebrow";
 import type { WebsiteBrief, WebsiteDiscovery } from "@/lib/website-brief";
+import type { BuildPhase } from "@/lib/website-build-phases";
+import type { ToolId, ToolQuizAnswers } from "@/lib/ai-coding-tools";
 
 export default async function WebsiteProjectDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -23,7 +27,9 @@ export default async function WebsiteProjectDetailPage({ params }: { params: Pro
   // the same org boundary independently of this .eq() getting it right.
   const { data: project } = await supabase
     .from("website_projects")
-    .select("id, stage, discovery, brief, brief_generated_at, client_id, clients(business_name)")
+    .select(
+      "id, stage, discovery, brief, brief_generated_at, client_id, tool_quiz_answers, recommended_tool, build_phases, current_phase_index, clients(business_name)"
+    )
     .eq("id", id)
     .eq("org_id", membership.orgId)
     .single();
@@ -48,6 +54,30 @@ export default async function WebsiteProjectDetailPage({ params }: { params: Pro
           discovery={project.discovery as WebsiteDiscovery | null}
         />
       </div>
+
+      {/* Progressive reveal, matching the brief's own pipeline (§18 —
+          always answer "what do I do next") — the tool quiz and build
+          phases only appear once there's a real brief to build from. */}
+      {project.brief && (
+        <div className="mt-8">
+          <ToolRecommendationPanel
+            projectId={project.id}
+            initialAnswers={project.tool_quiz_answers as ToolQuizAnswers | null}
+            initialRecommendedTool={project.recommended_tool as ToolId | null}
+          />
+        </div>
+      )}
+
+      {project.brief && project.recommended_tool && (
+        <div className="mt-8">
+          <BuildPhasePanel
+            projectId={project.id}
+            recommendedTool={project.recommended_tool as ToolId}
+            buildPhases={project.build_phases as BuildPhase[] | null}
+            currentPhaseIndex={project.current_phase_index}
+          />
+        </div>
+      )}
     </div>
   );
 }

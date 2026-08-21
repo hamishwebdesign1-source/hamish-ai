@@ -133,9 +133,6 @@ export function WebsiteBriefPanel({
         </CardContent>
       </Card>
 
-      <div className="rounded-xl border border-dashed border-border p-4 text-center text-sm text-muted-foreground">
-        Next: choosing an AI coding tool and getting step-by-step build instructions — coming soon.
-      </div>
     </div>
   );
 }
