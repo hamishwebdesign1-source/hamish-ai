@@ -24,6 +24,7 @@ import { WorkflowDiagram } from "@/components/platform-preview/workflow-diagram"
 import { ClientPortalPreview } from "@/components/platform-preview/client-portal-preview";
 import { OutreachPreview } from "@/components/platform-preview/outreach-preview";
 import { ReportInvoicePreview } from "@/components/platform-preview/report-invoice-preview";
+import { WhiteLabelPreview } from "@/components/platform-preview/white-label-preview";
 import {
   Accordion,
   AccordionItem,
@@ -240,6 +241,26 @@ export default function PlatformPage() {
               </div>
             </div>
           </Reveal>
+        </div>
+      </section>
+
+      <section className="border-t border-border/60 bg-secondary/40">
+        <div className="mx-auto max-w-6xl px-6 py-16 md:py-20">
+          <div className="grid gap-10 lg:grid-cols-[1fr_1.05fr] lg:items-center lg:gap-16">
+            <Reveal>
+              <Badge variant="secondary" className="mb-4">Your infrastructure</Badge>
+              <h2 className="max-w-md font-heading text-2xl font-semibold text-balance md:text-3xl">
+                Your agency. Your brand. Your infrastructure.
+              </h2>
+              <p className="mt-4 max-w-md text-muted-foreground">
+                Same prospecting engine, same AI analysis, same client portal — running under your own domain,
+                your own logo, your own accent colour. Nothing your clients see says HamishAI.
+              </p>
+            </Reveal>
+            <Reveal delay={100}>
+              <WhiteLabelPreview />
+            </Reveal>
+          </div>
         </div>
       </section>
 

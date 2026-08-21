@@ -15,13 +15,17 @@ export const pipelineStages: PipelineStage[] = [
   { id: "client", label: "Client", value: 2 },
 ];
 
-export type HeroMetric = { id: string; label: string; value: string };
+// Numeric + optional prefix rather than a pre-formatted string — the
+// metric strip counts these up on mount (real number, not a decorative
+// tween of arbitrary digits), and needs the actual value to animate
+// toward.
+export type HeroMetric = { id: string; label: string; numericValue: number; prefix?: string };
 
 export const heroMetrics: HeroMetric[] = [
-  { id: "pipeline", label: "Pipeline", value: "£12,480" },
-  { id: "prospects", label: "Prospects", value: "127" },
-  { id: "analysed", label: "AI analysed", value: "34" },
-  { id: "outreach", label: "Outreach ready", value: "18" },
+  { id: "pipeline", label: "Pipeline", numericValue: 12480, prefix: "£" },
+  { id: "prospects", label: "Prospects", numericValue: 127 },
+  { id: "analysed", label: "AI analysed", numericValue: 34 },
+  { id: "outreach", label: "Outreach ready", numericValue: 18 },
 ];
 
 export type ActivityEventKind = "discovery" | "analysis" | "outreach" | "report";

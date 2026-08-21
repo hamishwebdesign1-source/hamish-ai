@@ -67,13 +67,65 @@ function useAnimationStep() {
   return { step: reducedMotion ? STEP_COUNT - 1 : step, reducedMotion };
 }
 
-function MetricStrip({ outreachSent }: { outreachSent: boolean }) {
+// Counts up on mount, ease-out — real numbers, not a decorative tween
+// of arbitrary digits, so the metric strip reads as "there's an actual
+// system with actual figures behind this" rather than static text.
+// Reduced-motion users never have `value` written at all — the return
+// short-circuits to `target` directly at render time, no setState call
+// in that path (a real, correctly-fixed version of the same
+// setState-in-effect issue found in health-ring.tsx's own reduced-motion
+// handling — see hero-product-panel.tsx's useAnimationStep above for
+// the same pattern already applied there).
+//
+// Animates FROM the current displayed value, not always from 0,
+// whenever `target` itself changes — the outreach-ready metric bumps
+// from 18 to 19 partway through the cycle (see MetricStrip below). The
+// starting point is read from `value` directly in the effect body
+// (deliberately omitted from the dependency array — it's read once as
+// this run's starting snapshot, not something the effect should restart
+// over every frame it produces itself) rather than a ref, since writing
+// a ref during render is its own real lint error.
+function useCountUp(target: number, reducedMotion: boolean, durationMs = 1200) {
+  const [value, setValue] = useState(0);
+
+  useEffect(() => {
+    if (reducedMotion) return;
+    const startValue = value;
+    const delta = target - startValue;
+    if (delta === 0) return;
+    let raf: number;
+    const start = performance.now();
+    function tick(now: number) {
+      const progress = Math.min((now - start) / durationMs, 1);
+      const eased = 1 - (1 - progress) ** 3;
+      setValue(Math.round(startValue + delta * eased));
+      if (progress < 1) raf = requestAnimationFrame(tick);
+    }
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `value` is read only as this run's starting snapshot; including it would restart the animation on every frame it produces
+  }, [target, reducedMotion, durationMs]);
+
+  return reducedMotion ? target : value;
+}
+
+function MetricValue({ target, prefix, reducedMotion }: { target: number; prefix?: string; reducedMotion: boolean }) {
+  const value = useCountUp(target, reducedMotion);
+  return (
+    <>
+      {prefix}
+      {value.toLocaleString("en-GB")}
+    </>
+  );
+}
+
+function MetricStrip({ outreachSent, reducedMotion }: { outreachSent: boolean; reducedMotion: boolean }) {
   return (
     <div className="grid grid-cols-4 divide-x divide-white/10 border-b border-white/10">
       {heroMetrics.map((m) => (
         <div key={m.id} className="px-3 py-3 text-center">
           <p className="font-heading text-base font-semibold text-primary-foreground tabular-nums md:text-lg">
-            {m.id === "outreach" && outreachSent ? "19" : m.value}
+            <MetricValue target={m.id === "outreach" && outreachSent ? 19 : m.numericValue} prefix={m.prefix} reducedMotion={reducedMotion} />
           </p>
           <p className="mt-0.5 font-mono text-[9px] tracking-wide text-primary-foreground/50 uppercase">{m.label}</p>
         </div>
@@ -237,7 +289,7 @@ export function HeroProductPanel() {
           </span>
         </div>
 
-        <MetricStrip outreachSent={step >= 3} />
+        <MetricStrip outreachSent={step >= 3} reducedMotion={reducedMotion} />
         <AiAnalysisCard step={step} />
       </div>
 
