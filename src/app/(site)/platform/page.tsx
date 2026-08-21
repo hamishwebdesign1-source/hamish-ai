@@ -21,6 +21,9 @@ import { PageHero } from "@/components/page-hero";
 import { Reveal } from "@/components/reveal";
 import { HeroProductPanel } from "@/components/platform-preview/hero-product-panel";
 import { WorkflowDiagram } from "@/components/platform-preview/workflow-diagram";
+import { ClientPortalPreview } from "@/components/platform-preview/client-portal-preview";
+import { OutreachPreview } from "@/components/platform-preview/outreach-preview";
+import { ReportInvoicePreview } from "@/components/platform-preview/report-invoice-preview";
 import {
   Accordion,
   AccordionItem,
@@ -135,6 +138,27 @@ export default function PlatformPage() {
         </Reveal>
       </section>
 
+      <section className="border-t border-border/60">
+        <div className="mx-auto max-w-6xl px-6 py-16 md:py-20">
+          <div className="grid gap-10 lg:grid-cols-[1fr_1.05fr] lg:items-center lg:gap-16">
+            <Reveal>
+              <Badge variant="secondary" className="mb-4">From insight to outreach</Badge>
+              <h2 className="max-w-md font-heading text-2xl font-semibold text-balance md:text-3xl">
+                Turn insight into outreach.
+              </h2>
+              <p className="mt-4 max-w-md text-muted-foreground">
+                The analysis doesn&apos;t stop at a score. The same pass that finds what&apos;s weak on a
+                prospect&apos;s site writes the email, the call script and the LinkedIn message together —
+                grounded in the real thing you noticed, not a mail-merge with their name dropped in.
+              </p>
+            </Reveal>
+            <Reveal delay={100}>
+              <OutreachPreview />
+            </Reveal>
+          </div>
+        </div>
+      </section>
+
       <section className="border-t border-border/60 bg-secondary/40">
         <div className="mx-auto max-w-6xl px-6 py-16 md:py-20">
           <Reveal>
@@ -204,7 +228,6 @@ export default function PlatformPage() {
                   "Their own sign-in — no password, magic link",
                   "Only their own reports and requests, never another client's",
                   "Your logo and accent colour, not HamishAI's",
-                  "Where you deliver the work you're actually selling",
                 ].map((f) => (
                   <li key={f} className="flex gap-2">
                     <Check className="mt-0.5 size-3.5 shrink-0 text-accent" />
@@ -212,6 +235,9 @@ export default function PlatformPage() {
                   </li>
                 ))}
               </ul>
+              <div className="mt-5">
+                <ClientPortalPreview />
+              </div>
             </div>
           </Reveal>
         </div>
@@ -220,7 +246,8 @@ export default function PlatformPage() {
       <section className="border-t border-border/60">
         <div className="mx-auto max-w-6xl px-6 py-16 md:py-20">
         <Reveal>
-          <div className="flex items-start gap-4 rounded-2xl border border-accent/40 bg-accent/5 p-6 md:p-8">
+          <div className="rounded-2xl border border-accent/40 bg-accent/5 p-6 md:p-8">
+          <div className="flex items-start gap-4">
             <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-accent/10 text-accent">
               <ChartColumn className="size-5" />
             </span>
@@ -229,12 +256,18 @@ export default function PlatformPage() {
               <p className="mt-2 max-w-2xl text-muted-foreground">
                 We&apos;re not describing this from the outside. HamishAI&apos;s own leads, outreach and client
                 reporting run on this exact system — the same engine you&apos;d be running for your own agency.
+                Every report and every invoice comes from the same job data, generated together, not typed up
+                separately.
               </p>
               <Button variant="link" className="mt-3 px-0" render={<Link href="/analytics" />}>
                 See AI Business Analytics
                 <ArrowRight className="size-4" />
               </Button>
             </div>
+          </div>
+          <div className="mt-6">
+            <ReportInvoicePreview />
+          </div>
           </div>
         </Reveal>
         </div>
@@ -339,7 +372,7 @@ export default function PlatformPage() {
       <section className="border-t border-border/60 bg-primary text-primary-foreground">
         <div className="mx-auto flex max-w-6xl flex-col items-start gap-6 px-6 py-16 md:flex-row md:items-center md:justify-between md:py-20">
           <div>
-            <h2 className="font-heading text-2xl font-semibold md:text-3xl">Ready to see it on your own niche?</h2>
+            <h2 className="font-heading text-2xl font-semibold md:text-3xl">Build the agency. HamishAI runs the infrastructure.</h2>
             <p className="mt-2 max-w-lg text-primary-foreground/70">
               Early access is a short call, not a form — we&apos;ll tell you honestly whether this is ready
               for what you want to sell.
