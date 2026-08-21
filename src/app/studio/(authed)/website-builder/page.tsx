@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Globe, Plus, ArrowRight, BookOpen } from "lucide-react";
-import { createServerSupabaseClient } from "@/lib/supabase-server-auth";
+import { Globe, Plus, ArrowRight, BookOpen, Sparkles } from "lucide-react";
+import { createServerSupabaseClient, getUserWithRetry } from "@/lib/supabase-server-auth";
 import { getOrgMembership } from "@/lib/org-membership";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -25,7 +25,7 @@ export default async function WebsiteBuilderPage() {
   const supabase = await createServerSupabaseClient();
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await getUserWithRetry(supabase);
   if (!user?.email) redirect("/platform/signup");
 
   const membership = await getOrgMembership(supabase, user.email);
@@ -112,6 +112,21 @@ export default async function WebsiteBuilderPage() {
             </Link>
           ))}
         </div>
+      </div>
+
+      <div className="mt-8 border-t border-border pt-6">
+        <p className="text-xs font-semibold text-muted-foreground">Prompt library</p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Ready-to-use prompts for common refinement asks — tightening copy, fixing spacing, improving SEO, running a QA pass.
+        </p>
+        <Link href="/studio/website-builder/prompts" className="mt-3 block">
+          <Card className="transition-colors hover:border-accent/40">
+            <CardContent className="flex items-center gap-2 py-3">
+              <Sparkles className="size-3.5 shrink-0 text-accent" />
+              <p className="text-xs font-medium">Browse the prompt library</p>
+            </CardContent>
+          </Card>
+        </Link>
       </div>
     </div>
   );

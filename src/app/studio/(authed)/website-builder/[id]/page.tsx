@@ -1,7 +1,7 @@
 import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
-import { createServerSupabaseClient } from "@/lib/supabase-server-auth";
+import { ArrowLeft, Sparkles } from "lucide-react";
+import { createServerSupabaseClient, getUserWithRetry } from "@/lib/supabase-server-auth";
 import { getOrgMembership } from "@/lib/org-membership";
 import { WebsiteBriefPanel } from "@/components/platform/website-brief-panel";
 import { ToolRecommendationPanel } from "@/components/platform/tool-recommendation-panel";
@@ -21,7 +21,7 @@ export default async function WebsiteProjectDetailPage({ params }: { params: Pro
   const supabase = await createServerSupabaseClient();
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await getUserWithRetry(supabase);
   if (!user?.email) redirect("/platform/signup");
 
   const membership = await getOrgMembership(supabase, user.email);
@@ -89,8 +89,14 @@ export default async function WebsiteProjectDetailPage({ params }: { params: Pro
       )}
 
       {project.brief && project.recommended_tool && (
-        <div className="mt-8">
+        <div className="mt-8 space-y-3">
           <TroubleshootingComposer projectId={project.id} initialLog={(project.troubleshooting_log as TroubleshootingEntry[] | null) ?? []} />
+          <Link
+            href={`/studio/website-builder/prompts?project=${project.id}`}
+            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-accent"
+          >
+            <Sparkles className="size-3.5" /> Browse the prompt library for this project
+          </Link>
         </div>
       )}
 
