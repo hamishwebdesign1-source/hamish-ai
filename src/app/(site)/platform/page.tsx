@@ -19,6 +19,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { PageHero } from "@/components/page-hero";
 import { Reveal } from "@/components/reveal";
+import { HeroProductPanel } from "@/components/platform-preview/hero-product-panel";
+import { WorkflowDiagram } from "@/components/platform-preview/workflow-diagram";
 import {
   Accordion,
   AccordionItem,
@@ -104,6 +106,7 @@ export default function PlatformPage() {
         eyebrow="HamishAI Agency Platform"
         title="Build an AI agency without building the technology."
         description="The platform behind HamishAI, now yours to run your own agency on. Prospecting, AI analysis, outreach and client delivery — in one workspace, under your own brand."
+        visual={<HeroProductPanel />}
       >
         <div className="mt-8 flex flex-wrap gap-3">
           <Button size="lg" render={<Link href="/book" />}>
@@ -115,6 +118,8 @@ export default function PlatformPage() {
           </Button>
         </div>
       </PageHero>
+
+      <WorkflowDiagram />
 
       <section className="mx-auto max-w-6xl px-6 py-16 md:py-20">
         <Reveal>
