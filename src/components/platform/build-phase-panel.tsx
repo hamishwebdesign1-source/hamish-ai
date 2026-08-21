@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Copy, Check, RotateCcw, CheckCircle2, Circle, Lock, Wrench } from "lucide-react";
+import Link from "next/link";
+import { Copy, Check, RotateCcw, CheckCircle2, Circle, Lock, Wrench, BookOpen } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
@@ -152,9 +153,19 @@ export function BuildPhasePanel({
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-3">
-        <p className="text-xs text-muted-foreground">
-          Building with <span className="font-medium text-foreground">{tool?.name ?? "your chosen tool"}</span>
-        </p>
+        <div className="flex items-center gap-3">
+          <p className="text-xs text-muted-foreground">
+            Building with <span className="font-medium text-foreground">{tool?.name ?? "your chosen tool"}</span>
+          </p>
+          {recommendedTool && (
+            <Link
+              href={`/studio/website-builder/guides/${recommendedTool}`}
+              className="flex items-center gap-1 text-xs text-muted-foreground hover:text-accent"
+            >
+              <BookOpen className="size-3.5" /> Guide
+            </Link>
+          )}
+        </div>
         <Button size="xs" variant="ghost" disabled={generating} onClick={() => generate()}>
           <RotateCcw className="size-3.5" /> {generating ? "Regenerating…" : "Regenerate all phases"}
         </Button>

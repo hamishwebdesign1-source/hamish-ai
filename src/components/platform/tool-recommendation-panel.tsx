@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Sparkles, CheckCircle2 } from "lucide-react";
+import Link from "next/link";
+import { Sparkles, CheckCircle2, BookOpen } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { chooseWebsiteTool, confirmWebsiteTool } from "@/app/studio/(authed)/website-builder/actions";
@@ -140,15 +141,23 @@ export function ToolRecommendationPanel({
                   </div>
                   <p className="text-xs text-muted-foreground">{tool.description}</p>
                   {isRecommended && recommendation.reason && <p className="text-xs text-accent">{recommendation.reason}</p>}
-                  <Button size="xs" variant={isChosen ? "secondary" : "outline"} disabled={confirming} onClick={() => confirmTool(tool.id)}>
-                    {isChosen ? (
-                      <>
-                        <CheckCircle2 className="size-3.5" /> Using this
-                      </>
-                    ) : (
-                      `Use ${tool.name}`
-                    )}
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    <Button size="xs" variant={isChosen ? "secondary" : "outline"} disabled={confirming} onClick={() => confirmTool(tool.id)}>
+                      {isChosen ? (
+                        <>
+                          <CheckCircle2 className="size-3.5" /> Using this
+                        </>
+                      ) : (
+                        `Use ${tool.name}`
+                      )}
+                    </Button>
+                    <Link
+                      href={`/studio/website-builder/guides/${tool.id}`}
+                      className="flex items-center gap-1 text-xs text-muted-foreground hover:text-accent"
+                    >
+                      <BookOpen className="size-3.5" /> Guide
+                    </Link>
+                  </div>
                 </CardContent>
               </Card>
             );

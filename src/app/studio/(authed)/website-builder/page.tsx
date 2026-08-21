@@ -1,11 +1,12 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Globe, Plus, ArrowRight } from "lucide-react";
+import { Globe, Plus, ArrowRight, BookOpen } from "lucide-react";
 import { createServerSupabaseClient } from "@/lib/supabase-server-auth";
 import { getOrgMembership } from "@/lib/org-membership";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Eyebrow } from "@/components/eyebrow";
+import { AI_CODING_TOOLS } from "@/lib/ai-coding-tools";
 
 const STAGE_LABELS: Record<string, string> = {
   discovery: "Discovery",
@@ -93,6 +94,25 @@ export default async function WebsiteBuilderPage() {
           </p>
         </div>
       )}
+
+      <div className="mt-10 border-t border-border pt-6">
+        <p className="text-xs font-semibold text-muted-foreground">AI coding tool guides</p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Not sure what working with these tools actually looks like day to day? Read a guide any time — you don&apos;t need a project started first.
+        </p>
+        <div className="mt-3 grid gap-2 sm:grid-cols-3">
+          {Object.values(AI_CODING_TOOLS).map((tool) => (
+            <Link key={tool.id} href={`/studio/website-builder/guides/${tool.id}`}>
+              <Card className="transition-colors hover:border-accent/40">
+                <CardContent className="flex items-center gap-2 py-3">
+                  <BookOpen className="size-3.5 shrink-0 text-accent" />
+                  <p className="text-xs font-medium">{tool.name}</p>
+                </CardContent>
+              </Card>
+            </Link>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
