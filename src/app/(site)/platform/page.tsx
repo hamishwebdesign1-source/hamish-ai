@@ -1,30 +1,15 @@
 import Link from "next/link";
 import type { Metadata } from "next";
-import {
-  Search,
-  ClipboardList,
-  Send,
-  Users,
-  FileText,
-  Check,
-  ArrowRight,
-  ChartColumn,
-  LayoutDashboard,
-  Rocket,
-  Zap,
-  Building2,
-} from "lucide-react";
+import { Check, ArrowRight, LayoutDashboard, Users, Rocket, Zap, Building2 } from "lucide-react";
 import type { PlatformPlanSlug } from "@/lib/platform-plans";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { PageHero } from "@/components/page-hero";
 import { Reveal } from "@/components/reveal";
+import { Eyebrow } from "@/components/eyebrow";
 import { HeroProductPanel } from "@/components/platform-preview/hero-product-panel";
-import { WorkflowDiagram } from "@/components/platform-preview/workflow-diagram";
-import { ClientPortalPreview } from "@/components/platform-preview/client-portal-preview";
-import { OutreachPreview } from "@/components/platform-preview/outreach-preview";
-import { ReportInvoicePreview } from "@/components/platform-preview/report-invoice-preview";
-import { WhiteLabelPreview } from "@/components/platform-preview/white-label-preview";
+import { JourneyExplorer } from "@/components/platform-preview/journey-explorer";
+import { AgencyTypeSelector } from "@/components/platform-preview/agency-type-selector";
 import {
   Accordion,
   AccordionItem,
@@ -39,33 +24,14 @@ export const metadata: Metadata = {
     "The platform behind HamishAI, now yours to run your own agency on. Prospecting, AI analysis, outreach and client delivery, in one workspace.",
 };
 
-const howItWorks = [
-  {
-    icon: Search,
-    title: "Find prospects",
-    description: "Point the discovery engine at your own niche and geography — the same engine that finds HamishAI's own clients.",
-  },
-  {
-    icon: ClipboardList,
-    title: "Analyse them",
-    description: "One cached AI research pass per prospect: what's weak, what's missing, why they're worth pursuing.",
-  },
-  {
-    icon: Send,
-    title: "Reach out",
-    description: "A tailored email, call script and LinkedIn message generated together, ready to send under your own name.",
-  },
-  {
-    icon: Users,
-    title: "Deliver as clients",
-    description: "Manage the relationship, do the work you're actually selling, in a portal branded to your agency.",
-  },
-  {
-    icon: FileText,
-    title: "Report and invoice",
-    description: "A client-facing report and a Stripe invoice, generated from the same data — not a second tool.",
-  },
-];
+// Second pass at this page (see git history for the first) — compresses
+// what had grown into eight-plus sections around one central story:
+// account -> agency -> prospect -> sale -> client -> delivery -> results
+// -> invoice -> payment. JourneyExplorer now carries most of what "How
+// it works", "Turn insight into outreach", the client-portal preview,
+// and the report/invoice preview used to do as separate sections; this
+// file stays deliberately short so the page doesn't grow back into the
+// length problem that prompted the rewrite.
 
 // Starter/Professional/Agency, in that order — matches
 // platformPlans.length exactly, but kept as its own local map rather than
@@ -78,12 +44,6 @@ const planIcons: Record<PlatformPlanSlug, typeof Rocket> = {
   professional: Zap,
   agency: Building2,
 };
-
-const agencyTypes = [
-  { name: "AI Analytics", description: "Monthly performance reports, sold as a retainer." },
-  { name: "AI Automation", description: "Booking, receptionist and workflow builds, sold as projects." },
-  { name: "AI Lead Generation", description: "Qualified local prospects, sold directly to clients." },
-];
 
 const platformFaqs = [
   {
@@ -109,7 +69,7 @@ export default function PlatformPage() {
       <PageHero
         eyebrow="HamishAI Agency Platform"
         title="Build an AI agency without building the technology."
-        description="The platform behind HamishAI, now yours to run your own agency on. Prospecting, AI analysis, outreach and client delivery — in one workspace, under your own brand."
+        description="From first prospect to paid client — prospecting, AI research, outreach, delivery, reporting and billing, in one connected system, under your own brand."
         visual={<HeroProductPanel />}
       >
         <div className="mt-8 flex flex-wrap gap-3">
@@ -123,75 +83,33 @@ export default function PlatformPage() {
         </div>
       </PageHero>
 
-      <WorkflowDiagram />
-
-      <section className="mx-auto max-w-6xl px-6 py-16 md:py-20">
-        <Reveal>
-          <Badge variant="secondary" className="mb-4">The actual problem</Badge>
-          <h2 className="max-w-2xl font-heading text-2xl font-semibold text-balance md:text-3xl">
-            Finding clients and saying something credible about each one is the hard part — not the AI.
-          </h2>
-          <p className="mt-4 max-w-xl text-muted-foreground">
-            Most people trying to sell AI services today stitch together a scraper, a ChatGPT tab, a
-            spreadsheet CRM and an invoice template by hand. That stitching is the actual pain, and it&apos;s
-            what this replaces — not the AI itself.
-          </p>
-        </Reveal>
-      </section>
-
-      <section className="border-t border-border/60">
-        <div className="mx-auto max-w-6xl px-6 py-16 md:py-20">
-          <div className="grid gap-10 lg:grid-cols-[1fr_1.05fr] lg:items-center lg:gap-16">
-            <Reveal>
-              <Badge variant="secondary" className="mb-4">From insight to outreach</Badge>
-              <h2 className="max-w-md font-heading text-2xl font-semibold text-balance md:text-3xl">
-                Turn insight into outreach.
-              </h2>
-              <p className="mt-4 max-w-md text-muted-foreground">
-                The analysis doesn&apos;t stop at a score. The same pass that finds what&apos;s weak on a
-                prospect&apos;s site writes the email, the call script and the LinkedIn message together —
-                grounded in the real thing you noticed, not a mail-merge with their name dropped in.
-              </p>
-            </Reveal>
-            <Reveal delay={100}>
-              <OutreachPreview />
-            </Reveal>
-          </div>
-        </div>
-      </section>
-
       <section className="border-t border-border/60 bg-secondary/40">
         <div className="mx-auto max-w-6xl px-6 py-16 md:py-20">
           <Reveal>
-            <h2 className="font-heading text-2xl font-semibold md:text-3xl">How it works</h2>
+            <Eyebrow className="mb-4">The complete journey</Eyebrow>
+            <h2 className="max-w-2xl font-heading text-2xl font-semibold text-balance md:text-3xl">
+              Stop stitching your agency together.
+            </h2>
+            <p className="mt-3 max-w-xl text-muted-foreground">
+              Prospecting, AI research, outreach, client delivery, reporting and billing — one connected system.
+              Click through each stage below.
+            </p>
           </Reveal>
-          <div className="mt-10 grid gap-6 md:grid-cols-5">
-            {howItWorks.map((step, i) => (
-              <Reveal key={step.title} delay={i * 80}>
-                <div className="flex h-full flex-col rounded-2xl border border-border bg-background p-5">
-                  <span className="flex size-10 items-center justify-center rounded-xl bg-accent/10 text-accent">
-                    <step.icon className="size-4.5" />
-                  </span>
-                  <p className="mt-4 font-heading text-sm font-semibold">{step.title}</p>
-                  <p className="mt-2 text-xs text-muted-foreground">{step.description}</p>
-                </div>
-              </Reveal>
-            ))}
-          </div>
+          <Reveal delay={100} className="mt-10">
+            <JourneyExplorer />
+          </Reveal>
         </div>
       </section>
 
       <section className="mx-auto max-w-6xl px-6 py-16 md:py-20">
         <Reveal>
-          <Badge variant="secondary" className="mb-4">Two workspaces, both yours</Badge>
+          <Eyebrow className="mb-4">Two workspaces</Eyebrow>
           <h2 className="max-w-2xl font-heading text-2xl font-semibold text-balance md:text-3xl">
-            You get your own ops workspace. Your clients get their own portal.
+            Your workspace. Their portal.
           </h2>
-          <p className="mt-4 max-w-xl text-muted-foreground">
-            This isn&apos;t one shared dashboard with your name on it. It&apos;s the same two-tier structure
-            hamishai.org itself runs on — a private workspace where you run the agency, and a separate, branded
-            portal each of your own clients signs into to see their own results. They never see HamishAI, and
-            they never see each other.
+          <p className="mt-3 max-w-xl text-muted-foreground">
+            You run the agency from one private workspace. Each client you sign gets a separate, branded portal —
+            your logo, your colour. They never see HamishAI, and never see each other.
           </p>
         </Reveal>
         <div className="mt-8 grid gap-6 md:grid-cols-2">
@@ -201,14 +119,8 @@ export default function PlatformPage() {
                 <LayoutDashboard className="size-5" />
               </span>
               <p className="mt-4 font-heading text-base font-semibold">Your agency workspace</p>
-              <p className="mt-1 text-sm text-muted-foreground">Where you run the business — private to you and your team.</p>
-              <ul className="mt-4 space-y-2 text-sm">
-                {[
-                  "Every prospect, researched and scored",
-                  "Every client you've signed, in one pipeline",
-                  "Outreach drafts, reports and invoices",
-                  "Signed in under your own agency, not HamishAI's",
-                ].map((f) => (
+              <ul className="mt-3 space-y-2 text-sm">
+                {["Every prospect and client in one pipeline", "Signed in under your own agency, not HamishAI's"].map((f) => (
                   <li key={f} className="flex gap-2">
                     <Check className="mt-0.5 size-3.5 shrink-0 text-accent" />
                     <span className="text-muted-foreground">{f}</span>
@@ -223,106 +135,40 @@ export default function PlatformPage() {
                 <Users className="size-5" />
               </span>
               <p className="mt-4 font-heading text-base font-semibold">Your clients&apos; portal</p>
-              <p className="mt-1 text-sm text-muted-foreground">A separate, branded login for each business you sign — not a shared inbox.</p>
-              <ul className="mt-4 space-y-2 text-sm">
-                {[
-                  "Their own sign-in — no password, magic link",
-                  "Only their own reports and requests, never another client's",
-                  "Your logo and accent colour, not HamishAI's",
-                ].map((f) => (
+              <ul className="mt-3 space-y-2 text-sm">
+                {["No password — a magic link signs them in", "Your logo and accent colour, not HamishAI's"].map((f) => (
                   <li key={f} className="flex gap-2">
                     <Check className="mt-0.5 size-3.5 shrink-0 text-accent" />
                     <span className="text-muted-foreground">{f}</span>
                   </li>
                 ))}
               </ul>
-              <div className="mt-5">
-                <ClientPortalPreview />
-              </div>
             </div>
           </Reveal>
-        </div>
-      </section>
-
-      <section className="border-t border-border/60 bg-secondary/40">
-        <div className="mx-auto max-w-6xl px-6 py-16 md:py-20">
-          <div className="grid gap-10 lg:grid-cols-[1fr_1.05fr] lg:items-center lg:gap-16">
-            <Reveal>
-              <Badge variant="secondary" className="mb-4">Your infrastructure</Badge>
-              <h2 className="max-w-md font-heading text-2xl font-semibold text-balance md:text-3xl">
-                Your agency. Your brand. Your infrastructure.
-              </h2>
-              <p className="mt-4 max-w-md text-muted-foreground">
-                Same prospecting engine, same AI analysis, same client portal — running under your own domain,
-                your own logo, your own accent colour. Nothing your clients see says HamishAI.
-              </p>
-            </Reveal>
-            <Reveal delay={100}>
-              <WhiteLabelPreview />
-            </Reveal>
-          </div>
-        </div>
-      </section>
-
-      <section className="border-t border-border/60">
-        <div className="mx-auto max-w-6xl px-6 py-16 md:py-20">
-        <Reveal>
-          <div className="rounded-2xl border border-accent/40 bg-accent/5 p-6 md:p-8">
-          <div className="flex items-start gap-4">
-            <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-accent/10 text-accent">
-              <ChartColumn className="size-5" />
-            </span>
-            <div>
-              <p className="font-heading text-lg font-semibold">Not a demo — proof.</p>
-              <p className="mt-2 max-w-2xl text-muted-foreground">
-                We&apos;re not describing this from the outside. HamishAI&apos;s own leads, outreach and client
-                reporting run on this exact system — the same engine you&apos;d be running for your own agency.
-                Every report and every invoice comes from the same job data, generated together, not typed up
-                separately.
-              </p>
-              <Button variant="link" className="mt-3 px-0" render={<Link href="/analytics" />}>
-                See AI Business Analytics
-                <ArrowRight className="size-4" />
-              </Button>
-            </div>
-          </div>
-          <div className="mt-6">
-            <ReportInvoicePreview />
-          </div>
-          </div>
-        </Reveal>
         </div>
       </section>
 
       <section className="border-t border-border/60 bg-secondary/40">
         <div className="mx-auto max-w-6xl px-6 py-16 md:py-20">
           <Reveal>
-            <h2 className="font-heading text-2xl font-semibold md:text-3xl">Choose what your agency sells</h2>
-            <p className="mt-2 max-w-lg text-muted-foreground">
-              Fewer agency types, done properly — each one changes how prospecting and reporting behave, not
-              just the label on your homepage.
+            <Eyebrow className="mb-4">Choose what you sell</Eyebrow>
+            <h2 className="max-w-2xl font-heading text-2xl font-semibold text-balance md:text-3xl">
+              Three ways to run the business.
+            </h2>
+            <p className="mt-3 max-w-xl text-muted-foreground">
+              Pick a model — it changes what prospecting, delivery and reporting look like, not just a label.
             </p>
           </Reveal>
-          <div className="mt-8 grid gap-4 sm:grid-cols-3">
-            {agencyTypes.map((type, i) => (
-              <Reveal key={type.name} delay={i * 80}>
-                <div className="h-full rounded-2xl border border-border bg-background p-5">
-                  <p className="font-heading text-sm font-semibold">{type.name}</p>
-                  <p className="mt-2 text-xs text-muted-foreground">{type.description}</p>
-                </div>
-              </Reveal>
-            ))}
-          </div>
+          <Reveal delay={100} className="mt-8">
+            <AgencyTypeSelector />
+          </Reveal>
         </div>
       </section>
 
       <section className="mx-auto max-w-6xl px-6 py-16 md:py-20">
         <Reveal>
           <h2 className="font-heading text-2xl font-semibold md:text-3xl">Pricing</h2>
-          <p className="mt-2 max-w-lg text-muted-foreground">
-            One plan for every part of the loop — prospecting, analysis, outreach and delivery — not a
-            feature you unlock later.
-          </p>
+          <p className="mt-2 max-w-lg text-muted-foreground">One plan for every part of the loop. Understand the difference in five seconds.</p>
         </Reveal>
         <div className="mt-10 grid gap-6 md:grid-cols-3">
           {platformPlans.map((plan, i) => {
