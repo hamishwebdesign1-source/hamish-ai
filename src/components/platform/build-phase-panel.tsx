@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Copy, Check, RotateCcw, CheckCircle2, Circle, Lock, Loader2, Wrench, BookOpen } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
@@ -59,6 +60,7 @@ export function BuildPhasePanel({
   buildPhases: BuildPhase[] | null;
   currentPhaseIndex: number;
 }) {
+  const router = useRouter();
   const [phases, setPhases] = useState<BuildPhase[]>(buildPhases ?? []);
   const [generating, startGenerateTransition] = useTransition();
   const [checklistPending, startChecklistTransition] = useTransition();
@@ -84,6 +86,11 @@ export function BuildPhasePanel({
           setError(startResult.error);
           return;
         }
+        // Resets current_phase_index and stage server-side (a fresh
+        // start or explicit regenerate) — refresh so sibling components
+        // reading those as their own props (ProjectStageTracker) see it
+        // too, same reasoning as advance()'s own refresh below.
+        router.refresh();
       }
 
       for (let i = fromIndex; i < BUILD_PHASE_ORDER.length; i++) {
@@ -94,14 +101,37 @@ export function BuildPhasePanel({
         }
         setPhases((prev) => [...prev, r.phase]);
       }
+      router.refresh();
     });
+  }
+
+  // Flips one checklist item in local state — used both as the
+  // optimistic update on click and, applied a second time, as the
+  // rollback on failure (flipping the same boolean twice is the
+  // identity operation, so one function does both).
+  //
+  // Real bug this fixes: `phases` is local state seeded once from the
+  // buildPhases prop, so a prop refresh after toggleChecklistItem's own
+  // revalidatePath never reaches it — React's useState only reads its
+  // initial-value argument on first mount, not on every re-render. The
+  // server-side toggle was succeeding correctly every time (confirmed
+  // directly against the database); the checkbox just never visually
+  // updated because nothing here was ever telling this component about
+  // it. Found live-testing WB9 by comparing what the UI showed against
+  // what had actually been saved.
+  function flipLocalChecklistItem(phaseId: string, itemIndex: number) {
+    setPhases((prev) => prev.map((p) => (p.id === phaseId ? { ...p, checklist: p.checklist.map((c, i) => (i === itemIndex ? { ...c, done: !c.done } : c)) } : p)));
   }
 
   function toggle(phaseId: string, itemIndex: number) {
     setError(null);
+    flipLocalChecklistItem(phaseId, itemIndex);
     startChecklistTransition(async () => {
       const r = await toggleChecklistItem(projectId, phaseId, itemIndex);
-      if ("error" in r) setError(r.error);
+      if ("error" in r) {
+        setError(r.error);
+        flipLocalChecklistItem(phaseId, itemIndex); // roll back the optimistic flip
+      }
     });
   }
 
@@ -109,7 +139,16 @@ export function BuildPhasePanel({
     setError(null);
     startAdvanceTransition(async () => {
       const r = await advanceBuildPhase(projectId);
-      if ("error" in r) setError(r.error);
+      if ("error" in r) {
+        setError(r.error);
+        return;
+      }
+      // currentPhaseIndex is read straight from the prop (never
+      // shadowed into local state), so an explicit refresh is what
+      // actually gets the newly-advanced index down to this
+      // already-mounted component — same reason this component can't
+      // rely on an assumed automatic prop refresh for `phases` either.
+      router.refresh();
     });
   }
 
