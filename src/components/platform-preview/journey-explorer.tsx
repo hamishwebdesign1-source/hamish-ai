@@ -1,33 +1,47 @@
 "use client";
 
 import { useEffect, useState, useSyncExternalStore } from "react";
-import { Building2, Palette, CheckCircle2, Circle, Receipt, Lightbulb, ArrowRight } from "lucide-react";
+import { Building2, Palette, CheckCircle2, Circle, Receipt, Lightbulb, ArrowRight, Sparkles } from "lucide-react";
 import { HealthRing } from "@/components/analytics/health-ring";
-import { OutreachPreview } from "@/components/platform-preview/outreach-preview";
+import { Button } from "@/components/ui/button";
 
-// /platform, second pass — replaces WorkflowDiagram (a static list of
-// seven cards) plus most of what "How it works", "Turn insight into
-// outreach", the client-portal preview, and the report/invoice preview
-// used to do as separate sections. One interactive component now tells
-// the whole account → paid-client story, click-driven with a gentle
-// autoplay for a passive first-time visitor.
+// /platform, third pass — six stages now (was seven): BUILD, FIND, WIN,
+// DELIVER, PROVE, GROW. FIND absorbs the old "Sell" stage's AI-analysis
+// card (discovery and scoring happen together in the real product —
+// discoverLeads() researches every prospect it finds, confirmed against
+// prospects/actions.ts — so showing them as one stage is accurate, not
+// just tidier). WIN is now the fuller sales-pipeline stage the second
+// pass under-explained, ending on the actual "prospect becomes a
+// client" moment. GROW is new — the commercial loop doesn't stop at
+// "invoice."
 //
-// Every claim here is checked against the real Studio codebase, not
-// invented: agencyName/agencyType/services/accentColor are the actual
-// fields captured at onboarding (platform-onboarding.ts's
-// CreateAgencyInput); niche/geography map to updateProspectingConfig's
-// real categories/areas; convertProspectToClient() really is one action
-// that creates the clients row AND grants portal access
-// (client_members insert) in the same call — "one click" for stage 04
-// is accurate, not a marketing simplification of a multi-step process.
+// Every claim here is checked against the real Studio codebase:
+// - BUILD's fields (agency name, agency type, services, branding) are
+//   the real CreateAgencyInput fields (platform-onboarding.ts).
+// - Pipeline labels (Contacted/Replied/Qualified/Client) are the real
+//   prospects.status values this app uses (prospecting-panel.tsx's own
+//   status filter list) — "Analysed" and "Proposal" aren't real status
+//   values, so they're shown as plain narrative steps in the diagram
+//   text, never claimed as a status a prospect actually holds in the
+//   database.
+// - "One action converts them, portal access created in the same step"
+//   matches convertProspectToClient()'s real behaviour (inserts the
+//   clients row AND grants client_members portal access in one call).
+// - Client health (GROW stage) is real — computeClientHealth()
+//   (client-health.ts) is a genuine, already-shipped calculation from
+//   real data (uptime, on-time payment, task completion, request
+//   responsiveness), not invented for this page. The "next opportunity"
+//   / expansion note is deliberately NOT presented as an automated
+//   recommendation engine — no such feature exists — it's framed as
+//   something the agency owner reads off the same AI insights already
+//   real elsewhere on this page, not a system-generated upsell number.
 const stages = [
-  { id: "setup", number: "01", label: "Setup" },
-  { id: "discover", number: "02", label: "Discover" },
-  { id: "sell", number: "03", label: "Sell" },
-  { id: "win", number: "04", label: "Win" },
-  { id: "deliver", number: "05", label: "Deliver" },
-  { id: "report", number: "06", label: "Report" },
-  { id: "paid", number: "07", label: "Get paid" },
+  { id: "build", number: "01", label: "Build" },
+  { id: "find", number: "02", label: "Find" },
+  { id: "win", number: "03", label: "Win" },
+  { id: "deliver", number: "04", label: "Deliver" },
+  { id: "prove", number: "05", label: "Prove" },
+  { id: "grow", number: "06", label: "Grow" },
 ] as const;
 
 type StageId = (typeof stages)[number]["id"];
@@ -55,13 +69,32 @@ function Field({ label, value }: { label: string; value: string }) {
   );
 }
 
-function SetupStage() {
+function FlowChips({ steps, endLabel }: { steps: string[]; endLabel?: string }) {
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      {steps.map((s, i) => {
+        const isLast = i === steps.length - 1;
+        return (
+          <div key={s} className="flex items-center gap-2">
+            <span
+              className={`rounded-full px-3 py-1.5 text-xs font-medium ${
+                isLast && endLabel ? "bg-accent text-accent-foreground" : "border border-border bg-background text-muted-foreground"
+              }`}
+            >
+              {s}
+            </span>
+            {!isLast && <ArrowRight className="size-3.5 shrink-0 text-border" />}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function BuildStage() {
   return (
     <div>
-      <p className="text-sm text-muted-foreground">
-        Sign up, then set your agency name, type, and what you sell — this is the real onboarding form, not a
-        simplification.
-      </p>
+      <p className="text-sm text-muted-foreground">Sign up, then set your agency name, type and what you sell — the real onboarding form, not a simplification.</p>
       <div className="mt-4 rounded-xl border border-border bg-background p-4">
         <Field label="Agency name" value="Bright Path Digital" />
         <Field label="Agency type" value="AI Lead Generation" />
@@ -75,77 +108,53 @@ function SetupStage() {
         </div>
       </div>
       <p className="mt-3 flex items-center gap-1.5 text-xs font-medium text-accent">
-        <CheckCircle2 className="size-3.5" /> Your agency workspace is created.
+        <CheckCircle2 className="size-3.5" /> Your agency workspace is ready.
       </p>
     </div>
   );
 }
 
-function DiscoverStage() {
+function FindStage() {
   return (
     <div>
-      <p className="text-sm text-muted-foreground">Tell it who you&apos;re looking for. It searches for you.</p>
-      <div className="mt-4 grid grid-cols-2 gap-3">
-        <div className="rounded-xl border border-border bg-background p-3">
-          <p className="font-mono text-[9px] tracking-wide text-muted-foreground uppercase">Niche</p>
-          <p className="mt-1 text-sm font-semibold">Accountants</p>
-        </div>
-        <div className="rounded-xl border border-border bg-background p-3">
-          <p className="font-mono text-[9px] tracking-wide text-muted-foreground uppercase">Geography</p>
-          <p className="mt-1 text-sm font-semibold">Edinburgh</p>
-        </div>
+      <p className="text-sm text-muted-foreground">Niche + geography. It searches — and tells you which businesses are actually worth pursuing.</p>
+      <div className="mt-3 flex flex-wrap gap-2">
+        <span className="rounded-full border border-border bg-background px-3 py-1 text-xs font-medium">Edinburgh</span>
+        <span className="rounded-full border border-border bg-background px-3 py-1 text-xs font-medium">Accountants</span>
+        <ArrowRight className="size-3.5 self-center text-border" />
+        <span className="rounded-full bg-accent/10 px-3 py-1 text-xs font-medium text-accent">127 discovered</span>
       </div>
-      <div className="mt-4 flex items-center gap-4 rounded-xl border border-accent/30 bg-accent/5 p-4">
-        <p className="font-heading text-3xl font-semibold text-accent tabular-nums">127</p>
-        <p className="text-sm text-muted-foreground">prospects discovered — you don&apos;t research each one by hand.</p>
-      </div>
-    </div>
-  );
-}
-
-function SellStage() {
-  return (
-    <div>
-      <div className="flex items-center gap-3">
-        <HealthRing score={87} size={48} strokeWidth={5} centerLabel="87" />
-        <div>
-          <p className="text-sm font-semibold">Lomond & Grey</p>
-          <p className="text-xs text-muted-foreground">Weak enquiry capture, no AI receptionist — recommended: AI Lead Generation</p>
+      <div className="mt-4 rounded-xl border border-border bg-background p-4">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="text-sm font-semibold">Lomond & Grey</p>
+            <p className="text-xs text-muted-foreground">Website 64/100</p>
+          </div>
+          <HealthRing score={87} size={48} strokeWidth={5} centerLabel="87%" />
         </div>
-      </div>
-      <p className="mt-4 text-sm text-muted-foreground">One click turns that research into a sales kit — not generic AI spam, an approach with a real reason behind it.</p>
-      <div className="mt-3">
-        <OutreachPreview />
+        <p className="mt-3 flex items-center gap-1.5 text-xs text-muted-foreground">
+          <Sparkles className="size-3.5 shrink-0 text-accent" /> AI opportunity: lead qualification automation
+        </p>
+        <p className="mt-1 text-xs text-muted-foreground">Recommended service: AI Automation</p>
       </div>
     </div>
   );
 }
 
 function WinStage() {
-  const pipelineSteps = ["Contacted", "Replied", "Qualified", "Client"];
   return (
     <div>
-      <p className="text-sm text-muted-foreground">Lomond & Grey moves through your pipeline.</p>
-      <div className="mt-4 flex flex-wrap items-center gap-2">
-        {pipelineSteps.map((s, i) => {
-          const isLast = i === pipelineSteps.length - 1;
-          return (
-            <div key={s} className="flex items-center gap-2">
-              <span
-                className={`rounded-full px-3 py-1.5 text-xs font-medium ${
-                  isLast ? "bg-accent text-accent-foreground" : "border border-border bg-background text-muted-foreground"
-                }`}
-              >
-                {s}
-              </span>
-              {!isLast && <ArrowRight className="size-3.5 shrink-0 text-border" />}
-            </div>
-          );
-        })}
+      <p className="text-sm text-muted-foreground">Lomond & Grey moves through the real sales pipeline.</p>
+      <div className="mt-4">
+        <FlowChips steps={["Discovered", "Analysed", "Contacted", "Replied", "Qualified", "Proposal", "Won"]} endLabel="Won" />
       </div>
-      <p className="mt-4 flex items-center gap-1.5 text-xs font-medium text-accent">
-        <CheckCircle2 className="size-3.5" /> One action converts them to a client — their portal access is created in the same step.
-      </p>
+      <div className="mt-5 rounded-xl border border-accent/40 bg-accent/5 p-4 text-center">
+        <p className="font-mono text-[9px] tracking-[0.15em] text-accent uppercase">New client</p>
+        <p className="mt-1 font-heading text-lg font-semibold">Lomond & Grey</p>
+        <p className="mt-2 flex items-center justify-center gap-1.5 text-xs font-medium text-accent">
+          <CheckCircle2 className="size-3.5" /> One action converts them — portal access is created in the same step.
+        </p>
+      </div>
     </div>
   );
 }
@@ -153,36 +162,31 @@ function WinStage() {
 function DeliverStage() {
   return (
     <div>
-      <div className="overflow-hidden rounded-xl border border-border bg-background">
-        <div className="flex items-center gap-2 border-b border-border px-3 py-2.5" style={{ backgroundColor: "var(--clay-soft)" }}>
-          <span className="flex size-6 items-center justify-center rounded-md text-white" style={{ backgroundColor: "var(--clay)" }}>
-            <Building2 className="size-3.5" />
-          </span>
-          <p className="text-xs font-semibold" style={{ color: "var(--clay)" }}>
-            Lomond & Grey — Client Portal
-          </p>
+      <div className="flex flex-wrap items-center gap-2">
+        <FlowChips steps={["Client created", "Portal created", "Service configured", "Delivery begins"]} />
+      </div>
+      <div className="mt-4 grid gap-3 sm:grid-cols-2">
+        <div className="rounded-xl border border-border bg-background p-3.5">
+          <p className="font-mono text-[9px] tracking-wide text-muted-foreground uppercase">Your agency workspace</p>
+          <p className="mt-1.5 text-xs text-muted-foreground">Clients, services, delivery, analytics, reports and invoices — all yours to manage.</p>
         </div>
-        <div className="flex flex-wrap gap-1.5 p-3">
-          {["Dashboard", "Analytics", "Reports", "Requests"].map((t) => (
-            <span key={t} className="rounded-lg border border-border px-2.5 py-1 text-xs text-muted-foreground">
-              {t}
-            </span>
-          ))}
+        <div className="rounded-xl border border-border bg-background p-3.5" style={{ backgroundColor: "var(--clay-soft)" }}>
+          <p className="flex items-center gap-1.5 font-mono text-[9px] tracking-wide uppercase" style={{ color: "var(--clay)" }}>
+            <Building2 className="size-3" /> Their client portal
+          </p>
+          <p className="mt-1.5 text-xs text-muted-foreground">Their dashboard, results and reports — branded to you, never HamishAI.</p>
         </div>
       </div>
-      <p className="mt-4 text-sm text-muted-foreground">
-        They sign in to their own branded portal to see this — not HamishAI&apos;s, and never another client&apos;s.
-      </p>
     </div>
   );
 }
 
-function ReportStage() {
+function ProveStage() {
   const metrics = [
     { label: "Leads generated", value: "24" },
     { label: "Qualified opportunities", value: "11" },
     { label: "Conversion rate", value: "8.4%" },
-    { label: "AI opportunities identified", value: "7" },
+    { label: "AI opportunities", value: "7" },
   ];
   return (
     <div>
@@ -197,61 +201,65 @@ function ReportStage() {
       <div className="mt-4 flex items-start gap-2.5 rounded-xl border border-accent/30 bg-accent/5 p-3.5">
         <Lightbulb className="mt-0.5 size-4 shrink-0 text-accent" />
         <p className="text-sm text-muted-foreground">
-          <span className="font-medium text-foreground">AI recommendation:</span> Response times have improved 18% this month. The
-          largest remaining opportunity is follow-up automation.
+          <span className="font-medium text-foreground">AI insight:</span> Response times have improved 18%. The biggest remaining
+          opportunity is follow-up automation.
         </p>
       </div>
+      <Button size="sm" variant="outline" className="mt-4" disabled>
+        Generate client report <ArrowRight className="size-3.5" />
+      </Button>
     </div>
   );
 }
 
-function PaidStage() {
-  const flow = ["Service delivered", "Results reported", "Invoice generated", "Paid"];
+function GrowStage() {
   return (
     <div>
-      <div className="flex flex-wrap items-center gap-2">
-        {flow.map((s, i) => (
-          <div key={s} className="flex items-center gap-2">
-            <span className="text-xs text-muted-foreground">{s}</span>
-            {i < flow.length - 1 && <ArrowRight className="size-3.5 shrink-0 text-border" />}
+      <FlowChips steps={["Report", "Invoice", "Paid", "Retain", "Expand"]} />
+      <div className="mt-4 grid gap-3 sm:grid-cols-2">
+        <div className="rounded-xl border border-border bg-background p-4">
+          <div className="flex items-center gap-2">
+            <span className="flex size-7 items-center justify-center rounded-lg bg-accent/10 text-accent">
+              <Receipt className="size-3.5" />
+            </span>
+            <p className="text-sm font-semibold">Invoice #1042</p>
           </div>
-        ))}
-      </div>
-      <div className="mt-4 rounded-xl border border-border bg-background p-4">
-        <div className="flex items-center gap-2">
-          <span className="flex size-7 items-center justify-center rounded-lg bg-accent/10 text-accent">
-            <Receipt className="size-3.5" />
-          </span>
-          <p className="text-sm font-semibold">Invoice #1042</p>
+          <p className="mt-2 text-xs text-muted-foreground">Lomond & Grey — Monthly retainer</p>
+          <div className="mt-2 flex items-center justify-between">
+            <p className="font-heading text-xl font-semibold tabular-nums">£450</p>
+            <span className="flex items-center gap-1 rounded-full bg-success/15 px-2.5 py-1 text-xs font-medium text-success">
+              <CheckCircle2 className="size-3.5" /> Paid
+            </span>
+          </div>
         </div>
-        <p className="mt-2 text-xs text-muted-foreground">Lomond & Grey</p>
-        <div className="mt-2 flex items-center justify-between">
-          <p className="font-heading text-xl font-semibold tabular-nums">£1,250</p>
-          <span className="flex items-center gap-1 rounded-full bg-success/15 px-2.5 py-1 text-xs font-medium text-success">
-            <CheckCircle2 className="size-3.5" /> Paid
-          </span>
+        <div className="rounded-xl border border-border bg-background p-4">
+          <p className="flex items-center gap-1.5 font-mono text-[9px] tracking-wide text-muted-foreground uppercase">
+            <span className="size-2 rounded-full bg-success" /> Client health
+          </p>
+          <p className="mt-1.5 text-sm font-semibold text-success">Healthy</p>
+          <p className="mt-2 text-xs text-muted-foreground">Real signal — uptime, on-time payment, and how quickly requests get handled.</p>
+          <p className="mt-2 border-t border-border pt-2 text-xs text-muted-foreground">
+            <span className="font-medium text-foreground">Worth a look:</span> the same AI insights that found this client can flag
+            where they might need more from you next — a concept, not an automated number.
+          </p>
         </div>
       </div>
-      <p className="mt-3 text-sm text-muted-foreground">
-        The same system that won this client reports their results and bills them — not three separate tools.
-      </p>
     </div>
   );
 }
 
 const stageContent: Record<StageId, () => React.ReactNode> = {
-  setup: () => <SetupStage />,
-  discover: () => <DiscoverStage />,
-  sell: () => <SellStage />,
+  build: () => <BuildStage />,
+  find: () => <FindStage />,
   win: () => <WinStage />,
   deliver: () => <DeliverStage />,
-  report: () => <ReportStage />,
-  paid: () => <PaidStage />,
+  prove: () => <ProveStage />,
+  grow: () => <GrowStage />,
 };
 
 export function JourneyExplorer() {
   const reducedMotion = useSyncExternalStore(subscribeReducedMotion, getReducedMotion, getReducedMotionServer);
-  const [active, setActive] = useState<StageId>("setup");
+  const [active, setActive] = useState<StageId>("build");
   const [autoplay, setAutoplay] = useState(true);
 
   useEffect(() => {

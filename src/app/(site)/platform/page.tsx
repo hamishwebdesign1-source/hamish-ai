@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { Metadata } from "next";
-import { Check, ArrowRight, LayoutDashboard, Users, Rocket, Zap, Building2 } from "lucide-react";
+import { Check, ArrowRight, LayoutDashboard, Users, Rocket, Zap, Building2, ChartColumn } from "lucide-react";
 import type { PlatformPlanSlug } from "@/lib/platform-plans";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -24,14 +24,12 @@ export const metadata: Metadata = {
     "The platform behind HamishAI, now yours to run your own agency on. Prospecting, AI analysis, outreach and client delivery, in one workspace.",
 };
 
-// Second pass at this page (see git history for the first) — compresses
-// what had grown into eight-plus sections around one central story:
-// account -> agency -> prospect -> sale -> client -> delivery -> results
-// -> invoice -> payment. JourneyExplorer now carries most of what "How
-// it works", "Turn insight into outreach", the client-portal preview,
-// and the report/invoice preview used to do as separate sections; this
-// file stays deliberately short so the page doesn't grow back into the
-// length problem that prompted the rewrite.
+// Third pass at this page (see git history) — compresses the second
+// pass's 7-section, 7-stage-journey version further: six stages now
+// (Build/Find/Win/Deliver/Prove/Grow, not seven), copy trimmed
+// throughout, and the "proof" section restored in a shorter form after
+// it turned out worth keeping (early access vs "does this exist"
+// ambiguity matters for credibility, even on a compressed page).
 
 // Starter/Professional/Agency, in that order — matches
 // platformPlans.length exactly, but kept as its own local map rather than
@@ -49,17 +47,12 @@ const platformFaqs = [
   {
     question: "Isn't this just ChatGPT with extra steps?",
     answer:
-      "ChatGPT doesn't remember which prospects you already researched, doesn't cache that research so you're not re-billed for it, and has no CRM, client portal or invoicing behind it. What you're paying for is the assembled system, not model access — the research and outreach happen to be AI-generated, the value is that they arrive already wired into a pipeline you'd otherwise have to build from four separate tools.",
+      "ChatGPT doesn't remember which prospects you already researched, doesn't cache that research so you're not re-billed for it, and has no CRM, client portal or invoicing behind it. What you're paying for is the assembled system, not model access.",
   },
   {
     question: "Is this live yet?",
     answer:
-      "The platform is in early access — we're onboarding a small number of agencies by hand before opening self-serve signup, the same consultation-first approach HamishAI itself uses. Book a call below and we'll tell you honestly whether it's ready for your niche.",
-  },
-  {
-    question: "Is this the same technology HamishAI runs on?",
-    answer:
-      "Yes. This isn't a tool built to be sold — it's the prospecting, research and outreach engine hamishai.org runs its own operations on, packaged so you can run it for your own agency. See AI Business Analytics for a real look at that data.",
+      "Built and running internally — HamishAI's own leads, outreach and client reporting run on this exact system. Opening it to outside agencies is in early access: we're onboarding a small number by hand before self-serve signup. Book a call and we'll tell you honestly whether it's ready for your niche.",
   },
 ];
 
@@ -69,7 +62,7 @@ export default function PlatformPage() {
       <PageHero
         eyebrow="HamishAI Agency Platform"
         title="Build an AI agency without building the technology."
-        description="From first prospect to paid client — prospecting, AI research, outreach, delivery, reporting and billing, in one connected system, under your own brand."
+        description="Everything to build, sell, deliver and grow an AI service business — from your first prospect to your next paid client, under your own brand."
         visual={<HeroProductPanel />}
       >
         <div className="mt-8 flex flex-wrap gap-3">
@@ -88,12 +81,9 @@ export default function PlatformPage() {
           <Reveal>
             <Eyebrow className="mb-4">The complete journey</Eyebrow>
             <h2 className="max-w-2xl font-heading text-2xl font-semibold text-balance md:text-3xl">
-              Stop stitching your agency together.
+              From first prospect to paid client.
             </h2>
-            <p className="mt-3 max-w-xl text-muted-foreground">
-              Prospecting, AI research, outreach, client delivery, reporting and billing — one connected system.
-              Click through each stage below.
-            </p>
+            <p className="mt-3 max-w-xl text-muted-foreground">Click through each stage.</p>
           </Reveal>
           <Reveal delay={100} className="mt-10">
             <JourneyExplorer />
@@ -105,12 +95,8 @@ export default function PlatformPage() {
         <Reveal>
           <Eyebrow className="mb-4">Two workspaces</Eyebrow>
           <h2 className="max-w-2xl font-heading text-2xl font-semibold text-balance md:text-3xl">
-            Your workspace. Their portal.
+            You run the operation. Your clients experience your brand.
           </h2>
-          <p className="mt-3 max-w-xl text-muted-foreground">
-            You run the agency from one private workspace. Each client you sign gets a separate, branded portal —
-            your logo, your colour. They never see HamishAI, and never see each other.
-          </p>
         </Reveal>
         <div className="mt-8 grid gap-6 md:grid-cols-2">
           <Reveal>
@@ -153,11 +139,8 @@ export default function PlatformPage() {
           <Reveal>
             <Eyebrow className="mb-4">Choose what you sell</Eyebrow>
             <h2 className="max-w-2xl font-heading text-2xl font-semibold text-balance md:text-3xl">
-              Three ways to run the business.
+              Choose the agency you want to build.
             </h2>
-            <p className="mt-3 max-w-xl text-muted-foreground">
-              Pick a model — it changes what prospecting, delivery and reporting look like, not just a label.
-            </p>
           </Reveal>
           <Reveal delay={100} className="mt-8">
             <AgencyTypeSelector />
@@ -165,10 +148,32 @@ export default function PlatformPage() {
         </div>
       </section>
 
+      <section className="border-t border-border/60">
+        <div className="mx-auto max-w-6xl px-6 py-16 md:py-20">
+          <Reveal>
+            <div className="flex items-start gap-4 rounded-2xl border border-accent/40 bg-accent/5 p-6 md:p-8">
+              <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-accent/10 text-accent">
+                <ChartColumn className="size-5" />
+              </span>
+              <div>
+                <p className="font-heading text-lg font-semibold">Built for HamishAI. Now available to you.</p>
+                <p className="mt-2 max-w-2xl text-muted-foreground">
+                  Built and running internally first — HamishAI&apos;s own leads, outreach and client reporting run on this exact
+                  system. Now opening access to outside agencies.
+                </p>
+                <Button variant="link" className="mt-3 px-0" render={<Link href="/analytics" />}>
+                  See AI Business Analytics
+                  <ArrowRight className="size-4" />
+                </Button>
+              </div>
+            </div>
+          </Reveal>
+        </div>
+      </section>
+
       <section className="mx-auto max-w-6xl px-6 py-16 md:py-20">
         <Reveal>
-          <h2 className="font-heading text-2xl font-semibold md:text-3xl">Pricing</h2>
-          <p className="mt-2 max-w-lg text-muted-foreground">One plan for every part of the loop. Understand the difference in five seconds.</p>
+          <h2 className="font-heading text-2xl font-semibold md:text-3xl">Simple pricing. Serious infrastructure.</h2>
         </Reveal>
         <div className="mt-10 grid gap-6 md:grid-cols-3">
           {platformPlans.map((plan, i) => {
@@ -214,10 +219,6 @@ export default function PlatformPage() {
             );
           })}
         </div>
-        <p className="mt-6 text-center text-xs text-muted-foreground">
-          No standalone white-label tier yet — it&apos;s a future add-on on the Agency plan, turned on once
-          you actually need it.
-        </p>
       </section>
 
       <section className="border-t border-border/60">

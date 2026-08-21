@@ -1,35 +1,30 @@
 "use client";
 
 import { useState } from "react";
-import { ChartColumn, Zap, Search, Check } from "lucide-react";
+import { ChartColumn, Zap, Search, ArrowRight } from "lucide-react";
 
-// /platform, second pass — replaces the static three-card "Choose what
-// your agency sells" grid. Same three real agency types
-// (platform-onboarding.ts's agencyType field), now one compact
-// component instead of three large sections — clicking a type swaps
-// what the client receives, communicating three business models without
-// three walls of text.
+// /platform, third pass — shows the workflow itself changing per agency
+// type (Find -> ... -> Invoice) rather than a "client receives" feature
+// list, per the brief's own explicit example. Same three real agency
+// types as before (platform-onboarding.ts's agencyType field).
 const agencyTypes = [
   {
     id: "analytics",
     name: "AI Analytics",
     icon: ChartColumn,
-    tagline: "Monthly performance reports, sold as a retainer.",
-    receives: ["Live dashboards", "AI-written insights", "Monthly reports", "Recommendations"],
+    flow: ["Find", "Analyse data", "Dashboard", "AI insights", "Report", "Invoice"],
   },
   {
     id: "automation",
     name: "AI Automation",
     icon: Zap,
-    tagline: "Booking, receptionist and workflow builds, sold as projects.",
-    receives: ["AI workflows", "An AI assistant or receptionist", "Automated processes", "Ongoing optimisation"],
+    flow: ["Find", "Identify process", "Build automation", "Monitor", "Report", "Invoice"],
   },
   {
     id: "leadgen",
     name: "AI Lead Generation",
     icon: Search,
-    tagline: "Qualified local prospects, sold directly to clients.",
-    receives: ["Qualified opportunities", "Personalised outreach", "A live lead pipeline", "Lead reporting"],
+    flow: ["Find", "Analyse", "Outreach", "Qualify", "Deliver leads", "Report", "Invoice"],
   },
 ] as const;
 
@@ -57,16 +52,14 @@ export function AgencyTypeSelector() {
         ))}
       </div>
       <div className="tab-panel-enter p-5 md:p-6" key={type.id}>
-        <p className="text-sm text-muted-foreground">{type.tagline}</p>
-        <p className="mt-4 font-mono text-[10px] font-medium tracking-[0.15em] text-muted-foreground uppercase">Client receives</p>
-        <ul className="mt-2 grid gap-2 sm:grid-cols-2">
-          {type.receives.map((r) => (
-            <li key={r} className="flex items-center gap-2 text-sm">
-              <Check className="size-3.5 shrink-0 text-accent" />
-              {r}
-            </li>
+        <div className="flex flex-wrap items-center gap-2">
+          {type.flow.map((step, i) => (
+            <div key={step} className="flex items-center gap-2">
+              <span className="rounded-full border border-border bg-secondary/40 px-3 py-1.5 text-xs font-medium">{step}</span>
+              {i < type.flow.length - 1 && <ArrowRight className="size-3.5 shrink-0 text-border" />}
+            </div>
           ))}
-        </ul>
+        </div>
       </div>
     </div>
   );
