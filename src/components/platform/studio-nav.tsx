@@ -1,4 +1,4 @@
-import { LayoutDashboard, Search, Users, CreditCard, Mail, Inbox, FolderKanban, HelpCircle, BookOpen, BarChart3, Megaphone } from "lucide-react";
+import { LayoutDashboard, Search, Users, CreditCard, Mail, Inbox, FolderKanban, HelpCircle, BookOpen, BarChart3, Megaphone, Globe } from "lucide-react";
 import { StudioNavLink } from "@/components/platform/studio-nav-link";
 
 // Grown from a flat top nav (11 items, horizontal-scroll on desktop by
@@ -20,6 +20,10 @@ export function getNavSections(): { label: string | null; items: { href: string;
         { href: "/studio/prospects", label: "Prospects", icon: Search },
         { href: "/studio/campaigns", label: "Campaigns", icon: Megaphone },
       ],
+    },
+    {
+      label: "Build",
+      items: [{ href: "/studio/website-builder", label: "Website Builder", icon: Globe }],
     },
     {
       label: "Deliver",
