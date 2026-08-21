@@ -6,6 +6,8 @@ import { getOrgMembership } from "@/lib/org-membership";
 import { WebsiteBriefPanel } from "@/components/platform/website-brief-panel";
 import { ToolRecommendationPanel } from "@/components/platform/tool-recommendation-panel";
 import { BuildPhasePanel } from "@/components/platform/build-phase-panel";
+import { LaunchPanel } from "@/components/platform/launch-panel";
+import { ProjectStageTracker } from "@/components/platform/project-stage-tracker";
 import { Eyebrow } from "@/components/eyebrow";
 import type { WebsiteBrief, WebsiteDiscovery } from "@/lib/website-brief";
 import type { BuildPhase } from "@/lib/website-build-phases";
@@ -28,7 +30,7 @@ export default async function WebsiteProjectDetailPage({ params }: { params: Pro
   const { data: project } = await supabase
     .from("website_projects")
     .select(
-      "id, stage, discovery, brief, brief_generated_at, client_id, tool_quiz_answers, recommended_tool, build_phases, current_phase_index, clients(business_name)"
+      "id, stage, discovery, brief, brief_generated_at, client_id, tool_quiz_answers, recommended_tool, build_phases, current_phase_index, live_url, analytics_connected, clients(business_name)"
     )
     .eq("id", id)
     .eq("org_id", membership.orgId)
@@ -37,6 +39,8 @@ export default async function WebsiteProjectDetailPage({ params }: { params: Pro
   if (!project) notFound();
 
   const clientName = (project as unknown as { clients: { business_name: string } | null }).clients?.business_name ?? "Untitled project";
+  const buildPhases = project.build_phases as BuildPhase[] | null;
+  const allPhasesComplete = Boolean(buildPhases && project.current_phase_index >= buildPhases.length);
 
   return (
     <div className="mx-auto max-w-3xl">
@@ -45,6 +49,9 @@ export default async function WebsiteProjectDetailPage({ params }: { params: Pro
       </Link>
       <Eyebrow className="mt-4">Website Project</Eyebrow>
       <h1 className="mt-1 font-heading text-2xl font-semibold md:text-3xl">{clientName}</h1>
+      <div className="mt-4">
+        <ProjectStageTracker stage={project.stage} />
+      </div>
 
       <div className="mt-8">
         <WebsiteBriefPanel
@@ -73,8 +80,20 @@ export default async function WebsiteProjectDetailPage({ params }: { params: Pro
           <BuildPhasePanel
             projectId={project.id}
             recommendedTool={project.recommended_tool as ToolId}
-            buildPhases={project.build_phases as BuildPhase[] | null}
+            buildPhases={buildPhases}
             currentPhaseIndex={project.current_phase_index}
+          />
+        </div>
+      )}
+
+      {buildPhases && (
+        <div className="mt-8">
+          <LaunchPanel
+            projectId={project.id}
+            stage={project.stage}
+            liveUrl={project.live_url}
+            analyticsConnected={project.analytics_connected}
+            allPhasesComplete={allPhasesComplete}
           />
         </div>
       )}

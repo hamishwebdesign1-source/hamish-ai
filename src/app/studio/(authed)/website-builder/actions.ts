@@ -312,6 +312,13 @@ export async function toggleChecklistItem(projectId: string, phaseId: string, it
 // — re-checked server-side rather than trusting the client's own gating,
 // same "don't trust the UI state, re-verify" instinct as everywhere else
 // AI-cost or state-progression matters in this app.
+//
+// current_phase_index is allowed to reach phases.length (one past the
+// last valid index, not capped at length-1) — that's the real signal
+// "every phase is done." Capping it at length-1 was a genuine bug: the
+// final phase's own "Finish" click would recompute the same index it
+// was already at, so it could never actually render as done. WB3's
+// launch panel appears once the index reaches this value.
 export async function advanceBuildPhase(projectId: string): Promise<{ error: string } | { ok: true }> {
   const orgId = await requireOrgId();
   const admin = getSupabaseAdmin();
@@ -331,10 +338,46 @@ export async function advanceBuildPhase(projectId: string): Promise<{ error: str
   if (!currentPhase) return { error: "Invalid phase." };
   if (!currentPhase.checklist.every((c) => c.done)) return { error: "Complete this phase's checklist first." };
 
-  const nextIndex = Math.min(currentIndex + 1, phases.length - 1);
-  const { error } = await admin.from("website_projects").update({ current_phase_index: nextIndex }).eq("id", projectId);
+  const nextIndex = Math.min(currentIndex + 1, phases.length);
+  // Once the agency reaches the QA phase (or anything after it), the
+  // project is genuinely in its quality-checking/finishing stretch —
+  // real signal for the stage tracker, not just "still building."
+  // 'launched' is reserved for the explicit launchWebsiteProject()
+  // action below; reaching the end of the phase list alone doesn't
+  // claim the site is actually live.
+  const qaIndex = BUILD_PHASE_ORDER.indexOf("qa");
+  const nextStage = nextIndex >= qaIndex ? "qa" : "build";
+
+  const { error } = await admin.from("website_projects").update({ current_phase_index: nextIndex, stage: nextStage }).eq("id", projectId);
   if (error) return { error: "Failed to advance." };
 
   revalidatePath(`/studio/website-builder/${projectId}`);
+  return { ok: true as const };
+}
+
+// AI Website Creation Guide, WB3 — the final stage. Deliberately just
+// two real fields (§10-12 of the brief in miniature): where the site
+// actually is, and whether analytics is connected — no fabricated
+// "launch checklist" beyond what the QA phase's own checklist already
+// covers. Editable after the fact (an agency can come back and fix a
+// wrong URL), not a one-way door.
+export async function launchWebsiteProject(projectId: string, liveUrl: string, analyticsConnected: boolean): Promise<{ error: string } | { ok: true }> {
+  const orgId = await requireOrgId();
+  const admin = getSupabaseAdmin();
+  if (!admin) return { error: "Supabase is not configured." };
+
+  const trimmedUrl = liveUrl.trim();
+  if (!trimmedUrl) return { error: "Enter the live website URL." };
+  if (!/^https:\/\/[^\s]+$/i.test(trimmedUrl)) return { error: "Enter a full https:// URL." };
+
+  const { error } = await admin
+    .from("website_projects")
+    .update({ live_url: trimmedUrl, analytics_connected: analyticsConnected, stage: "launched" })
+    .eq("id", projectId)
+    .eq("org_id", orgId);
+  if (error) return { error: "Failed to save." };
+
+  revalidatePath(`/studio/website-builder/${projectId}`);
+  revalidatePath("/studio/website-builder");
   return { ok: true as const };
 }
