@@ -8,17 +8,26 @@ import type { WebsiteBrief } from "@/lib/website-brief";
 // coding tool, generated from the Website Brief. Deliberately NOT one
 // giant prompt (the brief's own §5).
 //
-// Generated in 4 small groups, not one call for all 10 phases — this
-// app runs on Vercel's Hobby plan (confirmed directly with the user),
-// which caps a serverless function at 60 seconds. A single call asking
-// for all 10 phases at once was live-tested at 90-150 seconds — real,
-// not a theoretical risk, and it would fail in production even though
-// it worked fine in a local test script with no such limit. Each group
-// below is small enough to comfortably finish well inside that budget.
-// The tradeoff: phases in different groups can't see each other's exact
-// generated wording, only the same shared Website Brief — a real but
-// modest loss of cross-phase consistency, accepted because the
-// alternative (one big call) doesn't actually work on this plan.
+// Generated one phase per call, not one call for all 10 (or even 2-3
+// per call) — this app runs on Vercel's Hobby plan (confirmed directly
+// with the user), which caps a serverless function at 60 seconds. Two
+// real findings from live-testing forced this down to one phase per
+// call, not just "small groups":
+// 1. A single call for all 10 phases took 90-150s locally.
+// 2. In actual production use, 2-3-phase groups fired via Promise.all
+//    did NOT run concurrently the way the client assumed — the real
+//    request log showed them landing 25-90 seconds apart, effectively
+//    sequential, and the last two groups (already queued behind four
+//    others) had their Anthropic calls come back malformed on both
+//    retry attempts. The old code's "return best-effort content rather
+//    than nothing" fallback then silently saved placeholder text for
+//    4 of 10 phases with no error shown to the user at all — a real,
+//    serious bug found by actually creating a project end to end, not
+//    a theoretical risk. See requestWebsiteBuildPhase() and the caller
+//    in website-builder/actions.ts for the fix: strict per-phase
+//    failure (never silently degraded), and the client now generates
+//    sequentially with an honest "phase X of 10" progress readout
+//    instead of a misleading "parallel" one.
 
 export type BuildPhaseId =
   | "setup"
@@ -58,22 +67,13 @@ export const BUILD_PHASE_LABELS: Record<BuildPhaseId, string> = {
   deployment: "Deployment",
 };
 
-// Grouped so each Anthropic call is small enough to comfortably finish
-// under Vercel Hobby's 60s function cap (see the file header) — live-
-// tested repeatedly: 3-phase groups took 65-67s (over the cap); even a
-// 2-phase group hit 62s when it included remaining_pages (inherently
-// the heaviest phase — it's writing instructions for every sitemap page
-// except the homepage, often 3-4 pages at once). remaining_pages is
-// isolated in its own group below rather than trusting "2 phases" alone
-// to be a safe bound.
-export const PHASE_GROUPS: BuildPhaseId[][] = [
-  ["setup", "design_system"],
-  ["homepage"],
-  ["remaining_pages"],
-  ["responsive", "seo"],
-  ["accessibility", "qa"],
-  ["polish", "deployment"],
-];
+// One phase per call — see the file header for why "2-3 phases per
+// call" wasn't actually safe once real production behaviour (near-
+// sequential execution, not true concurrency) was accounted for. Kept
+// as an array-of-arrays (rather than just BUILD_PHASE_ORDER directly)
+// so the caller's "generate group N" shape in website-builder/actions.ts
+// didn't need to change, only what each "group" contains.
+export const PHASE_GROUPS: BuildPhaseId[][] = BUILD_PHASE_ORDER.map((id) => [id]);
 
 export type ChecklistItem = { item: string; done: boolean };
 export type BuildPhase = { id: BuildPhaseId; name: string; instructions: string; checklist: ChecklistItem[] };
@@ -201,10 +201,19 @@ async function requestPhaseGroup(anthropic: Anthropic, brief: WebsiteBrief, tool
   return reconcilePhases(input.phases, phaseIds);
 }
 
-// Generates one group of phases (2-3 phases, always well inside the 60s
-// Hobby plan cap) — the caller (a Server Action, see
-// website-builder/actions.ts) is responsible for calling this once per
-// group and combining the results; nothing here writes to a database.
+// Generates one phase's instructions — always well inside the 60s Hobby
+// plan cap, and small enough that a real failure is cheap to retry (see
+// the file header). The caller (a Server Action, see
+// website-builder/actions.ts) calls this once per phase and combines
+// the results; nothing here writes to a database.
+//
+// Never returns degraded/placeholder content as if it were a success —
+// this is the actual fix for the real bug found live-testing: the old
+// version's last attempt returned "best-effort" content unconditionally,
+// so a genuinely failed generation silently saved as if it had worked.
+// Three attempts (not two) before giving up, since production latency
+// and occasional malformed output both turned out more common under
+// real load than local testing suggested.
 export async function generateBuildPhaseGroup(
   brief: WebsiteBrief,
   toolId: ToolId,
@@ -214,16 +223,16 @@ export async function generateBuildPhaseGroup(
   if (!apiKey) return { error: "ANTHROPIC_API_KEY is not configured." };
 
   const anthropic = new Anthropic({ apiKey });
+  const label = phaseIds.map((id) => BUILD_PHASE_LABELS[id]).join(", ");
 
   try {
-    for (let attempt = 0; attempt < 2; attempt++) {
+    for (let attempt = 0; attempt < 3; attempt++) {
       const phases = await requestPhaseGroup(anthropic, brief, toolId, phaseIds);
       if (phases && isWellFormed(phases)) return { phases };
-      if (phases && attempt === 1) return { phases };
     }
-    return { error: "Couldn't produce complete instructions for this section — try again." };
+    return { error: `Couldn't produce complete instructions for ${label} after several attempts — try again.` };
   } catch (error) {
-    console.error("Failed to generate build phase group:", error);
-    return { error: "The build prompt generator is temporarily unavailable." };
+    console.error(`Failed to generate build phase(s) [${label}]:`, error);
+    return { error: `The build prompt generator is temporarily unavailable for ${label}.` };
   }
 }

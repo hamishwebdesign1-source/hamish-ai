@@ -52,42 +52,50 @@ export function BuildPhasePanel({
   currentPhaseIndex: number;
 }) {
   const [generating, startGenerateTransition] = useTransition();
-  const [groupsDone, setGroupsDone] = useState(0);
+  const [phasesDone, setPhasesDone] = useState<BuildPhase[]>([]);
+  const [failedAt, setFailedAt] = useState<number | null>(null);
   const [checklistPending, startChecklistTransition] = useTransition();
   const [advancing, startAdvanceTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
-  // Generates all 10 phases as 4 smaller, parallel Server Action calls
-  // rather than one big one — this app runs on Vercel's Hobby plan
-  // (60s function cap), and a single call for all 10 phases was
-  // live-tested at 90-150 seconds. Each group call is read-only; the
-  // combined result is written in one final save, so nothing races.
-  function generate() {
+  // Generates one phase per Server Action call, sequentially — not the
+  // "fire all in parallel" design this started with. Real-world testing
+  // found that design didn't actually run concurrently on this app's
+  // Vercel plan (the request log showed calls landing 25-90s apart
+  // regardless), and the old code's Promise.all had no real per-call
+  // failure handling — one bad response silently saved placeholder text
+  // for several phases with no error shown. Sequential is honest about
+  // what actually happens, and resumable: a failure stops the loop and
+  // keeps everything generated so far, so retrying only re-attempts the
+  // phase that actually failed rather than starting over and re-paying
+  // for phases that already worked.
+  function generate(fromIndex = 0) {
     setError(null);
-    setGroupsDone(0);
+    setFailedAt(null);
+    if (fromIndex === 0) setPhasesDone([]);
     startGenerateTransition(async () => {
-      const gate = await canGenerateWebsitePhases(projectId);
-      if ("error" in gate) {
-        setError(gate.error);
-        return;
+      if (fromIndex === 0) {
+        const gate = await canGenerateWebsitePhases(projectId);
+        if ("error" in gate) {
+          setError(gate.error);
+          return;
+        }
       }
 
-      const results = await Promise.all(
-        PHASE_GROUPS.map(async (_, groupIndex) => {
-          const r = await generateWebsitePhaseGroup(projectId, groupIndex);
-          setGroupsDone((n) => n + 1);
-          return r;
-        })
-      );
-
-      const failed = results.find((r): r is { error: string } => "error" in r);
-      if (failed) {
-        setError(failed.error);
-        return;
+      const collected = fromIndex === 0 ? [] : [...phasesDone];
+      for (let i = fromIndex; i < PHASE_GROUPS.length; i++) {
+        const r = await generateWebsitePhaseGroup(projectId, i);
+        if ("error" in r) {
+          setError(r.error);
+          setFailedAt(i);
+          setPhasesDone(collected);
+          return;
+        }
+        collected.push(...r.phases);
+        setPhasesDone([...collected]);
       }
 
-      const combined = results.flatMap((r) => ("phases" in r ? r.phases : []));
-      const saveResult = await saveWebsiteBuildPhases(projectId, combined);
+      const saveResult = await saveWebsiteBuildPhases(projectId, collected);
       if ("error" in saveResult) setError(saveResult.error);
     });
   }
@@ -116,15 +124,24 @@ export function BuildPhasePanel({
           <p className="mt-3 text-sm text-muted-foreground">
             {recommendedTool ? "Ready to generate your step-by-step build instructions." : "Choose an AI coding tool above first."}
           </p>
-          <Button size="sm" className="mt-4" disabled={generating || !recommendedTool} onClick={generate}>
+          <Button size="sm" className="mt-4" disabled={generating || !recommendedTool} onClick={() => generate()}>
             {generating ? "Generating…" : "Generate build instructions"}
           </Button>
           {generating && (
             <p className="mt-2 text-xs text-muted-foreground">
-              Writing your 10 phases in sections… {groupsDone} of {PHASE_GROUPS.length} done.
+              Writing one phase at a time… {phasesDone.length} of {PHASE_GROUPS.length} done. This takes a few minutes.
             </p>
           )}
-          {error && <p className="mt-2 text-xs text-destructive">{error}</p>}
+          {error && (
+            <div className="mt-2">
+              <p className="text-xs text-destructive">{error}</p>
+              {failedAt !== null && (
+                <Button size="xs" variant="outline" className="mt-1.5" disabled={generating} onClick={() => generate(failedAt)}>
+                  <RotateCcw className="size-3.5" /> Retry from where it stopped
+                </Button>
+              )}
+            </div>
+          )}
         </CardContent>
       </Card>
     );
@@ -138,16 +155,25 @@ export function BuildPhasePanel({
         <p className="text-xs text-muted-foreground">
           Building with <span className="font-medium text-foreground">{tool?.name ?? "your chosen tool"}</span>
         </p>
-        <Button size="xs" variant="ghost" disabled={generating} onClick={generate}>
+        <Button size="xs" variant="ghost" disabled={generating} onClick={() => generate()}>
           <RotateCcw className="size-3.5" /> {generating ? "Regenerating…" : "Regenerate all phases"}
         </Button>
       </div>
       {generating && (
         <p className="text-xs text-muted-foreground">
-          Writing your 10 phases in sections… {groupsDone} of {PHASE_GROUPS.length} done.
+          Writing one phase at a time… {phasesDone.length} of {PHASE_GROUPS.length} done. This takes a few minutes.
         </p>
       )}
-      {error && <p className="text-xs text-destructive">{error}</p>}
+      {error && (
+        <div>
+          <p className="text-xs text-destructive">{error}</p>
+          {failedAt !== null && (
+            <Button size="xs" variant="outline" className="mt-1.5" disabled={generating} onClick={() => generate(failedAt)}>
+              <RotateCcw className="size-3.5" /> Retry from where it stopped
+            </Button>
+          )}
+        </div>
+      )}
 
       <ul className="space-y-2">
         {buildPhases.map((phase, index) => {
