@@ -79,9 +79,9 @@ function SignupForm() {
       <Card className="w-full max-w-sm p-2">
         <CardContent>
           <Eyebrow>HamishAI Agency Platform</Eyebrow>
-          <h1 className="mt-3 font-heading text-2xl font-semibold">Start your free trial</h1>
+          <h1 className="mt-3 font-heading text-2xl font-semibold">Sign in or create your account</h1>
           <p className="mt-2 text-sm text-muted-foreground">
-            7 days free, no card required. First time here? You&apos;ll set up your agency straight after signing in.
+            First time here? 7 days free, no card required — you&apos;ll set up your agency straight after signing in.
           </p>
 
           <Button
