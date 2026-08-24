@@ -7,10 +7,16 @@ import { Menu, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Logo } from "@/components/logo";
 import { siteConfig } from "@/lib/site-config";
+import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
 
 export function SiteHeader() {
   const [open, setOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  // null while unknown (first paint, and for every visitor who never
+  // touches a /platform page) — same "Sign in" link renders for both
+  // null and false, so there's no flash from a wrong guess while this
+  // resolves; it only ever changes what's shown by upgrading to true.
+  const [signedIn, setSignedIn] = useState<boolean | null>(null);
   const pathname = usePathname();
 
   useEffect(() => {
@@ -19,6 +25,17 @@ export function SiteHeader() {
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
+
+  useEffect(() => {
+    if (!pathname.startsWith("/platform")) return;
+    // Session check only, not org membership — /studio's own server-side
+    // gate already sends a signed-in-but-orgless visitor on to
+    // /platform/onboarding correctly, so this doesn't need to duplicate
+    // that check just to decide what one header link says.
+    getSupabaseBrowserClient()
+      .auth.getUser()
+      .then(({ data }) => setSignedIn(Boolean(data.user)));
+  }, [pathname]);
 
   return (
     <header
@@ -75,10 +92,10 @@ export function SiteHeader() {
             // muted rather than a full nav item. Only shown once someone's
             // actually on a Platform-related page.
             <Link
-              href="/platform/signup"
+              href={signedIn ? "/studio" : "/platform/signup"}
               className="hidden text-xs text-muted-foreground underline decoration-border underline-offset-4 transition-colors hover:text-foreground lg:inline"
             >
-              Sign in
+              {signedIn ? "Go to Studio" : "Sign in"}
             </Link>
           ) : (
             <Link
@@ -131,11 +148,11 @@ export function SiteHeader() {
             </Button>
             {pathname.startsWith("/platform") ? (
               <Link
-                href="/platform/signup"
+                href={signedIn ? "/studio" : "/platform/signup"}
                 className="text-center text-xs text-muted-foreground underline decoration-border underline-offset-4"
                 onClick={() => setOpen(false)}
               >
-                Sign in
+                {signedIn ? "Go to Studio" : "Sign in"}
               </Link>
             ) : (
               <Link

@@ -18,6 +18,8 @@ import {
   AccordionContent,
 } from "@/components/ui/accordion";
 import { platformPlans, formatMonthlyPrice } from "@/lib/platform-plans";
+import { createServerSupabaseClient } from "@/lib/supabase-server-auth";
+import { getOrgMembership } from "@/lib/org-membership";
 
 export const metadata: Metadata = {
   title: "HamishAI Agency Platform — Launch Your Own AI Agency",
@@ -57,7 +59,27 @@ const platformFaqs = [
   },
 ];
 
-export default function PlatformPage() {
+// A signed-in tenant landing back on their own marketing page — via a
+// bookmark, a shared link, whatever — used to see "Start free trial" on
+// a trial they'd already started, or "Sign up" on a plan they already
+// have. Computed once here rather than per-button: every CTA on this
+// page (hero, each pricing card, the closing banner) reads from the same
+// three states, so they can never disagree with each other.
+async function getCta(): Promise<{ label: string; href: string }> {
+  const supabase = await createServerSupabaseClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user?.email) return { label: "Start free trial", href: "/platform/signup" };
+
+  const membership = await getOrgMembership(supabase, user.email);
+  return membership ? { label: "Go to Studio", href: "/studio" } : { label: "Finish setup", href: "/platform/onboarding" };
+}
+
+export default async function PlatformPage() {
+  const cta = await getCta();
+  const signedIn = cta.href !== "/platform/signup";
+
   return (
     <>
       {/* Same dark-video-hero DNA as the homepage (page.tsx) rather than
@@ -106,8 +128,8 @@ export default function PlatformPage() {
                 your next paid client, under your own brand.
               </p>
               <div className="mt-8 flex flex-wrap gap-3">
-                <Button size="lg" variant="gradient" render={<Link href="/platform/signup" />}>
-                  Start free trial
+                <Button size="lg" variant="gradient" render={<Link href={cta.href} />}>
+                  {cta.label}
                 </Button>
                 <Button
                   size="lg"
@@ -119,7 +141,7 @@ export default function PlatformPage() {
                   <ArrowRight className="size-4" />
                 </Button>
               </div>
-              <p className="mt-3 text-sm text-white/50">7 days free, no card required.</p>
+              {!signedIn && <p className="mt-3 text-sm text-white/50">7 days free, no card required.</p>}
             </div>
             <div className="relative">
               <HeroProductPanel />
@@ -262,9 +284,9 @@ export default function PlatformPage() {
                   <Button
                     className="mt-6 w-full"
                     variant={plan.highlighted ? "default" : "outline"}
-                    render={<Link href={`/platform/signup?plan=${plan.slug}`} />}
+                    render={<Link href={signedIn ? cta.href : `/platform/signup?plan=${plan.slug}`} />}
                   >
-                    Sign up
+                    {signedIn ? cta.label : "Sign up"}
                   </Button>
                 </div>
               </Reveal>
@@ -294,15 +316,21 @@ export default function PlatformPage() {
           <div>
             <h2 className="font-heading text-2xl font-semibold md:text-3xl">Build the agency. HamishAI runs the infrastructure.</h2>
             <p className="mt-2 max-w-lg text-primary-foreground/70">
-              Free for 7 days, no card required. Prefer to talk it through first?{" "}
-              <Link href="/book" className="underline underline-offset-2">
-                Book a call
-              </Link>{" "}
-              instead.
+              {signedIn ? (
+                "Pick up where you left off."
+              ) : (
+                <>
+                  Free for 7 days, no card required. Prefer to talk it through first?{" "}
+                  <Link href="/book" className="underline underline-offset-2">
+                    Book a call
+                  </Link>{" "}
+                  instead.
+                </>
+              )}
             </p>
           </div>
-          <Button size="lg" variant="secondary" render={<Link href="/platform/signup" />}>
-            Start free trial
+          <Button size="lg" variant="secondary" render={<Link href={cta.href} />}>
+            {cta.label}
           </Button>
         </div>
       </section>
