@@ -59,9 +59,9 @@ export default function PlatformSignupPage() {
       <Card className="w-full max-w-sm p-2">
         <CardContent>
           <Eyebrow>HamishAI Agency Platform</Eyebrow>
-          <h1 className="mt-3 font-heading text-2xl font-semibold">Get early access</h1>
+          <h1 className="mt-3 font-heading text-2xl font-semibold">Start your free trial</h1>
           <p className="mt-2 text-sm text-muted-foreground">
-            First time here? You&apos;ll set up your agency straight after signing in.
+            14 days free, no card required. First time here? You&apos;ll set up your agency straight after signing in.
           </p>
 
           <Button
@@ -109,6 +109,18 @@ export default function PlatformSignupPage() {
               )}
             </form>
           )}
+
+          <p className="mt-5 text-center text-xs text-muted-foreground">
+            By continuing, you agree to our{" "}
+            <a href="/terms" className="underline underline-offset-2 hover:text-foreground">
+              Terms
+            </a>{" "}
+            and{" "}
+            <a href="/privacy" className="underline underline-offset-2 hover:text-foreground">
+              Privacy Policy
+            </a>
+            .
+          </p>
         </CardContent>
       </Card>
     </div>

@@ -5,6 +5,7 @@ import { getSupabaseAdmin } from "@/lib/supabase";
 import { sendErrorAlert } from "@/lib/send-error-alert";
 import { logInfo, logWarn, logError } from "@/lib/structured-log";
 import { trackServerEvent } from "@/lib/analytics";
+import { sendPaymentFailedEmail } from "@/lib/payment-failed-email";
 
 // Stripe's own callback when an invoice's status changes — verified via
 // its signature header rather than the admin cookie (Stripe has no way
@@ -115,19 +116,35 @@ export async function POST(request: Request) {
     // branching on event metadata) is a harmless no-op on whichever
     // table this particular subscription isn't in — same pattern as the
     // dual "clients"/"organisations" checks throughout this Week's work.
-    const { data: updatedOrg, error: orgError } = await supabase
+    //
+    // Fetched before the update specifically to catch the past_due
+    // transition (see payment-failed-email.ts) — Stripe can send this
+    // event again while status stays past_due for other reasons, so
+    // comparing old vs new here is what keeps that email a one-time
+    // thing rather than a resend on every unrelated subscription change.
+    const { data: orgBefore } = await supabase
+      .from("organisations")
+      .select("id, subscription_status")
+      .eq("stripe_subscription_id", subscription.id)
+      .maybeSingle();
+
+    const { error: orgError } = await supabase
       .from("organisations")
       .update({ subscription_status: subscription.status })
-      .eq("stripe_subscription_id", subscription.id)
-      .select("id")
-      .maybeSingle();
+      .eq("stripe_subscription_id", subscription.id);
+
     if (orgError) {
       logError("stripe_webhook.platform_subscription_status_sync_failed", { stripe_subscription_id: subscription.id, message: orgError.message });
-    } else if (updatedOrg && (event.type === "customer.subscription.deleted" || subscription.status === "canceled")) {
-      // The platform's own revenue-churn signal — a tenant's paid
-      // subscription actually ending, not a client's subscription to that
-      // tenant (this table doubles for both, see the comment above).
-      await trackServerEvent(updatedOrg.id, "platform_subscription_cancelled", { stripe_subscription_id: subscription.id });
+    } else if (orgBefore) {
+      if (event.type === "customer.subscription.deleted" || subscription.status === "canceled") {
+        // The platform's own revenue-churn signal — a tenant's paid
+        // subscription actually ending, not a client's subscription to that
+        // tenant (this table doubles for both, see the comment above).
+        await trackServerEvent(orgBefore.id, "platform_subscription_cancelled", { stripe_subscription_id: subscription.id });
+      } else if (subscription.status === "past_due" && orgBefore.subscription_status !== "past_due") {
+        await sendPaymentFailedEmail(supabase, orgBefore.id);
+        logInfo("stripe_webhook.platform_payment_failed_email_sent", { org_id: orgBefore.id, stripe_subscription_id: subscription.id });
+      }
     }
   }
 

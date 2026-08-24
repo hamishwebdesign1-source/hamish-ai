@@ -26,13 +26,18 @@ export function SiteFooter() {
         </div>
       </div>
 
-      <div className="flex flex-col items-center gap-1 border-t border-border/60 px-6 py-4 text-center text-xs text-muted-foreground sm:flex-row sm:justify-between">
+      <div className="flex flex-col items-center gap-3 border-t border-border/60 px-6 py-4 text-center text-xs text-muted-foreground sm:flex-row sm:justify-between">
         <p>
           © {new Date().getFullYear()} {siteConfig.name}. All rights reserved.
         </p>
-        <Link href="/privacy" className="hover:text-foreground">
-          Privacy Policy
-        </Link>
+        <div className="flex gap-4">
+          <Link href="/terms" className="hover:text-foreground">
+            Terms of Service
+          </Link>
+          <Link href="/privacy" className="hover:text-foreground">
+            Privacy Policy
+          </Link>
+        </div>
       </div>
     </footer>
   );
