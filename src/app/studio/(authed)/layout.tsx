@@ -9,6 +9,7 @@ import { StudioMobileNav } from "@/components/platform/studio-mobile-nav";
 import { HelpModeProvider } from "@/components/platform/help-mode-context";
 import { HelpModeToggle } from "@/components/platform/help-mode-toggle";
 import { StudioTour } from "@/components/platform/studio-tour";
+import { IdentifyOrg } from "@/components/platform/identify-org";
 
 // Same shape as portal/(authed)/layout.tsx, one level up: session check,
 // then a membership-based gate, session-scoped client throughout so RLS
@@ -34,6 +35,7 @@ export default async function StudioAuthedLayout({ children }: { children: React
 
   return (
     <HelpModeProvider>
+      <IdentifyOrg orgId={membership.orgId} />
       {!org?.tour_completed_at && <StudioTour />}
       <div className="min-h-screen bg-secondary/20">
         <header className="relative border-b border-border/60 bg-background">
