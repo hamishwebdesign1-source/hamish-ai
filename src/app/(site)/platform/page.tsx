@@ -61,7 +61,7 @@ export default function PlatformPage() {
     <>
       <PageHero
         eyebrow="HamishAI Agency Platform"
-        title="Build an AI agency without building the technology."
+        title="The complete infrastructure for your own AI agency."
         description="Everything to build, sell, deliver and grow an AI service business — from your first prospect to your next paid client, under your own brand."
         visual={<HeroProductPanel />}
       >

@@ -4,6 +4,7 @@ import { useEffect, useState, useSyncExternalStore } from "react";
 import { Search, Sparkles, Send, TrendingUp, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { HealthRing } from "@/components/analytics/health-ring";
+import { ParallaxLayer } from "@/components/parallax-layer";
 import { heroMetrics, activityFeed, aiAnalysisDemo, pipelineStages, type ActivityEventKind } from "@/lib/platform-preview-data";
 
 // /platform hero — turns the previously-empty right side of the hero
@@ -264,15 +265,21 @@ export function HeroProductPanel() {
         }}
       />
 
-      {/* Pipeline funnel — peeks from behind, bottom-left. */}
-      <div className="absolute -bottom-8 -left-8 hidden lg:block">
+      {/* Pipeline funnel — peeks from behind, bottom-left. Same
+          ParallaxLayer used for the homepage hero's background video
+          (parallax-layer.tsx), here on the two peeking cards instead —
+          they drift apart from the static main panel on scroll, the same
+          depth cue as the homepage rather than a new mechanic. Opposite
+          sign from the activity feed below so the two visibly separate
+          from each other, not just from the anchor panel. */}
+      <ParallaxLayer speed={0.12} className="absolute -bottom-8 -left-8 hidden lg:block">
         <PipelineFunnelCard pulse={step === STEP_COUNT - 1} className="w-64" />
-      </div>
+      </ParallaxLayer>
 
       {/* Activity feed — peeks from behind, top-right. */}
-      <div className="absolute -top-7 -right-6 hidden lg:block">
+      <ParallaxLayer speed={-0.1} className="absolute -top-7 -right-6 hidden lg:block">
         <ActivityFeedCard step={step} className="w-56" />
-      </div>
+      </ParallaxLayer>
 
       {/* Main panel. */}
       <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-primary text-primary-foreground shadow-2xl shadow-accent/10">
