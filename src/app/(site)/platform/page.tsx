@@ -1,12 +1,13 @@
 import Link from "next/link";
+import Image from "next/image";
 import type { Metadata } from "next";
 import { Check, ArrowRight, LayoutDashboard, Users, Rocket, Zap, Building2, ChartColumn } from "lucide-react";
 import type { PlatformPlanSlug } from "@/lib/platform-plans";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { PageHero } from "@/components/page-hero";
 import { Reveal } from "@/components/reveal";
 import { Eyebrow } from "@/components/eyebrow";
+import { ParallaxLayer } from "@/components/parallax-layer";
 import { HeroProductPanel } from "@/components/platform-preview/hero-product-panel";
 import { JourneyExplorer } from "@/components/platform-preview/journey-explorer";
 import { AgencyTypeSelector } from "@/components/platform-preview/agency-type-selector";
@@ -59,23 +60,73 @@ const platformFaqs = [
 export default function PlatformPage() {
   return (
     <>
-      <PageHero
-        eyebrow="HamishAI Agency Platform"
-        title="The complete infrastructure for your own AI agency."
-        description="Everything to build, sell, deliver and grow an AI service business — from your first prospect to your next paid client, under your own brand."
-        visual={<HeroProductPanel />}
-      >
-        <div className="mt-8 flex flex-wrap gap-3">
-          <Button size="lg" render={<Link href="/platform/signup" />}>
-            Start free trial
-          </Button>
-          <Button size="lg" variant="outline" render={<Link href="/analytics" />}>
-            See it running HamishAI itself
-            <ArrowRight className="size-4" />
-          </Button>
+      {/* Same dark-video-hero DNA as the homepage (page.tsx) rather than
+          the plain PageHero every other page uses — this page didn't have
+          real photography behind it before (the product mockup sat on a
+          flat light background), and per direct feedback it read as
+          generic rather than premium. PageHero itself is untouched: it's
+          shared by every other page (About, Terms, Privacy, Services...),
+          so this hero is written out by hand here instead, same as the
+          homepage's own hero already does. */}
+      <section className="relative isolate overflow-hidden bg-[#0d1420]">
+        <ParallaxLayer speed={0.12} className="absolute inset-x-0 -top-24 h-[calc(100%+12rem)]">
+          <Image
+            src="/videos/hero-edinburgh-poster.jpg"
+            alt="Aerial view of Edinburgh's Old Town at golden hour, looking over the rooftops toward the Balmoral clock tower and the Castle"
+            fill
+            priority
+            sizes="100vw"
+            className="object-cover"
+          />
+          <video
+            className="hero-bg-video absolute inset-0 h-full w-full object-cover"
+            autoPlay
+            muted
+            loop
+            playsInline
+            poster="/videos/hero-edinburgh-poster.jpg"
+            aria-hidden="true"
+          >
+            <source src="/videos/hero-edinburgh-1080p.mp4" type="video/mp4" media="(min-width: 768px)" />
+            <source src="/videos/hero-edinburgh-540p.mp4" type="video/mp4" />
+          </video>
+        </ParallaxLayer>
+        <div className="absolute inset-0 bg-gradient-to-r from-[#0d1420] via-[#0d1420]/75 to-[#0d1420]/15" />
+        <div className="absolute inset-0 bg-gradient-to-t from-[#0d1420] via-transparent to-[#0d1420]/30" />
+
+        <div className="relative mx-auto max-w-6xl px-6 pt-20 pb-16 md:pt-28 md:pb-20">
+          <div className="grid gap-12 lg:grid-cols-[1.1fr_1fr] lg:items-center lg:gap-16">
+            <div>
+              <Eyebrow className="mb-6">HamishAI Agency Platform</Eyebrow>
+              <h1 className="max-w-2xl text-4xl font-bold tracking-tight text-balance text-white md:text-6xl">
+                The complete infrastructure for your own <span className="text-accent">AI agency</span>.
+              </h1>
+              <p className="mt-6 max-w-xl text-lg text-balance text-white/70">
+                Everything to build, sell, deliver and grow an AI service business — from your first prospect to
+                your next paid client, under your own brand.
+              </p>
+              <div className="mt-8 flex flex-wrap gap-3">
+                <Button size="lg" variant="gradient" render={<Link href="/platform/signup" />}>
+                  Start free trial
+                </Button>
+                <Button
+                  size="lg"
+                  variant="outline"
+                  className="border-white/25 bg-white/5 text-white hover:bg-white/10"
+                  render={<Link href="/analytics" />}
+                >
+                  See it running HamishAI itself
+                  <ArrowRight className="size-4" />
+                </Button>
+              </div>
+              <p className="mt-3 text-sm text-white/50">14 days free, no card required.</p>
+            </div>
+            <div className="relative">
+              <HeroProductPanel />
+            </div>
+          </div>
         </div>
-        <p className="mt-3 text-sm text-muted-foreground">14 days free, no card required.</p>
-      </PageHero>
+      </section>
 
       <section className="border-t border-border/60 bg-secondary/40">
         <div className="mx-auto max-w-6xl px-6 py-16 md:py-20">

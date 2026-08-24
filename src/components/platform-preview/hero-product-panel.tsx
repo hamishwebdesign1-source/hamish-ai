@@ -251,19 +251,12 @@ export function HeroProductPanel() {
 
   return (
     <div aria-hidden="true" className="relative mx-auto max-w-md lg:mx-0">
-      {/* Background grid detail — restrained, not decorative for its own
-          sake: reads as "there's real structure back there" without
-          competing with the panels in front of it. */}
-      <div
-        className="pointer-events-none absolute inset-[-10%] -z-10 opacity-[0.35]"
-        style={{
-          backgroundImage:
-            "linear-gradient(to right, var(--border) 1px, transparent 1px), linear-gradient(to bottom, var(--border) 1px, transparent 1px)",
-          backgroundSize: "28px 28px",
-          maskImage: "radial-gradient(ellipse at center, black 40%, transparent 75%)",
-          WebkitMaskImage: "radial-gradient(ellipse at center, black 40%, transparent 75%)",
-        }}
-      />
+      {/* No synthetic grid-line backdrop here — this now sits over real
+          drone footage (the hero's own video background), and the
+          homepage's own hero already established the rule this page was
+          breaking: a synthetic texture over real photography reads as
+          clip art on top of a photo, not depth. The real background
+          provides the depth now. */}
 
       {/* Pipeline funnel — peeks from behind, bottom-left. Same
           ParallaxLayer used for the homepage hero's background video
