@@ -63,7 +63,7 @@ export async function sendTrialReminders(now = new Date()) {
       await sendClientEmail(
         owner.email,
         `Your Agency Platform trial has ended`,
-        `Hi,\n\nYour 14-day free trial ended on ${trialEndLabel}. Prospecting is paused until you subscribe — everything else (your existing prospects, clients and data) is untouched and waiting for you.\n\nPick a plan any time in Studio > Billing:\n\n${planOptionsText()}\n\nSubscribe here: https://hamishai.org/studio/billing\n\n— Hamish AI`
+        `Hi,\n\nYour 14-day free trial ended on ${trialEndLabel}. Prospecting is paused until you subscribe — everything else (your existing prospects, clients and data) is untouched and waiting for you.\n\nPick a plan any time in Studio > Billing:\n\n${planOptionsText()}\n\nSubscribe here: https://hamishai.org/studio/billing\n\nDidn't get what you needed from the trial? Just reply and tell me why — genuinely useful either way.\n\n— Hamish AI`
       );
       await admin.from("organisations").update({ trial_reminder_ended_sent_at: now.toISOString() }).eq("id", org.id);
       sent.push(org.id);
