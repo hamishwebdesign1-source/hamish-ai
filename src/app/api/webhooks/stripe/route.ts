@@ -165,6 +165,47 @@ export async function POST(request: Request) {
         await trackServerEvent(orgId, "platform_subscription_started", { plan });
       }
     }
+
+    // A one-time prospect credit pack purchase (createCreditPackCheckoutSession).
+    // Stripe delivers webhooks at least once, so a raw increment here would
+    // double-credit an org on a retried delivery — instead, the
+    // credit_purchases insert below is the actual idempotency gate (unique
+    // on stripe_checkout_session_id): only a genuinely new session id
+    // reaches the increment_prospect_credits() call at all. A retried
+    // delivery for the same session hits the unique-constraint error and is
+    // logged as an already-processed duplicate, not an error worth alerting on.
+    if (orgId && session.mode === "payment" && session.metadata?.credit_pack === "prospects") {
+      const credits = Number(session.metadata.credits ?? 0);
+      if (credits > 0) {
+        const { error: insertError } = await supabase.from("credit_purchases").insert({
+          org_id: orgId,
+          stripe_checkout_session_id: session.id,
+          credits,
+          amount_pence: session.amount_total ?? 0,
+        });
+
+        if (insertError) {
+          if (insertError.code === "23505") {
+            logInfo("stripe_webhook.credit_pack_already_processed", { org_id: orgId, session_id: session.id });
+          } else {
+            logError("stripe_webhook.credit_pack_record_failed", { org_id: orgId, session_id: session.id, message: insertError.message });
+            await sendErrorAlert("Stripe webhook", `Credit pack purchase for org ${orgId} (session ${session.id}) but failed to record it: ${insertError.message}`);
+          }
+        } else {
+          const { error: incrementError } = await supabase.rpc("increment_prospect_credits", { p_org_id: orgId, p_amount: credits });
+          if (incrementError) {
+            logError("stripe_webhook.credit_pack_increment_failed", { org_id: orgId, session_id: session.id, message: incrementError.message });
+            await sendErrorAlert(
+              "Stripe webhook",
+              `Credit pack purchase for org ${orgId} (session ${session.id}) was recorded but the balance failed to update: ${incrementError.message}`
+            );
+          } else {
+            logInfo("stripe_webhook.credit_pack_purchased", { org_id: orgId, session_id: session.id, credits });
+            await trackServerEvent(orgId, "prospect_credit_pack_purchased", { credits });
+          }
+        }
+      }
+    }
   }
 
   // Only `.id` is read from the invoice payload below — that's present in

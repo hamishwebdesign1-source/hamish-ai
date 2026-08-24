@@ -225,7 +225,7 @@ export async function discoverLeads(orgId: string): Promise<DiscoverLeadsResult>
 
   const { data: org, error: orgError } = await supabase
     .from("organisations")
-    .select("name, prospecting_config, is_internal, plan, subscription_status, trial_ends_at")
+    .select("name, prospecting_config, is_internal, plan, subscription_status, trial_ends_at, purchased_prospect_credits")
     .eq("id", orgId)
     .single();
   if (orgError || !org) {
@@ -268,10 +268,22 @@ export async function discoverLeads(orgId: string): Promise<DiscoverLeadsResult>
   // ceiling here rather than just pricing-page copy — checked once before
   // the run starts, so a request against an already-exhausted month never
   // spends a single Claude call.
+  //
+  // Purchased top-up credits (schema-prospect-credits.sql) extend this
+  // ceiling rather than replacing it: monthlyRemaining is always spent
+  // first, credits only cover the overflow. The first `monthlyRemaining`
+  // prospects inserted this run record a real usage_events row (below);
+  // anything past that draws down purchased_prospect_credits instead, via
+  // creditsUsedThisRun — a single atomic decrement after the loop, not one
+  // DB write per prospect.
   let maxInsertsThisRun = MAX_NEW_LEADS_PER_RUN;
+  let monthlyRemaining = Number.POSITIVE_INFINITY;
+  let creditsAvailable = 0;
   if (!org.is_internal) {
     const usage = await getUsageStatus(orgId, "prospect_researched", org.plan as PlatformPlanSlug);
-    if (!usage.allowed) {
+    monthlyRemaining = usage.remaining;
+    creditsAvailable = org.purchased_prospect_credits ?? 0;
+    if (!usage.allowed && creditsAvailable <= 0) {
       return {
         inserted: [],
         skippedDuplicates: [],
@@ -280,8 +292,9 @@ export async function discoverLeads(orgId: string): Promise<DiscoverLeadsResult>
         limitReached: { used: usage.used, limit: usage.limit },
       };
     }
-    maxInsertsThisRun = Math.min(MAX_NEW_LEADS_PER_RUN, usage.remaining);
+    maxInsertsThisRun = Math.min(MAX_NEW_LEADS_PER_RUN, monthlyRemaining + creditsAvailable);
   }
+  let creditsUsedThisRun = 0;
 
   // Scoped to this org only — an org's own dedup must never treat another
   // org's prospects (e.g. HamishAI's own ~100+ rows) as already-found,
@@ -348,7 +361,17 @@ export async function discoverLeads(orgId: string): Promise<DiscoverLeadsResult>
         continue;
       }
 
-      if (!org.is_internal) await recordUsageEvent(orgId, "prospect_researched");
+      if (!org.is_internal) {
+        // inserted.length here is the count BEFORE this prospect is
+        // pushed below — the first monthlyRemaining prospects (0-indexed)
+        // are still within the monthly plan allowance; anything at or
+        // past that index is spending a purchased credit instead.
+        if (inserted.length < monthlyRemaining) {
+          await recordUsageEvent(orgId, "prospect_researched");
+        } else {
+          creditsUsedThisRun++;
+        }
+      }
 
       await logAuditEvent({
         actor: "system",
@@ -377,6 +400,15 @@ export async function discoverLeads(orgId: string): Promise<DiscoverLeadsResult>
 
       inserted.push({ business_name: candidate.business_name, category, neighbourhood: area });
     }
+  }
+
+  // Single atomic decrement for the whole run (not one write per
+  // prospect) — same increment_prospect_credits() RPC the Stripe webhook
+  // uses to credit a purchase, called here with a negative amount so
+  // there's one atomic-update code path for this balance, not two.
+  if (creditsUsedThisRun > 0) {
+    const { error: decrementError } = await supabase.rpc("increment_prospect_credits", { p_org_id: orgId, p_amount: -creditsUsedThisRun });
+    if (decrementError) console.error(`Failed to decrement prospect credits for org ${orgId}:`, decrementError);
   }
 
   return { inserted, skippedDuplicates, searchFailures, pairsSearched: pairs };

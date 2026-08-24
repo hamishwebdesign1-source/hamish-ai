@@ -850,11 +850,13 @@ export function ProspectingPanel({
   initialCategories,
   initialAreas,
   usage,
+  purchasedCredits,
   prospects,
 }: {
   initialCategories: string[];
   initialAreas: string[];
   usage: UsageStatus | null;
+  purchasedCredits: number;
   prospects: Prospect[];
 }) {
   const [categories, setCategories] = useState(initialCategories.join(", "));
@@ -922,7 +924,15 @@ export function ProspectingPanel({
     });
   }
 
-  const atLimit = usage !== null && !usage.allowed;
+  // Purchased top-up credits (schema-prospect-credits.sql) extend the
+  // monthly allowance rather than replacing it — discoverLeads() itself
+  // already draws on them once the monthly cap is spent, so this button
+  // must only actually disable once BOTH are exhausted. Getting this
+  // wrong the other way (disabling on monthly usage alone) would leave
+  // someone who just bought credits unable to use them from this screen
+  // at all.
+  const atLimit = usage !== null && !usage.allowed && purchasedCredits <= 0;
+  const usingCredits = usage !== null && !usage.allowed && purchasedCredits > 0;
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<
@@ -983,10 +993,21 @@ export function ProspectingPanel({
                 style={{ width: `${Math.min(100, (usage.used / Math.max(1, usage.limit)) * 100)}%` }}
               />
             </div>
+            {usingCredits && (
+              <p className="mt-2 flex items-center gap-1.5 text-xs text-accent">
+                <Sparkles className="size-3.5 shrink-0" />
+                Monthly allowance used — {purchasedCredits} purchased prospect{purchasedCredits === 1 ? "" : "s"} available and will be
+                used automatically.
+              </p>
+            )}
             {atLimit && (
               <p className="mt-2 flex items-center gap-1.5 text-xs text-destructive">
                 <CircleAlert className="size-3.5 shrink-0" />
-                Monthly limit reached — upgrade your plan to keep finding prospects this month.
+                Monthly limit reached —{" "}
+                <Link href="/studio/billing" className="underline hover:text-destructive/80">
+                  buy more prospects or upgrade your plan
+                </Link>{" "}
+                to keep finding prospects this month.
               </p>
             )}
           </CardContent>

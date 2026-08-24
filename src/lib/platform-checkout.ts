@@ -1,5 +1,5 @@
 import { getStripe } from "@/lib/stripe";
-import { getPlatformPlan, type PlatformPlanSlug } from "@/lib/platform-plans";
+import { getPlatformPlan, PROSPECT_CREDIT_PACK, type PlatformPlanSlug } from "@/lib/platform-plans";
 import { logInfo, logError } from "@/lib/structured-log";
 
 // Creates a Stripe Checkout Session for a self-serve Agency Platform
@@ -50,6 +50,40 @@ export async function createPlatformCheckoutSession(
     return { url: session.url };
   } catch (error) {
     logError("platform_checkout.session_failed", { plan: planSlug, message: error instanceof Error ? error.message : String(error) });
+    return { error: "Failed to start checkout via Stripe." as const };
+  }
+}
+
+// One-time prospect credit top-up — mode "payment", not "subscription".
+// credits/org_id travel in metadata the same way platform_plan/org_id do
+// above, for the same reason: the webhook's checkout.session.completed
+// handler needs them before any other lookup is possible. The webhook
+// reads `credits` from metadata rather than re-deriving it from
+// PROSPECT_CREDIT_PACK at credit time, so a future change to the pack
+// size never silently reinterprets an already-paid-for session.
+export async function createCreditPackCheckoutSession(email: string, successUrl: string, cancelUrl: string, orgId: string) {
+  const stripe = getStripe();
+  if (!stripe) return { error: "Stripe is not configured." as const };
+
+  const priceId = process.env[PROSPECT_CREDIT_PACK.stripePriceEnvVar];
+  if (!priceId) {
+    return { error: `${PROSPECT_CREDIT_PACK.stripePriceEnvVar} is not set — run scripts/setup-platform-stripe.ts and add the printed Price id to your env vars.` as const };
+  }
+
+  try {
+    const session = await stripe.checkout.sessions.create({
+      mode: "payment",
+      customer_email: email,
+      line_items: [{ price: priceId, quantity: 1 }],
+      success_url: successUrl,
+      cancel_url: cancelUrl,
+      metadata: { credit_pack: "prospects", credits: String(PROSPECT_CREDIT_PACK.prospects), org_id: orgId },
+    });
+
+    logInfo("platform_checkout.credit_pack_session_created", { session_id: session.id, org_id: orgId });
+    return { url: session.url };
+  } catch (error) {
+    logError("platform_checkout.credit_pack_session_failed", { org_id: orgId, message: error instanceof Error ? error.message : String(error) });
     return { error: "Failed to start checkout via Stripe." as const };
   }
 }

@@ -6,7 +6,7 @@ import { createServerSupabaseClient, getUserWithRetry } from "@/lib/supabase-ser
 import { getOrgMembership } from "@/lib/org-membership";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { getStripe } from "@/lib/stripe";
-import { createPlatformCheckoutSession } from "@/lib/platform-checkout";
+import { createPlatformCheckoutSession, createCreditPackCheckoutSession } from "@/lib/platform-checkout";
 import type { PlatformPlanSlug } from "@/lib/platform-plans";
 
 // Same session-derivation as prospects/actions.ts's requireOrgId() — kept
@@ -53,6 +53,21 @@ export async function startCheckout(planSlug: PlatformPlanSlug) {
     `${origin}/studio/billing?checkout=cancelled`,
     orgId
   );
+
+  if ("error" in result) redirect(`/studio/billing?error=${encodeURIComponent(result.error ?? "Failed to start checkout via Stripe.")}`);
+  if (!result.url) redirect(`/studio/billing?error=${encodeURIComponent("Stripe did not return a checkout URL.")}`);
+  redirect(result.url);
+}
+
+// Same bound-to-a-form, void-returning shape as startCheckout() above —
+// a one-time purchase rather than a subscription, so the webhook's
+// checkout.session.completed handler branches on session.mode to tell
+// them apart (see that route's own comment).
+export async function buyCreditPack() {
+  const { orgId, email } = await requireOrgAndEmail();
+  const origin = await getOrigin();
+
+  const result = await createCreditPackCheckoutSession(email, `${origin}/studio/billing?credits=success`, `${origin}/studio/billing?credits=cancelled`, orgId);
 
   if ("error" in result) redirect(`/studio/billing?error=${encodeURIComponent(result.error ?? "Failed to start checkout via Stripe.")}`);
   if (!result.url) redirect(`/studio/billing?error=${encodeURIComponent("Stripe did not return a checkout URL.")}`);

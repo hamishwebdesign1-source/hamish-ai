@@ -21,7 +21,7 @@ export default async function StudioProspectsPage() {
 
   const { data: org } = await supabase
     .from("organisations")
-    .select("prospecting_config, is_internal, plan")
+    .select("prospecting_config, is_internal, plan, purchased_prospect_credits")
     .eq("id", membership.orgId)
     .single();
 
@@ -46,6 +46,7 @@ export default async function StudioProspectsPage() {
       initialCategories={config.categories ?? []}
       initialAreas={config.areas ?? []}
       usage={usage}
+      purchasedCredits={org?.purchased_prospect_credits ?? 0}
       prospects={prospects ?? []}
     />
   );

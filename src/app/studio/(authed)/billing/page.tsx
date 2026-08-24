@@ -1,12 +1,12 @@
 import { redirect } from "next/navigation";
-import { Check, Clock, CreditCard, Rocket, Zap, Building2 } from "lucide-react";
+import { Check, Clock, CreditCard, Rocket, Zap, Building2, Sparkles } from "lucide-react";
 import { createServerSupabaseClient } from "@/lib/supabase-server-auth";
 import { getOrgMembership } from "@/lib/org-membership";
-import { platformPlans, formatMonthlyPrice, type PlatformPlanSlug } from "@/lib/platform-plans";
+import { platformPlans, formatMonthlyPrice, PROSPECT_CREDIT_PACK, type PlatformPlanSlug } from "@/lib/platform-plans";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { startCheckout, openBillingPortal } from "./actions";
+import { startCheckout, openBillingPortal, buyCreditPack } from "./actions";
 
 // Standalone helper, not inline in the component body — same pattern as
 // daysSince() in admin/(authed)/page.tsx, which react-hooks/purity's
@@ -30,9 +30,9 @@ const planIcons: Record<PlatformPlanSlug, typeof Rocket> = {
 export default async function StudioBillingPage({
   searchParams,
 }: {
-  searchParams: Promise<{ checkout?: string; error?: string }>;
+  searchParams: Promise<{ checkout?: string; credits?: string; error?: string }>;
 }) {
-  const { checkout, error } = await searchParams;
+  const { checkout, credits, error } = await searchParams;
 
   const supabase = await createServerSupabaseClient();
   const {
@@ -48,7 +48,7 @@ export default async function StudioBillingPage({
   // on, so this is only ever the caller's own organisation.
   const { data: org } = await supabase
     .from("organisations")
-    .select("plan, subscription_status, trial_ends_at, stripe_customer_id")
+    .select("plan, subscription_status, trial_ends_at, stripe_customer_id, purchased_prospect_credits")
     .eq("id", membership.orgId)
     .single();
 
@@ -71,6 +71,16 @@ export default async function StudioBillingPage({
         </p>
       )}
       {checkout === "cancelled" && (
+        <p className="rounded-lg border border-border bg-secondary/40 px-4 py-3 text-sm text-muted-foreground">
+          Checkout cancelled — no charge was made.
+        </p>
+      )}
+      {credits === "success" && (
+        <p className="rounded-lg border border-accent/40 bg-accent/5 px-4 py-3 text-sm text-accent">
+          Credits purchased — thanks. It may take a few seconds to reflect below.
+        </p>
+      )}
+      {credits === "cancelled" && (
         <p className="rounded-lg border border-border bg-secondary/40 px-4 py-3 text-sm text-muted-foreground">
           Checkout cancelled — no charge was made.
         </p>
@@ -102,6 +112,29 @@ export default async function StudioBillingPage({
               </Button>
             </form>
           )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardContent className="flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <span className="flex size-10 items-center justify-center rounded-xl bg-accent/10 text-accent">
+              <Sparkles className="size-4.5" />
+            </span>
+            <div>
+              <p className="font-heading text-sm font-semibold">
+                {org?.purchased_prospect_credits ?? 0} extra prospect{org?.purchased_prospect_credits === 1 ? "" : "s"} available
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Hit your monthly limit? Top up any time — used automatically once the monthly allowance runs out.
+              </p>
+            </div>
+          </div>
+          <form action={buyCreditPack}>
+            <Button type="submit" size="sm">
+              +{PROSPECT_CREDIT_PACK.prospects} prospects — £{(PROSPECT_CREDIT_PACK.pricePence / 100).toFixed(0)}
+            </Button>
+          </form>
         </CardContent>
       </Card>
 

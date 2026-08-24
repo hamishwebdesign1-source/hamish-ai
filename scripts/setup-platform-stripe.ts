@@ -23,7 +23,7 @@ config({ path: path.resolve(__dirname, "../.env.local") });
 
 async function main() {
   const Stripe = (await import("stripe")).default;
-  const { platformPlans, formatMonthlyPrice } = await import("../src/lib/platform-plans");
+  const { platformPlans, formatMonthlyPrice, PROSPECT_CREDIT_PACK } = await import("../src/lib/platform-plans");
 
   const key = process.env.STRIPE_SECRET_KEY;
   if (!key) throw new Error("STRIPE_SECRET_KEY is not set in .env.local — nothing to do.");
@@ -64,7 +64,32 @@ async function main() {
     console.log(`  → paste into .env.local as ${plan.stripePriceEnvVar}=${price.id}\n`);
   }
 
-  console.log("Done. Add the three env vars above to .env.local and Vercel before Week 4's checkout flow needs them.");
+  // One-time credit pack — mode "payment", not "subscription", so it's a
+  // plain non-recurring Price rather than the recurring shape every plan
+  // above uses. Same idempotent-by-amount lookup as the plans, since
+  // Prices can't be edited once created.
+  const packProduct = await stripe.products
+    .retrieve(PROSPECT_CREDIT_PACK.productId)
+    .catch(() => stripe.products.create({ id: PROSPECT_CREDIT_PACK.productId, name: `HamishAI Agency Platform — +${PROSPECT_CREDIT_PACK.prospects} prospects` }));
+
+  const existingPackPrices = await stripe.prices.list({ product: packProduct.id, active: true, limit: 10 });
+  let packPrice = existingPackPrices.data.find((p) => p.unit_amount === PROSPECT_CREDIT_PACK.pricePence && p.currency === "gbp" && !p.recurring);
+
+  if (!packPrice) {
+    packPrice = await stripe.prices.create({
+      product: packProduct.id,
+      currency: "gbp",
+      unit_amount: PROSPECT_CREDIT_PACK.pricePence,
+      nickname: `+${PROSPECT_CREDIT_PACK.prospects} prospects`,
+    });
+  }
+
+  console.log(`+${PROSPECT_CREDIT_PACK.prospects} prospects (£${(PROSPECT_CREDIT_PACK.pricePence / 100).toFixed(2)}, one-time)`);
+  console.log(`  Product: ${packProduct.id}`);
+  console.log(`  Price:   ${packPrice.id}`);
+  console.log(`  → paste into .env.local as ${PROSPECT_CREDIT_PACK.stripePriceEnvVar}=${packPrice.id}\n`);
+
+  console.log("Done. Add the env vars above to .env.local and Vercel before the checkout flow needs them.");
 }
 
 main()

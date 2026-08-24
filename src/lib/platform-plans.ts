@@ -91,3 +91,17 @@ export function getPlatformPlan(slug: PlatformPlanSlug): PlatformPlan {
 export function formatMonthlyPrice(pence: number): string {
   return `£${(pence / 100).toFixed(0)}`;
 }
+
+// A single top-up pack, deliberately priced well under the cheapest
+// plan's own per-prospect rate (Starter: £59/30 = ~£1.97 each; this is
+// 45p each) — an enticing "just get me over the hump" purchase, not a
+// second pricing ladder. One-time Stripe Price (mode: "payment"), not a
+// recurring one, set up the same way as the three plans above (Product
+// id `hamishai-platform-credit-pack`, price id from the env var below —
+// see scripts/setup-platform-stripe.ts).
+export const PROSPECT_CREDIT_PACK = {
+  productId: "hamishai-platform-credit-pack",
+  prospects: 20,
+  pricePence: 900,
+  stripePriceEnvVar: "STRIPE_PRICE_PLATFORM_CREDIT_PACK",
+};
