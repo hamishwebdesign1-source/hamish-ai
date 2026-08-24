@@ -52,7 +52,7 @@ const platformFaqs = [
   {
     question: "Is this live yet?",
     answer:
-      "Built and running internally — HamishAI's own leads, outreach and client reporting run on this exact system. Opening it to outside agencies is in early access: we're onboarding a small number by hand before self-serve signup. Book a call and we'll tell you honestly whether it's ready for your niche.",
+      "Built and running internally — HamishAI's own leads, outreach and client reporting run on this exact system. It's now open for self-serve signup: start a free 14-day trial, no card required. Prefer to talk it through first? Book a call instead.",
   },
 ];
 
@@ -66,14 +66,15 @@ export default function PlatformPage() {
         visual={<HeroProductPanel />}
       >
         <div className="mt-8 flex flex-wrap gap-3">
-          <Button size="lg" render={<Link href="/book" />}>
-            Get early access
+          <Button size="lg" render={<Link href="/platform/signup" />}>
+            Start free trial
           </Button>
           <Button size="lg" variant="outline" render={<Link href="/analytics" />}>
             See it running HamishAI itself
             <ArrowRight className="size-4" />
           </Button>
         </div>
+        <p className="mt-3 text-sm text-muted-foreground">14 days free, no card required.</p>
       </PageHero>
 
       <section className="border-t border-border/60 bg-secondary/40">
@@ -210,9 +211,9 @@ export default function PlatformPage() {
                   <Button
                     className="mt-6 w-full"
                     variant={plan.highlighted ? "default" : "outline"}
-                    render={<Link href="/book" />}
+                    render={<Link href="/platform/signup" />}
                   >
-                    Get early access
+                    Start free trial
                   </Button>
                 </div>
               </Reveal>
@@ -242,12 +243,15 @@ export default function PlatformPage() {
           <div>
             <h2 className="font-heading text-2xl font-semibold md:text-3xl">Build the agency. HamishAI runs the infrastructure.</h2>
             <p className="mt-2 max-w-lg text-primary-foreground/70">
-              Early access is a short call, not a form — we&apos;ll tell you honestly whether this is ready
-              for what you want to sell.
+              Free for 14 days, no card required. Prefer to talk it through first?{" "}
+              <Link href="/book" className="underline underline-offset-2">
+                Book a call
+              </Link>{" "}
+              instead.
             </p>
           </div>
-          <Button size="lg" variant="secondary" render={<Link href="/book" />}>
-            Get early access
+          <Button size="lg" variant="secondary" render={<Link href="/platform/signup" />}>
+            Start free trial
           </Button>
         </div>
       </section>
