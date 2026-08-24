@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { Suspense, useState, type FormEvent } from "react";
+import { useSearchParams } from "next/navigation";
 import { MailCheck } from "lucide-react";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
 import { Eyebrow } from "@/components/eyebrow";
@@ -23,17 +24,36 @@ import { Button } from "@/components/ui/button";
 // Client ID/Secret — deliberately not the GOOGLE_CLIENT_ID/SECRET env
 // vars google-auth.ts already uses, since those are scoped for
 // server-side Gmail/Calendar access, not public user sign-in.
+// useSearchParams() needs a Suspense boundary around whatever reads it —
+// this page is 100% "use client" already (no server-rendered content to
+// lose), so the split below is purely to satisfy that requirement, not a
+// meaningful architecture change.
 export default function PlatformSignupPage() {
+  return (
+    <Suspense>
+      <SignupForm />
+    </Suspense>
+  );
+}
+
+function SignupForm() {
   const [email, setEmail] = useState("");
   const [status, setStatus] = useState<"idle" | "sending" | "sent" | "error">("idle");
   const [googlePending, setGooglePending] = useState(false);
+  const searchParams = useSearchParams();
+  // Carried from a specific pricing-card "Sign up" click
+  // ((site)/platform/page.tsx) all the way through Google/magic-link auth
+  // to the onboarding wizard's trial-vs-pay-now step — see
+  // /api/platform/callback's own comment for the next leg of this relay.
+  const plan = searchParams.get("plan");
+  const callbackUrl = `${typeof window !== "undefined" ? window.location.origin : ""}/api/platform/callback${plan ? `?plan=${plan}` : ""}`;
 
   async function signInWithGoogle() {
     setGooglePending(true);
     const supabase = getSupabaseBrowserClient();
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
-      options: { redirectTo: `${window.location.origin}/api/platform/callback` },
+      options: { redirectTo: callbackUrl },
     });
     // On success the browser navigates away to Google immediately: this
     // only ever executes on failure, so it's safe to just re-enable the
@@ -48,7 +68,7 @@ export default function PlatformSignupPage() {
     const supabase = getSupabaseBrowserClient();
     const { error } = await supabase.auth.signInWithOtp({
       email,
-      options: { emailRedirectTo: `${window.location.origin}/api/platform/callback` },
+      options: { emailRedirectTo: callbackUrl },
     });
 
     setStatus(error ? "error" : "sent");
@@ -61,7 +81,7 @@ export default function PlatformSignupPage() {
           <Eyebrow>HamishAI Agency Platform</Eyebrow>
           <h1 className="mt-3 font-heading text-2xl font-semibold">Start your free trial</h1>
           <p className="mt-2 text-sm text-muted-foreground">
-            14 days free, no card required. First time here? You&apos;ll set up your agency straight after signing in.
+            7 days free, no card required. First time here? You&apos;ll set up your agency straight after signing in.
           </p>
 
           <Button

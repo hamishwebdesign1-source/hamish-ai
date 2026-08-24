@@ -16,6 +16,12 @@ export async function GET(request: Request) {
   const code = searchParams.get("code");
   const tokenHash = searchParams.get("token_hash");
   const type = searchParams.get("type");
+  // Relayed from /platform/signup's own redirectTo/emailRedirectTo (see
+  // that file's comment) on to /platform/onboarding below — only
+  // meaningful for a genuinely new signup; an existing member goes
+  // straight to /studio regardless of which plan's "Sign up" button they
+  // clicked, since they already have one.
+  const plan = searchParams.get("plan");
 
   const supabase = await createServerSupabaseClient();
 
@@ -47,5 +53,6 @@ export async function GET(request: Request) {
   }
 
   const membership = await getOrgMembership(supabase, email);
-  return NextResponse.redirect(`${origin}${membership ? "/studio" : "/platform/onboarding"}`);
+  const onboardingUrl = plan ? `/platform/onboarding?plan=${encodeURIComponent(plan)}` : "/platform/onboarding";
+  return NextResponse.redirect(`${origin}${membership ? "/studio" : onboardingUrl}`);
 }

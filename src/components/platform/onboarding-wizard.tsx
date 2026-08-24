@@ -1,13 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { Check } from "lucide-react";
+import { Check, Sparkles, CreditCard } from "lucide-react";
 import { Eyebrow } from "@/components/eyebrow";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { platformPlans, formatMonthlyPrice, type PlatformPlanSlug } from "@/lib/platform-plans";
 import { submitOnboarding } from "@/app/platform/onboarding/actions";
 
 // Steps 2–6 of the Agency Platform onboarding flow (step 1, sign up, is
@@ -42,11 +43,18 @@ const AGENCY_TYPES = [
   },
 ] as const;
 
-type Step = "name" | "type" | "services" | "branding" | "review";
-const STEPS: Step[] = ["name", "type", "services", "branding", "review"];
+type Step = "start" | "name" | "type" | "services" | "branding" | "review";
+const STEPS: Step[] = ["start", "name", "type", "services", "branding", "review"];
 
-export function OnboardingWizard({ email }: { email: string }) {
-  const [step, setStep] = useState<Step>("name");
+export function OnboardingWizard({ email, initialPlan }: { email: string; initialPlan: PlatformPlanSlug | null }) {
+  const [step, setStep] = useState<Step>("start");
+  // "trial" is the default regardless of whether a plan arrived via
+  // ?plan= from a pricing-card click (see onboarding/page.tsx) — clicking
+  // a specific plan's "Sign up" button means "I want this plan," not "I
+  // want to skip the trial"; selectedPlan just pre-fills the pay-now
+  // choice below in case they do switch to it.
+  const [startMode, setStartMode] = useState<"trial" | "pay-now">("trial");
+  const [selectedPlan, setSelectedPlan] = useState<PlatformPlanSlug>(initialPlan ?? "professional");
   const [agencyName, setAgencyName] = useState("");
   const [agencyType, setAgencyType] = useState<(typeof AGENCY_TYPES)[number]["slug"] | null>(null);
   const [services, setServices] = useState<string[]>([]);
@@ -76,6 +84,8 @@ export function OnboardingWizard({ email }: { email: string }) {
       agencyType: selectedType?.name ?? "AI Analytics",
       services,
       accentColor,
+      startMode,
+      selectedPlan: startMode === "pay-now" ? selectedPlan : null,
     });
     // A successful call redirect()s server-side and never returns here —
     // reaching this line means it didn't.
@@ -90,6 +100,70 @@ export function OnboardingWizard({ email }: { email: string }) {
       <Card className="w-full max-w-lg p-2">
         <CardContent>
           <Eyebrow>Set up your agency · Step {stepIndex + 1} of {STEPS.length}</Eyebrow>
+
+          {step === "start" && (
+            <>
+              <h1 className="mt-3 font-heading text-2xl font-semibold">How would you like to start?</h1>
+              <p className="mt-2 text-sm text-muted-foreground">You can switch any time from Studio &gt; Billing — this just decides today.</p>
+              <div className="mt-6 space-y-3">
+                <button
+                  type="button"
+                  onClick={() => setStartMode("trial")}
+                  className={cn(
+                    "flex w-full items-start gap-3 rounded-xl border p-4 text-left transition-colors",
+                    startMode === "trial" ? "border-accent/60 bg-accent/5" : "border-border hover:bg-secondary/40"
+                  )}
+                >
+                  <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-accent/10 text-accent">
+                    <Sparkles className="size-4" />
+                  </span>
+                  <span>
+                    <span className="block font-heading text-sm font-semibold">7-day free trial</span>
+                    <span className="block text-xs text-muted-foreground">Full access, no card required. Decide on a plan later.</span>
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setStartMode("pay-now")}
+                  className={cn(
+                    "flex w-full items-start gap-3 rounded-xl border p-4 text-left transition-colors",
+                    startMode === "pay-now" ? "border-accent/60 bg-accent/5" : "border-border hover:bg-secondary/40"
+                  )}
+                >
+                  <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-accent/10 text-accent">
+                    <CreditCard className="size-4" />
+                  </span>
+                  <span>
+                    <span className="block font-heading text-sm font-semibold">Subscribe now</span>
+                    <span className="block text-xs text-muted-foreground">Skip the trial, pick a plan, and start straight away.</span>
+                  </span>
+                </button>
+              </div>
+
+              {startMode === "pay-now" && (
+                <div className="mt-4 grid grid-cols-3 gap-2">
+                  {platformPlans.map((plan) => (
+                    <button
+                      key={plan.slug}
+                      type="button"
+                      onClick={() => setSelectedPlan(plan.slug)}
+                      className={cn(
+                        "rounded-lg border p-2.5 text-center transition-colors",
+                        selectedPlan === plan.slug ? "border-accent/60 bg-accent/5" : "border-border hover:bg-secondary/40"
+                      )}
+                    >
+                      <p className="text-xs font-semibold">{plan.name}</p>
+                      <p className="mt-0.5 font-mono text-[11px] text-muted-foreground">{formatMonthlyPrice(plan.monthlyPence)}/mo</p>
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              <Button className="mt-6 w-full" onClick={next}>
+                Continue
+              </Button>
+            </>
+          )}
 
           {step === "name" && (
             <>
@@ -205,6 +279,12 @@ export function OnboardingWizard({ email }: { email: string }) {
             <>
               <h1 className="mt-3 font-heading text-2xl font-semibold">Ready to create your workspace</h1>
               <div className="mt-6 space-y-3 rounded-xl border border-border bg-secondary/30 p-4 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Starting with</span>
+                  <span className="font-medium">
+                    {startMode === "trial" ? "7-day free trial" : `${platformPlans.find((p) => p.slug === selectedPlan)?.name} plan`}
+                  </span>
+                </div>
                 <div className="flex justify-between"><span className="text-muted-foreground">Agency</span><span className="font-medium">{agencyName}</span></div>
                 <div className="flex justify-between"><span className="text-muted-foreground">Type</span><span className="font-medium">{selectedType?.name}</span></div>
                 <div className="flex justify-between"><span className="text-muted-foreground">Services</span><span className="text-right font-medium">{services.join(", ")}</span></div>
@@ -216,7 +296,7 @@ export function OnboardingWizard({ email }: { email: string }) {
               <div className="mt-6 flex gap-3">
                 <Button variant="outline" className="flex-1" onClick={back} disabled={status === "submitting"}>Back</Button>
                 <Button className="flex-1" onClick={handleCreate} disabled={status === "submitting"}>
-                  {status === "submitting" ? "Creating…" : "Create my agency"}
+                  {status === "submitting" ? "Creating…" : startMode === "pay-now" ? "Continue to payment" : "Create my agency"}
                 </Button>
               </div>
             </>

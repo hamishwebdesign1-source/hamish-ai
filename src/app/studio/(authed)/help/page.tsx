@@ -40,7 +40,7 @@ const faqs = [
   },
   {
     q: "What happens when my free trial ends?",
-    a: "You'll get an email reminder with a week left and again the day before. Without a card on file by the end of the 14-day trial, you'll lose access to prospecting until you subscribe from Studio > Billing — your data isn't deleted, just paused.",
+    a: "You'll get an email reminder 3 days before it ends, and again the day before. Without a card on file by the end of the 7-day trial, you'll lose access to prospecting until you subscribe from Studio > Billing — your data isn't deleted, just paused.",
   },
   {
     q: "Can I export or delete my organisation's data?",

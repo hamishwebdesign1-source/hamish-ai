@@ -53,7 +53,7 @@ const platformFaqs = [
   {
     question: "Is this live yet?",
     answer:
-      "Built and running internally — HamishAI's own leads, outreach and client reporting run on this exact system. It's now open for self-serve signup: start a free 14-day trial, no card required. Prefer to talk it through first? Book a call instead.",
+      "Built and running internally — HamishAI's own leads, outreach and client reporting run on this exact system. It's now open for self-serve signup: start a free 7-day trial, no card required. Prefer to talk it through first? Book a call instead.",
   },
 ];
 
@@ -119,7 +119,7 @@ export default function PlatformPage() {
                   <ArrowRight className="size-4" />
                 </Button>
               </div>
-              <p className="mt-3 text-sm text-white/50">14 days free, no card required.</p>
+              <p className="mt-3 text-sm text-white/50">7 days free, no card required.</p>
             </div>
             <div className="relative">
               <HeroProductPanel />
@@ -262,9 +262,9 @@ export default function PlatformPage() {
                   <Button
                     className="mt-6 w-full"
                     variant={plan.highlighted ? "default" : "outline"}
-                    render={<Link href="/platform/signup" />}
+                    render={<Link href={`/platform/signup?plan=${plan.slug}`} />}
                   >
-                    Start free trial
+                    Sign up
                   </Button>
                 </div>
               </Reveal>
@@ -294,7 +294,7 @@ export default function PlatformPage() {
           <div>
             <h2 className="font-heading text-2xl font-semibold md:text-3xl">Build the agency. HamishAI runs the infrastructure.</h2>
             <p className="mt-2 max-w-lg text-primary-foreground/70">
-              Free for 14 days, no card required. Prefer to talk it through first?{" "}
+              Free for 7 days, no card required. Prefer to talk it through first?{" "}
               <Link href="/book" className="underline underline-offset-2">
                 Book a call
               </Link>{" "}

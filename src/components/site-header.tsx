@@ -66,12 +66,28 @@ export function SiteHeader() {
               this sat flush in the main nav. A muted, visually distinct
               text link instead of a matching nav item or button keeps it
               reachable without implying it's another consultancy page. */}
-          <Link
-            href="/platform"
-            className="hidden text-xs text-muted-foreground underline decoration-border underline-offset-4 transition-colors hover:text-foreground lg:inline"
-          >
-            Launch an AI agency →
-          </Link>
+          {pathname.startsWith("/platform") ? (
+            // Contextual, not global — this header is shared with every
+            // consultancy page too (About, Services...), and a "Sign in"
+            // link there would confuse a local business owner who isn't
+            // an Agency Platform tenant at all, same reasoning as this
+            // link's own comment for why "Launch an AI agency" stays
+            // muted rather than a full nav item. Only shown once someone's
+            // actually on a Platform-related page.
+            <Link
+              href="/platform/signup"
+              className="hidden text-xs text-muted-foreground underline decoration-border underline-offset-4 transition-colors hover:text-foreground lg:inline"
+            >
+              Sign in
+            </Link>
+          ) : (
+            <Link
+              href="/platform"
+              className="hidden text-xs text-muted-foreground underline decoration-border underline-offset-4 transition-colors hover:text-foreground lg:inline"
+            >
+              Launch an AI agency →
+            </Link>
+          )}
           <Button
             size="sm"
             className="hidden sm:inline-flex"
@@ -113,13 +129,23 @@ export function SiteHeader() {
             >
               Book a free AI consultation
             </Button>
-            <Link
-              href="/platform"
-              className="text-center text-xs text-muted-foreground underline decoration-border underline-offset-4"
-              onClick={() => setOpen(false)}
-            >
-              Or launch your own AI agency →
-            </Link>
+            {pathname.startsWith("/platform") ? (
+              <Link
+                href="/platform/signup"
+                className="text-center text-xs text-muted-foreground underline decoration-border underline-offset-4"
+                onClick={() => setOpen(false)}
+              >
+                Sign in
+              </Link>
+            ) : (
+              <Link
+                href="/platform"
+                className="text-center text-xs text-muted-foreground underline decoration-border underline-offset-4"
+                onClick={() => setOpen(false)}
+              >
+                Or launch your own AI agency →
+              </Link>
+            )}
           </div>
         </nav>
       )}

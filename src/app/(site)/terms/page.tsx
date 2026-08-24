@@ -34,7 +34,7 @@ export default function TermsPage() {
           <div>
             <h2>The free trial</h2>
             <p>
-              New Agency Platform accounts get 14 days free, no card required. If you don&apos;t add a card and
+              New Agency Platform accounts get 7 days free, no card required. If you don&apos;t add a card and
               subscribe by the end of the trial, prospecting is paused until you do — your existing prospects,
               clients and data are kept, not deleted.
             </p>

@@ -4,7 +4,7 @@ import { platformPlans, formatMonthlyPrice } from "@/lib/platform-plans";
 
 // P1 platform readiness item, adapted from the audit's "90/60/30-day
 // renewal reminder" framing to what this platform actually has: a
-// one-time 14-day free trial (schema-platform-billing.sql), not a
+// one-time 7-day free trial (schema-platform-billing.sql), not a
 // recurring contract due for manual renewal. Once an agency subscribes,
 // Stripe's own subscription billing (charge_automatically,
 // platform-checkout.ts) renews and re-charges automatically, and Stripe
@@ -14,8 +14,15 @@ import { platformPlans, formatMonthlyPrice } from "@/lib/platform-plans";
 // closes: an agency on the free trial who never enters a card gets cut
 // off from prospecting the moment trial_ends_at passes
 // (discover-leads.ts's billingRequired gate) — three emails, each sent
-// exactly once, cover the whole run-up and the moment itself: 7 days out,
+// exactly once, cover the whole run-up and the moment itself: 3 days out,
 // 1 day out, and the day it actually lapses.
+//
+// trial_reminder_7d_sent_at (schema-trial-reminders.sql) keeps its
+// original column name even though the threshold it now gates is 3 days,
+// not 7 — the trial itself shortened from 14 to 7 days, so "halfway
+// through the run-up" moved with it. Renaming the column would need its
+// own migration for a purely cosmetic reason; the column's meaning
+// ("the early reminder, whenever it fires") hasn't actually changed.
 //
 // sendClientEmail() here is correct, not a tenant-identity leak — the
 // recipient is the agency owner themselves, a direct HamishAI/Agency
@@ -63,7 +70,7 @@ export async function sendTrialReminders(now = new Date()) {
       await sendClientEmail(
         owner.email,
         `Your Agency Platform trial has ended`,
-        `Hi,\n\nYour 14-day free trial ended on ${trialEndLabel}. Prospecting is paused until you subscribe — everything else (your existing prospects, clients and data) is untouched and waiting for you.\n\nPick a plan any time in Studio > Billing:\n\n${planOptionsText()}\n\nSubscribe here: https://hamishai.org/studio/billing\n\nDidn't get what you needed from the trial? Just reply and tell me why — genuinely useful either way.\n\n— Hamish AI`
+        `Hi,\n\nYour 7-day free trial ended on ${trialEndLabel}. Prospecting is paused until you subscribe — everything else (your existing prospects, clients and data) is untouched and waiting for you.\n\nPick a plan any time in Studio > Billing:\n\n${planOptionsText()}\n\nSubscribe here: https://hamishai.org/studio/billing\n\nDidn't get what you needed from the trial? Just reply and tell me why — genuinely useful either way.\n\n— Hamish AI`
       );
       await admin.from("organisations").update({ trial_reminder_ended_sent_at: now.toISOString() }).eq("id", org.id);
       sent.push(org.id);
@@ -75,7 +82,7 @@ export async function sendTrialReminders(now = new Date()) {
       );
       await admin.from("organisations").update({ trial_reminder_1d_sent_at: now.toISOString() }).eq("id", org.id);
       sent.push(org.id);
-    } else if (daysLeft > 1 && daysLeft <= 7 && !org.trial_reminder_7d_sent_at) {
+    } else if (daysLeft > 1 && daysLeft <= 3 && !org.trial_reminder_7d_sent_at) {
       await sendClientEmail(
         owner.email,
         `${Math.ceil(daysLeft)} days left on your Agency Platform trial`,
