@@ -393,6 +393,28 @@
   }
 }
 
+/* signup-form.tsx's FacetSpinner — three small Facet-mark triangles
+   pulsing in sequence in place of a generic circular spinner, the same
+   "use the actual brand mark, not a borrowed AI motif" idea as
+   signup-brand-panel.tsx's ambient motif. Not gated by .motif-anim: that
+   class assumes a background decoration safe to hide outright under
+   reduced motion, but this is the only loading indicator on an active
+   button — reduced motion means calmer, not gone, so the
+   prefers-reduced-motion override below (with everything else) freezes
+   it at full opacity instead of removing it. */
+@keyframes facet-pulse {
+  0%,
+  100% {
+    opacity: 0.3;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+.facet-spinner-dot {
+  animation: facet-pulse 1.1s ease-in-out infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;
@@ -410,6 +432,10 @@
   .feed-item-enter,
   .tab-panel-enter {
     animation: none;
+  }
+  .facet-spinner-dot {
+    animation: none;
+    opacity: 1;
   }
   .hero-bg-video {
     display: none;
