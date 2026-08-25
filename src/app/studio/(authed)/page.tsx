@@ -623,23 +623,13 @@ export default async function StudioHomePage() {
 
   return (
     <div>
-      {/* Studio Mission Control redesign — the one ambient touch on this
-          page, reusing the site's own existing aurora-bg utility
-          (already built for the marketing hero) rather than a new
-          decoration invented for Studio alone. Contained to the
-          masthead, not applied page-wide — "spend your boldness in one
-          place," per the same restraint the rest of this redesign
-          already leans on (a scoped token override, not a font swap or
-          a second design language). */}
-      <div className="aurora-bg -mx-6 rounded-2xl px-6 py-6 sm:-mx-8 sm:px-8">
-        <Eyebrow>Command Centre</Eyebrow>
-        <h1 className="mt-3 font-heading text-3xl font-semibold md:text-4xl">
-          {timeOfDayGreeting()}, {org?.name ?? "your agency"}.
-        </h1>
-        <p className="mt-2 max-w-xl text-muted-foreground">
-          {pickHeadlineSignal({ actionsTotal, readyToContact: briefing.readyToContact, pipelineValuePence })}
-        </p>
-      </div>
+      <Eyebrow>Command Centre</Eyebrow>
+      <h1 className="mt-3 font-heading text-3xl font-semibold md:text-4xl">
+        {timeOfDayGreeting()}, {org?.name ?? "your agency"}.
+      </h1>
+      <p className="mt-2 max-w-xl text-muted-foreground">
+        {pickHeadlineSignal({ actionsTotal, readyToContact: briefing.readyToContact, pipelineValuePence })}
+      </p>
 
       <div className="mt-6 flex flex-wrap gap-2">
         <Badge variant="secondary">{config.agencyType ?? "Agency"}</Badge>

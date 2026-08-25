@@ -45,8 +45,17 @@ export default async function StudioAuthedLayout({ children }: { children: React
           bg-secondary/20 (a 20%-opacity tint over the site's light page)
           on purpose: that tint was designed to sit over a light body, and
           at 20% opacity over the new dark scope it would let the site's
-          still-light global background bleed through underneath. */}
-      <div className="dark studio-shell min-h-screen bg-background">
+          still-light global background bleed through underneath.
+          text-foreground alongside it for the same reason body itself
+          pairs bg-background with text-foreground: `color` inherits as
+          an already-resolved value, not a live var() re-evaluation — any
+          descendant with no text-* class of its own (a bare <h1>, this
+          layout's own logo Link) would otherwise inherit body's
+          light-mode near-black text straight through this dark scope,
+          nearly invisible against it. Re-asserting color here is what
+          makes this div a real new inheritance root, the same way body
+          is for the rest of the site. */}
+      <div className="dark studio-shell min-h-screen bg-background text-foreground">
         <StudioCommandPalette />
         <header className="relative border-b border-border/60 bg-background">
           <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-6 py-4">
