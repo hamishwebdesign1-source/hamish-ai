@@ -14,7 +14,7 @@ import { createServerSupabaseClient } from "@/lib/supabase-server-auth";
 import { getOrgMembership } from "@/lib/org-membership";
 import { getStudioBriefing } from "@/lib/studio-briefing";
 import { computeAgencyHealth, type HealthComponent } from "@/lib/client-health";
-import { getStudioAnalytics, percentChange } from "@/lib/studio-analytics";
+import { getStudioAnalytics } from "@/lib/studio-analytics";
 import { generateInsights } from "@/lib/studio-insights";
 import { leadNeedsFollowUp } from "@/lib/lead-status";
 import { Button } from "@/components/ui/button";
@@ -80,7 +80,7 @@ function relativeTime(iso: string, now: Date): string {
   return new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
 }
 
-type Tone = "attention" | "opportunity" | "momentum";
+type Tone = "attention" | "opportunity";
 type Signal = {
   id: string;
   tone: Tone;
@@ -94,20 +94,33 @@ type Signal = {
 const TONE_STYLE: Record<Tone, { dot: string; label: string }> = {
   attention: { dot: "bg-destructive", label: "Needs attention" },
   opportunity: { dot: "bg-accent", label: "Opportunity" },
-  momentum: { dot: "bg-[var(--chart-4)]", label: "Momentum" },
 };
 
 // The one ranked list the hero narrative, "What matters now", and "Your
 // next move" all read from — see this file's own top comment for why
 // that matters more than any individual card's styling.
+//
+// Deliberately scoped to real, actionable urgency only (attention:
+// something's overdue; opportunity: someone's worth following up on) —
+// no "momentum" tone here anymore. That used to independently recompute
+// the exact same KPI percentage deltas studio-insights.ts's
+// generateInsights() already computes for "AI observations" below, which
+// caused the same real number ("New prospects up X% this month") to
+// appear in two or three places on the page at once — confirmed by
+// tracing the actual weight math, not assumed: a single big percentage
+// swing (weight 20+pct, so 100%+ swings score 120+) could genuinely
+// outrank a real open client request (weight 100+count) for the
+// top-signal slot, which is backwards — a positive trend should never
+// outrank something a client is actually waiting on. Trend/momentum
+// commentary now lives in exactly one place (AI observations); this
+// list only ever surfaces things that need a decision.
 function buildSignals(params: {
   openRequestCount: number;
   overdueProjectCount: number;
   followUpCount: number;
   topOpportunity: { businessName: string; overallScore: number } | null;
-  kpiDeltas: { label: string; pct: number; direction: "up" | "down" | "flat" }[];
 }): Signal[] {
-  const { openRequestCount, overdueProjectCount, followUpCount, topOpportunity, kpiDeltas } = params;
+  const { openRequestCount, overdueProjectCount, followUpCount, topOpportunity } = params;
   const signals: Signal[] = [];
 
   if (openRequestCount > 0) {
@@ -154,20 +167,6 @@ function buildSignals(params: {
       weight: 55,
     });
   }
-  for (const kpi of kpiDeltas) {
-    if (kpi.direction === "up" && kpi.pct >= 15) {
-      signals.push({
-        id: `kpi-${kpi.label}`,
-        tone: "momentum",
-        headline: `${kpi.label} is up ${kpi.pct}% this month`,
-        detail: "Compared with the previous 30 days.",
-        actionLabel: "View analytics",
-        href: "/studio/analytics",
-        weight: 20 + kpi.pct,
-      });
-    }
-  }
-
   return signals.sort((a, b) => b.weight - a.weight);
 }
 
@@ -201,7 +200,7 @@ function buildBriefing(params: {
   }
 
   if (topSignal) {
-    const lead = topSignal.tone === "attention" ? "Your biggest priority right now" : topSignal.tone === "opportunity" ? "Your biggest opportunity right now" : "Worth noting";
+    const lead = topSignal.tone === "attention" ? "Your biggest priority right now" : "Your biggest opportunity right now";
     clauses.push(`${lead} is ${topSignal.headline.charAt(0).toLowerCase()}${topSignal.headline.slice(1)}.`);
   }
 
@@ -313,19 +312,11 @@ export default async function StudioHomePage() {
   const analytics = await getStudioAnalytics(supabase, membership.orgId, "30d");
   const insights = generateInsights(analytics, agencyHealth, overdueProjectCount);
 
-  const kpiDeltas = analytics.kpis
-    .map((kpi) => {
-      const change = percentChange(kpi.value, kpi.previousValue);
-      return change ? { label: kpi.label, pct: change.pct, direction: change.direction } : null;
-    })
-    .filter((k): k is { label: string; pct: number; direction: "up" | "down" | "flat" } => k !== null);
-
   const signals = buildSignals({
     openRequestCount,
     overdueProjectCount,
     followUpCount: briefing.followUpsDue,
     topOpportunity: briefing.topOpportunity,
-    kpiDeltas,
   });
   const topSignal = signals[0] ?? null;
 
@@ -406,12 +397,17 @@ export default async function StudioHomePage() {
           the "one unit" rule: number and label sit close, exactly the
           brief's own tight-spacing example, then the bars (component
           spacing) and the sentence explaining them (component spacing).
-          Whole section is one notch below L1's type scale, signalling
-          "supporting the headline, not competing with it". */}
+          Pulse's own number is text-3xl, not 4xl — at the base (mobile)
+          size those two rendered identically (both 4xl until the hero's
+          own md:text-5xl kicked in), so the "one notch down" this
+          comment claims wasn't actually true below the md breakpoint.
+          Now genuinely one clear step down at every width, so the
+          headline reads as the obvious anchor rather than competing
+          with the score for attention. */}
       {agencyHealth.healthScore !== null && (
         <div className="mt-10 max-w-xl">
           <div className="flex items-baseline gap-2.5">
-            <span className="font-heading text-4xl font-semibold tabular-nums">
+            <span className="font-heading text-3xl font-semibold tabular-nums">
               <CountUp value={agencyHealth.healthScore} />
             </span>
             <span className="text-sm font-medium text-muted-foreground">
@@ -560,9 +556,17 @@ export default async function StudioHomePage() {
               </p>
             )}
             {analytics.prospectsSeries.some((p) => p.value > 0) && (
-              <div className="mt-5 max-w-xl">
+              // Full page width, not max-w-xl — squeezed into the same
+              // narrow column as the prose above it, a real chart (with
+              // a labelled axis and an interactive tooltip — it already
+              // has both, see analytics-chart.tsx) reads as an
+              // afterthought next to genuinely oversized headline type.
+              // Taller too (200, was 140) for the same reason: enough
+              // room for its own axis labels to actually sit clearly
+              // rather than crowd the plot area.
+              <div className="mt-6">
                 <p className="text-sm text-muted-foreground">Prospects found, last 30 days</p>
-                <AnalyticsChart series={analytics.prospectsSeries} kind="area" format="count" height={140} emptyMessage="No data in this period yet." />
+                <AnalyticsChart series={analytics.prospectsSeries} kind="area" format="count" height={200} emptyMessage="No data in this period yet." />
               </div>
             )}
           </>
