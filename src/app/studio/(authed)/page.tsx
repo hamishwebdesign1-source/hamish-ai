@@ -365,59 +365,125 @@ export default async function StudioHomePage() {
   const opportunitiesInPipeline = briefing.readyToContact;
   const conversionPct = prospectCount && prospectCount > 0 ? Math.round((clientCount / (prospectCount ?? 1)) * 100) : null;
 
-  return (
-    <div className="max-w-3xl">
-      {/* Hero briefing — large type, no card, no border. The page opens
-          with a sentence, not a stat. */}
-      <p className="font-mono text-xs font-medium tracking-[0.15em] text-accent uppercase">{timeOfDayGreeting()}, {org?.name ?? "your agency"}</p>
-      <h1 className="mt-3 font-heading text-3xl leading-tight font-semibold text-balance md:text-4xl">{briefingText}</h1>
+  // Explicit hierarchy this composition is built around (not implemented
+  // implicitly and hoped for):
+  //   L1 Orientation  — identity + hero sentence. Largest type, tightest
+  //                     internal spacing (they're one unit), no border.
+  //   L2 Understanding — Business Pulse: the single number that answers
+  //                     "what's the state of my business". No border
+  //                     from L1 — still the same "getting oriented" beat.
+  //   L3 Insight      — What matters now (signals #2+; #1 lives in L4
+  //                     so it's never shown twice). Denser rows, smaller
+  //                     type than L1/L2 — supporting, not primary.
+  //   L4 Action       — Your next move (signal #1, full detail). The
+  //                     first real border: orientation/understanding is
+  //                     over, this is a deliberate "now decide" beat.
+  //   L5 Performance  — Growth. Medium density.
+  //   L6 Detail       — AI observations + Activity, side by side on
+  //                     large screens (two peer-weight lists, the one
+  //                     asymmetric break in an otherwise single-column
+  //                     page). Highest density, smallest type.
+  //   L7 Utilities    — Getting set up + services. Grouped tight against
+  //                     each other (both are the same low tier), pushed
+  //                     the furthest from everything above, most muted.
+  const secondarySignals = signals.slice(1, 4);
 
-      {topSignal && (
-        <Button className="mt-6" render={<Link href={topSignal.href} />}>
-          {topSignal.actionLabel}
-          <ArrowRight className="size-4" />
-        </Button>
+  return (
+    <div className="max-w-4xl">
+      {/* L1 — Orientation. Identity and headline are one tight unit
+          (mt-2, not the mt-3+ used everywhere else): the brief's own
+          "75 / Business Health should feel like one unit" principle
+          applied to the page's own opening line. Constrained to max-w-2xl
+          inside the wider max-w-4xl page — the asymmetry keeps the prose
+          at a comfortable reading width while leaving Pulse/Growth/
+          Activity below room to actually use the page's width. */}
+      <p className="font-mono text-xs font-medium tracking-[0.15em] text-accent uppercase">
+        {timeOfDayGreeting()}, {org?.name ?? "your agency"}
+      </p>
+      <h1 className="mt-2 max-w-2xl font-heading text-4xl leading-[1.1] font-semibold text-balance md:text-5xl">{briefingText}</h1>
+
+      {/* L2 — Understanding. No border, no eyebrow-to-number gap beyond
+          the "one unit" rule: number and label sit close, exactly the
+          brief's own tight-spacing example, then the bars (component
+          spacing) and the sentence explaining them (component spacing).
+          Whole section is one notch below L1's type scale, signalling
+          "supporting the headline, not competing with it". */}
+      {agencyHealth.healthScore !== null && (
+        <div className="mt-10 max-w-xl">
+          <div className="flex items-baseline gap-2.5">
+            <span className="font-heading text-4xl font-semibold tabular-nums">
+              <CountUp value={agencyHealth.healthScore} />
+            </span>
+            <span className="text-sm font-medium text-muted-foreground">
+              Business Pulse · {pulseLabel(agencyHealth.healthScore)}
+            </span>
+          </div>
+
+          <div className="mt-4 space-y-2">
+            {agencyHealth.components.map((c) => (
+              <div key={c.label} className="flex items-center gap-3">
+                <span className="w-36 shrink-0 text-xs text-muted-foreground">{c.label}</span>
+                <div className="h-1 flex-1 overflow-hidden rounded-full bg-secondary">
+                  <div className="h-full rounded-full bg-accent transition-all duration-700" style={{ width: `${c.value}%` }} />
+                </div>
+                <span className="w-8 shrink-0 text-right font-mono text-[11px] tabular-nums text-muted-foreground">{c.value}%</span>
+              </div>
+            ))}
+          </div>
+
+          {pulse && (
+            <p className="mt-3 text-sm text-muted-foreground">
+              Strongest: <span className="font-medium text-foreground">{pulse.strongest.label.toLowerCase()}</span>. Opportunity:{" "}
+              <span className="font-medium text-foreground">{pulse.weakest.label.toLowerCase()}</span>
+              {HEALTH_LABEL_HREF[pulse.weakest.label] && (
+                <>
+                  {" — "}
+                  <Link href={HEALTH_LABEL_HREF[pulse.weakest.label]} className="font-medium text-accent">
+                    improve this
+                  </Link>
+                </>
+              )}
+              .
+            </p>
+          )}
+        </div>
       )}
 
-      {/* What matters now — a ranked list, not a card grid. Every row
-          reads from the same signals array the hero sentence above and
-          "Your next move" below both draw from. */}
-      {signals.length > 0 && (
-        <section className="mt-14">
-          <p className="text-eyebrow">What matters now</p>
-          <ul className="mt-5 divide-y divide-border/60 border-t border-border/60">
-            {signals.slice(0, 4).map((s) => (
-              <li key={s.id} className="group flex items-start gap-4 py-4">
-                <span className={`mt-2 size-2 shrink-0 rounded-full ${TONE_STYLE[s.tone].dot}`} aria-hidden="true" />
-                <div className="min-w-0 flex-1">
-                  <p className="font-mono text-[10px] font-medium tracking-[0.12em] text-muted-foreground uppercase">{TONE_STYLE[s.tone].label}</p>
-                  <p className="mt-1 font-heading text-base font-semibold">{s.headline}</p>
-                  <p className="mt-0.5 text-sm text-muted-foreground">{s.detail}</p>
-                </div>
-                <Link
-                  href={s.href}
-                  className="mt-1 flex shrink-0 items-center gap-1 text-sm font-medium text-accent opacity-0 transition-opacity group-hover:opacity-100"
-                >
-                  {s.actionLabel}
-                  <ArrowRight className="size-3.5" />
+      {/* L3 — Insight. Signal #1 is deliberately excluded (it owns L4
+          below) so the same headline never appears twice on the page.
+          Rows are noticeably denser than L1/L2 — tight py-2.5, no
+          hover-reveal action label eating vertical rhythm, the detail
+          line kept to a single truncated line — this is a scan list,
+          not a second hero. */}
+      {secondarySignals.length > 0 && (
+        <div className="mt-9 max-w-xl">
+          <p className="text-eyebrow">Also worth knowing</p>
+          <ul className="mt-2 divide-y divide-border/60">
+            {secondarySignals.map((s) => (
+              <li key={s.id}>
+                <Link href={s.href} className="group flex items-center gap-3 py-2.5">
+                  <span className={`size-1.5 shrink-0 rounded-full ${TONE_STYLE[s.tone].dot}`} aria-hidden="true" />
+                  <span className="min-w-0 flex-1 truncate text-sm text-foreground group-hover:text-accent">{s.headline}</span>
+                  <ArrowRight className="size-3.5 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
                 </Link>
               </li>
             ))}
           </ul>
-        </section>
+        </div>
       )}
 
-      {/* Your next move — the single highest-priority action, elevated
-          on its own rather than buried as item #1 of a list. Prefers the
-          named, valued follow-up set when one exists (the richest,
-          most concrete version of this section) over the generic
-          top-ranked signal. */}
+      {/* L4 — Action. The first real border on the page: everything
+          above was "understand the situation", this is "now decide" —
+          spacing alone wouldn't carry that break clearly enough. Large
+          type again, matching L1's weight — this and the hero sentence
+          are the page's two intended anchors, per the brief's own
+          "Anchor 1 / Anchor 3" framing. */}
       {(followUpTargets.length > 0 || topSignal) && (
-        <section className="mt-14 border-t border-border/60 pt-8">
+        <section className="mt-12 max-w-xl border-t border-border/60 pt-8">
           <p className="text-eyebrow">Your next move</p>
           {followUpTargets.length > 0 ? (
             <>
-              <p className="mt-4 font-heading text-xl font-semibold text-balance">
+              <p className="mt-3 font-heading text-2xl leading-tight font-semibold text-balance">
                 Follow up with {followUpTargets.length} high-potential prospect{followUpTargets.length === 1 ? "" : "s"}
                 {followUpTargets[0]?.business_name && followUpTargets.length <= 2
                   ? ` — ${followUpTargets.map((p) => p.business_name).join(" and ")}`
@@ -426,13 +492,13 @@ export default async function StudioHomePage() {
                     : ""}
               </p>
               {followUpValuePence > 0 && (
-                <p className="mt-1.5 font-mono text-sm text-accent">
+                <p className="mt-1 font-mono text-sm text-accent">
                   Potential pipeline: <CountUp value={Math.round(followUpValuePence / 100)} prefix="£" />
                 </p>
               )}
-              <p className="mt-3 flex items-start gap-2 text-sm text-muted-foreground">
+              <p className="mt-2.5 flex items-start gap-2 text-sm text-muted-foreground">
                 <Sparkles className="mt-0.5 size-3.5 shrink-0 text-accent" />
-                These prospects have gone quiet after initial contact — interest fades fast, and a follow-up now converts far better than one in two weeks.
+                Interest fades fast — a follow-up now converts far better than one in two weeks.
               </p>
               <Button variant="outline" className="mt-4" render={<Link href="/studio/prospects" />}>
                 Review prospects
@@ -441,7 +507,7 @@ export default async function StudioHomePage() {
             </>
           ) : topSignal ? (
             <>
-              <p className="mt-4 font-heading text-xl font-semibold text-balance">{topSignal.headline}</p>
+              <p className="mt-3 font-heading text-2xl leading-tight font-semibold text-balance">{topSignal.headline}</p>
               <p className="mt-1.5 text-sm text-muted-foreground">{topSignal.detail}</p>
               <Button variant="outline" className="mt-4" render={<Link href={topSignal.href} />}>
                 {topSignal.actionLabel}
@@ -452,57 +518,15 @@ export default async function StudioHomePage() {
         </section>
       )}
 
-      {/* Business Pulse — an editorial section, not a card. The ring
-          carries the number; the sentence carries the meaning. */}
-      {agencyHealth.healthScore !== null && (
-        <section className="mt-14 border-t border-border/60 pt-8">
-          <p className="text-eyebrow">Business Pulse</p>
-          <div className="mt-4 flex items-baseline gap-3">
-            <span className="font-heading text-5xl font-semibold tabular-nums">
-              <CountUp value={agencyHealth.healthScore} />
-            </span>
-            <span className="font-heading text-lg font-medium text-muted-foreground">{pulseLabel(agencyHealth.healthScore)}</span>
-          </div>
-
-          <div className="mt-5 space-y-2.5">
-            {agencyHealth.components.map((c) => (
-              <div key={c.label} className="flex items-center gap-3">
-                <span className="w-40 shrink-0 text-xs text-muted-foreground">{c.label}</span>
-                <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-secondary">
-                  <div className="h-full rounded-full bg-accent transition-all duration-700" style={{ width: `${c.value}%` }} />
-                </div>
-                <span className="w-9 shrink-0 text-right font-mono text-xs tabular-nums">{c.value}%</span>
-              </div>
-            ))}
-          </div>
-
-          {pulse && (
-            <p className="mt-5 max-w-xl text-sm text-muted-foreground">
-              Your strongest area is <span className="font-medium text-foreground">{pulse.strongest.label.toLowerCase()}</span>. Your biggest opportunity is{" "}
-              <span className="font-medium text-foreground">{pulse.weakest.label.toLowerCase()}</span>.
-            </p>
-          )}
-
-          {pulse && HEALTH_LABEL_HREF[pulse.weakest.label] && (
-            <Link href={HEALTH_LABEL_HREF[pulse.weakest.label]} className="mt-2 inline-flex items-center gap-1 text-sm font-medium text-accent">
-              Improve this
-              <ArrowRight className="size-3.5" />
-            </Link>
-          )}
-        </section>
-      )}
-
-      {/* Growth — the conversion journey as a sentence with numbers in
-          it, not four boxes each holding one number with no relation to
-          the others. A genuinely empty pipeline gets a real empty state
-          (context + next action) instead of a hollow "0 -> 0 -> 0" —
-          the exact thing this redesign is meant to avoid, so it can't
-          quietly reappear here just because this section always renders. */}
-      <section className="mt-14 border-t border-border/60 pt-8">
+      {/* L5 — Performance. A genuinely new topic (not "the situation"
+          anymore, "how the business is trending") — border earned, not
+          decorative. Real empty state for a genuinely new org instead
+          of a hollow "0 -> 0 -> 0". */}
+      <section className="mt-16 border-t border-border/60 pt-9">
         <p className="text-eyebrow">Growth</p>
         {(prospectCount ?? 0) === 0 && clientCount === 0 ? (
           <>
-            <p className="mt-4 font-heading text-xl font-semibold">Your pipeline starts here.</p>
+            <p className="mt-3 font-heading text-xl font-semibold">Your pipeline starts here.</p>
             <p className="mt-1.5 text-sm text-muted-foreground">You haven&apos;t found any prospects yet.</p>
             <Button className="mt-4" render={<Link href="/studio/prospects" />}>
               Find your first prospects
@@ -511,7 +535,7 @@ export default async function StudioHomePage() {
           </>
         ) : (
           <>
-            <div className="mt-4 flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
+            <div className="mt-3 flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
               <span className="font-heading text-3xl font-semibold tabular-nums">
                 <CountUp value={prospectCount ?? 0} />
               </span>
@@ -531,68 +555,77 @@ export default async function StudioHomePage() {
               )}
             </div>
             {pipelineValuePence > 0 && (
-              <p className="mt-2 text-sm text-muted-foreground">
+              <p className="mt-1.5 text-sm text-muted-foreground">
                 Worth <CountUp value={Math.round(pipelineValuePence / 100)} prefix="£" /> in active pipeline right now.
               </p>
             )}
             {analytics.prospectsSeries.some((p) => p.value > 0) && (
-              <div className="mt-6">
+              <div className="mt-5 max-w-xl">
                 <p className="text-sm text-muted-foreground">Prospects found, last 30 days</p>
-                <AnalyticsChart series={analytics.prospectsSeries} kind="area" format="count" height={160} emptyMessage="No data in this period yet." />
+                <AnalyticsChart series={analytics.prospectsSeries} kind="area" format="count" height={140} emptyMessage="No data in this period yet." />
               </div>
             )}
           </>
         )}
       </section>
 
-      {/* AI insights — kept as rule-based observations (studio-insights.ts),
-          folded into the flow rather than a fourth separate card type. */}
-      {insights.length > 0 && (
-        <section className="mt-14 border-t border-border/60 pt-8">
-          <p className="text-eyebrow">AI observations</p>
-          <ul className="mt-4 space-y-4">
-            {insights.map((insight) => (
-              <li key={insight.id} className="flex items-start gap-3">
-                <Sparkles className="mt-0.5 size-4 shrink-0 text-accent" />
-                <div>
-                  <p className="text-sm font-medium">{insight.headline}</p>
-                  <p className="mt-0.5 text-xs text-muted-foreground">{insight.evidence}</p>
-                  {insight.action && (
-                    <Link href={insight.action.href} className="mt-1 inline-block text-xs text-accent underline underline-offset-2">
-                      {insight.action.label}
-                    </Link>
-                  )}
-                </div>
-              </li>
-            ))}
-          </ul>
+      {/* L6 — Detail. The one asymmetric break in an otherwise single
+          narrow column: two peer-weight lists (AI observations, real
+          activity) sit side by side on large screens where there's
+          width to spare, stacked on anything smaller. Highest density
+          on the page: tight rows, small type, per the brief's own
+          "high density for activity/recent events" guidance. */}
+      {(insights.length > 0 || activityEvents.length > 0) && (
+        <section className="mt-16 border-t border-border/60 pt-9">
+          <div className="grid gap-10 lg:grid-cols-2">
+            {insights.length > 0 && (
+              <div>
+                <p className="text-eyebrow">AI observations</p>
+                <ul className="mt-3 space-y-3">
+                  {insights.map((insight) => (
+                    <li key={insight.id} className="flex items-start gap-2.5">
+                      <Sparkles className="mt-0.5 size-3.5 shrink-0 text-accent" />
+                      <div className="min-w-0">
+                        <p className="text-[13px] leading-snug font-medium">{insight.headline}</p>
+                        <p className="text-[12px] text-muted-foreground">{insight.evidence}</p>
+                        {insight.action && (
+                          <Link href={insight.action.href} className="text-[12px] text-accent underline underline-offset-2">
+                            {insight.action.label}
+                          </Link>
+                        )}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {activityEvents.length > 0 && (
+              <div>
+                <p className="text-eyebrow">Activity</p>
+                <ul className="mt-3 space-y-2.5">
+                  {activityEvents.map((e) => (
+                    <li key={e.id} className="flex items-center gap-2.5">
+                      <e.icon className="size-3.5 shrink-0 text-muted-foreground" />
+                      <span className="min-w-0 flex-1 truncate text-[13px]">{e.label}</span>
+                      <span className="shrink-0 font-mono text-[11px] text-muted-foreground">{relativeTime(e.at, new Date())}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
         </section>
       )}
 
-      {/* Activity — a real timeline, not a card. */}
-      {activityEvents.length > 0 && (
-        <section className="mt-14 border-t border-border/60 pt-8">
-          <p className="text-eyebrow">Activity</p>
-          <ul className="mt-4 space-y-4">
-            {activityEvents.map((e) => (
-              <li key={e.id} className="flex items-start gap-3">
-                <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-secondary text-muted-foreground">
-                  <e.icon className="size-3.5" />
-                </span>
-                <div className="flex min-w-0 flex-1 items-baseline justify-between gap-3">
-                  <p className="text-sm">{e.label}</p>
-                  <span className="shrink-0 font-mono text-xs text-muted-foreground">{relativeTime(e.at, new Date())}</span>
-                </div>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
-
+      {/* L7 — Utilities. The furthest gap on the page (this is the
+          least important content), and the two sections sit close to
+          each other (mt-4 between them, not a full section gap) since
+          they're peers in the same lowest tier, not two distinct topics. */}
       {!checklistComplete && (
-        <section className="mt-14 border-t border-border/60 pt-8">
-          <p className="text-eyebrow">Getting set up</p>
-          <ul className="mt-4 space-y-2.5">
+        <section className="mt-20 border-t border-border/60 pt-6">
+          <p className="text-[11px] font-medium tracking-wide text-muted-foreground uppercase">Getting set up</p>
+          <ul className="mt-3 space-y-2">
             {checklist.map((item) => (
               <li key={item.label}>
                 <Link
@@ -600,9 +633,9 @@ export default async function StudioHomePage() {
                   className={`flex items-center gap-2 text-sm ${item.done ? "text-muted-foreground" : "text-foreground hover:text-accent"}`}
                 >
                   {item.done ? (
-                    <CheckCircle2 className="size-4 shrink-0 text-accent" />
+                    <CheckCircle2 className="size-3.5 shrink-0 text-accent" />
                   ) : (
-                    <Circle className="size-4 shrink-0 text-muted-foreground" />
+                    <Circle className="size-3.5 shrink-0 text-muted-foreground" />
                   )}
                   <span className={item.done ? "line-through" : ""}>{item.label}</span>
                 </Link>
@@ -613,9 +646,14 @@ export default async function StudioHomePage() {
       )}
 
       {config.services && config.services.length > 0 && (
-        <section className="mt-14 border-t border-border/60 pt-8 pb-4">
-          <p className="text-eyebrow">What you&apos;re set up to sell</p>
-          <ul className="mt-4 space-y-2 text-sm">
+        // Same lowest tier as "Getting set up" above — grouped close to
+        // it (mt-4, no border) when both show, since they're peers, not
+        // two distinct topics. Only takes on that section's own mt-20
+        // border-t treatment when the checklist has already disappeared
+        // (checklistComplete) and this becomes the first utility item.
+        <section className={checklistComplete ? "mt-20 border-t border-border/60 pt-6 pb-4" : "mt-4 pb-4"}>
+          <p className="text-[11px] font-medium tracking-wide text-muted-foreground uppercase">What you&apos;re set up to sell</p>
+          <ul className="mt-3 space-y-2 text-sm">
             {config.services.map((service) => (
               <li key={service} className="flex items-center gap-2 text-muted-foreground">
                 <CheckCircle2 className="size-3.5 shrink-0 text-accent" />
