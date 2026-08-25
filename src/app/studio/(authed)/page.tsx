@@ -4,12 +4,10 @@ import { redirect } from "next/navigation";
 import {
   Search,
   Users,
-  CreditCard,
   CheckCircle2,
   Circle,
   Lightbulb,
   ArrowRight,
-  Mail,
   TrendingUp,
   Sparkles,
   Send,
@@ -524,34 +522,6 @@ export default async function StudioHomePage() {
           </CardContent>
         </Card>
       )}
-
-      <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-        <Link href="/studio/prospects" className="rounded-xl border border-accent/40 bg-accent/5 p-4 text-center transition-colors hover:bg-accent/10">
-          <Search className="mx-auto size-5 text-accent" />
-          <p className="mt-2 font-heading text-sm font-semibold">Prospecting</p>
-          <p className="mt-1 font-mono text-[11px] tracking-wide text-accent uppercase">Ready</p>
-        </Link>
-        <Link href="/studio/clients" className="rounded-xl border border-accent/40 bg-accent/5 p-4 text-center transition-colors hover:bg-accent/10">
-          <Users className="mx-auto size-5 text-accent" />
-          <p className="mt-2 font-heading text-sm font-semibold">Client management</p>
-          <p className="mt-1 font-mono text-[11px] tracking-wide text-accent uppercase">Ready</p>
-        </Link>
-        <Link href="/studio/requests" className="rounded-xl border border-accent/40 bg-accent/5 p-4 text-center transition-colors hover:bg-accent/10">
-          <Inbox className="mx-auto size-5 text-accent" />
-          <p className="mt-2 font-heading text-sm font-semibold">Requests</p>
-          <p className="mt-1 font-mono text-[11px] tracking-wide text-accent uppercase">Ready</p>
-        </Link>
-        <Link href="/studio/billing" className="rounded-xl border border-accent/40 bg-accent/5 p-4 text-center transition-colors hover:bg-accent/10">
-          <CreditCard className="mx-auto size-5 text-accent" />
-          <p className="mt-2 font-heading text-sm font-semibold">Billing</p>
-          <p className="mt-1 font-mono text-[11px] tracking-wide text-accent uppercase">Ready</p>
-        </Link>
-        <Link href="/studio/settings" className="rounded-xl border border-accent/40 bg-accent/5 p-4 text-center transition-colors hover:bg-accent/10">
-          <Mail className="mx-auto size-5 text-accent" />
-          <p className="mt-2 font-heading text-sm font-semibold">Integrations</p>
-          <p className="mt-1 font-mono text-[11px] tracking-wide text-accent uppercase">Ready</p>
-        </Link>
-      </div>
     </div>
   );
 }
