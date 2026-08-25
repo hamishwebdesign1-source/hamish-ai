@@ -20,6 +20,7 @@ import {
   TriangleAlert,
   Zap,
   ListChecks,
+  ShieldAlert,
 } from "lucide-react";
 import { createServerSupabaseClient } from "@/lib/supabase-server-auth";
 import { getOrgMembership } from "@/lib/org-membership";
@@ -27,6 +28,7 @@ import { getStudioBriefing } from "@/lib/studio-briefing";
 import { computeAgencyHealth } from "@/lib/client-health";
 import { getStudioAnalytics } from "@/lib/studio-analytics";
 import { generateInsights, type InsightCategory } from "@/lib/studio-insights";
+import { computeClientEngagementRisk } from "@/lib/studio-engagement";
 import { resolveLayout, CHART_METRIC_LABELS, type StatCardId } from "@/lib/command-centre-layout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Eyebrow } from "@/components/eyebrow";
@@ -74,6 +76,14 @@ function timeOfDayGreeting(): string {
 
 function todayIso(): string {
   return new Date().toISOString().slice(0, 10);
+}
+
+// Same react-hooks/purity reasoning as todayIso() above — a bare `new
+// Date()` in the component body itself is what the lint rule flags, not
+// one wrapped in a named function. computeClientEngagementRisk() (Phase
+// 6c) needs the real Date, not just todayIso()'s date-only string.
+function nowDate(): Date {
+  return new Date();
 }
 
 // The Command Centre's old subtext was the same generic sentence for
@@ -129,7 +139,10 @@ export default async function StudioHomePage() {
 
   const [{ count: prospectCount }, { data: clients }, { data: activeDeals }, { count: emailConnectionCount }] = await Promise.all([
     supabase.from("prospects").select("id", { count: "exact", head: true }).eq("org_id", membership.orgId),
-    supabase.from("clients").select("id").eq("org_id", membership.orgId),
+    // business_name added for Engagement Risk (Phase 6c) — every other
+    // column here was already only "id" because nothing before that
+    // needed a client's name.
+    supabase.from("clients").select("id, business_name").eq("org_id", membership.orgId),
     // Pipeline value — a tenant's own optional estimate per prospect
     // (deal_value_pence, schema-prospect-pipeline.sql), summed client-side
     // over anything still active (not yet won or lost). Never AI-estimated,
@@ -148,10 +161,13 @@ export default async function StudioHomePage() {
   // Business Health + Actions Required both need real rows (not just
   // counts) across every client — same shape of query clients/page.tsx
   // already runs per-client, just aggregated across the whole org here.
+  // created_at (requests) and client_id (invoices) are added for
+  // Engagement Risk (Phase 6c) — the same two queries, computeAgencyHealth
+  // just never needed either column before.
   const [{ data: requests }, { data: invoices }, { data: siteChecks }, { data: projects }] = clientIds.length
     ? await Promise.all([
-        supabase.from("requests").select("id, client_id, status, responded_at").in("client_id", clientIds),
-        supabase.from("invoices").select("status, due_date, paid_at").in("client_id", clientIds),
+        supabase.from("requests").select("id, client_id, status, responded_at, created_at").in("client_id", clientIds),
+        supabase.from("invoices").select("client_id, status, due_date, paid_at").in("client_id", clientIds),
         supabase.from("site_checks").select("uptime_ok").in("client_id", clientIds),
         supabase.from("projects").select("status, target_date").in("client_id", clientIds),
       ])
@@ -176,6 +192,13 @@ export default async function StudioHomePage() {
 
   const today = todayIso();
   const overdueProjectCount = (projects ?? []).filter((p) => p.status === "active" && p.target_date && p.target_date < today).length;
+
+  // Engagement Risk (Command Centre Phase 6c) — clients who've gone quiet
+  // and/or fallen behind on an invoice, off the same requests/invoices
+  // rows already fetched above. See studio-engagement.ts's own comment
+  // for why this reuses real contact/payment dates instead of the
+  // portal-login tracking the original concept assumed would be needed.
+  const engagementRisks = computeClientEngagementRisk(clients ?? [], requests ?? [], invoices ?? [], nowDate());
 
   // Actions Required (Command Centre Phase 1) — the genuinely urgent
   // subset of what used to be scattered across the checklist, the
@@ -349,7 +372,7 @@ export default async function StudioHomePage() {
   // render with real content" rule Phase 1/3 already established. A
   // block present in the saved layout but with no real content right
   // now simply renders nothing for that slot, rather than an empty card.
-  const sectionContent: Partial<Record<"actions_required" | "insights" | "briefing", ReactNode>> = {
+  const sectionContent: Partial<Record<"actions_required" | "insights" | "briefing" | "engagement_risk", ReactNode>> = {
     actions_required:
       actionsRequired.length > 0 ? (
         <Card className="border-none bg-primary text-primary-foreground">
@@ -465,6 +488,59 @@ export default async function StudioHomePage() {
         </CardContent>
       </Card>
     ) : undefined,
+    // Command Centre Phase 6c — see studio-engagement.ts's own comment on
+    // what this is actually computed from (real contact/payment dates,
+    // not the login tracking the original concept assumed). Each row's
+    // 6 cells are a real 6-week window, oldest to newest; a filled cell
+    // is a week this client actually contacted the agency.
+    engagement_risk:
+      engagementRisks.length > 0 ? (
+        <Card className="border-none bg-primary text-primary-foreground">
+          <CardContent className="p-5">
+            <div className="flex items-center justify-between gap-2">
+              <p className="flex items-center gap-1.5 text-xs font-semibold text-primary-foreground/70">
+                <ShieldAlert className="size-3.5 shrink-0 text-destructive" /> Engagement risk
+              </p>
+              <HelpTip explanation="Clients who've gone 2+ weeks without a request, or who have an invoice past its due date — real dates, never a prediction. A client with neither signal simply isn't listed here." />
+            </div>
+            <ul className="mt-4 space-y-3">
+              {engagementRisks.slice(0, 5).map((risk) => (
+                <li key={risk.clientId} className="flex items-center gap-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium text-primary-foreground">{risk.businessName}</p>
+                    <p className="mt-0.5 text-xs text-primary-foreground/50">
+                      {risk.quietWeeks > 0 && `Quiet ${risk.quietWeeks} week${risk.quietWeeks === 1 ? "" : "s"}`}
+                      {risk.quietWeeks > 0 && risk.hasOverdueInvoice && " · "}
+                      {risk.hasOverdueInvoice && "Invoice overdue"}
+                    </p>
+                  </div>
+                  <div className="flex shrink-0 gap-1">
+                    {risk.weeks.map((week, i) => (
+                      <span key={i} title={week.label} className={`size-2.5 rounded-sm ${week.active ? "bg-accent/70" : "bg-white/10"}`} />
+                    ))}
+                  </div>
+                  <span
+                    className={`shrink-0 rounded-full px-1.5 py-0.5 font-mono text-[10px] font-semibold tracking-wide uppercase ${
+                      risk.tier === "critical" ? "bg-destructive/15 text-destructive" : "bg-warning/15 text-warning"
+                    }`}
+                  >
+                    {risk.tier}
+                  </span>
+                </li>
+              ))}
+            </ul>
+            {engagementRisks.length > 5 && (
+              <p className="mt-3 text-xs text-primary-foreground/50">
+                +{engagementRisks.length - 5} more at risk — see{" "}
+                <Link href="/studio/clients" className="text-accent underline underline-offset-2">
+                  Clients
+                </Link>{" "}
+                for the full list.
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      ) : undefined,
   };
 
   return (
@@ -512,7 +588,7 @@ export default async function StudioHomePage() {
               </div>
             );
           }
-          if (block.type === "actions_required" || block.type === "insights" || block.type === "briefing") {
+          if (block.type === "actions_required" || block.type === "insights" || block.type === "briefing" || block.type === "engagement_risk") {
             const content = sectionContent[block.type];
             if (!content) return null;
             return (

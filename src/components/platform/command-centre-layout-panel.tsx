@@ -30,7 +30,8 @@ const selectClasses =
 
 function blockLabel(block: Block): string {
   if (block.type === "stat") return STAT_LABELS[block.cardId];
-  if (block.type === "actions_required" || block.type === "insights" || block.type === "briefing") return SECTION_LABELS[block.type];
+  if (block.type === "actions_required" || block.type === "insights" || block.type === "briefing" || block.type === "engagement_risk")
+    return SECTION_LABELS[block.type];
   if (block.type === "chart") return `Chart — ${CHART_METRIC_LABELS[block.metric]}`;
   if (block.type === "text") return block.title || "Text block";
   return block.label || "Call to action";
@@ -256,7 +257,12 @@ export function CommandCentreLayoutPanel({
           {order.map((id, index) => {
             const block = draftBlocks[id];
             if (!block) return null;
-            const isSingleton = block.type === "stat" || block.type === "actions_required" || block.type === "insights" || block.type === "briefing";
+            const isSingleton =
+              block.type === "stat" ||
+              block.type === "actions_required" ||
+              block.type === "insights" ||
+              block.type === "briefing" ||
+              block.type === "engagement_risk";
             const isHiddenBlock = isSingleton && hidden.has(id);
             const hasSpan = "span" in block;
 

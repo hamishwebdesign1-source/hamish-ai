@@ -12,11 +12,11 @@
 export type BlockSpan = 1 | 2;
 
 export type StatCardId = "health" | "prospects" | "clients" | "conversion" | "pipeline";
-export type SectionType = "actions_required" | "insights" | "briefing";
+export type SectionType = "actions_required" | "insights" | "briefing" | "engagement_risk";
 export type ChartMetric = "revenue" | "prospects";
 export type ChartKind = "area" | "bar";
 
-// Section types are three separate union members (not one member typed
+// Section types are separate union members (not one member typed
 // `type: SectionType`) specifically so TypeScript's discriminated-union
 // narrowing works on the "none of the above" path too — a single member
 // with a multi-literal discriminant narrows fine when matched, but
@@ -27,6 +27,7 @@ export type Block =
   | { id: string; type: "actions_required" }
   | { id: string; type: "insights" }
   | { id: string; type: "briefing" }
+  | { id: string; type: "engagement_risk" }
   | { id: string; type: "chart"; metric: ChartMetric; kind: ChartKind; span: BlockSpan }
   | { id: string; type: "text"; title: string; body: string; span: BlockSpan }
   | { id: string; type: "cta"; label: string; href: string; span: BlockSpan };
@@ -34,7 +35,7 @@ export type Block =
 export type CommandCentreLayout = { version: 2; blocks: Block[] };
 
 export const STAT_CARD_IDS: StatCardId[] = ["health", "prospects", "clients", "conversion", "pipeline"];
-export const SECTION_TYPES: SectionType[] = ["actions_required", "insights", "briefing"];
+export const SECTION_TYPES: SectionType[] = ["actions_required", "insights", "briefing", "engagement_risk"];
 
 export const STAT_LABELS: Record<StatCardId, string> = {
   health: "Business Health",
@@ -47,13 +48,17 @@ export const SECTION_LABELS: Record<SectionType, string> = {
   actions_required: "Actions required",
   insights: "Insights",
   briefing: "Your briefing",
+  engagement_risk: "Engagement risk",
 };
 export const CHART_METRIC_LABELS: Record<ChartMetric, string> = { revenue: "Revenue", prospects: "New prospects" };
 export const CHART_KIND_LABELS: Record<ChartKind, string> = { area: "Area", bar: "Bar" };
 
 // The default layout every org sees until it customises anything — the 5
-// stat cards, then the 3 section blocks in their original fixed order,
-// exactly what Phase 5b's default already was.
+// stat cards, then the section blocks in SECTION_TYPES order (Phase 5b
+// shipped the first 3; Phase 6c appended engagement_risk after briefing,
+// which only ever reaches an org's live default this way — a layout
+// already saved before Phase 6c keeps exactly what it saved, per
+// sanitizeBlocksForWrite()'s own comment on why that's correct).
 //
 // health defaults to span 2, not 1: it holds a ring visualisation plus a
 // 3-5 row component breakdown, real content none of the other four stat

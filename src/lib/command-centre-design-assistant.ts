@@ -34,7 +34,7 @@ const BLOCK_TOOL_SCHEMA = {
       description:
         "Unique id for this block. Reuse the exact id from the current layout if you're keeping or modifying an existing block; invent a short new one like 'chart:new1' only for a block you're adding.",
     },
-    type: { type: "string", enum: ["stat", "actions_required", "insights", "briefing", "chart", "text", "cta"] },
+    type: { type: "string", enum: ["stat", "actions_required", "insights", "briefing", "engagement_risk", "chart", "text", "cta"] },
     cardId: { type: "string", enum: STAT_CARD_IDS, description: "Required, and only used, when type is 'stat'." },
     metric: { type: "string", enum: ["revenue", "prospects"], description: "Required, and only used, when type is 'chart'." },
     kind: { type: "string", enum: ["area", "bar"], description: "Required, and only used, when type is 'chart'." },
@@ -48,7 +48,7 @@ const BLOCK_TOOL_SCHEMA = {
     span: {
       type: "integer",
       enum: [1, 2],
-      description: "1 = standard width, 2 = double width. Omit for actions_required/insights/briefing, which always render full width.",
+      description: "1 = standard width, 2 = double width. Omit for actions_required/insights/briefing/engagement_risk, which always render full width.",
     },
   },
   required: ["id", "type"],
@@ -89,7 +89,7 @@ function buildSystemPrompt(currentBlocks: Block[]): string {
 
 Available block types:
 - stat: one of 5 fixed cards — ${STAT_CARD_IDS.map((id) => `"${id}" (${STAT_LABELS[id]})`).join(", ")}. Each can appear at most once.
-- actions_required, insights, briefing: fixed section blocks (${SECTION_TYPES.map((t) => `"${SECTION_LABELS[t]}"`).join(", ")}). Each can appear at most once. Always full width — never set span on these.
+- actions_required, insights, briefing, engagement_risk: fixed section blocks (${SECTION_TYPES.map((t) => `"${SECTION_LABELS[t]}"`).join(", ")}). Each can appear at most once. Always full width — never set span on these. engagement_risk lists clients who've gone quiet or fallen behind on an invoice — it's rule-based on real request/invoice dates, not a prediction.
 - chart: a real chart of either "revenue" or "prospects" (the only two metrics with real data), rendered as "area" or "bar".
 - text: a free-form note with a title and body — use this for anything the agency wants to say that isn't a stat, chart, or link.
 - cta: a button linking to an internal page (starting with "/") or an external https:// page.
