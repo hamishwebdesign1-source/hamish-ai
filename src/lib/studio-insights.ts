@@ -14,9 +14,15 @@ import type { ClientHealth } from "@/lib/client-health";
 // surfacing what's true without being asked.
 
 export type InsightCategory = "opportunity" | "warning" | "recommendation" | "anomaly";
+// How much this insight is worth acting on — separate from `category`,
+// which says what kind of thing it is (good news vs. bad news vs. a
+// suggestion), not how urgent it is. A "high" opportunity and a "high"
+// warning are both worth seeing before a "low" one of either.
+export type InsightImpact = "high" | "medium" | "low";
 export type Insight = {
   id: string;
   category: InsightCategory;
+  impact: InsightImpact;
   headline: string;
   evidence: string;
   action?: { label: string; href: string };
@@ -25,6 +31,26 @@ export type Insight = {
 // Below this, a swing is noise (small absolute counts naturally swing
 // wildly period to period) — not worth surfacing as if it were a trend.
 const MEANINGFUL_PCT = 15;
+
+const IMPACT_WEIGHT: Record<InsightImpact, number> = { high: 3, medium: 2, low: 1 };
+
+// Thresholds below are the same kind of deterministic rule as
+// MEANINGFUL_PCT itself — a real number crossing a real line, never a
+// model's judgment call. Chosen so "high" means genuinely striking
+// (roughly a 3x-or-more swing in KPI terms, or a health component that's
+// actually failing rather than just soft) rather than everything real
+// insight generation surfaces claiming to be urgent.
+function kpiImpact(pct: number): InsightImpact {
+  if (pct >= 40) return "high";
+  if (pct >= 25) return "medium";
+  return "low";
+}
+function healthImpact(value: number): InsightImpact {
+  return value < 40 ? "high" : "medium";
+}
+function overdueImpact(count: number): InsightImpact {
+  return count >= 3 ? "high" : "medium";
+}
 
 const KPI_LINKS: Record<string, string> = {
   Revenue: "/studio/analytics",
@@ -45,6 +71,7 @@ export function generateInsights(analytics: AnalyticsData, agencyHealth: ClientH
     insights.push({
       id: `kpi-${kpi.label}`,
       category: isGoodDirection ? "opportunity" : "warning",
+      impact: kpiImpact(change.pct),
       headline: `${kpi.label} ${isGoodDirection ? "up" : "down"} ${change.pct}% this period`,
       evidence: `${formatted} vs ${kpi.format === "money" ? `£${(kpi.previousValue / 100).toLocaleString("en-GB")}` : kpi.previousValue.toLocaleString("en-GB")} in the previous period.`,
       action: KPI_LINKS[kpi.label] ? { label: `View ${kpi.label.toLowerCase()}`, href: KPI_LINKS[kpi.label] } : undefined,
@@ -67,6 +94,7 @@ export function generateInsights(analytics: AnalyticsData, agencyHealth: ClientH
       insights.push({
         id: `health-${component.label}`,
         category: "warning",
+        impact: healthImpact(component.value),
         headline: `${component.label} is at ${component.value}%`,
         evidence: "Below the level worth a look — see Business Health on the Command Centre for the full breakdown.",
       });
@@ -77,6 +105,7 @@ export function generateInsights(analytics: AnalyticsData, agencyHealth: ClientH
     insights.push({
       id: "overdue-projects",
       category: "warning",
+      impact: overdueImpact(overdueProjectCount),
       headline: `${overdueProjectCount} project${overdueProjectCount === 1 ? "" : "s"} past its target date`,
       evidence: "See Projects for which ones and by how long.",
       action: { label: "View projects", href: "/studio/projects" },
@@ -90,11 +119,21 @@ export function generateInsights(analytics: AnalyticsData, agencyHealth: ClientH
     insights.push({
       id: "no-conversions",
       category: "recommendation",
+      impact: "medium",
       headline: `${pipelineKpi.value} new prospect${pipelineKpi.value === 1 ? "" : "s"} this period, no conversions yet`,
       evidence: "Worth reviewing whether any are ready to contact or convert.",
       action: { label: "View prospects", href: "/studio/prospects" },
     });
   }
+
+  // Next Best Action (Command Centre Phase 6b) — the feed itself stays in
+  // the order each rule happens to run in above; this is the one place
+  // that actually re-ranks it, highest real impact first, so the thing
+  // most worth doing something about is never buried under three milder
+  // ones that just happened to be computed earlier. Array#sort is stable
+  // (guaranteed since ES2019), so insights that tie on impact keep their
+  // original relative order rather than shuffling on every render.
+  insights.sort((a, b) => IMPACT_WEIGHT[b.impact] - IMPACT_WEIGHT[a.impact]);
 
   return insights;
 }

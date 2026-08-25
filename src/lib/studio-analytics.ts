@@ -34,14 +34,70 @@ function bucketSizeDays(range: AnalyticsRange): number {
 
 export type Kpi = { label: string; value: number; previousValue: number; format: "money" | "count" };
 export type ChartPoint = { label: string; value: number };
+// A forecast series is the same shape stretched to cover points that
+// haven't happened yet: `value` is the real number where one exists,
+// `forecast` is the projected one, and the single point where both are
+// set is where the dashed line picks up from the solid one.
+export type ForecastPoint = { label: string; value?: number; forecast?: number };
 export type AnalyticsData = {
   range: AnalyticsRange;
   periodStart: Date;
   previousPeriodStart: Date;
   kpis: Kpi[];
   revenueSeries: ChartPoint[];
+  revenueForecast: ForecastPoint[];
   prospectsSeries: ChartPoint[];
 };
+
+// Below this many real points, a trend line is describing noise, not a
+// trend — same reasoning as MEANINGFUL_PCT in studio-insights.ts: a
+// confident-looking projection drawn from too little history is a
+// bigger falsehood than showing no projection at all.
+const MIN_POINTS_FOR_FORECAST = 4;
+
+// Ordinary least-squares over (bucket index, value) — the plainest trend
+// line there is, not a seasonal or ML model. Deliberately never labelled
+// "AI" anywhere it's shown: it's arithmetic on this org's own real
+// numbers, the same rule/generative distinction studio-insights.ts
+// already draws for the insight feed.
+function linearRegression(values: number[]): { slope: number; intercept: number } {
+  const n = values.length;
+  const xMean = (n - 1) / 2;
+  const yMean = values.reduce((s, v) => s + v, 0) / n;
+  let numerator = 0;
+  let denominator = 0;
+  values.forEach((y, x) => {
+    numerator += (x - xMean) * (y - yMean);
+    denominator += (x - xMean) ** 2;
+  });
+  const slope = denominator === 0 ? 0 : numerator / denominator;
+  return { slope, intercept: yMean - slope * xMean };
+}
+
+// Pure and exported on its own so it's directly testable without a
+// Supabase client — getStudioAnalytics() below just supplies the real
+// series and bucket geometry it already computes for the chart itself.
+export function projectSeries(series: ChartPoint[], lastBucketEnd: Date, bucketDays: number, periodsAhead: number): ForecastPoint[] {
+  const base: ForecastPoint[] = series.map((p) => ({ label: p.label, value: p.value }));
+  if (periodsAhead <= 0 || series.length < MIN_POINTS_FOR_FORECAST) return base;
+
+  const values = series.map((p) => p.value);
+  if (values.every((v) => v === 0)) return base; // nothing real to extrapolate from
+
+  const { slope, intercept } = linearRegression(values);
+  // Mirror the last real value onto `forecast` too, so the dashed
+  // projection visually continues from the solid actual line instead of
+  // leaving a gap between them.
+  base[base.length - 1] = { ...base[base.length - 1], forecast: base[base.length - 1].value };
+
+  for (let i = 0; i < periodsAhead; i++) {
+    const index = series.length + i;
+    const predicted = Math.max(0, Math.round(slope * index + intercept)); // revenue can't go negative
+    const date = new Date(lastBucketEnd.getTime() + (i + 1) * bucketDays * 24 * 60 * 60 * 1000);
+    base.push({ label: bucketLabel(date, bucketDays), forecast: predicted });
+  }
+  return base;
+}
 
 function bucketLabel(date: Date, bucketDays: number): string {
   if (bucketDays >= 30) return date.toLocaleDateString("en-GB", { month: "short", year: "2-digit" });
@@ -132,7 +188,15 @@ export async function getStudioAnalytics(supabase: SupabaseClient, orgId: string
   const revenueSeries = bucketSeries(allInvoices, (i) => i.paid_at, (i) => i.amount_pence / 100, periodStart, now, bucketDays);
   const prospectsSeries = bucketSeries(allProspects, (p) => p.created_at, () => 1, periodStart, now, bucketDays);
 
-  return { range, periodStart, previousPeriodStart, kpis, revenueSeries, prospectsSeries };
+  // 3 buckets ahead in whatever unit this range already uses — days for
+  // 7d/30d, weeks for 90d, months for 12m — so "projected" always means
+  // roughly the same portion of new horizon added to the chart, not a
+  // fixed day count that would be 3 months on a 7-day chart. 7d itself is
+  // excluded: a week is too short a real history to trust a trend line
+  // drawn from it (see projectSeries()'s own MIN_POINTS_FOR_FORECAST).
+  const revenueForecast = projectSeries(revenueSeries, now, bucketDays, range === "7d" ? 0 : 3);
+
+  return { range, periodStart, previousPeriodStart, kpis, revenueSeries, revenueForecast, prospectsSeries };
 }
 
 export function percentChange(current: number, previous: number): { pct: number; direction: "up" | "down" | "flat" } | null {

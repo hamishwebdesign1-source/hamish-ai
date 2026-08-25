@@ -86,6 +86,7 @@ export function AnalyticsPanel({ data }: { data: AnalyticsData }) {
             <p className="text-sm font-semibold">Revenue over time</p>
             <AnalyticsChart
               series={data.revenueSeries}
+              forecast={data.revenueForecast}
               kind="area"
               format="money"
               height={224}

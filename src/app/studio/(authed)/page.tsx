@@ -396,7 +396,14 @@ export default async function StudioHomePage() {
                   <div key={insight.id} className={`flex items-start gap-3 rounded-lg border-l-2 bg-white/[0.03] py-2 pr-2 pl-3 ${INSIGHT_BORDER[insight.category]}`}>
                     <Icon className={`mt-0.5 size-4 shrink-0 ${INSIGHT_COLOR[insight.category]}`} />
                     <div className="min-w-0">
-                      <p className="text-sm font-medium text-primary-foreground">{insight.headline}</p>
+                      <p className="flex items-center gap-2 text-sm font-medium text-primary-foreground">
+                        {insight.headline}
+                        {insight.impact === "high" && (
+                          <span className="shrink-0 rounded-full bg-white/10 px-1.5 py-0.5 font-mono text-[10px] font-semibold tracking-wide text-primary-foreground/70 uppercase">
+                            Priority
+                          </span>
+                        )}
+                      </p>
                       <p className="mt-0.5 text-xs text-primary-foreground/50">{insight.evidence}</p>
                       {insight.action && (
                         <Link href={insight.action.href} className="mt-1 inline-block text-xs text-accent underline underline-offset-2">
@@ -516,6 +523,7 @@ export default async function StudioHomePage() {
           }
           if (block.type === "chart") {
             const series = block.metric === "revenue" ? analytics.revenueSeries : analytics.prospectsSeries;
+            const forecast = block.metric === "revenue" ? analytics.revenueForecast : undefined;
             return (
               <div key={block.id} className={block.span === 2 ? "sm:col-span-2" : undefined}>
                 <Card className="h-full border-none bg-primary text-primary-foreground">
@@ -523,6 +531,7 @@ export default async function StudioHomePage() {
                     <p className="text-sm font-semibold">{CHART_METRIC_LABELS[block.metric]} over time</p>
                     <AnalyticsChart
                       series={series}
+                      forecast={forecast}
                       kind={block.kind}
                       format={block.metric === "revenue" ? "money" : "count"}
                       height={180}
