@@ -52,12 +52,19 @@ export const CHART_METRIC_LABELS: Record<ChartMetric, string> = { revenue: "Reve
 export const CHART_KIND_LABELS: Record<ChartKind, string> = { area: "Area", bar: "Bar" };
 
 // The default layout every org sees until it customises anything — the 5
-// stat cards, standard width, then the 3 section blocks in their
-// original fixed order, exactly what Phase 5b's default already was.
+// stat cards, then the 3 section blocks in their original fixed order,
+// exactly what Phase 5b's default already was.
+//
+// health defaults to span 2, not 1: it holds a ring visualisation plus a
+// 3-5 row component breakdown, real content none of the other four stat
+// cards (a single icon+number+label) carry. At span 1, alongside four
+// plain stat cards, its own labels ("Client sites uptime") had nowhere
+// near enough width and wrapped mid-word — not a spacing problem, a
+// width problem: the card was simply too narrow for what it holds.
 export const DEFAULT_LAYOUT: CommandCentreLayout = {
   version: 2,
   blocks: [
-    ...STAT_CARD_IDS.map((cardId): Block => ({ id: `stat:${cardId}`, type: "stat", cardId, span: 1 })),
+    ...STAT_CARD_IDS.map((cardId): Block => ({ id: `stat:${cardId}`, type: "stat", cardId, span: cardId === "health" ? 2 : 1 })),
     ...SECTION_TYPES.map((type): Block => ({ id: type, type })),
   ],
 };

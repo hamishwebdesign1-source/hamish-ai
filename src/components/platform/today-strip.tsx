@@ -48,7 +48,12 @@ export function TodayStrip({ stats }: { stats: TodayStat[] }) {
               <p className="font-heading text-xl font-semibold tabular-nums">
                 <CountUp value={stat.value} prefix={stat.prefix} />
               </p>
-              <p className="truncate text-xs text-primary-foreground/50">{stat.label}</p>
+              {/* Wraps to a second line rather than truncate — a label
+                  long enough to need it (an org-specific string down the
+                  line, say) should be readable, not cut mid-word with an
+                  ellipsis. Kept short deliberately in page.tsx anyway, so
+                  this is a safety net, not the normal case. */}
+              <p className="text-xs leading-tight text-primary-foreground/50">{stat.label}</p>
             </div>
           </div>
         ))}

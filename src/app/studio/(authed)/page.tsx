@@ -199,11 +199,16 @@ export default async function StudioHomePage() {
   // TODAY masthead (see today-strip.tsx's own comment) — every value
   // here is one already computed above for the briefing/actions-required
   // sections, just surfaced first and more prominently.
+  // Short enough to actually fit one of four columns without truncating
+  // mid-word — "New prospects this week" etc. were being cut to "New
+  // prospects this w…" at real column widths. "This week"/"today" is
+  // redundant anyway once it's sitting under a section literally
+  // labelled TODAY.
   const todayStats: TodayStat[] = [
-    { id: "new", value: briefing.newThisWeek, label: "New prospects this week", icon: Sparkles },
-    { id: "requests", value: openRequestCount, label: `Request${openRequestCount === 1 ? "" : "s"} needing a reply`, icon: Inbox, tone: openRequestCount > 0 ? "urgent" : "default" },
-    { id: "pipeline", value: Math.round(pipelineValuePence / 100), label: "Pipeline value", icon: PoundSterling, prefix: "£" },
-    { id: "actions", value: actionsTotal, label: "Recommended actions", icon: ListChecks, tone: actionsTotal > 0 ? "urgent" : "default" },
+    { id: "new", value: briefing.newThisWeek, label: "New prospects", icon: Sparkles },
+    { id: "requests", value: openRequestCount, label: "Needs a reply", icon: Inbox, tone: openRequestCount > 0 ? "urgent" : "default" },
+    { id: "pipeline", value: Math.round(pipelineValuePence / 100), label: "Pipeline", icon: PoundSterling, prefix: "£" },
+    { id: "actions", value: actionsTotal, label: "To do", icon: ListChecks, tone: actionsTotal > 0 ? "urgent" : "default" },
   ];
 
   // Onboarding checklist (P1 platform readiness item) — four real,
@@ -484,8 +489,14 @@ export default async function StudioHomePage() {
           comment on why), and a section block with no real content
           right now renders nothing for its slot rather than an empty
           card. Chart blocks read from the same 30-day analytics already
-          fetched for Insights above — never a second query. */}
-      <Reveal delay={80} className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+          fetched for Insights above — never a second query.
+          items-start, not the grid default (stretch): Business Health
+          holds a ring plus a multi-row breakdown, real content none of
+          the plain stat cards carry — stretch was forcing every card in
+          its row to match Health's height, leaving huge dead space
+          inside "Prospects found" and friends. Each card now sizes to
+          its own real content instead of an unrelated neighbour's. */}
+      <Reveal delay={80} className="mt-6 grid items-start gap-4 sm:grid-cols-2 lg:grid-cols-5">
         {blocks.map((block) => {
           if (block.type === "stat") {
             return (
