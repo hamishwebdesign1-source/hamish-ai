@@ -20,22 +20,26 @@ export type TodayStat = {
   tone?: "default" | "urgent";
 };
 
+// Dark card language throughout now (bg-primary/text-primary-foreground),
+// matching Business Health rather than being the one light exception —
+// direct instruction to replicate that card's style across the whole
+// page.
 export function TodayStrip({ stats }: { stats: TodayStat[] }) {
   return (
-    <div className="mt-6 overflow-hidden rounded-2xl border border-border bg-background">
-      <div className="flex items-center gap-2 border-b border-border/60 bg-secondary/30 px-5 py-2.5">
+    <div className="mt-6 overflow-hidden rounded-2xl bg-primary text-primary-foreground">
+      <div className="flex items-center gap-2 border-b border-white/10 px-5 py-3">
         <span className="relative flex size-1.5">
           <span className="absolute inline-flex size-full animate-ping rounded-full bg-accent opacity-75" />
           <span className="relative inline-flex size-1.5 rounded-full bg-accent" />
         </span>
-        <span className="font-mono text-[11px] font-medium tracking-[0.15em] text-muted-foreground uppercase">Today</span>
+        <span className="font-mono text-[11px] font-medium tracking-[0.15em] text-primary-foreground/60 uppercase">Today</span>
       </div>
-      <div className="grid grid-cols-2 divide-x divide-y divide-border/60 sm:grid-cols-4 sm:divide-y-0">
+      <div className="grid grid-cols-2 divide-x divide-y divide-white/10 sm:grid-cols-4 sm:divide-y-0">
         {stats.map((stat) => (
           <div key={stat.id} className="flex items-center gap-3 px-5 py-4">
             <span
               className={`flex size-9 shrink-0 items-center justify-center rounded-lg ${
-                stat.tone === "urgent" ? "bg-destructive/10 text-destructive" : "bg-accent/10 text-accent"
+                stat.tone === "urgent" ? "bg-destructive/15 text-destructive" : "bg-white/10 text-accent"
               }`}
             >
               <stat.icon className="size-4" />
@@ -44,7 +48,7 @@ export function TodayStrip({ stats }: { stats: TodayStat[] }) {
               <p className="font-heading text-xl font-semibold tabular-nums">
                 <CountUp value={stat.value} prefix={stat.prefix} />
               </p>
-              <p className="truncate text-xs text-muted-foreground">{stat.label}</p>
+              <p className="truncate text-xs text-primary-foreground/50">{stat.label}</p>
             </div>
           </div>
         ))}

@@ -233,26 +233,43 @@ export default async function StudioHomePage() {
     // context (its center label uses text-primary-foreground) — reused
     // here rather than a second ring implementation, same component the
     // hero product panel and client detail pages already use.
+    // Every stat card is now this same dark language, not just Business
+    // Health — direct instruction to replicate that card's style across
+    // the whole page rather than keep it as the one dark exception.
+    // Header row is consistently icon+label (left) / HelpTip (right) via
+    // justify-between — the previous version packed HelpTip directly
+    // after the label with no room to breathe, which is the real reason
+    // the whole card read as cramped, not just the stat list below it.
     health: (
       <Card className="h-full overflow-hidden border-none bg-primary text-primary-foreground">
-        <CardContent className="flex h-full flex-col">
-          <p className="flex items-center gap-1.5 text-xs font-semibold text-primary-foreground/70">
-            <Activity className="size-3.5 shrink-0" />
-            Business Health
+        <CardContent className="flex h-full flex-col p-5">
+          <div className="flex items-center justify-between gap-2">
+            <p className="flex items-center gap-1.5 text-xs font-semibold text-primary-foreground/70">
+              <Activity className="size-3.5 shrink-0" />
+              Business Health
+            </p>
             <HelpTip explanation="An average of real, measured components across your whole client roster — site uptime, on-time payment, work completed, requests moving, and pipeline conversion. Only components with real data are included." />
-          </p>
+          </div>
           {agencyHealth.healthScore === null ? (
             <p className="mt-4 flex-1 text-sm text-primary-foreground/60">
               Not enough data yet — this fills in once you have clients with real requests, invoices, or projects.
             </p>
           ) : (
-            <div className="mt-2 flex flex-1 items-center gap-4">
-              <HealthRing score={agencyHealth.healthScore} size={84} strokeWidth={7} centerLabel={String(agencyHealth.healthScore)} />
-              <div className="flex flex-wrap gap-x-3 gap-y-1">
+            // A real vertical stack, not a flex-wrap inline row — the
+            // wrap was what made "Client sites uptime" break mid-phrase
+            // and every component crowd the next with almost no gap.
+            // Each row is its own label-then-value unit (gap-0.5, tight
+            // — they belong together) with generous gap-3 *between*
+            // rows, so the list reads as a clean list, not a paragraph
+            // that happens to have numbers in it.
+            <div className="mt-4 flex flex-1 items-center gap-5">
+              <HealthRing score={agencyHealth.healthScore} size={88} strokeWidth={7} centerLabel={String(agencyHealth.healthScore)} />
+              <div className="flex flex-1 flex-col gap-3">
                 {agencyHealth.components.map((c) => (
-                  <span key={c.label} className="font-mono text-[10px] text-primary-foreground/60">
-                    {c.label} <span className="text-primary-foreground">{c.value}%</span>
-                  </span>
+                  <div key={c.label} className="flex flex-col gap-0.5">
+                    <p className="text-[11px] leading-tight text-primary-foreground/50">{c.label}</p>
+                    <p className="text-sm leading-none font-semibold text-primary-foreground">{c.value}%</p>
+                  </div>
                 ))}
               </div>
             </div>
@@ -261,61 +278,61 @@ export default async function StudioHomePage() {
       </Card>
     ),
     prospects: (
-      <Card className="h-full">
-        <CardContent className="flex items-center gap-3.5">
-          <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-accent/10 text-accent">
+      <Card className="h-full border-none bg-primary text-primary-foreground">
+        <CardContent className="flex items-center gap-3.5 p-5">
+          <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-white/10">
             <Search className="size-5" />
           </span>
           <div>
             <p className="font-heading text-2xl font-semibold tabular-nums">
               <CountUp value={prospectCount ?? 0} />
             </p>
-            <p className="text-xs text-muted-foreground">Prospects found</p>
+            <p className="text-xs text-primary-foreground/60">Prospects found</p>
           </div>
         </CardContent>
       </Card>
     ),
     clients: (
-      <Card className="h-full">
-        <CardContent className="flex items-center gap-3.5">
-          <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-accent/10 text-accent">
+      <Card className="h-full border-none bg-primary text-primary-foreground">
+        <CardContent className="flex items-center gap-3.5 p-5">
+          <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-white/10">
             <Users className="size-5" />
           </span>
           <div>
             <p className="font-heading text-2xl font-semibold tabular-nums">
               <CountUp value={clientCount} />
             </p>
-            <p className="text-xs text-muted-foreground">Clients</p>
+            <p className="text-xs text-primary-foreground/60">Clients</p>
           </div>
         </CardContent>
       </Card>
     ),
     conversion: (
-      <Card className="h-full">
-        <CardContent className="flex items-center gap-3.5">
-          <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-accent/10 text-accent">
+      <Card className="h-full border-none bg-primary text-primary-foreground">
+        <CardContent className="flex items-center gap-3.5 p-5">
+          <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-white/10">
             <TrendingUp className="size-5" />
           </span>
           <div>
             <p className="font-heading text-2xl font-semibold tabular-nums">
               {prospectCount && prospectCount > 0 ? <CountUp value={Math.round((clientCount / prospectCount) * 100)} suffix="%" /> : "—"}
             </p>
-            <p className="text-xs text-muted-foreground">Conversion rate</p>
+            <p className="text-xs text-primary-foreground/60">Conversion rate</p>
           </div>
         </CardContent>
       </Card>
     ),
     pipeline: (
-      <Card className="h-full">
-        <CardContent className="flex items-center gap-3.5">
-          <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-accent/10 text-accent">
+      <Card className="h-full border-none bg-primary text-primary-foreground">
+        <CardContent className="flex items-center gap-3.5 p-5">
+          <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-white/10">
             <PoundSterling className="size-5" />
           </span>
           <div>
             <p className="font-heading text-2xl font-semibold tabular-nums">
               {pipelineValuePence > 0 ? <CountUp value={Math.round(pipelineValuePence / 100)} prefix="£" /> : "—"}
             </p>
-            <p className="text-xs text-muted-foreground">Pipeline value</p>
+            <p className="text-xs text-primary-foreground/60">Pipeline value</p>
           </div>
         </CardContent>
       </Card>
@@ -330,26 +347,28 @@ export default async function StudioHomePage() {
   const sectionContent: Partial<Record<"actions_required" | "insights" | "briefing", ReactNode>> = {
     actions_required:
       actionsRequired.length > 0 ? (
-        <Card className="border-destructive/30">
-          <CardContent>
-            <p className="flex items-center gap-1.5 font-heading text-sm font-semibold">
-              <AlertTriangle className="size-4 shrink-0 text-destructive" /> Your next best actions
+        <Card className="border-none bg-primary text-primary-foreground">
+          <CardContent className="p-5">
+            <div className="flex items-center justify-between gap-2">
+              <p className="flex items-center gap-1.5 text-xs font-semibold text-primary-foreground/70">
+                <AlertTriangle className="size-3.5 shrink-0 text-destructive" /> Your next best actions
+              </p>
               <HelpTip explanation="Real items pulled together from three places — prospects due a follow-up, projects past their target date, and client requests you haven't replied to yet. Only shown when something's actually due." />
-            </p>
-            <ol className="mt-3 space-y-2.5">
+            </div>
+            <ol className="mt-4 space-y-3">
               {actionsRequired.map((a, i) => (
                 <li key={a.label}>
                   <Link href={a.href} className="group flex items-center gap-3 text-sm">
-                    <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-destructive/10 font-mono text-[11px] font-semibold text-destructive">
+                    <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-destructive/15 font-mono text-[11px] font-semibold text-destructive">
                       {i + 1}
                     </span>
-                    <a.icon className="size-4 shrink-0 text-destructive/70" />
-                    <span className="text-muted-foreground group-hover:text-foreground">
-                      <span className="font-mono font-semibold text-destructive">{a.count}</span>{" "}
+                    <a.icon className="size-4 shrink-0 text-destructive" />
+                    <span className="text-primary-foreground/70 group-hover:text-primary-foreground">
+                      <span className="font-mono font-semibold text-primary-foreground">{a.count}</span>{" "}
                       {a.label}
                       {a.count === 1 ? "" : "s"}
                     </span>
-                    <ArrowRight className="ml-auto size-3.5 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
+                    <ArrowRight className="ml-auto size-3.5 shrink-0 text-primary-foreground/40 opacity-0 transition-opacity group-hover:opacity-100" />
                   </Link>
                 </li>
               ))}
@@ -359,21 +378,21 @@ export default async function StudioHomePage() {
       ) : undefined,
     insights:
       insights.length > 0 ? (
-        <Card>
-          <CardContent>
-            <p className="flex items-center gap-1 font-heading text-sm font-semibold">
-              Insights
+        <Card className="border-none bg-primary text-primary-foreground">
+          <CardContent className="p-5">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-xs font-semibold text-primary-foreground/70">Insights</p>
               <HelpTip explanation="AI-generated observations based on your latest platform data — real deltas and thresholds, never invented patterns. Each one shows the exact numbers behind it." />
-            </p>
-            <div className="mt-3 space-y-2.5">
+            </div>
+            <div className="mt-4 space-y-3">
               {insights.map((insight) => {
                 const Icon = INSIGHT_ICON[insight.category];
                 return (
-                  <div key={insight.id} className={`flex items-start gap-3 rounded-lg border-l-2 py-1 pl-3 ${INSIGHT_BORDER[insight.category]}`}>
+                  <div key={insight.id} className={`flex items-start gap-3 rounded-lg border-l-2 bg-white/[0.03] py-2 pr-2 pl-3 ${INSIGHT_BORDER[insight.category]}`}>
                     <Icon className={`mt-0.5 size-4 shrink-0 ${INSIGHT_COLOR[insight.category]}`} />
                     <div className="min-w-0">
-                      <p className="text-sm font-medium">{insight.headline}</p>
-                      <p className="mt-0.5 text-xs text-muted-foreground">{insight.evidence}</p>
+                      <p className="text-sm font-medium text-primary-foreground">{insight.headline}</p>
+                      <p className="mt-0.5 text-xs text-primary-foreground/50">{insight.evidence}</p>
                       {insight.action && (
                         <Link href={insight.action.href} className="mt-1 inline-block text-xs text-accent underline underline-offset-2">
                           {insight.action.label}
@@ -388,46 +407,46 @@ export default async function StudioHomePage() {
         </Card>
       ) : undefined,
     briefing: hasBriefingContent ? (
-      <Card>
-        <CardContent>
-          <p className="font-heading text-sm font-semibold">Your briefing</p>
-          <div className="mt-3 flex flex-wrap gap-x-6 gap-y-3 text-sm">
+      <Card className="border-none bg-primary text-primary-foreground">
+        <CardContent className="p-5">
+          <p className="text-xs font-semibold text-primary-foreground/70">Your briefing</p>
+          <div className="mt-4 flex flex-wrap gap-x-6 gap-y-3 text-sm">
             {briefing.newThisWeek > 0 && (
               <span className="flex items-center gap-1.5">
                 <Sparkles className="size-3.5 shrink-0 text-accent" />
                 <span className="font-mono font-semibold text-accent">{briefing.newThisWeek}</span>
-                <span className="text-muted-foreground">new this week</span>
+                <span className="text-primary-foreground/60">new this week</span>
               </span>
             )}
             {briefing.needsResearch > 0 && (
               <span className="flex items-center gap-1.5">
                 <Search className="size-3.5 shrink-0 text-accent" />
                 <span className="font-mono font-semibold text-accent">{briefing.needsResearch}</span>
-                <span className="text-muted-foreground">still need research</span>
+                <span className="text-primary-foreground/60">still need research</span>
               </span>
             )}
             {briefing.readyToContact > 0 && (
               <span className="flex items-center gap-1.5">
                 <Send className="size-3.5 shrink-0 text-accent" />
                 <span className="font-mono font-semibold text-accent">{briefing.readyToContact}</span>
-                <span className="text-muted-foreground">ready to contact</span>
+                <span className="text-primary-foreground/60">ready to contact</span>
               </span>
             )}
           </div>
           {briefing.topOpportunity && (
-            <div className="mt-4 rounded-lg border border-accent/30 bg-accent/5 p-3">
+            <div className="mt-4 rounded-lg border border-accent/25 bg-accent/10 p-3">
               <p className="flex items-center gap-1.5 text-xs font-semibold text-accent">
                 <Lightbulb className="size-3.5 shrink-0" />
                 Your best opportunity right now
               </p>
-              <p className="mt-1 text-sm font-medium">
+              <p className="mt-1 text-sm font-medium text-primary-foreground">
                 {briefing.topOpportunity.businessName}{" "}
-                <span className="font-mono text-xs font-normal text-muted-foreground">({briefing.topOpportunity.overallScore}/5)</span>
+                <span className="font-mono text-xs font-normal text-primary-foreground/50">({briefing.topOpportunity.overallScore}/5)</span>
               </p>
-              <p className="mt-1 text-sm text-muted-foreground">{briefing.topOpportunity.pursueBecause}</p>
+              <p className="mt-1 text-sm text-primary-foreground/60">{briefing.topOpportunity.pursueBecause}</p>
             </div>
           )}
-          <Button variant="link" size="sm" className="mt-3 h-auto px-0" render={<Link href="/studio/prospects" />}>
+          <Button variant="link" size="sm" className="mt-3 h-auto px-0 text-accent" render={<Link href="/studio/prospects" />}>
             View all prospects
             <ArrowRight className="size-3.5" />
           </Button>
@@ -488,8 +507,8 @@ export default async function StudioHomePage() {
             const series = block.metric === "revenue" ? analytics.revenueSeries : analytics.prospectsSeries;
             return (
               <div key={block.id} className={block.span === 2 ? "sm:col-span-2" : undefined}>
-                <Card className="h-full">
-                  <CardContent>
+                <Card className="h-full border-none bg-primary text-primary-foreground">
+                  <CardContent className="p-5">
                     <p className="text-sm font-semibold">{CHART_METRIC_LABELS[block.metric]} over time</p>
                     <AnalyticsChart
                       series={series}
@@ -506,10 +525,10 @@ export default async function StudioHomePage() {
           if (block.type === "text") {
             return (
               <div key={block.id} className={block.span === 2 ? "sm:col-span-2" : undefined}>
-                <Card className="h-full">
-                  <CardContent>
+                <Card className="h-full border-none bg-primary text-primary-foreground">
+                  <CardContent className="p-5">
                     <p className="font-heading text-sm font-semibold">{block.title}</p>
-                    <p className="mt-2 text-sm whitespace-pre-wrap text-muted-foreground">{block.body}</p>
+                    <p className="mt-2 text-sm whitespace-pre-wrap text-primary-foreground/60">{block.body}</p>
                   </CardContent>
                 </Card>
               </div>
@@ -544,20 +563,20 @@ export default async function StudioHomePage() {
           would want to reorder or hide. Always renders directly after
           the block canvas while incomplete. */}
       {!checklistComplete && (
-        <Card className="mt-6">
-          <CardContent>
-            <p className="font-heading text-sm font-semibold">Getting set up</p>
-            <ul className="mt-3 space-y-2">
+        <Card className="mt-6 border-none bg-primary text-primary-foreground">
+          <CardContent className="p-5">
+            <p className="text-xs font-semibold text-primary-foreground/70">Getting set up</p>
+            <ul className="mt-4 space-y-2.5">
               {checklist.map((item) => (
                 <li key={item.label}>
                   <Link
                     href={item.href}
-                    className={`flex items-center gap-2 text-sm ${item.done ? "text-muted-foreground" : "text-foreground hover:text-accent"}`}
+                    className={`flex items-center gap-2 text-sm ${item.done ? "text-primary-foreground/40" : "text-primary-foreground/80 hover:text-primary-foreground"}`}
                   >
                     {item.done ? (
                       <CheckCircle2 className="size-4 shrink-0 text-accent" />
                     ) : (
-                      <Circle className="size-4 shrink-0 text-muted-foreground" />
+                      <Circle className="size-4 shrink-0 text-primary-foreground/30" />
                     )}
                     <span className={item.done ? "line-through" : ""}>{item.label}</span>
                   </Link>
@@ -569,12 +588,12 @@ export default async function StudioHomePage() {
       )}
 
       {config.services && config.services.length > 0 && (
-        <Card className="mt-6">
-          <CardContent>
-            <p className="font-heading text-sm font-semibold">What you&apos;re set up to sell</p>
-            <ul className="mt-3 space-y-2 text-sm">
+        <Card className="mt-6 border-none bg-primary text-primary-foreground">
+          <CardContent className="p-5">
+            <p className="text-xs font-semibold text-primary-foreground/70">What you&apos;re set up to sell</p>
+            <ul className="mt-4 space-y-2 text-sm">
               {config.services.map((service) => (
-                <li key={service} className="flex items-center gap-2 text-muted-foreground">
+                <li key={service} className="flex items-center gap-2 text-primary-foreground/70">
                   <CheckCircle2 className="size-3.5 shrink-0 text-accent" />
                   {service}
                 </li>
