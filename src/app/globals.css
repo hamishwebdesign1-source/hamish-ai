@@ -154,6 +154,55 @@
   --sidebar-ring: oklch(0.66 0.19 258);
 }
 
+/* Studio Mission Control — the full visual redesign of /studio (all of
+   it, not just the Command Centre: this scopes onto the shared authed
+   layout, so every page under /studio inherits it via the same
+   semantic tokens — bg-card, text-muted-foreground, border-border,
+   bg-primary etc. — every Studio component already uses, rather than
+   needing each page rewritten by hand).
+
+   Applied as `dark studio-shell` on the layout's root div (studio's
+   (authed)/layout.tsx), not on <html>: Studio has no light/dark
+   toggle of its own, so this is a deliberate, committed dark identity
+   for this one product surface, not a mode a user switches. Stacking
+   on the existing `.dark` class first means every status colour
+   (destructive/success/warning), border, ring and chart colour this
+   scope doesn't explicitly override is inherited already-tuned for a
+   dark surface — this block only overrides the handful of tokens that
+   carry Studio's own identity (a deeper ink background than the
+   site's generic dark mode, and the primary/card surfaces built
+   around it), not all twenty-odd.
+
+   --accent is deliberately NOT overridden — the site's own "Signal
+   Blue" (--gradient-blue, oklch chroma 0.21 hue 258) already brightens
+   correctly for a dark surface in .dark's own --accent, and reusing it
+   keeps Studio speaking the same brand accent as the rest of the site
+   rather than inventing a competing one.
+
+   --primary is the one semantic flip worth calling out: .dark's own
+   --primary is a light near-white (correct for "primary button" on a
+   dark page), but every Command Centre card
+   (page.tsx's statContent/sectionContent) was built assuming
+   bg-primary/text-primary-foreground means a dark fill with light
+   text — the "one dark surface on a light page" trick from before
+   this redesign. Overriding primary back to dark/light here means
+   every one of those cards keeps working unchanged; they just read as
+   the featured surface on an already-dark page instead of the one
+   exception to a light one. */
+.studio-shell {
+  --background: oklch(0.12 0.025 260);
+  --card: oklch(0.16 0.025 260);
+  --card-foreground: oklch(0.95 0.008 250);
+  --popover: oklch(0.18 0.025 260);
+  --popover-foreground: oklch(0.95 0.008 250);
+  --primary: oklch(0.19 0.03 260);
+  --primary-foreground: oklch(0.97 0.008 250);
+  --secondary: oklch(0.205 0.025 260);
+  --secondary-foreground: oklch(0.95 0.008 250);
+  --muted: oklch(0.205 0.025 260);
+  --muted-foreground: oklch(0.64 0.02 260);
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;

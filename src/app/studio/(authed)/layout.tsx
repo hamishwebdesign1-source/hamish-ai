@@ -39,7 +39,14 @@ export default async function StudioAuthedLayout({ children }: { children: React
     <HelpModeProvider>
       <IdentifyOrg orgId={membership.orgId} />
       {!org?.tour_completed_at && <StudioTour />}
-      <div className="min-h-screen bg-secondary/20">
+      {/* Studio Mission Control redesign — dark, deliberately, not a mode
+          a user toggles (see globals.css's own comment on .studio-shell
+          for the full reasoning). bg-background (solid) replaces the old
+          bg-secondary/20 (a 20%-opacity tint over the site's light page)
+          on purpose: that tint was designed to sit over a light body, and
+          at 20% opacity over the new dark scope it would let the site's
+          still-light global background bleed through underneath. */}
+      <div className="dark studio-shell min-h-screen bg-background">
         <StudioCommandPalette />
         <header className="relative border-b border-border/60 bg-background">
           <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-6 py-4">
