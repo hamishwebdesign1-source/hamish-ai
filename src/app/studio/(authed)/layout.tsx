@@ -6,6 +6,8 @@ import { getOrgMembership } from "@/lib/org-membership";
 import { Button } from "@/components/ui/button";
 import { StudioSidebar } from "@/components/platform/studio-nav";
 import { StudioMobileNav } from "@/components/platform/studio-mobile-nav";
+import { StudioCommandPalette } from "@/components/platform/studio-command-palette";
+import { StudioCommandPaletteTrigger } from "@/components/platform/studio-command-palette-trigger";
 import { HelpModeProvider } from "@/components/platform/help-mode-context";
 import { HelpModeToggle } from "@/components/platform/help-mode-toggle";
 import { StudioTour } from "@/components/platform/studio-tour";
@@ -38,15 +40,19 @@ export default async function StudioAuthedLayout({ children }: { children: React
       <IdentifyOrg orgId={membership.orgId} />
       {!org?.tour_completed_at && <StudioTour />}
       <div className="min-h-screen bg-secondary/20">
+        <StudioCommandPalette />
         <header className="relative border-b border-border/60 bg-background">
-          <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
-            <Link href="/studio" className="font-heading text-lg font-semibold">
+          <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-6 py-4">
+            <Link href="/studio" className="shrink-0 font-heading text-lg font-semibold">
               {org?.name ?? "Your Agency"}
               <span className="ml-2 font-mono text-xs font-normal tracking-wide text-muted-foreground uppercase">
                 Studio
               </span>
             </Link>
-            <div className="flex items-center gap-2">
+            <div className="flex min-w-0 items-center gap-2">
+              <div className="w-full max-w-40 sm:max-w-56">
+                <StudioCommandPaletteTrigger />
+              </div>
               <div className="hidden md:block">
                 <HelpModeToggle />
               </div>
