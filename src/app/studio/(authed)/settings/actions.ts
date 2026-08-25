@@ -194,7 +194,7 @@ export async function requestLayoutRedesign(instruction: string, currentBlocks: 
   // inside proposeCommandCentreLayout() re-validates its own output
   // regardless of what was fed in here.
   const safeCurrentBlocks = sanitizeBlocksForWrite(currentBlocks) ?? [];
-  const result = await proposeCommandCentreLayout(safeCurrentBlocks, instruction);
+  const result = await proposeCommandCentreLayout(orgId, safeCurrentBlocks, instruction);
 
   if (!usageCheck.isInternal && "outcome" in result && result.outcome === "proposal") {
     await recordUsageEvent(orgId, "layout_redesign_proposed");

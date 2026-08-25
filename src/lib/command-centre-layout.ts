@@ -12,7 +12,7 @@
 export type BlockSpan = 1 | 2;
 
 export type StatCardId = "health" | "prospects" | "clients" | "conversion" | "pipeline";
-export type SectionType = "actions_required" | "insights" | "briefing" | "engagement_risk";
+export type SectionType = "actions_required" | "insights" | "briefing" | "engagement_risk" | "model_performance" | "client_ai_adoption";
 export type ChartMetric = "revenue" | "prospects";
 export type ChartKind = "area" | "bar";
 
@@ -28,6 +28,8 @@ export type Block =
   | { id: string; type: "insights" }
   | { id: string; type: "briefing" }
   | { id: string; type: "engagement_risk" }
+  | { id: string; type: "model_performance" }
+  | { id: string; type: "client_ai_adoption" }
   | { id: string; type: "chart"; metric: ChartMetric; kind: ChartKind; span: BlockSpan }
   | { id: string; type: "text"; title: string; body: string; span: BlockSpan }
   | { id: string; type: "cta"; label: string; href: string; span: BlockSpan };
@@ -35,7 +37,14 @@ export type Block =
 export type CommandCentreLayout = { version: 2; blocks: Block[] };
 
 export const STAT_CARD_IDS: StatCardId[] = ["health", "prospects", "clients", "conversion", "pipeline"];
-export const SECTION_TYPES: SectionType[] = ["actions_required", "insights", "briefing", "engagement_risk"];
+export const SECTION_TYPES: SectionType[] = [
+  "actions_required",
+  "insights",
+  "briefing",
+  "engagement_risk",
+  "model_performance",
+  "client_ai_adoption",
+];
 
 export const STAT_LABELS: Record<StatCardId, string> = {
   health: "Business Health",
@@ -49,6 +58,8 @@ export const SECTION_LABELS: Record<SectionType, string> = {
   insights: "Insights",
   briefing: "Your briefing",
   engagement_risk: "Engagement risk",
+  model_performance: "Model performance",
+  client_ai_adoption: "Client AI adoption",
 };
 export const CHART_METRIC_LABELS: Record<ChartMetric, string> = { revenue: "Revenue", prospects: "New prospects" };
 export const CHART_KIND_LABELS: Record<ChartKind, string> = { area: "Area", bar: "Bar" };

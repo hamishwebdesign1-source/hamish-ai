@@ -30,7 +30,14 @@ const selectClasses =
 
 function blockLabel(block: Block): string {
   if (block.type === "stat") return STAT_LABELS[block.cardId];
-  if (block.type === "actions_required" || block.type === "insights" || block.type === "briefing" || block.type === "engagement_risk")
+  if (
+    block.type === "actions_required" ||
+    block.type === "insights" ||
+    block.type === "briefing" ||
+    block.type === "engagement_risk" ||
+    block.type === "model_performance" ||
+    block.type === "client_ai_adoption"
+  )
     return SECTION_LABELS[block.type];
   if (block.type === "chart") return `Chart — ${CHART_METRIC_LABELS[block.metric]}`;
   if (block.type === "text") return block.title || "Text block";
@@ -262,7 +269,9 @@ export function CommandCentreLayoutPanel({
               block.type === "actions_required" ||
               block.type === "insights" ||
               block.type === "briefing" ||
-              block.type === "engagement_risk";
+              block.type === "engagement_risk" ||
+              block.type === "model_performance" ||
+              block.type === "client_ai_adoption";
             const isHiddenBlock = isSingleton && hidden.has(id);
             const hasSpan = "span" in block;
 

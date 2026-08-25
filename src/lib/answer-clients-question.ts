@@ -3,6 +3,7 @@ import { getSupabaseAdmin } from "@/lib/supabase";
 import { computeClientHealth } from "@/lib/client-health";
 import { stripMarkdownEmphasis } from "@/lib/strip-markdown-emphasis";
 import { getStudioAnalytics } from "@/lib/studio-analytics";
+import { logAiCall } from "@/lib/ai-call-log";
 
 // Studio's own equivalent of the portal's AI Copilot (answer-account-question.ts)
 // — same "only ever talk about real numbers in the prompt" discipline, but
@@ -129,6 +130,13 @@ export async function answerClientsQuestion(orgId: string, orgName: string, mess
   const anthropic = new Anthropic({ apiKey });
   const model = process.env.ANTHROPIC_MODEL || "claude-haiku-4-5-20251001";
 
+  // Same single-log-point reasoning as proposeCommandCentreLayout()'s own
+  // comment: measured from just before the real API call, logged once
+  // regardless of which branch below produced the result.
+  const startedAt = Date.now();
+  let result: { reply: string } | { error: string };
+  let usage: Anthropic.Usage | undefined;
+
   try {
     const response = await anthropic.messages.create({
       model,
@@ -136,13 +144,20 @@ export async function answerClientsQuestion(orgId: string, orgName: string, mess
       system: buildSystemPrompt(orgName, clients, analyticsSummary),
       messages: messages.map((m) => ({ role: m.role, content: m.content })),
     });
+    usage = response.usage;
 
     const textBlock = response.content.find((block): block is Anthropic.TextBlock => block.type === "text");
-    if (!textBlock) return { error: "The copilot did not return an answer." as const };
-
-    return { reply: stripMarkdownEmphasis(textBlock.text) };
+    result = textBlock ? { reply: stripMarkdownEmphasis(textBlock.text) } : { error: "The copilot did not return an answer." };
   } catch (error) {
     console.error("Clients copilot question failed:", error);
-    return { error: "The copilot is temporarily unavailable." as const };
+    result = { error: "The copilot is temporarily unavailable." };
   }
+
+  await logAiCall(orgId, "business_analyst", {
+    success: "reply" in result,
+    latencyMs: Date.now() - startedAt,
+    inputTokens: usage?.input_tokens,
+    outputTokens: usage?.output_tokens,
+  });
+  return result;
 }

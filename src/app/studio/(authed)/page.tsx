@@ -21,14 +21,19 @@ import {
   Zap,
   ListChecks,
   ShieldAlert,
+  Cpu,
+  Bot,
 } from "lucide-react";
 import { createServerSupabaseClient } from "@/lib/supabase-server-auth";
+import { getSupabaseAdmin } from "@/lib/supabase";
 import { getOrgMembership } from "@/lib/org-membership";
 import { getStudioBriefing } from "@/lib/studio-briefing";
 import { computeAgencyHealth } from "@/lib/client-health";
 import { getStudioAnalytics } from "@/lib/studio-analytics";
 import { generateInsights, type InsightCategory } from "@/lib/studio-insights";
 import { computeClientEngagementRisk } from "@/lib/studio-engagement";
+import { getModelPerformance } from "@/lib/studio-model-performance";
+import { computeClientAiAdoption } from "@/lib/studio-ai-adoption";
 import { resolveLayout, CHART_METRIC_LABELS, type StatCardId } from "@/lib/command-centre-layout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Eyebrow } from "@/components/eyebrow";
@@ -139,10 +144,10 @@ export default async function StudioHomePage() {
 
   const [{ count: prospectCount }, { data: clients }, { data: activeDeals }, { count: emailConnectionCount }] = await Promise.all([
     supabase.from("prospects").select("id", { count: "exact", head: true }).eq("org_id", membership.orgId),
-    // business_name added for Engagement Risk (Phase 6c) — every other
-    // column here was already only "id" because nothing before that
-    // needed a client's name.
-    supabase.from("clients").select("id, business_name").eq("org_id", membership.orgId),
+    // business_name added for Engagement Risk (Phase 6c); chatbot_embed_enabled
+    // added for Client AI Adoption (Phase 6d) — every other column here
+    // was already only "id" because nothing before that needed either.
+    supabase.from("clients").select("id, business_name, chatbot_embed_enabled").eq("org_id", membership.orgId),
     // Pipeline value — a tenant's own optional estimate per prospect
     // (deal_value_pence, schema-prospect-pipeline.sql), summed client-side
     // over anything still active (not yet won or lost). Never AI-estimated,
@@ -199,6 +204,17 @@ export default async function StudioHomePage() {
   // for why this reuses real contact/payment dates instead of the
   // portal-login tracking the original concept assumed would be needed.
   const engagementRisks = computeClientEngagementRisk(clients ?? [], requests ?? [], invoices ?? [], nowDate());
+
+  // Model Performance + Client AI Adoption (Command Centre Phase 6d).
+  // ai_call_log (schema-ai-call-log.sql) is service-role-only, same
+  // convention as usage_events — no session-facing read path, so this
+  // reads through the admin client like usage-limits.ts already does,
+  // not the session-scoped `supabase` this page uses everywhere else.
+  const admin = getSupabaseAdmin();
+  const modelPerformance = admin
+    ? await getModelPerformance(admin, membership.orgId)
+    : { callCount: 0, successRatePct: null, medianLatencyMs: null, estimatedCostUsd: null };
+  const aiAdoption = computeClientAiAdoption(clients ?? []);
 
   // Actions Required (Command Centre Phase 1) — the genuinely urgent
   // subset of what used to be scattered across the checklist, the
@@ -372,7 +388,9 @@ export default async function StudioHomePage() {
   // render with real content" rule Phase 1/3 already established. A
   // block present in the saved layout but with no real content right
   // now simply renders nothing for that slot, rather than an empty card.
-  const sectionContent: Partial<Record<"actions_required" | "insights" | "briefing" | "engagement_risk", ReactNode>> = {
+  const sectionContent: Partial<
+    Record<"actions_required" | "insights" | "briefing" | "engagement_risk" | "model_performance" | "client_ai_adoption", ReactNode>
+  > = {
     actions_required:
       actionsRequired.length > 0 ? (
         <Card className="border-none bg-primary text-primary-foreground">
@@ -541,6 +559,66 @@ export default async function StudioHomePage() {
           </CardContent>
         </Card>
       ) : undefined,
+    // Command Centre Phase 6d — real success rate, latency and cost for
+    // this org's own two Claude-backed features, off ai_call_log. Only
+    // shown once there's at least one real call to report — same rule
+    // as every other section here.
+    model_performance:
+      modelPerformance.callCount > 0 ? (
+        <Card className="border-none bg-primary text-primary-foreground">
+          <CardContent className="p-5">
+            <div className="flex items-center justify-between gap-2">
+              <p className="flex items-center gap-1.5 text-xs font-semibold text-primary-foreground/70">
+                <Cpu className="size-3.5 shrink-0" /> Model performance
+              </p>
+              <HelpTip explanation="Real success rate, latency and estimated cost for your AI Design Assistant and AI Business Analyst calls over the last 30 days. Cost is Anthropic's published per-token rate in US dollars, not converted to £ — an invented exchange rate would be less honest than showing none." />
+            </div>
+            <div className="mt-4 grid grid-cols-3 gap-3">
+              <div>
+                <p className="font-heading text-xl font-semibold tabular-nums">{modelPerformance.successRatePct}%</p>
+                <p className="text-xs text-primary-foreground/50">Success rate</p>
+              </div>
+              <div>
+                <p className="font-heading text-xl font-semibold tabular-nums">
+                  {modelPerformance.medianLatencyMs !== null ? `${(modelPerformance.medianLatencyMs / 1000).toFixed(1)}s` : "—"}
+                </p>
+                <p className="text-xs text-primary-foreground/50">Median latency</p>
+              </div>
+              <div>
+                <p className="font-heading text-xl font-semibold tabular-nums">
+                  {modelPerformance.estimatedCostUsd !== null ? `$${modelPerformance.estimatedCostUsd.toFixed(2)}` : "—"}
+                </p>
+                <p className="text-xs text-primary-foreground/50">Est. cost, 30d</p>
+              </div>
+            </div>
+            <p className="mt-3 text-xs text-primary-foreground/40">
+              {modelPerformance.callCount} call{modelPerformance.callCount === 1 ? "" : "s"} in the last 30 days
+            </p>
+          </CardContent>
+        </Card>
+      ) : undefined,
+    // Command Centre Phase 6d — see studio-ai-adoption.ts's own comment
+    // on why this measures "switched on," not usage volume.
+    client_ai_adoption:
+      aiAdoption.activeClientCount > 0 ? (
+        <Card className="border-none bg-primary text-primary-foreground">
+          <CardContent className="p-5">
+            <div className="flex items-center justify-between gap-2">
+              <p className="flex items-center gap-1.5 text-xs font-semibold text-primary-foreground/70">
+                <Bot className="size-3.5 shrink-0" /> Client AI adoption
+              </p>
+              <HelpTip explanation="Share of your clients with the AI chatbot feature turned on for their own website. Measures whether it's switched on, not how much it's used — message volume isn't tracked yet." />
+            </div>
+            <div className="mt-4 flex items-baseline gap-3">
+              <p className="font-heading text-2xl font-semibold tabular-nums">{aiAdoption.adoptionPct}%</p>
+              <p className="text-sm text-primary-foreground/60">
+                {aiAdoption.adoptedCount} of {aiAdoption.activeClientCount} client{aiAdoption.activeClientCount === 1 ? "" : "s"} have the AI chatbot
+                enabled
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      ) : undefined,
   };
 
   return (
@@ -588,7 +666,14 @@ export default async function StudioHomePage() {
               </div>
             );
           }
-          if (block.type === "actions_required" || block.type === "insights" || block.type === "briefing" || block.type === "engagement_risk") {
+          if (
+            block.type === "actions_required" ||
+            block.type === "insights" ||
+            block.type === "briefing" ||
+            block.type === "engagement_risk" ||
+            block.type === "model_performance" ||
+            block.type === "client_ai_adoption"
+          ) {
             const content = sectionContent[block.type];
             if (!content) return null;
             return (

@@ -9,6 +9,7 @@ import {
   sanitizeBlocksForWrite,
   type Block,
 } from "@/lib/command-centre-layout";
+import { logAiCall } from "@/lib/ai-call-log";
 
 // Command Centre Phase 5d — the AI Design Assistant (§23). Structurally a
 // sibling of the AI Business Analyst (answer-clients-question.ts): same
@@ -34,7 +35,10 @@ const BLOCK_TOOL_SCHEMA = {
       description:
         "Unique id for this block. Reuse the exact id from the current layout if you're keeping or modifying an existing block; invent a short new one like 'chart:new1' only for a block you're adding.",
     },
-    type: { type: "string", enum: ["stat", "actions_required", "insights", "briefing", "engagement_risk", "chart", "text", "cta"] },
+    type: {
+      type: "string",
+      enum: ["stat", "actions_required", "insights", "briefing", "engagement_risk", "model_performance", "client_ai_adoption", "chart", "text", "cta"],
+    },
     cardId: { type: "string", enum: STAT_CARD_IDS, description: "Required, and only used, when type is 'stat'." },
     metric: { type: "string", enum: ["revenue", "prospects"], description: "Required, and only used, when type is 'chart'." },
     kind: { type: "string", enum: ["area", "bar"], description: "Required, and only used, when type is 'chart'." },
@@ -48,7 +52,8 @@ const BLOCK_TOOL_SCHEMA = {
     span: {
       type: "integer",
       enum: [1, 2],
-      description: "1 = standard width, 2 = double width. Omit for actions_required/insights/briefing/engagement_risk, which always render full width.",
+      description:
+        "1 = standard width, 2 = double width. Omit for actions_required/insights/briefing/engagement_risk/model_performance/client_ai_adoption, which always render full width.",
     },
   },
   required: ["id", "type"],
@@ -89,7 +94,7 @@ function buildSystemPrompt(currentBlocks: Block[]): string {
 
 Available block types:
 - stat: one of 5 fixed cards — ${STAT_CARD_IDS.map((id) => `"${id}" (${STAT_LABELS[id]})`).join(", ")}. Each can appear at most once.
-- actions_required, insights, briefing, engagement_risk: fixed section blocks (${SECTION_TYPES.map((t) => `"${SECTION_LABELS[t]}"`).join(", ")}). Each can appear at most once. Always full width — never set span on these. engagement_risk lists clients who've gone quiet or fallen behind on an invoice — it's rule-based on real request/invoice dates, not a prediction.
+- actions_required, insights, briefing, engagement_risk, model_performance, client_ai_adoption: fixed section blocks (${SECTION_TYPES.map((t) => `"${SECTION_LABELS[t]}"`).join(", ")}). Each can appear at most once. Always full width — never set span on these. engagement_risk lists clients who've gone quiet or fallen behind on an invoice — it's rule-based on real request/invoice dates, not a prediction. model_performance shows real success rate, latency and cost for this org's own AI Design Assistant and AI Business Analyst calls. client_ai_adoption shows what share of active clients have the AI chatbot feature turned on for their own website.
 - chart: a real chart of either "revenue" or "prospects" (the only two metrics with real data), rendered as "area" or "bar".
 - text: a free-form note with a title and body — use this for anything the agency wants to say that isn't a stat, chart, or link.
 - cta: a button linking to an internal page (starting with "/") or an external https:// page.
@@ -110,7 +115,7 @@ export type DesignAssistantResult =
   | { outcome: "unable"; reason: string }
   | { error: string };
 
-export async function proposeCommandCentreLayout(currentBlocks: Block[], instruction: string): Promise<DesignAssistantResult> {
+export async function proposeCommandCentreLayout(orgId: string, currentBlocks: Block[], instruction: string): Promise<DesignAssistantResult> {
   const trimmed = instruction.trim();
   if (!trimmed) return { error: "Describe what you'd like to change." };
   if (trimmed.length > 500) return { error: "Keep the instruction under 500 characters." };
@@ -121,6 +126,19 @@ export async function proposeCommandCentreLayout(currentBlocks: Block[], instruc
   const anthropic = new Anthropic({ apiKey });
   const model = process.env.ANTHROPIC_MODEL || "claude-haiku-4-5-20251001";
 
+  // Measured from just before the real API call, not from function
+  // entry — the validation returns above aren't call attempts at all,
+  // and logAiCall() below is only ever reached once a real attempt was
+  // made. Single log point at the end (not one per return branch)
+  // because "unable" is deliberately still a success: the assistant
+  // correctly declining an instruction it can't confidently map is the
+  // model doing its job, not a malfunction — see buildSystemPrompt()'s
+  // own "never guess" rule. Only an exception or a response that fails
+  // basic shape validation counts against it.
+  const startedAt = Date.now();
+  let result: DesignAssistantResult;
+  let usage: Anthropic.Usage | undefined;
+
   try {
     const response = await anthropic.messages.create({
       model,
@@ -130,26 +148,41 @@ export async function proposeCommandCentreLayout(currentBlocks: Block[], instruc
       tools: [PROPOSE_LAYOUT_TOOL],
       tool_choice: { type: "tool", name: "propose_layout" },
     });
+    usage = response.usage;
 
     const toolUse = response.content.find((block): block is Anthropic.ToolUseBlock => block.type === "tool_use");
-    if (!toolUse) return { error: "The design assistant did not return a proposal." };
+    if (!toolUse) {
+      result = { error: "The design assistant did not return a proposal." };
+    } else {
+      const input = toolUse.input as { outcome?: unknown; blocks?: unknown; summary?: unknown; reason?: unknown };
 
-    const input = toolUse.input as { outcome?: unknown; blocks?: unknown; summary?: unknown; reason?: unknown };
-
-    if (input.outcome === "unable") {
-      const reason = typeof input.reason === "string" && input.reason.trim() ? input.reason.trim() : "Couldn't map that to a concrete layout change.";
-      return { outcome: "unable", reason };
+      if (input.outcome === "unable") {
+        const reason =
+          typeof input.reason === "string" && input.reason.trim() ? input.reason.trim() : "Couldn't map that to a concrete layout change.";
+        result = { outcome: "unable", reason };
+      } else {
+        // Never trust the model's output more than a hand-filled form —
+        // the exact same validator the manual builder's save path runs
+        // through.
+        const sanitized = sanitizeBlocksForWrite(input.blocks);
+        if (!sanitized) {
+          result = { error: "The design assistant's proposal didn't include any valid blocks — try rephrasing." };
+        } else {
+          const summary = typeof input.summary === "string" && input.summary.trim() ? input.summary.trim() : "Layout updated.";
+          result = { outcome: "proposal", blocks: sanitized, summary };
+        }
+      }
     }
-
-    // Never trust the model's output more than a hand-filled form — the
-    // exact same validator the manual builder's save path runs through.
-    const sanitized = sanitizeBlocksForWrite(input.blocks);
-    if (!sanitized) return { error: "The design assistant's proposal didn't include any valid blocks — try rephrasing." };
-
-    const summary = typeof input.summary === "string" && input.summary.trim() ? input.summary.trim() : "Layout updated.";
-    return { outcome: "proposal", blocks: sanitized, summary };
   } catch (error) {
     console.error("Command Centre design assistant failed:", error);
-    return { error: "The design assistant is temporarily unavailable." };
+    result = { error: "The design assistant is temporarily unavailable." };
   }
+
+  await logAiCall(orgId, "design_assistant", {
+    success: "outcome" in result,
+    latencyMs: Date.now() - startedAt,
+    inputTokens: usage?.input_tokens,
+    outputTokens: usage?.output_tokens,
+  });
+  return result;
 }
