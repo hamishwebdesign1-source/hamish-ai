@@ -34,7 +34,7 @@ export const platformPlans: PlatformPlan[] = [
   {
     slug: "starter",
     name: "Starter",
-    monthlyPence: 5900,
+    monthlyPence: 1900,
     tagline: "Prove the model in your own niche before scaling it up.",
     prospectsPerMonth: 30,
     agencyTypeTemplates: "1",
@@ -50,7 +50,7 @@ export const platformPlans: PlatformPlan[] = [
   {
     slug: "professional",
     name: "Professional",
-    monthlyPence: 11900,
+    monthlyPence: 4900,
     tagline: "The full loop — prospecting through client delivery.",
     prospectsPerMonth: 100,
     agencyTypeTemplates: "2 to 3",
@@ -67,7 +67,7 @@ export const platformPlans: PlatformPlan[] = [
   {
     slug: "agency",
     name: "Agency",
-    monthlyPence: 22900,
+    monthlyPence: 9900,
     tagline: "Higher volume, more seats, priority research.",
     prospectsPerMonth: 250,
     agencyTypeTemplates: "All",
