@@ -1,4 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { researchLead } from "@/lib/research-lead";
 import { logAuditEvent } from "@/lib/audit-log";
@@ -61,11 +62,24 @@ const DEFAULT_AREAS = [
 const PAIRS_PER_RUN = 3;
 const MAX_NEW_LEADS_PER_RUN = 12; // safety valve, not expected to bind at PAIRS_PER_RUN=3
 
+// searchProspectsNow() (below) — a single, immediate, user-triggered
+// search rather than PAIRS_PER_RUN's background rotation, so it can
+// afford a real result count per click rather than the weekly cron's
+// conservative 2-4. Still a deliberate ceiling, not "as many as
+// possible": each extra candidate is another real researchLead() call.
+const ON_DEMAND_MAX_RESULTS = 10;
+
 type Candidate = {
   business_name: string;
   website?: string;
   phone?: string;
   why_suggested: string;
+  // Only ever populated (and only ever trusted) when the search itself
+  // had no target category — see searchCandidates()'s own branch for
+  // why. A category-scoped search already knows the category; asking
+  // the model to also report it back would just be re-deriving
+  // something the caller supplied.
+  category?: string;
 };
 
 const SUBMIT_CANDIDATES_TOOL: Anthropic.Tool = {
@@ -82,6 +96,11 @@ const SUBMIT_CANDIDATES_TOOL: Anthropic.Tool = {
             business_name: { type: "string" },
             website: { type: "string", description: "Leave out if the business has no findable website." },
             phone: { type: "string", description: "Leave out if not confirmed from a real listing." },
+            category: {
+              type: "string",
+              description:
+                "What kind of business this is (e.g. 'Independent Cafe', 'Hair Salon'). Only include this if the search brief did not already name a target category — when it did, leave this out.",
+            },
             why_suggested: {
               type: "string",
               description: "One concrete sentence: the specific reason this business is worth outreach — e.g. no website found, only a Facebook page, clearly outdated site.",
@@ -134,7 +153,22 @@ function isoWeekIndex(date: Date): number {
   return Math.floor(date.getTime() / (7 * 24 * 60 * 60 * 1000));
 }
 
-async function searchCandidates(anthropic: Anthropic, model: string, orgName: string, category: string, area: string): Promise<Candidate[]> {
+// category is nullable — searchProspectsNow() (below) is the "search by
+// location only" path, where the model itself is asked to find and
+// report a category per business rather than being given one. options
+// defaults reproduce discoverLeads()'s original always-had behaviour
+// exactly (2-4 results, 5 searches) so its own call site below didn't
+// need to change; searchProspectsNow() passes its own, larger numbers —
+// a single deliberate on-demand search can afford a real result count
+// in a way the weekly background rotation's per-pair budget can't.
+async function searchCandidates(
+  anthropic: Anthropic,
+  model: string,
+  orgName: string,
+  category: string | null,
+  area: string,
+  options: { minResults: number; maxResults: number; maxSearchUses: number } = { minResults: 2, maxResults: 4, maxSearchUses: 5 }
+): Promise<Candidate[]> {
   // orgName and area both come from the caller, not hardcoded — this used
   // to say "for Hamish AI, an Edinburgh-based AI/web consultancy" and
   // append ", Scotland" onto every single area regardless of what the
@@ -145,9 +179,13 @@ async function searchCandidates(anthropic: Anthropic, model: string, orgName: st
   // which is exactly why that search returned almost nothing. The area
   // string is trusted as-is now; a tenant who needs to disambiguate a
   // place name can just write "Kent, England" or "Leeds, UK" themselves.
+  const brief = category
+    ? `Find ${options.minResults}-${options.maxResults} real, currently-operating small businesses in the "${category}" category in ${area}, that appear to have no website at all, or only a very weak one (a bare Facebook page, an unmaintained directory listing, or something clearly outdated).`
+    : `Find ${options.minResults}-${options.maxResults} real, currently-operating small independent businesses of any kind in ${area}, that appear to have no website at all, or only a very weak one (a bare Facebook page, an unmaintained directory listing, or something clearly outdated). No target category was given — businesses across different types are welcome, don't limit yourself to one. For each business, report what kind of business it is in the "category" field.`;
+
   const system = `You are researching small, independently-owned businesses on behalf of ${orgName}, an AI/web consultancy that helps small businesses that are underserved online.
 
-Find 2-4 real, currently-operating small businesses in the "${category}" category in ${area}, that appear to have no website at all, or only a very weak one (a bare Facebook page, an unmaintained directory listing, or something clearly outdated). Use web search to confirm each business genuinely exists and check for a working website before including it. Take the area given literally and don't substitute a different location if you can't immediately place it — search for it as written.
+${brief} Use web search to confirm each business genuinely exists and check for a working website before including it. Take the area given literally and don't substitute a different location if you can't immediately place it — search for it as written.
 
 Never invent a business, a website, or a phone number. If you can't confirm a detail, leave it out rather than guess. If you can't find enough businesses that genuinely fit (weak/no web presence), submit fewer — do not pad the list with well-established businesses that already have a good website.`;
 
@@ -155,7 +193,7 @@ Never invent a business, a website, or a phone number. If you can't confirm a de
     model,
     max_tokens: 2000,
     system,
-    tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 5 }, SUBMIT_CANDIDATES_TOOL],
+    tools: [{ type: "web_search_20250305", name: "web_search", max_uses: options.maxSearchUses }, SUBMIT_CANDIDATES_TOOL],
     messages: [{ role: "user", content: `Find businesses matching the brief above.` }],
   });
 
@@ -169,7 +207,7 @@ Never invent a business, a website, or a phone number. If you can't confirm a de
       model,
       max_tokens: 2000,
       system,
-      tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 5 }, SUBMIT_CANDIDATES_TOOL],
+      tools: [{ type: "web_search_20250305", name: "web_search", max_uses: options.maxSearchUses }, SUBMIT_CANDIDATES_TOOL],
       messages: [
         { role: "user", content: `Find businesses matching the brief above.` },
         { role: "assistant", content: response.content },
@@ -184,6 +222,114 @@ Never invent a business, a website, or a phone number. If you can't confirm a de
 
   const input = toolUse.input as { candidates: Candidate[] };
   return input.candidates ?? [];
+}
+
+// Shared by discoverLeads() (one call per rotated category/area pair)
+// and searchProspectsNow() (one call for a single on-demand search) —
+// same dedup/insert/usage-accounting/research/audit sequence either
+// way, extracted so the two call sites can't quietly drift (e.g. one
+// path forgetting the researchLead() call the other keeps).
+//
+// remainingBudget is this call's own insert ceiling (how many more
+// candidates from *this* batch may be inserted), not a global one — the
+// caller is responsible for shrinking it call to call if it's looping
+// over multiple batches, same as monthlyRemainingFromHere below.
+// monthlyRemainingFromHere is how many of *this batch's* inserts (0-
+// indexed from the start of this call) still fall within the org's
+// monthly plan allowance before spending a purchased credit instead —
+// the caller computes this from its own running total, not from a
+// number this function tracks itself.
+async function insertCandidates(
+  supabase: SupabaseClient,
+  orgId: string,
+  isInternal: boolean,
+  candidates: Candidate[],
+  category: string | null,
+  area: string,
+  existingNames: Set<string>,
+  remainingBudget: number,
+  monthlyRemainingFromHere: number
+): Promise<{
+  inserted: { business_name: string; category: string; neighbourhood: string }[];
+  skippedDuplicates: string[];
+  creditsUsed: number;
+}> {
+  const inserted: { business_name: string; category: string; neighbourhood: string }[] = [];
+  const skippedDuplicates: string[] = [];
+  let creditsUsed = 0;
+
+  for (const candidate of candidates) {
+    if (inserted.length >= remainingBudget) break;
+    if (!candidate.business_name) continue;
+
+    const normalised = normaliseName(candidate.business_name);
+    if (existingNames.has(normalised)) {
+      skippedDuplicates.push(candidate.business_name);
+      continue;
+    }
+    existingNames.add(normalised); // guards against the same name turning up twice in one run
+
+    // A category-scoped search already knows its category; a
+    // location-only search relies on the model's own per-candidate
+    // report instead (see searchCandidates()'s "category" tool field).
+    // Genuinely uncategorised only when neither is present, which
+    // prospects.category (nullable, schema-leads.sql) already allows.
+    const resolvedCategory = category ?? candidate.category ?? null;
+
+    const { data: lead, error: insertError } = await supabase
+      .from("prospects")
+      .insert({
+        org_id: orgId,
+        business_name: candidate.business_name,
+        category: resolvedCategory,
+        neighbourhood: area,
+        website: candidate.website || null,
+        phone: candidate.phone || null,
+        status: "needs_verification",
+        discovery_source: { why_suggested: candidate.why_suggested, search_category: resolvedCategory, search_area: area },
+      })
+      .select("id")
+      .single();
+
+    if (insertError || !lead) {
+      console.error(`Failed to insert discovered lead "${candidate.business_name}":`, insertError);
+      continue;
+    }
+
+    if (!isInternal) {
+      // inserted.length here is this batch's own count *before* this
+      // candidate is pushed below — the caller already accounted for
+      // any earlier batches in the monthlyRemainingFromHere it passed in.
+      if (inserted.length < monthlyRemainingFromHere) {
+        await recordUsageEvent(orgId, "prospect_researched");
+      } else {
+        creditsUsed++;
+      }
+    }
+
+    await logAuditEvent({
+      actor: "system",
+      actorType: "system",
+      action: "lead.discovered",
+      targetType: "prospect",
+      targetId: lead.id,
+      metadata: { why_suggested: candidate.why_suggested, search_category: resolvedCategory, search_area: area },
+    });
+
+    // Best-effort, unconditional — every discovered lead gets a research
+    // pass regardless of whether it has a website (see research-lead.ts's
+    // own comment on why "no website at all" is the strongest possible
+    // finding, not a skip condition).
+    try {
+      await researchLead(lead.id);
+    } catch (error) {
+      console.error(`Post-discovery research failed for lead ${lead.id}:`, error);
+    }
+
+    inserted.push({ business_name: candidate.business_name, category: resolvedCategory ?? "", neighbourhood: area });
+  }
+
+  return { inserted, skippedDuplicates, creditsUsed };
 }
 
 export type DiscoverLeadsResult =
@@ -330,76 +476,24 @@ export async function discoverLeads(orgId: string): Promise<DiscoverLeadsResult>
       continue;
     }
 
-    for (const candidate of candidates) {
-      if (inserted.length >= maxInsertsThisRun) break;
-      if (!candidate.business_name) continue;
-
-      const normalised = normaliseName(candidate.business_name);
-      if (existingNames.has(normalised)) {
-        skippedDuplicates.push(candidate.business_name);
-        continue;
-      }
-      existingNames.add(normalised); // guards against the same name turning up twice in one run
-
-      const { data: lead, error: insertError } = await supabase
-        .from("prospects")
-        .insert({
-          org_id: orgId,
-          business_name: candidate.business_name,
-          category,
-          neighbourhood: area,
-          website: candidate.website || null,
-          phone: candidate.phone || null,
-          status: "needs_verification",
-          discovery_source: { why_suggested: candidate.why_suggested, search_category: category, search_area: area },
-        })
-        .select("id")
-        .single();
-
-      if (insertError || !lead) {
-        console.error(`Failed to insert discovered lead "${candidate.business_name}":`, insertError);
-        continue;
-      }
-
-      if (!org.is_internal) {
-        // inserted.length here is the count BEFORE this prospect is
-        // pushed below — the first monthlyRemaining prospects (0-indexed)
-        // are still within the monthly plan allowance; anything at or
-        // past that index is spending a purchased credit instead.
-        if (inserted.length < monthlyRemaining) {
-          await recordUsageEvent(orgId, "prospect_researched");
-        } else {
-          creditsUsedThisRun++;
-        }
-      }
-
-      await logAuditEvent({
-        actor: "system",
-        actorType: "system",
-        action: "lead.discovered",
-        targetType: "prospect",
-        targetId: lead.id,
-        metadata: { why_suggested: candidate.why_suggested, search_category: category, search_area: area },
-      });
-
-      // Best-effort, unconditional — this comment used to say most
-      // discovered leads have no website "so researchLead() correctly
-      // errors out rather than doing anything." That was stale: the
-      // Phase 8 fix documented at the top of research-lead.ts made "no
-      // website at all" the strongest possible finding, not a skip
-      // condition — researchLead() branches on it explicitly rather than
-      // failing. Gating this call on candidate.website meant the exact
-      // businesses discovery exists to find (weak-or-no web presence)
-      // were the ones silently never researched — every discovered lead
-      // now gets a research pass regardless.
-      try {
-        await researchLead(lead.id);
-      } catch (error) {
-        console.error(`Post-discovery research failed for lead ${lead.id}:`, error);
-      }
-
-      inserted.push({ business_name: candidate.business_name, category, neighbourhood: area });
-    }
+    // monthlyRemaining minus what's already been inserted from earlier
+    // pairs this run — see insertCandidates()'s own comment on why it
+    // takes this pre-computed, per-batch number rather than tracking a
+    // running total itself.
+    const result = await insertCandidates(
+      supabase,
+      orgId,
+      org.is_internal,
+      candidates,
+      category,
+      area,
+      existingNames,
+      maxInsertsThisRun - inserted.length,
+      Math.max(0, monthlyRemaining - inserted.length)
+    );
+    inserted.push(...result.inserted);
+    skippedDuplicates.push(...result.skippedDuplicates);
+    creditsUsedThisRun += result.creditsUsed;
   }
 
   // Single atomic decrement for the whole run (not one write per
@@ -412,4 +506,116 @@ export async function discoverLeads(orgId: string): Promise<DiscoverLeadsResult>
   }
 
   return { inserted, skippedDuplicates, searchFailures, pairsSearched: pairs };
+}
+
+// Location-only (or location + category) on-demand search — the direct
+// "search this, right now" action discoverLeads() never actually was:
+// that function re-runs an org's *saved* categories/areas through a
+// rotation, 3 pairs at a time, with no way to target one specific
+// query. This runs exactly one real, immediate search and returns as
+// soon as it's done — same billing/usage/dedup/insert/research rules as
+// discoverLeads() (this is still spending real prospect_researched
+// quota, or purchased credits past it), just for a caller-specified
+// location instead of a rotated pair, and a real result count (see
+// ON_DEMAND_MAX_RESULTS) since a single deliberate click can afford
+// more than the weekly background rotation's conservative per-pair cap.
+export async function searchProspectsNow(orgId: string, location: string, category: string | null): Promise<DiscoverLeadsResult> {
+  const trimmedLocation = location.trim();
+  if (!trimmedLocation) return { error: "Enter a location to search." as const };
+  const trimmedCategory = category?.trim() || null;
+
+  const supabase = getSupabaseAdmin();
+  if (!supabase) return { error: "Supabase is not configured." as const };
+
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) return { error: "ANTHROPIC_API_KEY is not configured." as const };
+
+  const { data: org, error: orgError } = await supabase
+    .from("organisations")
+    .select("name, is_internal, plan, subscription_status, trial_ends_at, purchased_prospect_credits")
+    .eq("id", orgId)
+    .single();
+  if (orgError || !org) {
+    console.error("Failed to load organisation for on-demand prospect search:", orgError);
+    return { error: "Organisation not found." as const };
+  }
+
+  // Same billing/usage rules as discoverLeads() — see that function's
+  // own comments for why each of these checks exists and in this order.
+  if (!org.is_internal) {
+    const billingOk = org.subscription_status === "active" || (org.subscription_status === "trialing" && new Date(org.trial_ends_at) > new Date());
+    if (!billingOk) {
+      return { inserted: [], skippedDuplicates: [], searchFailures: [], pairsSearched: [], billingRequired: true };
+    }
+  }
+
+  let maxInsertsThisRun = ON_DEMAND_MAX_RESULTS;
+  let monthlyRemaining = Number.POSITIVE_INFINITY;
+  let creditsAvailable = 0;
+  if (!org.is_internal) {
+    const usage = await getUsageStatus(orgId, "prospect_researched", org.plan as PlatformPlanSlug);
+    monthlyRemaining = usage.remaining;
+    creditsAvailable = org.purchased_prospect_credits ?? 0;
+    if (!usage.allowed && creditsAvailable <= 0) {
+      return {
+        inserted: [],
+        skippedDuplicates: [],
+        searchFailures: [],
+        pairsSearched: [],
+        limitReached: { used: usage.used, limit: usage.limit },
+      };
+    }
+    maxInsertsThisRun = Math.min(ON_DEMAND_MAX_RESULTS, monthlyRemaining + creditsAvailable);
+  }
+
+  const { data: existing, error: existingError } = await supabase.from("prospects").select("business_name").eq("org_id", orgId);
+  if (existingError) {
+    console.error("Failed to fetch existing prospects for dedup:", existingError);
+    return { error: "Failed to fetch existing leads." as const };
+  }
+  const existingNames = new Set((existing ?? []).map((p) => normaliseName(p.business_name)));
+
+  const anthropic = new Anthropic({ apiKey });
+  const model = process.env.ANTHROPIC_MODEL || "claude-haiku-4-5-20251001";
+
+  let candidates: Candidate[];
+  try {
+    candidates = await searchCandidates(anthropic, model, org.name, trimmedCategory, trimmedLocation, {
+      minResults: Math.min(6, ON_DEMAND_MAX_RESULTS),
+      maxResults: ON_DEMAND_MAX_RESULTS,
+      maxSearchUses: 10,
+    });
+  } catch (error) {
+    console.error(`On-demand prospect search failed for ${trimmedCategory ?? "any category"} in ${trimmedLocation}:`, error);
+    return {
+      inserted: [],
+      skippedDuplicates: [],
+      searchFailures: [`${trimmedCategory ?? "Any category"} in ${trimmedLocation}`],
+      pairsSearched: [],
+    };
+  }
+
+  const result = await insertCandidates(
+    supabase,
+    orgId,
+    org.is_internal,
+    candidates,
+    trimmedCategory,
+    trimmedLocation,
+    existingNames,
+    maxInsertsThisRun,
+    monthlyRemaining
+  );
+
+  if (result.creditsUsed > 0) {
+    const { error: decrementError } = await supabase.rpc("increment_prospect_credits", { p_org_id: orgId, p_amount: -result.creditsUsed });
+    if (decrementError) console.error(`Failed to decrement prospect credits for org ${orgId}:`, decrementError);
+  }
+
+  return {
+    inserted: result.inserted,
+    skippedDuplicates: result.skippedDuplicates,
+    searchFailures: [],
+    pairsSearched: [{ category: trimmedCategory ?? "Any category", area: trimmedLocation }],
+  };
 }

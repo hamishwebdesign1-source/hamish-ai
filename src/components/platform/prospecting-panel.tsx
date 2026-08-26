@@ -45,6 +45,7 @@ import { Tabs, TabsList, TabsTab, TabsPanel } from "@/components/ui/tabs";
 import {
   updateProspectingConfig,
   runDiscovery,
+  searchProspects,
   convertProspectToClient,
   researchProspect,
   generateWebsiteMockup,
@@ -841,6 +842,56 @@ function ProspectCard({ prospect }: { prospect: Prospect }) {
   );
 }
 
+type DiscoveryResult = Awaited<ReturnType<typeof runDiscovery>>;
+
+// Shared by "Find prospects now" (the saved-niche rotation) and "Search
+// now" (searchProspects — an immediate, one-off search) — both call a
+// DiscoverLeadsResult-shaped Server Action and need to show the exact
+// same set of outcomes (a plain error, the trial/limit/niche guards, or
+// a real inserted count), so there's one rendering of each state, not
+// two that could quietly drift apart.
+function DiscoveryResultMessage({ result }: { result: DiscoveryResult }) {
+  if ("error" in result) return <p className="text-sm text-destructive">{result.error}</p>;
+  if ("nicheRequired" in result && result.nicheRequired) {
+    return (
+      <p className="flex items-center gap-1.5 text-sm text-destructive">
+        <CircleAlert className="size-4 shrink-0" />
+        Enter at least one category and one area above before finding prospects.
+      </p>
+    );
+  }
+  if ("billingRequired" in result && result.billingRequired) {
+    return (
+      <p className="flex items-center gap-1.5 text-sm text-destructive">
+        <CircleAlert className="size-4 shrink-0" />
+        Your trial has ended.{" "}
+        <Link href="/studio/billing" className="underline underline-offset-2">
+          Subscribe to keep finding prospects
+        </Link>
+        .
+      </p>
+    );
+  }
+  if ("limitReached" in result && result.limitReached) {
+    return (
+      <p className="flex items-center gap-1.5 text-sm text-destructive">
+        <CircleAlert className="size-4 shrink-0" />
+        Monthly limit reached ({result.limitReached.used} of {result.limitReached.limit}) — nothing new searched this
+        run.
+      </p>
+    );
+  }
+  if ("inserted" in result) {
+    return (
+      <p className="text-sm text-accent">
+        Found {result.inserted.length} new prospect{result.inserted.length === 1 ? "" : "s"}
+        {result.skippedDuplicates.length > 0 ? ` (${result.skippedDuplicates.length} already known, skipped)` : ""}.
+      </p>
+    );
+  }
+  return null;
+}
+
 // A single client component rather than splitting settings/results/usage
 // into three — they all react to the same runDiscovery() call (a fresh
 // run changes the usage bar and the results list together), and this is
@@ -933,6 +984,23 @@ export function ProspectingPanel({
   // at all.
   const atLimit = usage !== null && !usage.allowed && purchasedCredits <= 0;
   const usingCredits = usage !== null && !usage.allowed && purchasedCredits > 0;
+
+  // Search now — deliberately its own state, not layered onto
+  // categories/areas/runResult above: this doesn't read or write the
+  // saved niche at all, it's a one-off search for whatever's typed here.
+  const [searchLocation, setSearchLocation] = useState("");
+  const [searchCategory, setSearchCategory] = useState("");
+  const [searchPending, startSearch] = useTransition();
+  const [searchResult, setSearchResult] = useState<Awaited<ReturnType<typeof searchProspects>> | null>(null);
+
+  function handleSearch() {
+    if (!searchLocation.trim()) return;
+    setSearchResult(null);
+    startSearch(async () => {
+      const result = await searchProspects(searchLocation, searchCategory);
+      setSearchResult(result);
+    });
+  }
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<
@@ -1096,38 +1164,73 @@ export function ProspectingPanel({
         )}
       </Button>
 
-      {runResult && "error" in runResult && (
-        <p className="text-sm text-destructive">{runResult.error}</p>
-      )}
-      {runResult && "nicheRequired" in runResult && runResult.nicheRequired && (
-        <p className="flex items-center gap-1.5 text-sm text-destructive">
-          <CircleAlert className="size-4 shrink-0" />
-          Enter at least one category and one area above before finding prospects.
-        </p>
-      )}
-      {runResult && "billingRequired" in runResult && runResult.billingRequired && (
-        <p className="flex items-center gap-1.5 text-sm text-destructive">
-          <CircleAlert className="size-4 shrink-0" />
-          Your trial has ended.{" "}
-          <Link href="/studio/billing" className="underline underline-offset-2">
-            Subscribe to keep finding prospects
-          </Link>
-          .
-        </p>
-      )}
-      {runResult && "limitReached" in runResult && runResult.limitReached && (
-        <p className="flex items-center gap-1.5 text-sm text-destructive">
-          <CircleAlert className="size-4 shrink-0" />
-          Monthly limit reached ({runResult.limitReached.used} of {runResult.limitReached.limit}) — nothing new
-          searched this run.
-        </p>
-      )}
-      {runResult && "inserted" in runResult && !runResult.limitReached && (
-        <p className="text-sm text-accent">
-          Found {runResult.inserted.length} new prospect{runResult.inserted.length === 1 ? "" : "s"}
-          {runResult.skippedDuplicates.length > 0 ? ` (${runResult.skippedDuplicates.length} already known, skipped)` : ""}.
-        </p>
-      )}
+      {runResult && <DiscoveryResultMessage result={runResult} />}
+
+      {/* Search now — a real, immediate search for one location (category
+          optional), separate from the niche above. "Find prospects now"
+          re-runs your *saved* categories/areas through a weekly rotation
+          (a few pairs at a time); it can't target one specific place on
+          demand, and there was no way to search by location alone. This
+          calls searchProspects() directly — one real search, right now,
+          for exactly what's typed here — and doesn't touch or require
+          the saved niche at all. */}
+      <Card>
+        <CardContent>
+          <p className="flex items-center gap-1.5 font-heading text-sm font-semibold">
+            <Search className="size-4 text-accent" /> Search now
+          </p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            One immediate search for a specific place — category is optional. Doesn&apos;t change your saved niche
+            above.
+          </p>
+          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="search-location" className="text-xs">
+                <MapPin className="size-3" /> Location
+              </Label>
+              <Input
+                id="search-location"
+                value={searchLocation}
+                onChange={(e) => setSearchLocation(e.target.value)}
+                placeholder="e.g. Manchester"
+                className="h-9 text-sm"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="search-category" className="text-xs">
+                <Tag className="size-3" /> Category <span className="text-muted-foreground">(optional)</span>
+              </Label>
+              <Input
+                id="search-category"
+                value={searchCategory}
+                onChange={(e) => setSearchCategory(e.target.value)}
+                placeholder="e.g. Gyms — leave blank for any business"
+                className="h-9 text-sm"
+              />
+            </div>
+          </div>
+          <Button
+            onClick={handleSearch}
+            disabled={searchPending || atLimit || !searchLocation.trim()}
+            className="mt-4 w-full sm:w-auto"
+          >
+            {searchPending ? (
+              <>
+                <LoaderCircle className="size-4 animate-spin" /> Searching…
+              </>
+            ) : (
+              <>
+                <Search className="size-4" /> Search now
+              </>
+            )}
+          </Button>
+          {searchResult && (
+            <div className="mt-3">
+              <DiscoveryResultMessage result={searchResult} />
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       <div>
         <div className="flex flex-wrap items-center justify-between gap-3">

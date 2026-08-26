@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createServerSupabaseClient, getUserWithRetry } from "@/lib/supabase-server-auth";
 import { getOrgMembership } from "@/lib/org-membership";
 import { getSupabaseAdmin } from "@/lib/supabase";
-import { discoverLeads } from "@/lib/discover-leads";
+import { discoverLeads, searchProspectsNow } from "@/lib/discover-leads";
 import { researchLead } from "@/lib/research-lead";
 import { draftWebsiteMockup } from "@/lib/draft-website-mockup";
 import { buildIcp } from "@/lib/build-icp";
@@ -129,6 +129,28 @@ export async function runDiscovery() {
 
   const result = await discoverLeads(orgId);
   if ("inserted" in result) await trackServerEvent(orgId, "discovery_run", { prospects_found: result.inserted.length });
+  revalidatePath("/studio/prospects");
+  return result;
+}
+
+// The direct "search this, right now" action runDiscovery() above never
+// was — see searchProspectsNow()'s own comment. Same rate-limit gate as
+// runDiscovery(): this is the same class of expensive Studio AI action
+// (multiple web searches plus a research call per candidate found), so
+// it shares the burst-protection layer rather than getting its own.
+export async function searchProspects(location: string, category: string) {
+  const orgId = await requireOrgId();
+
+  const admin = getSupabaseAdmin();
+  if (admin) {
+    const { data: org } = await admin.from("organisations").select("is_internal").eq("id", orgId).single();
+    if (org && !org.is_internal && (await isStudioActionRateLimited(orgId))) {
+      return { error: "You're doing that a lot right now — wait a few minutes and try again." };
+    }
+  }
+
+  const result = await searchProspectsNow(orgId, location, category.trim() || null);
+  if ("inserted" in result) await trackServerEvent(orgId, "on_demand_search_run", { prospects_found: result.inserted.length });
   revalidatePath("/studio/prospects");
   return result;
 }
