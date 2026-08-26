@@ -23,6 +23,14 @@ export function SiteFooter() {
           <a href={`mailto:${siteConfig.email}`} className="hover:text-foreground">
             {siteConfig.email}
           </a>
+          {/* Deliberately not added to siteConfig.nav (shared with the
+              primary header nav) — where a new lead magnet gets promoted
+              in the main IA is a content-strategy call, not an engineering
+              one, so this stays a modest footer mention until that's
+              decided rather than silently claiming a 7th header nav slot. */}
+          <Link href="/website-audit" className="text-accent hover:text-accent/80">
+            Free website health check →
+          </Link>
         </div>
       </div>
 

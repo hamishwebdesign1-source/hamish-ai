@@ -107,7 +107,11 @@ function stripTags(html: string): string {
     .trim();
 }
 
-async function runSiteCheck(website: string): Promise<{ siteCheck: SiteCheck; visibleText: string }> {
+// Exported for website-audit.ts (the public "Website Health Check" tool)
+// — the exact same deterministic, zero-AI-cost check, reused rather than
+// re-implemented, so the two surfaces can never quietly disagree about
+// what "mobile-friendly" or "has a booking form" means.
+export async function runSiteCheck(website: string): Promise<{ siteCheck: SiteCheck; visibleText: string }> {
   const url = normaliseWebsite(website);
   let urlObj: URL;
   try {
