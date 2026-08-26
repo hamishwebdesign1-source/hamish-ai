@@ -511,7 +511,10 @@ export default async function StudioHomePage() {
   // block present in the saved layout but with no real content right
   // now simply renders nothing for that slot, rather than an empty card.
   const sectionContent: Partial<
-    Record<"actions_required" | "insights" | "briefing" | "engagement_risk" | "model_performance" | "client_ai_adoption", ReactNode>
+    Record<
+      "actions_required" | "insights" | "briefing" | "engagement_risk" | "model_performance" | "client_ai_adoption" | "top_prospects",
+      ReactNode
+    >
   > = {
     actions_required:
       actionsRequired.length > 0 ? (
@@ -767,6 +770,45 @@ export default async function StudioHomePage() {
           </CardContent>
         </Card>
       ) : undefined,
+    // Command Centre improvement #8 — the block canvas's first new
+    // section type since Phase 6d. Same real scoring already behind
+    // "Your briefing" own single best-opportunity box (studio-briefing.ts's
+    // `scored` array) — this is that same list, just the top 5 instead
+    // of only the head, for a tenant who wants the ranked list as its
+    // own block rather than folded into Briefing.
+    top_prospects:
+      briefing.topOpportunities.length > 0 ? (
+        <Card className="border-none bg-primary text-primary-foreground">
+          <CardContent className="p-5">
+            <div className="flex items-center justify-between gap-2">
+              <p className="flex items-center gap-1.5 text-xs font-semibold text-primary-foreground/70">
+                <Lightbulb className="size-3.5 shrink-0" /> Top prospects
+              </p>
+              <HelpTip explanation="Your researched prospects, ranked by their real overall score (out of 5) — the same scoring your briefing's own best-opportunity box uses, just the top 5 instead of only the best one." />
+            </div>
+            <ol className="mt-4 space-y-3">
+              {briefing.topOpportunities.map((opp, i) => (
+                <li key={opp.id} className="flex items-start gap-3">
+                  <span className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-accent/15 font-mono text-[11px] font-semibold text-accent">
+                    {i + 1}
+                  </span>
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-primary-foreground">
+                      {opp.businessName}{" "}
+                      <span className="font-mono text-xs font-normal text-primary-foreground/50">({opp.overallScore}/5)</span>
+                    </p>
+                    <p className="mt-0.5 text-xs text-primary-foreground/50">{opp.pursueBecause}</p>
+                  </div>
+                </li>
+              ))}
+            </ol>
+            <Button variant="link" size="sm" className="mt-3 h-auto px-0 text-accent" render={<Link href="/studio/prospects" />}>
+              View all prospects
+              <ArrowRight className="size-3.5" />
+            </Button>
+          </CardContent>
+        </Card>
+      ) : undefined,
   };
 
   return (
@@ -791,8 +833,9 @@ export default async function StudioHomePage() {
       {/* Block canvas (Command Centre Phase 5b/5c — see Settings →
           Command Centre layout). Stat cards, the section cards (Actions
           required / Insights / Your briefing / Engagement risk / Model
-          performance / Client AI adoption), and — since Phase 5c —
-          chart/text/call-to-action blocks all live in one reorderable
+          performance / Client AI adoption / Top prospects), and — since
+          Phase 5c — chart/text/call-to-action blocks all live in one
+          reorderable
           grid: a stat/chart/text/cta block occupies 1 or 2 of 5 columns
           depending on its saved width, a section block always spans the
           full row (see command-centre-layout.ts's own comment on why),
@@ -828,7 +871,8 @@ export default async function StudioHomePage() {
             block.type === "briefing" ||
             block.type === "engagement_risk" ||
             block.type === "model_performance" ||
-            block.type === "client_ai_adoption"
+            block.type === "client_ai_adoption" ||
+            block.type === "top_prospects"
           ) {
             const content = sectionContent[block.type];
             if (!content) return null;

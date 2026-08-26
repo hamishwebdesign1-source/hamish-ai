@@ -14,13 +14,23 @@ import { leadNeedsFollowUp } from "@/lib/lead-status";
 // sent it). This function itself is unchanged; owner-digest.ts just reads
 // followUpsDue from it the same way the in-app briefing card does.
 
+export type TopOpportunity = { id: string; businessName: string; pursueBecause: string; overallScore: number };
+
 export type StudioBriefing = {
   newThisWeek: number;
   needsResearch: number;
   readyToContact: number; // researched, has a sales kit, not yet converted
   followUpsDue: number; // contacted, no reply, past the cadence threshold (lead-status.ts)
-  topOpportunity: { id: string; businessName: string; pursueBecause: string; overallScore: number } | null;
+  topOpportunity: TopOpportunity | null;
+  // Command Centre improvement #8 (Top prospects block) — same `scored`
+  // array topOpportunity was always the head of, just kept instead of
+  // discarded. topOpportunity itself is unchanged: still exactly
+  // topOpportunities[0] ?? null, so the existing Briefing card's own
+  // "best opportunity right now" reads no differently than before.
+  topOpportunities: TopOpportunity[];
 };
+
+const MAX_TOP_OPPORTUNITIES = 5;
 
 export async function getStudioBriefing(supabase: SupabaseClient, orgId: string): Promise<StudioBriefing> {
   const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
@@ -42,15 +52,13 @@ export async function getStudioBriefing(supabase: SupabaseClient, orgId: string)
     .filter((p) => p.research && p.score_breakdown)
     .sort((a, b) => (b.score_breakdown?.overall ?? 0) - (a.score_breakdown?.overall ?? 0));
 
-  const top = scored[0];
-  const topOpportunity = top
-    ? {
-        id: top.id,
-        businessName: top.business_name,
-        pursueBecause: top.research.pursue_because,
-        overallScore: top.score_breakdown.overall,
-      }
-    : null;
+  const topOpportunities: TopOpportunity[] = scored.slice(0, MAX_TOP_OPPORTUNITIES).map((p) => ({
+    id: p.id,
+    businessName: p.business_name,
+    pursueBecause: p.research.pursue_because,
+    overallScore: p.score_breakdown.overall,
+  }));
+  const topOpportunity = topOpportunities[0] ?? null;
 
-  return { newThisWeek, needsResearch, readyToContact, followUpsDue, topOpportunity };
+  return { newThisWeek, needsResearch, readyToContact, followUpsDue, topOpportunity, topOpportunities };
 }
