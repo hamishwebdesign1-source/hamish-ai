@@ -883,10 +883,23 @@ function DiscoveryResultMessage({ result }: { result: DiscoveryResult }) {
   }
   if ("inserted" in result) {
     return (
-      <p className="text-sm text-accent">
-        Found {result.inserted.length} new prospect{result.inserted.length === 1 ? "" : "s"}
-        {result.skippedDuplicates.length > 0 ? ` (${result.skippedDuplicates.length} already known, skipped)` : ""}.
-      </p>
+      <>
+        <p className="text-sm text-accent">
+          Found {result.inserted.length} new prospect{result.inserted.length === 1 ? "" : "s"}
+          {result.skippedDuplicates.length > 0 ? ` (${result.skippedDuplicates.length} already known, skipped)` : ""}.
+        </p>
+        {/* Distinct from "found 0" — a search that actually failed (an
+            API error, or the model exhausting its search budget without
+            ever submitting a result) shouldn't look identical to one
+            that genuinely found nothing. */}
+        {result.searchFailures.length > 0 && (
+          <p className="mt-1 flex items-center gap-1.5 text-sm text-destructive">
+            <CircleAlert className="size-4 shrink-0" />
+            {result.searchFailures.length} search{result.searchFailures.length === 1 ? "" : "es"} failed (
+            {result.searchFailures.join(", ")}) — try again.
+          </p>
+        )}
+      </>
     );
   }
   return null;

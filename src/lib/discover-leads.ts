@@ -181,7 +181,7 @@ async function searchCandidates(
   // place name can just write "Kent, England" or "Leeds, UK" themselves.
   const brief = category
     ? `Find ${options.minResults}-${options.maxResults} real, currently-operating small businesses in the "${category}" category in ${area}, that appear to have no website at all, or only a very weak one (a bare Facebook page, an unmaintained directory listing, or something clearly outdated).`
-    : `Find ${options.minResults}-${options.maxResults} real, currently-operating small independent businesses of any kind in ${area}, that appear to have no website at all, or only a very weak one (a bare Facebook page, an unmaintained directory listing, or something clearly outdated). No target category was given — businesses across different types are welcome, don't limit yourself to one. For each business, report what kind of business it is in the "category" field.`;
+    : `Find ${options.minResults}-${options.maxResults} real, currently-operating small independent businesses in ${area}, that appear to have no website at all, or only a very weak one (a bare Facebook page, an unmaintained directory listing, or something clearly outdated). No target category was given, so pick a genuine mix of everyday, non-touristy categories yourself — trades (plumbers, electricians, joiners), personal services (hairdressers, barbers, beauticians), local food (takeaways, cafes, chippies), and similar small local businesses. Avoid businesses likely to appear in a tourism or "best independent shops" guide — those tend to already have a strong web presence, which is the opposite of what this search is for. For each business, report what kind of business it is in the "category" field.`;
 
   const system = `You are researching small, independently-owned businesses on behalf of ${orgName}, an AI/web consultancy that helps small businesses that are underserved online.
 
@@ -215,9 +215,42 @@ Never invent a business, a website, or a phone number. If you can't confirm a de
     });
   }
 
-  const toolUse = response.content.find(
+  let toolUse = response.content.find(
     (block): block is Anthropic.ToolUseBlock => block.type === "tool_use" && block.name === "submit_candidates"
   );
+
+  // Confirmed live (not a hypothetical): the model can spend its entire
+  // web_search budget genuinely researching, conclude it found little or
+  // nothing solid, and then just explain that in a text block instead of
+  // ever calling submit_candidates — even though the brief explicitly
+  // says submitting fewer (including zero) is fine. Without this, that
+  // reads as "found 0" indistinguishable from a real empty result, when
+  // it's actually the model never answering at all. One forced follow-up
+  // — web_search dropped (the research phase is over either way) and
+  // tool_choice pinned to submit_candidates — makes it actually submit
+  // whatever it already found, even if that's nothing.
+  if (!toolUse) {
+    const nudge = await anthropic.messages.create({
+      model,
+      max_tokens: 1000,
+      system,
+      tools: [SUBMIT_CANDIDATES_TOOL],
+      tool_choice: { type: "tool", name: "submit_candidates" },
+      messages: [
+        { role: "user", content: `Find businesses matching the brief above.` },
+        { role: "assistant", content: response.content },
+        {
+          role: "user",
+          content:
+            "Call submit_candidates now with exactly the businesses you found that genuinely fit, even if that's fewer than asked for or an empty list. Do not apologize or explain in text — just call the tool.",
+        },
+      ],
+    });
+    toolUse = nudge.content.find(
+      (block): block is Anthropic.ToolUseBlock => block.type === "tool_use" && block.name === "submit_candidates"
+    );
+  }
+
   if (!toolUse) return [];
 
   const input = toolUse.input as { candidates: Candidate[] };
