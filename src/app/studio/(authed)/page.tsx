@@ -46,6 +46,24 @@ import { CountUp } from "@/components/platform/count-up";
 import { TodayStrip, type TodayStat } from "@/components/platform/today-strip";
 import { Reveal } from "@/components/reveal";
 
+// Display-only shortenings for the Business Health card specifically —
+// computeAgencyHealth() itself still returns the real, full label
+// ("Client sites uptime"), used anywhere else this data appears. In the
+// health card's own single-width column, the full label wraps onto two
+// lines per row, which is what made the card as a whole so much taller
+// than its plain siblings that stretch had to paper over with dead
+// space in the rest of the row. One line per row instead — an unmapped
+// label (there shouldn't be one; this covers every component
+// computeAgencyHealth() can return) falls back to the real label rather
+// than silently dropping it.
+const HEALTH_LABEL_SHORT: Record<string, string> = {
+  "Client sites uptime": "Uptime",
+  "Client payments on time": "Payments",
+  "Delivery completed": "Delivery",
+  "Requests moving": "Requests",
+  "Pipeline conversion": "Pipeline",
+};
+
 const INSIGHT_ICON: Record<InsightCategory, typeof Sparkles> = {
   opportunity: Sparkles,
   warning: TriangleAlert,
@@ -301,20 +319,25 @@ export default async function StudioHomePage() {
           ) : (
             // Ring above the breakdown, not beside it — this card is a
             // single-width column now, same as every other stat card
-            // (see the grid's own comment on why), and a ring wide
-            // enough to read well plus a label column beside it doesn't
-            // fit that width. Each driver row is its own label/value
-            // pair, label free to wrap onto two lines if it needs to
-            // (it has the card's full width now, not a squeezed
-            // remainder next to a ring) rather than clipping — the
-            // actual bug the last version of this layout had, not the
-            // width itself.
-            <div className="mt-4 flex flex-1 flex-col items-center gap-3">
-              <HealthRing score={agencyHealth.healthScore} size={64} strokeWidth={6} centerLabel={String(agencyHealth.healthScore)} />
-              <div className="flex w-full flex-col gap-2">
+            // (see the grid's own comment on why). Kept deliberately
+            // compact: a small ring and one line per driver row (see
+            // HEALTH_LABEL_SHORT above) rather than the wider ring and
+            // two-line labels an earlier version of this layout had —
+            // that version was tall enough that making every card in
+            // the row match its height (the grid's old items-stretch)
+            // left real empty space in the plain cards beside it. This
+            // card being close to their natural height is what makes
+            // items-start (every card sized to its own content) not
+            // need that crutch.
+            <div className="mt-3 flex flex-1 flex-col items-center gap-2">
+              <HealthRing score={agencyHealth.healthScore} size={48} strokeWidth={5} centerLabel={String(agencyHealth.healthScore)} />
+              <div className="flex w-full flex-col">
                 {agencyHealth.components.map((c) => (
-                  <div key={c.label} className="flex items-start justify-between gap-2 border-t border-white/10 pt-2 first:border-t-0 first:pt-0">
-                    <p className="text-[11px] leading-tight text-primary-foreground/50">{c.label}</p>
+                  <div
+                    key={c.label}
+                    className="flex items-center justify-between gap-2 border-t border-white/10 py-1.5 first:border-t-0 first:pt-0"
+                  >
+                    <p className="truncate text-[11px] text-primary-foreground/50">{HEALTH_LABEL_SHORT[c.label] ?? c.label}</p>
                     <p className="shrink-0 text-xs leading-none font-semibold text-primary-foreground">{c.value}%</p>
                   </div>
                 ))}
@@ -656,17 +679,19 @@ export default async function StudioHomePage() {
           read from the same 30-day analytics already fetched for
           Insights above — never a second query.
           5 columns, every default stat card at span 1: genuinely
-          uniform cards, not just close — see command-centre-layout.ts's
+          uniform width, not just close — see command-centre-layout.ts's
           own comment on why health gave up its old span-2 default.
-          Default grid alignment (stretch), not items-start: with every
-          default stat card the same width and the health card's own
-          content now built for that width (ring above the breakdown,
-          not beside it — see the health card's own comment), the height
-          difference between cards is small enough that stretching every
-          card in a row to match its tallest neighbour reads as "these
-          are the same size," not the dead-space problem stretch caused
-          when health was twice the width and had far more content. */}
-      <Reveal delay={80} className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+          items-start, not the grid default (stretch): even with health
+          compacted for its new single-width column (a smaller ring,
+          one-line driver rows — see the health card's own comment), it
+          still holds more real content than a plain "icon, number,
+          label" stat card and is naturally a bit taller. Stretching
+          every card in a row to match the tallest one papers over that
+          with visibly empty space in the shorter cards — worse than a
+          small, real height difference between a hero card and its
+          plainer neighbours, which is a completely ordinary dashboard
+          pattern. */}
+      <Reveal delay={80} className="mt-6 grid items-start gap-4 sm:grid-cols-2 lg:grid-cols-5">
         {blocks.map((block) => {
           if (block.type === "stat") {
             return (
