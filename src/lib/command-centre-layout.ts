@@ -71,16 +71,20 @@ export const CHART_KIND_LABELS: Record<ChartKind, string> = { area: "Area", bar:
 // already saved before Phase 6c keeps exactly what it saved, per
 // sanitizeBlocksForWrite()'s own comment on why that's correct).
 //
-// health defaults to span 2, not 1: it holds a ring visualisation plus a
-// 3-5 row component breakdown, real content none of the other four stat
-// cards (a single icon+number+label) carry. At span 1, alongside four
-// plain stat cards, its own labels ("Client sites uptime") had nowhere
-// near enough width and wrapped mid-word — not a spacing problem, a
-// width problem: the card was simply too narrow for what it holds.
+// All five stat cards default to span 1 — genuinely uniform size, not
+// just visually close. health used to default to span 2 (it holds a
+// ring plus a component breakdown, real content the other four don't
+// carry), on a 5-column grid that made it double the width of its
+// siblings; users reading the live Command Centre found that
+// inconsistent, not intentional-looking. page.tsx's own health card now
+// stacks the ring above the breakdown instead of beside it specifically
+// so that content fits a single-width column without wrapping mid-word
+// the way it did the first time span 1 was tried — the earlier problem
+// was the ring-beside-list layout, not the width itself.
 export const DEFAULT_LAYOUT: CommandCentreLayout = {
   version: 2,
   blocks: [
-    ...STAT_CARD_IDS.map((cardId): Block => ({ id: `stat:${cardId}`, type: "stat", cardId, span: cardId === "health" ? 2 : 1 })),
+    ...STAT_CARD_IDS.map((cardId): Block => ({ id: `stat:${cardId}`, type: "stat", cardId, span: 1 })),
     ...SECTION_TYPES.map((type): Block => ({ id: type, type })),
   ],
 };

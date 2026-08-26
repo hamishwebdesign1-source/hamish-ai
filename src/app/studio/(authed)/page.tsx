@@ -299,20 +299,23 @@ export default async function StudioHomePage() {
               Not enough data yet — this fills in once you have clients with real requests, invoices, or projects.
             </p>
           ) : (
-            // A real vertical stack, not a flex-wrap inline row — the
-            // wrap was what made "Client sites uptime" break mid-phrase
-            // and every component crowd the next with almost no gap.
-            // Each row is its own label-then-value unit (gap-0.5, tight
-            // — they belong together) with generous gap-3 *between*
-            // rows, so the list reads as a clean list, not a paragraph
-            // that happens to have numbers in it.
-            <div className="mt-4 flex flex-1 items-center gap-5">
-              <HealthRing score={agencyHealth.healthScore} size={88} strokeWidth={7} centerLabel={String(agencyHealth.healthScore)} />
-              <div className="flex flex-1 flex-col gap-3">
+            // Ring above the breakdown, not beside it — this card is a
+            // single-width column now, same as every other stat card
+            // (see the grid's own comment on why), and a ring wide
+            // enough to read well plus a label column beside it doesn't
+            // fit that width. Each driver row is its own label/value
+            // pair, label free to wrap onto two lines if it needs to
+            // (it has the card's full width now, not a squeezed
+            // remainder next to a ring) rather than clipping — the
+            // actual bug the last version of this layout had, not the
+            // width itself.
+            <div className="mt-4 flex flex-1 flex-col items-center gap-3">
+              <HealthRing score={agencyHealth.healthScore} size={64} strokeWidth={6} centerLabel={String(agencyHealth.healthScore)} />
+              <div className="flex w-full flex-col gap-2">
                 {agencyHealth.components.map((c) => (
-                  <div key={c.label} className="flex flex-col gap-0.5">
+                  <div key={c.label} className="flex items-start justify-between gap-2 border-t border-white/10 pt-2 first:border-t-0 first:pt-0">
                     <p className="text-[11px] leading-tight text-primary-foreground/50">{c.label}</p>
-                    <p className="text-sm leading-none font-semibold text-primary-foreground">{c.value}%</p>
+                    <p className="shrink-0 text-xs leading-none font-semibold text-primary-foreground">{c.value}%</p>
                   </div>
                 ))}
               </div>
@@ -645,28 +648,25 @@ export default async function StudioHomePage() {
           required / Insights / Your briefing / Engagement risk / Model
           performance / Client AI adoption), and — since Phase 5c —
           chart/text/call-to-action blocks all live in one reorderable
-          grid: a stat/chart/text/cta block occupies 1 or 2 of 6 columns
+          grid: a stat/chart/text/cta block occupies 1 or 2 of 5 columns
           depending on its saved width, a section block always spans the
           full row (see command-centre-layout.ts's own comment on why),
           and a section block with no real content right now renders
           nothing for its slot rather than an empty card. Chart blocks
           read from the same 30-day analytics already fetched for
           Insights above — never a second query.
-          6 columns, not 5: the default 5 stat cards are Health at
-          double width plus four single ones — 2+1+1+1+1 = 6 column-
-          units. On a 5-column grid that 6th unit has nowhere to go but
-          its own row, alone, with 4 empty columns beside it — not a
-          spacing tweak, the arithmetic simply doesn't fit. 6 columns is
-          the actual width the default layout needs; a custom layout
-          with fewer/narrower blocks just leaves the remaining columns
-          empty at the row's end, same as any other under-filled row.
-          items-start, not the grid default (stretch): Business Health
-          holds a ring plus a multi-row breakdown, real content none of
-          the plain stat cards carry — stretch was forcing every card in
-          its row to match Health's height, leaving huge dead space
-          inside "Prospects found" and friends. Each card now sizes to
-          its own real content instead of an unrelated neighbour's. */}
-      <Reveal delay={80} className="mt-6 grid items-start gap-4 sm:grid-cols-2 lg:grid-cols-6">
+          5 columns, every default stat card at span 1: genuinely
+          uniform cards, not just close — see command-centre-layout.ts's
+          own comment on why health gave up its old span-2 default.
+          Default grid alignment (stretch), not items-start: with every
+          default stat card the same width and the health card's own
+          content now built for that width (ring above the breakdown,
+          not beside it — see the health card's own comment), the height
+          difference between cards is small enough that stretching every
+          card in a row to match its tallest neighbour reads as "these
+          are the same size," not the dead-space problem stretch caused
+          when health was twice the width and had far more content. */}
+      <Reveal delay={80} className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
         {blocks.map((block) => {
           if (block.type === "stat") {
             return (
@@ -686,7 +686,7 @@ export default async function StudioHomePage() {
             const content = sectionContent[block.type];
             if (!content) return null;
             return (
-              <div key={block.id} className="sm:col-span-2 lg:col-span-6">
+              <div key={block.id} className="sm:col-span-2 lg:col-span-5">
                 {content}
               </div>
             );
