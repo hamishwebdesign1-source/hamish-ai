@@ -30,13 +30,18 @@ export function SiteFooter() {
         <p>
           © {new Date().getFullYear()} {siteConfig.name}. All rights reserved.
         </p>
-        <div className="flex gap-4">
+        <div className="flex flex-wrap items-center justify-center gap-4">
           <Link href="/terms" className="hover:text-foreground">
             Terms of Service
           </Link>
           <Link href="/privacy" className="hover:text-foreground">
             Privacy Policy
           </Link>
+          {/* Google's own widget — publisher.js (loaded in (site)/layout.tsx)
+              replaces this div with the real interactive button once it
+              runs; data-theme="light" matches this site's own fixed
+              (non-toggleable) light theme rather than defaulting silently. */}
+          <div google-add-preferred-source-btn="" data-theme="light" />
         </div>
       </div>
     </footer>
