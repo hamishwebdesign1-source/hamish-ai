@@ -467,6 +467,32 @@ export default function HomePage() {
         </Reveal>
       </section>
 
+      {/* A lower-commitment step before the FAQ/final "book a call" CTA —
+          same funnel shape the automatethejourney.com research this was
+          scoped from uses (free diagnostics before any sales
+          conversation), not a duplicate of the closing CTA below it. */}
+      <section className="border-t border-border/60 bg-secondary/40">
+        <div className="mx-auto max-w-6xl px-6 py-16 md:py-20">
+          <Reveal>
+            <div className="flex flex-col items-start gap-6 md:flex-row md:items-center md:justify-between">
+              <div>
+                <Eyebrow className="mb-4">Free, no obligation</Eyebrow>
+                <h2 className="font-heading text-2xl font-semibold md:text-3xl">
+                  Not ready to talk yet? Check your website first.
+                </h2>
+                <p className="mt-2 max-w-lg text-muted-foreground">
+                  Real technical checks plus a plain-English AI review — what&apos;s working, what isn&apos;t, and
+                  where AI could specifically help. Free, in under a minute.
+                </p>
+              </div>
+              <Button size="lg" variant="outline" render={<Link href="/website-audit" />}>
+                Get my free website check
+              </Button>
+            </div>
+          </Reveal>
+        </div>
+      </section>
+
       <section className="border-t border-border/60">
         <div className="mx-auto max-w-6xl px-6 py-16 md:py-20">
           <div className="max-w-3xl">
