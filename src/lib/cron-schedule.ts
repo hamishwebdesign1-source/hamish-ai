@@ -103,4 +103,11 @@ export const CRON_SPECS: CronSpec[] = [
     schedule: "0 9 1 * *",
     nextRun: () => nextMonthly(1, 9),
   },
+  {
+    name: "owner-digest",
+    label: "Owner digest",
+    description: "Emails each agency owner their own Actions Required and Engagement Risk numbers, for orgs that have it enabled.",
+    schedule: "0 9 * * 1",
+    nextRun: () => nextWeekly(1, 9),
+  },
 ];

@@ -7,6 +7,7 @@ import { SettingsPanel } from "@/components/platform/settings-panel";
 import { BrandingPanel } from "@/components/platform/branding-panel";
 import { DataPrivacyPanel } from "@/components/platform/data-privacy-panel";
 import { CommandCentreLayoutPanel } from "@/components/platform/command-centre-layout-panel";
+import { NotificationsPanel } from "@/components/platform/notifications-panel";
 import { resolveLayout } from "@/lib/command-centre-layout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -50,7 +51,7 @@ export default async function StudioSettingsPage({
   const { data: org } = await supabase
     .from("organisations")
     .select(
-      "name, brand, is_internal, stripe_connect_account_id, stripe_connect_charges_enabled, deletion_requested_at, command_centre_layout"
+      "name, brand, is_internal, stripe_connect_account_id, stripe_connect_charges_enabled, deletion_requested_at, command_centre_layout, owner_digest_enabled"
     )
     .eq("id", membership.orgId)
     .single();
@@ -154,6 +155,13 @@ export default async function StudioSettingsPage({
               </CardContent>
             </Card>
           )}
+        </div>
+      </div>
+
+      <div>
+        <h2 className="font-heading text-xs font-semibold tracking-wide text-muted-foreground uppercase">Notifications</h2>
+        <div className="mt-3">
+          <NotificationsPanel enabled={org?.owner_digest_enabled ?? true} />
         </div>
       </div>
 

@@ -75,6 +75,21 @@ export async function updateBrandAccent(color: string) {
   return { ok: true as const };
 }
 
+// Command Centre improvement #2 — owner-digest.ts's own opt-out. Same
+// organisations write path as updateBrandAccent() above, just a single
+// boolean column (schema-owner-digest.sql) instead of a merged jsonb one.
+export async function updateOwnerDigestPreference(enabled: boolean) {
+  const orgId = await requireOrgId();
+  const admin = getSupabaseAdmin();
+  if (!admin) return { error: "Supabase is not configured." };
+
+  const { error } = await admin.from("organisations").update({ owner_digest_enabled: enabled }).eq("id", orgId);
+  if (error) return { error: "Failed to save your notification preference." };
+
+  revalidatePath("/studio/settings");
+  return { ok: true as const };
+}
+
 const LAYOUT_HISTORY_LIMIT = 10;
 
 // Command Centre Phase 5e — undo/version history. Called right before

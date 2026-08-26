@@ -3,12 +3,16 @@ import { leadNeedsFollowUp } from "@/lib/lead-status";
 
 // The "AI daily briefing" from the Opportunity Discovery Engine plan,
 // scoped down deliberately: an in-app summary computed from data that
-// already exists, not an emailed digest. Tenant email-sending isn't wired
-// up yet (send-client-email.ts sends from a hardcoded HamishAI address —
-// using it here would put "— Hamish AI" at the bottom of a tenant's own
-// briefing), so this reads on every /studio visit instead. No AI call,
-// no new cost — pure aggregation over prospects a discovery run or
-// research pass already generated.
+// already exists. No AI call, no new cost — pure aggregation over
+// prospects a discovery run or research pass already generated.
+//
+// followUpsDue now also reaches a tenant outside the app, via
+// owner-digest.ts — that's a genuinely different email direction (HamishAI
+// emailing a tenant directly) from the one this comment originally ruled
+// out (a tenant's own briefing going out under HamishAI's hardcoded
+// from-address to that tenant's OWN clients, which would misrepresent who
+// sent it). This function itself is unchanged; owner-digest.ts just reads
+// followUpsDue from it the same way the in-app briefing card does.
 
 export type StudioBriefing = {
   newThisWeek: number;
