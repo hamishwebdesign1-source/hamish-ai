@@ -104,6 +104,13 @@ function todayIso(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
+// Same react-hooks/purity reasoning, and the same window clients/page.tsx
+// already uses for its own embed-chat usage query — Client AI Adoption
+// (Command Centre improvement #4) reads the exact same audit_log rows.
+function thirtyDaysAgoIso(): string {
+  return new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+}
+
 // Same react-hooks/purity reasoning as todayIso() above — a bare `new
 // Date()` in the component body itself is what the lint rule flags, not
 // one wrapped in a named function. computeClientEngagementRisk() (Phase
@@ -190,14 +197,25 @@ export default async function StudioHomePage() {
   // created_at (requests) and client_id (invoices) are added for
   // Engagement Risk (Phase 6c) — the same two queries, computeAgencyHealth
   // just never needed either column before.
-  const [{ data: requests }, { data: invoices }, { data: siteChecks }, { data: projects }] = clientIds.length
+  // embedChatEvents (Command Centre improvement #4) — same audit_log
+  // query, same "embed_chat.message" action and 30-day window, as the
+  // Clients page's own per-client usage line (Phase 4 usage visibility).
+  // RLS (audit_log_select_embed_chat_own_org, schema-rls-audit-log-embed-
+  // chat.sql) scopes this to just this one event type, same as there.
+  const [{ data: requests }, { data: invoices }, { data: siteChecks }, { data: projects }, { data: embedChatEvents }] = clientIds.length
     ? await Promise.all([
         supabase.from("requests").select("id, client_id, status, responded_at, created_at").in("client_id", clientIds),
         supabase.from("invoices").select("client_id, status, due_date, paid_at").in("client_id", clientIds),
         supabase.from("site_checks").select("uptime_ok").in("client_id", clientIds),
         supabase.from("projects").select("status, target_date").in("client_id", clientIds),
+        supabase
+          .from("audit_log")
+          .select("client_id")
+          .eq("action", "embed_chat.message")
+          .in("client_id", clientIds)
+          .gte("created_at", thirtyDaysAgoIso()),
       ])
-    : [{ data: [] }, { data: [] }, { data: [] }, { data: []}];
+    : [{ data: [] }, { data: [] }, { data: [] }, { data: [] }, { data: [] }];
 
   const requestIds = (requests ?? []).map((r) => r.id);
   const { data: tasks } = requestIds.length
@@ -235,7 +253,12 @@ export default async function StudioHomePage() {
   const modelPerformance = admin
     ? await getModelPerformance(admin, membership.orgId)
     : { callCount: 0, successRatePct: null, medianLatencyMs: null, estimatedCostUsd: null };
-  const aiAdoption = computeClientAiAdoption(clients ?? []);
+  const embedUsageByClient: Record<string, number> = {};
+  for (const event of embedChatEvents ?? []) {
+    if (!event.client_id) continue;
+    embedUsageByClient[event.client_id] = (embedUsageByClient[event.client_id] ?? 0) + 1;
+  }
+  const aiAdoption = computeClientAiAdoption(clients ?? [], embedUsageByClient);
 
   // Business Health trend (Command Centre improvement #3) — same admin
   // client as modelPerformance above, same reasoning: studio_health_snapshots
@@ -650,8 +673,9 @@ export default async function StudioHomePage() {
           </CardContent>
         </Card>
       ) : undefined,
-    // Command Centre Phase 6d — see studio-ai-adoption.ts's own comment
-    // on why this measures "switched on," not usage volume.
+    // Command Centre Phase 6d, extended by improvement #4 — see studio-
+    // ai-adoption.ts's own comment on why usage depth (usedCount,
+    // totalMessages) is now real, not "not tracked yet."
     client_ai_adoption:
       aiAdoption.activeClientCount > 0 ? (
         <Card className="border-none bg-primary text-primary-foreground">
@@ -660,7 +684,7 @@ export default async function StudioHomePage() {
               <p className="flex items-center gap-1.5 text-xs font-semibold text-primary-foreground/70">
                 <Bot className="size-3.5 shrink-0" /> Client AI adoption
               </p>
-              <HelpTip explanation="Share of your clients with the AI chatbot feature turned on for their own website. Measures whether it's switched on, not how much it's used — message volume isn't tracked yet." />
+              <HelpTip explanation="Share of your clients with the AI chatbot feature turned on for their own website, and how many of those actually had a real conversation in the last 30 days — enabled isn't the same as used." />
             </div>
             <div className="mt-4 flex items-baseline gap-3">
               <p className="font-heading text-2xl font-semibold tabular-nums">{aiAdoption.adoptionPct}%</p>
@@ -669,6 +693,12 @@ export default async function StudioHomePage() {
                 enabled
               </p>
             </div>
+            {aiAdoption.adoptedCount > 0 && (
+              <p className="mt-2 text-xs text-primary-foreground/50">
+                {aiAdoption.usedCount} of {aiAdoption.adoptedCount} enabled client{aiAdoption.adoptedCount === 1 ? "" : "s"} actually used it in the
+                last 30 days · {aiAdoption.totalMessages} message{aiAdoption.totalMessages === 1 ? "" : "s"} total
+              </p>
+            )}
           </CardContent>
         </Card>
       ) : undefined,
