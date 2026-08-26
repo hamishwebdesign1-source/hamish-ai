@@ -8,7 +8,9 @@ import { BrandingPanel } from "@/components/platform/branding-panel";
 import { DataPrivacyPanel } from "@/components/platform/data-privacy-panel";
 import { CommandCentreLayoutPanel } from "@/components/platform/command-centre-layout-panel";
 import { NotificationsPanel } from "@/components/platform/notifications-panel";
+import { TodayStripPanel } from "@/components/platform/today-strip-panel";
 import { resolveLayout } from "@/lib/command-centre-layout";
+import { resolveTodayStrip } from "@/lib/today-strip-config";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -51,7 +53,7 @@ export default async function StudioSettingsPage({
   const { data: org } = await supabase
     .from("organisations")
     .select(
-      "name, brand, is_internal, stripe_connect_account_id, stripe_connect_charges_enabled, deletion_requested_at, command_centre_layout, owner_digest_enabled"
+      "name, brand, is_internal, stripe_connect_account_id, stripe_connect_charges_enabled, deletion_requested_at, command_centre_layout, owner_digest_enabled, today_strip_stats"
     )
     .eq("id", membership.orgId)
     .single();
@@ -167,7 +169,8 @@ export default async function StudioSettingsPage({
 
       <div>
         <h2 className="font-heading text-xs font-semibold tracking-wide text-muted-foreground uppercase">Command Centre</h2>
-        <div className="mt-3">
+        <div className="mt-3 space-y-4">
+          <TodayStripPanel initialStats={resolveTodayStrip(org?.today_strip_stats)} />
           <CommandCentreLayoutPanel initialBlocks={commandCentreBlocks} history={layoutHistory ?? []} />
         </div>
       </div>

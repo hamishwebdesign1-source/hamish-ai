@@ -8,6 +8,7 @@ import { checkForReplies } from "@/lib/detect-replies";
 import { sendErrorAlert } from "@/lib/send-error-alert";
 import { logAuditEvent } from "@/lib/audit-log";
 import { sanitizeBlocksForWrite, type Block, type CommandCentreLayout } from "@/lib/command-centre-layout";
+import { sanitizeTodayStripForWrite } from "@/lib/today-strip-config";
 import { proposeCommandCentreLayout } from "@/lib/command-centre-design-assistant";
 import { getUsageStatus, recordUsageEvent } from "@/lib/usage-limits";
 import { isStudioActionRateLimited } from "@/lib/chat-rate-limit";
@@ -87,6 +88,26 @@ export async function updateOwnerDigestPreference(enabled: boolean) {
   if (error) return { error: "Failed to save your notification preference." };
 
   revalidatePath("/studio/settings");
+  return { ok: true as const };
+}
+
+// Command Centre improvement #6 — the TODAY masthead's own, much
+// smaller config (today-strip-config.ts), separate from the block
+// canvas below. Same organisations-via-admin-client write path as
+// updateOwnerDigestPreference() above.
+export async function updateTodayStripStats(ids: unknown) {
+  const orgId = await requireOrgId();
+  const admin = getSupabaseAdmin();
+  if (!admin) return { error: "Supabase is not configured." };
+
+  const clean = sanitizeTodayStripForWrite(ids);
+  if (!clean) return { error: "Choose at least one stat." };
+
+  const { error } = await admin.from("organisations").update({ today_strip_stats: clean }).eq("id", orgId);
+  if (error) return { error: "Failed to save your Today strip." };
+
+  revalidatePath("/studio/settings");
+  revalidatePath("/studio");
   return { ok: true as const };
 }
 

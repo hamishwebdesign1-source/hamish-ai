@@ -1,16 +1,25 @@
 import type { LucideIcon } from "lucide-react";
 import { CountUp } from "@/components/platform/count-up";
 
-// The Command Centre's new masthead — deliberately not a configurable
-// block (command-centre-layout.ts's block canvas is for an agency's own
-// stat/chart preferences; this is the one thing every visit opens with,
-// not something to hide). Every number here is a delta or an urgent
-// count already computed by page.tsx for the briefing/actions-required
-// sections below — no new query, this is a second, more prominent read
-// of numbers that already exist, framed around "what's new/due today"
-// rather than the block canvas's all-time totals (prospects found,
-// clients total). That distinction is deliberate: a masthead repeating
-// the same all-time counts every single day would go stale fast.
+// The Command Centre's masthead. Originally hardcoded on purpose — kept
+// deliberately separate from command-centre-layout.ts's block canvas so
+// it could never be hidden, and deliberately framed around "what's new/
+// due today" rather than the block canvas's all-time totals, on the
+// theory that a masthead repeating the same all-time counts every
+// single day would go stale fast.
+//
+// Command Centre improvement #6 made it configurable anyway, on
+// explicit direction overriding that reasoning — see today-strip-
+// config.ts for the real pool of stats (including some all-time totals
+// now) a tenant can choose 4 from, and page.tsx for how they're
+// resolved into the `stats` prop below. This component itself is
+// unchanged either way: it just renders whatever 4 stats it's handed,
+// same as before.
+//
+// Every number in the pool is one page.tsx already computes elsewhere
+// on the page (briefing, actions-required, engagement risk, etc.) — no
+// new query, this is always a second, more prominent read of numbers
+// that already exist.
 export type TodayStat = {
   id: string;
   value: number;

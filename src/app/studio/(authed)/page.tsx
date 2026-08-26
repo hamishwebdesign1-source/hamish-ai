@@ -38,6 +38,7 @@ import { getModelPerformance } from "@/lib/studio-model-performance";
 import { computeClientAiAdoption } from "@/lib/studio-ai-adoption";
 import { getHealthTrend } from "@/lib/studio-health-history";
 import { resolveLayout, CHART_METRIC_LABELS, type StatCardId } from "@/lib/command-centre-layout";
+import { resolveTodayStrip, TODAY_STAT_LABELS, type TodayStatId } from "@/lib/today-strip-config";
 import { Card, CardContent } from "@/components/ui/card";
 import { Eyebrow } from "@/components/eyebrow";
 import { Badge } from "@/components/ui/badge";
@@ -161,7 +162,7 @@ export default async function StudioHomePage() {
 
   const { data: org } = await supabase
     .from("organisations")
-    .select("name, plan, prospecting_config, is_internal, stripe_connect_charges_enabled, command_centre_layout")
+    .select("name, plan, prospecting_config, is_internal, stripe_connect_charges_enabled, command_centre_layout, today_strip_stats")
     .eq("id", membership.orgId)
     .single();
   const blocks = resolveLayout(org?.command_centre_layout);
@@ -295,12 +296,57 @@ export default async function StudioHomePage() {
   // prospects this w…" at real column widths. "This week"/"today" is
   // redundant anyway once it's sitting under a section literally
   // labelled TODAY.
-  const todayStats: TodayStat[] = [
-    { id: "new", value: briefing.newThisWeek, label: "New prospects", icon: Sparkles },
-    { id: "requests", value: openRequestCount, label: "Needs a reply", icon: Inbox, tone: openRequestCount > 0 ? "urgent" : "default" },
-    { id: "pipeline", value: Math.round(pipelineValuePence / 100), label: "Pipeline", icon: PoundSterling, prefix: "£" },
-    { id: "actions", value: actionsTotal, label: "To do", icon: ListChecks, tone: actionsTotal > 0 ? "urgent" : "default" },
-  ];
+  //
+  // Command Centre improvement #6 — configurable, on explicit direction
+  // overriding today-strip.tsx's own original "deliberately not
+  // configurable" reasoning. todayStatPool is every real number this
+  // page already computes that's a plausible TODAY stat, keyed by
+  // TodayStatId; resolveTodayStrip() (today-strip-config.ts) picks which
+  // 4 of them, and in what order, this org actually chose — falling
+  // back to the original 4 in their original order for every org that's
+  // never customised this.
+  const todayStatPool: Record<TodayStatId, TodayStat> = {
+    new_prospects: { id: "new_prospects", value: briefing.newThisWeek, label: TODAY_STAT_LABELS.new_prospects, icon: Sparkles },
+    needs_reply: {
+      id: "needs_reply",
+      value: openRequestCount,
+      label: TODAY_STAT_LABELS.needs_reply,
+      icon: Inbox,
+      tone: openRequestCount > 0 ? "urgent" : "default",
+    },
+    pipeline: {
+      id: "pipeline",
+      value: Math.round(pipelineValuePence / 100),
+      label: TODAY_STAT_LABELS.pipeline,
+      icon: PoundSterling,
+      prefix: "£",
+    },
+    todo: { id: "todo", value: actionsTotal, label: TODAY_STAT_LABELS.todo, icon: ListChecks, tone: actionsTotal > 0 ? "urgent" : "default" },
+    total_prospects: { id: "total_prospects", value: prospectCount ?? 0, label: TODAY_STAT_LABELS.total_prospects, icon: Search },
+    clients: { id: "clients", value: clientCount, label: TODAY_STAT_LABELS.clients, icon: Users },
+    engagement_risk: {
+      id: "engagement_risk",
+      value: engagementRisks.length,
+      label: TODAY_STAT_LABELS.engagement_risk,
+      icon: ShieldAlert,
+      tone: engagementRisks.length > 0 ? "urgent" : "default",
+    },
+    followups_due: {
+      id: "followups_due",
+      value: briefing.followUpsDue,
+      label: TODAY_STAT_LABELS.followups_due,
+      icon: BellRing,
+      tone: briefing.followUpsDue > 0 ? "urgent" : "default",
+    },
+    overdue_projects: {
+      id: "overdue_projects",
+      value: overdueProjectCount,
+      label: TODAY_STAT_LABELS.overdue_projects,
+      icon: FolderClock,
+      tone: overdueProjectCount > 0 ? "urgent" : "default",
+    },
+  };
+  const todayStats: TodayStat[] = resolveTodayStrip(org?.today_strip_stats).map((id) => todayStatPool[id]);
 
   // Onboarding checklist (P1 platform readiness item) — four real,
   // independently checkable states, not a fixed "step 1 of 5" wizard
