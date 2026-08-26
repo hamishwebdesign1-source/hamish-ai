@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { getUsdGbpRate } from "@/lib/fx-rate";
 
 // Command Centre Phase 6d — Model Performance. Reads ai_call_log
 // (schema-ai-call-log.sql), which logAiCall() writes to from both of
@@ -23,12 +24,18 @@ export type ModelPerformance = {
 
 // Real published per-token pricing for the model both features use
 // (claude-haiku-4-5) — Anthropic's own USD rates, checked 2026-08-25:
-// $1.00/$5.00 per million input/output tokens. Shown in USD, not
-// converted to £: an FX rate is one more number that goes stale by the
-// day, and this page's own real data (revenue, invoices) is already in
-// £ — mixing an invented exchange rate into it would be exactly the
-// fabrication the rest of this app refuses to do. Re-check this pair
+// $1.00/$5.00 per million input/output tokens. Re-check this pair
 // periodically; Anthropic's pricing page is the source of truth.
+//
+// Computed here in USD only — this stayed USD-only for a while
+// precisely because an invented FX rate would be exactly the
+// fabrication the rest of this app refuses to do (this page's own real
+// data, revenue and invoices, is already in £). Command Centre
+// improvement #5 fixed the actual gap instead of accepting it: fx-
+// rate.ts fetches a real, dated USD/GBP rate daily, and
+// getModelPerformance() below converts with that real rate — see its
+// own comment for why the conversion lives there, not in this pure
+// function.
 const INPUT_USD_PER_MILLION = 1.0;
 const OUTPUT_USD_PER_MILLION = 5.0;
 
@@ -65,12 +72,29 @@ export function computeModelPerformance(rows: AiCallRow[]): ModelPerformance {
   return { callCount: rows.length, successRatePct, medianLatencyMs, estimatedCostUsd };
 }
 
-export async function getModelPerformance(admin: SupabaseClient, orgId: string): Promise<ModelPerformance> {
+// The GBP figure and its real, dated exchange rate — kept separate from
+// ModelPerformance (computeModelPerformance()'s own pure, tested return
+// shape) rather than folded into it, so the £ conversion stays purely a
+// concern of this async wrapper, never something a unit test for the
+// pure USD maths has to account for.
+export type ModelPerformanceWithCost = ModelPerformance & {
+  estimatedCostGbp: number | null;
+  fxRateFetchedAt: string | null;
+};
+
+export async function getModelPerformance(admin: SupabaseClient, orgId: string): Promise<ModelPerformanceWithCost> {
   const since = new Date(Date.now() - LOOKBACK_DAYS * 24 * 60 * 60 * 1000).toISOString();
-  const { data } = await admin
-    .from("ai_call_log")
-    .select("feature, success, latency_ms, input_tokens, output_tokens")
-    .eq("org_id", orgId)
-    .gte("created_at", since);
-  return computeModelPerformance(data ?? []);
+  const [{ data }, fx] = await Promise.all([
+    admin
+      .from("ai_call_log")
+      .select("feature, success, latency_ms, input_tokens, output_tokens")
+      .eq("org_id", orgId)
+      .gte("created_at", since),
+    getUsdGbpRate(admin),
+  ]);
+
+  const performance = computeModelPerformance(data ?? []);
+  const estimatedCostGbp = performance.estimatedCostUsd !== null && fx ? performance.estimatedCostUsd * fx.rate : null;
+
+  return { ...performance, estimatedCostGbp, fxRateFetchedAt: fx?.fetchedAt ?? null };
 }

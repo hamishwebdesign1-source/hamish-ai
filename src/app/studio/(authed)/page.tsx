@@ -252,7 +252,7 @@ export default async function StudioHomePage() {
   const admin = getSupabaseAdmin();
   const modelPerformance = admin
     ? await getModelPerformance(admin, membership.orgId)
-    : { callCount: 0, successRatePct: null, medianLatencyMs: null, estimatedCostUsd: null };
+    : { callCount: 0, successRatePct: null, medianLatencyMs: null, estimatedCostUsd: null, estimatedCostGbp: null, fxRateFetchedAt: null };
   const embedUsageByClient: Record<string, number> = {};
   for (const event of embedChatEvents ?? []) {
     if (!event.client_id) continue;
@@ -635,10 +635,13 @@ export default async function StudioHomePage() {
           </CardContent>
         </Card>
       ) : undefined,
-    // Command Centre Phase 6d — real success rate, latency and cost for
-    // this org's own two Claude-backed features, off ai_call_log. Only
-    // shown once there's at least one real call to report — same rule
-    // as every other section here.
+    // Command Centre Phase 6d, extended by improvement #5 — real
+    // success rate, latency and cost for this org's own two Claude-
+    // backed features, off ai_call_log. Only shown once there's at
+    // least one real call to report — same rule as every other section
+    // here. Cost now converts to £ using a real, daily-fetched USD/GBP
+    // rate (fx-rate.ts) when one's available, falling back to the raw
+    // $ figure — never an invented rate — before the first cron run.
     model_performance:
       modelPerformance.callCount > 0 ? (
         <Card className="border-none bg-primary text-primary-foreground">
@@ -647,7 +650,7 @@ export default async function StudioHomePage() {
               <p className="flex items-center gap-1.5 text-xs font-semibold text-primary-foreground/70">
                 <Cpu className="size-3.5 shrink-0" /> Model performance
               </p>
-              <HelpTip explanation="Real success rate, latency and estimated cost for your AI Design Assistant and AI Business Analyst calls over the last 30 days. Cost is Anthropic's published per-token rate in US dollars, not converted to £ — an invented exchange rate would be less honest than showing none." />
+              <HelpTip explanation="Real success rate, latency and estimated cost for your AI Design Assistant and AI Business Analyst calls over the last 30 days. Cost starts from Anthropic's published per-token USD rate, then converts to £ using a real, daily-refreshed USD/GBP reference rate — shown with the date it was fetched, never presented as live." />
             </div>
             <div className="mt-4 grid grid-cols-3 gap-3">
               <div>
@@ -662,13 +665,29 @@ export default async function StudioHomePage() {
               </div>
               <div>
                 <p className="font-heading text-xl font-semibold tabular-nums">
-                  {modelPerformance.estimatedCostUsd !== null ? `$${modelPerformance.estimatedCostUsd.toFixed(2)}` : "—"}
+                  {modelPerformance.estimatedCostGbp !== null
+                    ? `£${modelPerformance.estimatedCostGbp.toFixed(2)}`
+                    : modelPerformance.estimatedCostUsd !== null
+                      ? `$${modelPerformance.estimatedCostUsd.toFixed(2)}`
+                      : "—"}
                 </p>
-                <p className="text-xs text-primary-foreground/50">Est. cost, 30d</p>
+                <p className="text-xs text-primary-foreground/50">
+                  Est. cost, 30d
+                  {modelPerformance.estimatedCostGbp !== null && modelPerformance.estimatedCostUsd !== null && (
+                    <span className="text-primary-foreground/30"> (${modelPerformance.estimatedCostUsd.toFixed(2)})</span>
+                  )}
+                </p>
               </div>
             </div>
             <p className="mt-3 text-xs text-primary-foreground/40">
               {modelPerformance.callCount} call{modelPerformance.callCount === 1 ? "" : "s"} in the last 30 days
+              {modelPerformance.estimatedCostGbp !== null && modelPerformance.fxRateFetchedAt && (
+                <>
+                  {" "}
+                  · £ converted at the USD/GBP rate as of{" "}
+                  {new Date(modelPerformance.fxRateFetchedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
+                </>
+              )}
             </p>
           </CardContent>
         </Card>

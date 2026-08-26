@@ -117,4 +117,11 @@ export const CRON_SPECS: CronSpec[] = [
     schedule: "0 5 * * 1",
     nextRun: () => nextWeekly(1, 5),
   },
+  {
+    name: "fx-rate",
+    label: "FX rate",
+    description: "Refreshes the real USD/GBP reference rate used to show Model Performance's estimated cost in pounds.",
+    schedule: "0 4 * * *",
+    nextRun: () => nextDaily(4),
+  },
 ];
