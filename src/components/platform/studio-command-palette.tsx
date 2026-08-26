@@ -3,11 +3,17 @@
 import { useEffect, useRef, useState, useCallback, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Search, CornerDownLeft, Users, Loader2, Sparkles, ArrowLeft } from "lucide-react";
+import { Search, CornerDownLeft, Users, Loader2, Sparkles, ArrowLeft, Send } from "lucide-react";
 import { getNavSections } from "@/components/platform/studio-nav";
 import { searchStudio, type StudioSearchResult } from "@/app/studio/(authed)/command-search-actions";
 import { askClientsCopilot } from "@/app/studio/(authed)/clients/actions";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+
+// Same local shape as clients-copilot.tsx's own Message type — no
+// exported type from actions.ts to share, and askClientsCopilot()
+// itself just takes { role, content }[] inline.
+type Message = { role: "user" | "assistant"; content: string };
 
 type PaletteItem = {
   key: string;
@@ -35,6 +41,16 @@ const ASK_HREF = "__ask_mission_control__";
 // exact same askClientsCopilot() Server Action the Clients-page chat
 // calls, so it shares its rate limit and monthly quota rather than
 // getting a second, uncounted one.
+//
+// Command Centre improvement #7 — the palette's own conversation had no
+// memory: every question sent exactly one message, so a follow-up
+// ("and what about last month?") had no idea what "and" referred to,
+// even though askClientsCopilot() was always designed to take the full
+// running history (clients-copilot.tsx's ClientsCopilot already does
+// exactly that). Fixed by accumulating a real `conversation` array
+// here, same shape and same "send the whole thing back each turn"
+// pattern as that component — not a new engine, again just wiring the
+// existing one up properly.
 export function StudioCommandPalette() {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -45,8 +61,8 @@ export function StudioCommandPalette() {
   const inputRef = useRef<HTMLInputElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
-  const [askedQuestion, setAskedQuestion] = useState<string | null>(null);
-  const [askAnswer, setAskAnswer] = useState<string | null>(null);
+  const [conversation, setConversation] = useState<Message[]>([]);
+  const [followUp, setFollowUp] = useState("");
   const [askError, setAskError] = useState<string | null>(null);
   const [asking, startAsking] = useTransition();
 
@@ -55,8 +71,8 @@ export function StudioCommandPalette() {
     setQuery("");
     setResults({ prospects: [], clients: [] });
     setActiveIndex(0);
-    setAskedQuestion(null);
-    setAskAnswer(null);
+    setConversation([]);
+    setFollowUp("");
     setAskError(null);
   }, []);
 
@@ -154,13 +170,17 @@ export function StudioCommandPalette() {
 
   function runAsk(question: string) {
     if (!question || asking) return;
-    setAskedQuestion(question);
-    setAskAnswer(null);
+    const next: Message[] = [...conversation, { role: "user", content: question }];
+    setConversation(next);
+    setFollowUp("");
     setAskError(null);
     startAsking(async () => {
-      const result = await askClientsCopilot([{ role: "user", content: question }]);
+      // The whole running conversation, not just this question — same
+      // shape ClientsCopilot sends, and the same reason: a follow-up
+      // needs the prior turns to know what it's a follow-up to.
+      const result = await askClientsCopilot(next);
       if ("error" in result) setAskError(result.error ?? "Something went wrong — please try again.");
-      else setAskAnswer(result.reply);
+      else setConversation([...next, { role: "assistant", content: result.reply }]);
     });
   }
 
@@ -174,8 +194,8 @@ export function StudioCommandPalette() {
   }
 
   function backToSearch() {
-    setAskedQuestion(null);
-    setAskAnswer(null);
+    setConversation([]);
+    setFollowUp("");
     setAskError(null);
   }
 
@@ -196,7 +216,8 @@ export function StudioCommandPalette() {
   if (!open) return null;
 
   let lastGroup: string | null = null;
-  const showingAnswer = askedQuestion !== null;
+  const showingAnswer = conversation.length > 0;
+  const hasReply = conversation.some((m) => m.role === "assistant");
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center bg-background/60 pt-[12vh] backdrop-blur-sm" onClick={close}>
@@ -224,35 +245,65 @@ export function StudioCommandPalette() {
 
         {showingAnswer ? (
           <div className="max-h-96 overflow-y-auto p-4">
-            <p className="text-eyebrow">You asked</p>
-            <p className="mt-1.5 text-sm font-medium">{askedQuestion}</p>
-            <div className="mt-3 border-t border-border pt-3">
-              {asking ? (
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <div className="flex flex-col gap-2.5">
+              {conversation.map((m, i) => (
+                <div
+                  key={i}
+                  className={
+                    m.role === "user"
+                      ? "ml-auto max-w-[85%] rounded-2xl rounded-br-sm bg-primary px-3.5 py-2 text-left text-sm text-primary-foreground"
+                      : "mr-auto max-w-[85%] rounded-2xl rounded-bl-sm bg-secondary px-3.5 py-2 text-left text-sm whitespace-pre-line text-secondary-foreground"
+                  }
+                >
+                  {m.content}
+                </div>
+              ))}
+              {asking && (
+                <div className="mr-auto flex items-center gap-2 rounded-2xl rounded-bl-sm bg-secondary px-3.5 py-2 text-sm text-muted-foreground">
                   <Loader2 className="size-3.5 shrink-0 animate-spin" /> Thinking…
                 </div>
-              ) : askError ? (
-                <p className="text-sm text-destructive">{askError}</p>
-              ) : (
-                <p className="text-sm whitespace-pre-line">{askAnswer}</p>
+              )}
+              {askError && (
+                <div className="mr-auto max-w-[85%] rounded-2xl rounded-bl-sm bg-destructive/10 px-3.5 py-2 text-sm text-destructive">
+                  {askError}
+                </div>
               )}
             </div>
-            {!asking && (
-              <div className="mt-4 flex items-center justify-between gap-2">
-                <button
-                  type="button"
-                  onClick={backToSearch}
-                  className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-                >
-                  <ArrowLeft className="size-3.5" /> Back to search
-                </button>
-                {askAnswer && (
-                  <Link href="/studio/clients" onClick={close} className="text-xs text-accent underline underline-offset-2">
-                    Keep asking in AI Business Analyst
-                  </Link>
-                )}
-              </div>
-            )}
+
+            <form
+              className="mt-3 flex items-center gap-2 border-t border-border pt-3"
+              onSubmit={(e) => {
+                e.preventDefault();
+                runAsk(followUp.trim());
+              }}
+            >
+              <input
+                value={followUp}
+                onChange={(e) => setFollowUp(e.target.value)}
+                placeholder="Ask a follow-up…"
+                aria-label="Follow-up question"
+                disabled={asking}
+                className="h-9 flex-1 rounded-md border border-input bg-transparent px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+              />
+              <Button type="submit" size="icon" variant="ai" aria-label="Send follow-up" disabled={asking || !followUp.trim()}>
+                <Send className="size-4" />
+              </Button>
+            </form>
+
+            <div className="mt-3 flex items-center justify-between gap-2">
+              <button
+                type="button"
+                onClick={backToSearch}
+                className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+              >
+                <ArrowLeft className="size-3.5" /> Back to search
+              </button>
+              {hasReply && !asking && (
+                <Link href="/studio/clients" onClick={close} className="text-xs text-accent underline underline-offset-2">
+                  Keep asking in AI Business Analyst
+                </Link>
+              )}
+            </div>
           </div>
         ) : (
           <div className="max-h-80 overflow-y-auto p-1.5">
