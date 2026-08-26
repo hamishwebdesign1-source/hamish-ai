@@ -19,7 +19,8 @@ export type SectionType =
   | "engagement_risk"
   | "model_performance"
   | "client_ai_adoption"
-  | "top_prospects";
+  | "top_prospects"
+  | "recent_activity";
 export type ChartMetric = "revenue" | "prospects";
 export type ChartKind = "area" | "bar";
 
@@ -38,6 +39,7 @@ export type Block =
   | { id: string; type: "model_performance" }
   | { id: string; type: "client_ai_adoption" }
   | { id: string; type: "top_prospects" }
+  | { id: string; type: "recent_activity" }
   | { id: string; type: "chart"; metric: ChartMetric; kind: ChartKind; span: BlockSpan }
   | { id: string; type: "text"; title: string; body: string; span: BlockSpan }
   | { id: string; type: "cta"; label: string; href: string; span: BlockSpan };
@@ -53,6 +55,7 @@ export const SECTION_TYPES: SectionType[] = [
   "model_performance",
   "client_ai_adoption",
   "top_prospects",
+  "recent_activity",
 ];
 
 export const STAT_LABELS: Record<StatCardId, string> = {
@@ -70,6 +73,7 @@ export const SECTION_LABELS: Record<SectionType, string> = {
   model_performance: "Model performance",
   client_ai_adoption: "Client AI adoption",
   top_prospects: "Top prospects",
+  recent_activity: "Recent activity",
 };
 export const CHART_METRIC_LABELS: Record<ChartMetric, string> = { revenue: "Revenue", prospects: "New prospects" };
 export const CHART_KIND_LABELS: Record<ChartKind, string> = { area: "Area", bar: "Bar" };
@@ -78,10 +82,11 @@ export const CHART_KIND_LABELS: Record<ChartKind, string> = { area: "Area", bar:
 // stat cards, then the section blocks in SECTION_TYPES order (Phase 5b
 // shipped the first 3; Phase 6c appended engagement_risk after briefing;
 // Command Centre improvement #8 appended top_prospects after
-// client_ai_adoption — each only ever reaches an org's live default this
-// way; a layout already saved before that point keeps exactly what it
-// saved, per sanitizeBlocksForWrite()'s own comment on why that's
-// correct).
+// client_ai_adoption; the same improvement appended top_prospects and
+// recent_activity right after — each only ever reaches an org's live
+// default this way; a layout already saved before that point keeps
+// exactly what it saved, per sanitizeBlocksForWrite()'s own comment on
+// why that's correct).
 //
 // All five stat cards default to span 1 — genuinely uniform size, not
 // just visually close. health used to default to span 2 (it holds a

@@ -25,6 +25,8 @@ import {
   Bot,
   ArrowUp,
   ArrowDown,
+  History,
+  Rocket,
 } from "lucide-react";
 import { createServerSupabaseClient } from "@/lib/supabase-server-auth";
 import { getSupabaseAdmin } from "@/lib/supabase";
@@ -34,6 +36,8 @@ import { computeAgencyHealth } from "@/lib/client-health";
 import { getStudioAnalytics } from "@/lib/studio-analytics";
 import { generateInsights, type InsightCategory } from "@/lib/studio-insights";
 import { computeClientEngagementRisk } from "@/lib/studio-engagement";
+import { computeRecentClientActivity, type ClientActivityKind } from "@/lib/studio-client-activity";
+import { timeAgo } from "@/lib/time-ago";
 import { getModelPerformance } from "@/lib/studio-model-performance";
 import { computeClientAiAdoption } from "@/lib/studio-ai-adoption";
 import { getHealthTrend } from "@/lib/studio-health-history";
@@ -85,6 +89,16 @@ const INSIGHT_BORDER: Record<InsightCategory, string> = {
   warning: "border-destructive/40",
   recommendation: "border-accent/40",
   anomaly: "border-warning/40",
+};
+
+// Recent activity (Command Centre improvement #8) — one icon per real
+// event kind computeRecentClientActivity() can return.
+const ACTIVITY_ICON: Record<ClientActivityKind, typeof Users> = {
+  client_joined: Users,
+  request_received: Inbox,
+  request_responded: Send,
+  invoice_paid: PoundSterling,
+  project_started: Rocket,
 };
 
 // Pulled out of the component body, same reasoning as clients/page.tsx's
@@ -174,9 +188,10 @@ export default async function StudioHomePage() {
   const [{ count: prospectCount }, { data: clients }, { data: activeDeals }, { count: emailConnectionCount }] = await Promise.all([
     supabase.from("prospects").select("id", { count: "exact", head: true }).eq("org_id", membership.orgId),
     // business_name added for Engagement Risk (Phase 6c); chatbot_embed_enabled
-    // added for Client AI Adoption (Phase 6d) — every other column here
-    // was already only "id" because nothing before that needed either.
-    supabase.from("clients").select("id, business_name, chatbot_embed_enabled").eq("org_id", membership.orgId),
+    // added for Client AI Adoption (Phase 6d); created_at added for
+    // Recent activity (improvement #8) — every other column here was
+    // already only "id" because nothing before that needed either.
+    supabase.from("clients").select("id, business_name, chatbot_embed_enabled, created_at").eq("org_id", membership.orgId),
     // Pipeline value — a tenant's own optional estimate per prospect
     // (deal_value_pence, schema-prospect-pipeline.sql), summed client-side
     // over anything still active (not yet won or lost). Never AI-estimated,
@@ -203,12 +218,16 @@ export default async function StudioHomePage() {
   // Clients page's own per-client usage line (Phase 4 usage visibility).
   // RLS (audit_log_select_embed_chat_own_org, schema-rls-audit-log-embed-
   // chat.sql) scopes this to just this one event type, same as there.
+  // raw_text (requests), amount_pence/description (invoices), id/name
+  // (projects) added for Recent activity (improvement #8) —
+  // computeRecentClientActivity() needs real content for each feed row,
+  // not just the dates the other sections already used these queries for.
   const [{ data: requests }, { data: invoices }, { data: siteChecks }, { data: projects }, { data: embedChatEvents }] = clientIds.length
     ? await Promise.all([
-        supabase.from("requests").select("id, client_id, status, responded_at, created_at").in("client_id", clientIds),
-        supabase.from("invoices").select("client_id, status, due_date, paid_at").in("client_id", clientIds),
+        supabase.from("requests").select("id, client_id, status, responded_at, created_at, raw_text").in("client_id", clientIds),
+        supabase.from("invoices").select("id, client_id, status, due_date, paid_at, amount_pence, description").in("client_id", clientIds),
         supabase.from("site_checks").select("uptime_ok").in("client_id", clientIds),
-        supabase.from("projects").select("status, target_date").in("client_id", clientIds),
+        supabase.from("projects").select("id, client_id, name, status, target_date, created_at").in("client_id", clientIds),
         supabase
           .from("audit_log")
           .select("client_id")
@@ -244,6 +263,13 @@ export default async function StudioHomePage() {
   // for why this reuses real contact/payment dates instead of the
   // portal-login tracking the original concept assumed would be needed.
   const engagementRisks = computeClientEngagementRisk(clients ?? [], requests ?? [], invoices ?? [], nowDate());
+
+  // Recent activity (Command Centre improvement #8) — merges the same
+  // clients/requests/invoices/projects rows into one real, dated feed.
+  // See studio-client-activity.ts's own comment on why "completed" isn't
+  // one of the event kinds (projects has no real completed_at to draw
+  // it from).
+  const recentActivity = computeRecentClientActivity(clients ?? [], requests ?? [], invoices ?? [], projects ?? []);
 
   // Model Performance + Client AI Adoption (Command Centre Phase 6d).
   // ai_call_log (schema-ai-call-log.sql) is service-role-only, same
@@ -512,7 +538,14 @@ export default async function StudioHomePage() {
   // now simply renders nothing for that slot, rather than an empty card.
   const sectionContent: Partial<
     Record<
-      "actions_required" | "insights" | "briefing" | "engagement_risk" | "model_performance" | "client_ai_adoption" | "top_prospects",
+      | "actions_required"
+      | "insights"
+      | "briefing"
+      | "engagement_risk"
+      | "model_performance"
+      | "client_ai_adoption"
+      | "top_prospects"
+      | "recent_activity",
       ReactNode
     >
   > = {
@@ -809,6 +842,39 @@ export default async function StudioHomePage() {
           </CardContent>
         </Card>
       ) : undefined,
+    // Command Centre improvement #8 — a real, dated feed merged from
+    // rows other sections on this page already fetched (see studio-
+    // client-activity.ts's own comment on why "completed" isn't one of
+    // the event kinds).
+    recent_activity:
+      recentActivity.length > 0 ? (
+        <Card className="border-none bg-primary text-primary-foreground">
+          <CardContent className="p-5">
+            <div className="flex items-center justify-between gap-2">
+              <p className="flex items-center gap-1.5 text-xs font-semibold text-primary-foreground/70">
+                <History className="size-3.5 shrink-0" /> Recent activity
+              </p>
+              <HelpTip explanation="A real, dated feed of what's happened across your client roster — new clients, requests received and replied to, invoices paid, projects started. Up to 8 most recent, newest first." />
+            </div>
+            <ol className="mt-4 space-y-3">
+              {recentActivity.map((item) => {
+                const Icon = ACTIVITY_ICON[item.kind];
+                return (
+                  <li key={item.id} className="flex items-start gap-3">
+                    <Icon className="mt-0.5 size-3.5 shrink-0 text-accent" />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm text-primary-foreground">
+                        <span className="font-medium">{item.businessName}</span> — {item.detail}
+                      </p>
+                    </div>
+                    <span className="shrink-0 font-mono text-[11px] text-primary-foreground/40">{timeAgo(item.occurredAt)}</span>
+                  </li>
+                );
+              })}
+            </ol>
+          </CardContent>
+        </Card>
+      ) : undefined,
   };
 
   return (
@@ -833,7 +899,8 @@ export default async function StudioHomePage() {
       {/* Block canvas (Command Centre Phase 5b/5c — see Settings →
           Command Centre layout). Stat cards, the section cards (Actions
           required / Insights / Your briefing / Engagement risk / Model
-          performance / Client AI adoption / Top prospects), and — since
+          performance / Client AI adoption / Top prospects / Recent
+          activity), and — since
           Phase 5c — chart/text/call-to-action blocks all live in one
           reorderable
           grid: a stat/chart/text/cta block occupies 1 or 2 of 5 columns
@@ -872,7 +939,8 @@ export default async function StudioHomePage() {
             block.type === "engagement_risk" ||
             block.type === "model_performance" ||
             block.type === "client_ai_adoption" ||
-            block.type === "top_prospects"
+            block.type === "top_prospects" ||
+            block.type === "recent_activity"
           ) {
             const content = sectionContent[block.type];
             if (!content) return null;
