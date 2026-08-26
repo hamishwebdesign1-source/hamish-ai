@@ -641,23 +641,32 @@ export default async function StudioHomePage() {
       </Reveal>
 
       {/* Block canvas (Command Centre Phase 5b/5c — see Settings →
-          Command Centre layout). Stat cards, the three section cards
-          (Actions required / Insights / Your briefing), and — since
-          Phase 5c — chart/text/call-to-action blocks all live in one
-          reorderable grid: a stat/chart/text/cta block occupies 1 or 2
-          of 5 columns depending on its saved width, a section block
-          always spans the full row (see command-centre-layout.ts's own
-          comment on why), and a section block with no real content
-          right now renders nothing for its slot rather than an empty
-          card. Chart blocks read from the same 30-day analytics already
-          fetched for Insights above — never a second query.
+          Command Centre layout). Stat cards, the section cards (Actions
+          required / Insights / Your briefing / Engagement risk / Model
+          performance / Client AI adoption), and — since Phase 5c —
+          chart/text/call-to-action blocks all live in one reorderable
+          grid: a stat/chart/text/cta block occupies 1 or 2 of 6 columns
+          depending on its saved width, a section block always spans the
+          full row (see command-centre-layout.ts's own comment on why),
+          and a section block with no real content right now renders
+          nothing for its slot rather than an empty card. Chart blocks
+          read from the same 30-day analytics already fetched for
+          Insights above — never a second query.
+          6 columns, not 5: the default 5 stat cards are Health at
+          double width plus four single ones — 2+1+1+1+1 = 6 column-
+          units. On a 5-column grid that 6th unit has nowhere to go but
+          its own row, alone, with 4 empty columns beside it — not a
+          spacing tweak, the arithmetic simply doesn't fit. 6 columns is
+          the actual width the default layout needs; a custom layout
+          with fewer/narrower blocks just leaves the remaining columns
+          empty at the row's end, same as any other under-filled row.
           items-start, not the grid default (stretch): Business Health
           holds a ring plus a multi-row breakdown, real content none of
           the plain stat cards carry — stretch was forcing every card in
           its row to match Health's height, leaving huge dead space
           inside "Prospects found" and friends. Each card now sizes to
           its own real content instead of an unrelated neighbour's. */}
-      <Reveal delay={80} className="mt-6 grid items-start gap-4 sm:grid-cols-2 lg:grid-cols-5">
+      <Reveal delay={80} className="mt-6 grid items-start gap-4 sm:grid-cols-2 lg:grid-cols-6">
         {blocks.map((block) => {
           if (block.type === "stat") {
             return (
@@ -677,7 +686,7 @@ export default async function StudioHomePage() {
             const content = sectionContent[block.type];
             if (!content) return null;
             return (
-              <div key={block.id} className="sm:col-span-2 lg:col-span-5">
+              <div key={block.id} className="sm:col-span-2 lg:col-span-6">
                 {content}
               </div>
             );
