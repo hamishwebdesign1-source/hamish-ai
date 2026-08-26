@@ -42,7 +42,7 @@ import { getModelPerformance } from "@/lib/studio-model-performance";
 import { computeClientAiAdoption } from "@/lib/studio-ai-adoption";
 import { getHealthTrend } from "@/lib/studio-health-history";
 import { getAdoptionSeries } from "@/lib/studio-adoption-history";
-import { resolveLayout, CHART_METRIC_LABELS, type StatCardId } from "@/lib/command-centre-layout";
+import { resolveLayout, CHART_METRIC_LABELS, type StatCardId, type Block } from "@/lib/command-centre-layout";
 import { resolveTodayStrip, TODAY_STAT_LABELS, type TodayStatId } from "@/lib/today-strip-config";
 import { Card, CardContent } from "@/components/ui/card";
 import { Eyebrow } from "@/components/eyebrow";
@@ -54,6 +54,7 @@ import { HealthRing } from "@/components/analytics/health-ring";
 import { CountUp } from "@/components/platform/count-up";
 import { TodayStrip, type TodayStat } from "@/components/platform/today-strip";
 import { Reveal } from "@/components/reveal";
+import { Tabs, TabsList, TabsTab, TabsPanel } from "@/components/ui/tabs";
 
 // Display-only shortenings for the Business Health card specifically —
 // computeAgencyHealth() itself still returns the real, full label
@@ -101,6 +102,48 @@ const ACTIVITY_ICON: Record<ClientActivityKind, typeof Users> = {
   invoice_paid: PoundSterling,
   project_started: Rocket,
 };
+
+// Home page tabs — a presentation-only grouping, not a block-canvas
+// concept. Settings → Command Centre layout still owns which blocks
+// exist, their order, and their width; this only decides which of 4
+// tabs a given non-stat block's card renders under on the home page
+// itself. Stat cards stay outside the tabs entirely, in their own
+// always-visible row above — the same "shouldn't be hidden" reasoning
+// today-strip.tsx's own comment already gives for the TODAY masthead
+// applies just as much to the org's own headline numbers.
+type CommandCentreTabId = "overview" | "prospects" | "clients" | "performance";
+const COMMAND_CENTRE_TAB_ORDER: CommandCentreTabId[] = ["overview", "prospects", "clients", "performance"];
+const COMMAND_CENTRE_TAB_LABELS: Record<CommandCentreTabId, string> = {
+  overview: "Overview",
+  prospects: "Prospects",
+  clients: "Clients",
+  performance: "Performance",
+};
+
+function blockTab(block: Block): CommandCentreTabId {
+  switch (block.type) {
+    case "actions_required":
+    case "insights":
+    case "text":
+    case "cta":
+      return "overview";
+    case "briefing":
+    case "top_prospects":
+      return "prospects";
+    case "engagement_risk":
+    case "recent_activity":
+    case "client_ai_adoption":
+      return "clients";
+    case "model_performance":
+      return "performance";
+    case "chart":
+      // adoption is a Performance metric; revenue/prospects both read
+      // as pipeline numbers, so they sit with the rest of Prospects.
+      return block.metric === "adoption" ? "performance" : "prospects";
+    default:
+      return "overview";
+  }
+}
 
 // Pulled out of the component body, same reasoning as clients/page.tsx's
 // thirtyDaysAgoIso() — react-hooks/purity flags a current-time read
@@ -885,6 +928,107 @@ export default async function StudioHomePage() {
       ) : undefined,
   };
 
+  // Renders one non-stat block exactly as before (same JSX per type,
+  // same "a section with no real content renders nothing" rule) — split
+  // out from the old single .map() so it can be called once per block
+  // while grouping the results by tab, instead of grouping being another
+  // layer on top of a single flat render pass.
+  function renderContentBlock(block: Exclude<Block, { type: "stat" }>): ReactNode {
+    if (
+      block.type === "actions_required" ||
+      block.type === "insights" ||
+      block.type === "briefing" ||
+      block.type === "engagement_risk" ||
+      block.type === "model_performance" ||
+      block.type === "client_ai_adoption" ||
+      block.type === "top_prospects" ||
+      block.type === "recent_activity"
+    ) {
+      const content = sectionContent[block.type];
+      if (!content) return null;
+      return (
+        <div key={block.id} className="sm:col-span-2 lg:col-span-5">
+          {content}
+        </div>
+      );
+    }
+    if (block.type === "chart") {
+      // adoption (Command Centre improvement #8) reads adoptionSeries,
+      // the weekly-snapshotted trend studio-adoption-history.ts builds —
+      // real points only once the weekly cron has actually run at least
+      // once, same "empty rather than fabricated" rule as revenue/
+      // prospects before any data existed for them either.
+      const series = block.metric === "revenue" ? analytics.revenueSeries : block.metric === "prospects" ? analytics.prospectsSeries : adoptionSeries;
+      const forecast = block.metric === "revenue" ? analytics.revenueForecast : undefined;
+      const format = block.metric === "revenue" ? "money" : block.metric === "adoption" ? "percent" : "count";
+      return (
+        <div key={block.id} className={block.span === 2 ? "sm:col-span-2" : undefined}>
+          <Card className="h-full border-none bg-primary text-primary-foreground">
+            <CardContent className="p-5">
+              <p className="text-sm font-semibold">{CHART_METRIC_LABELS[block.metric]} over time</p>
+              <AnalyticsChart
+                series={series}
+                forecast={forecast}
+                kind={block.kind}
+                format={format}
+                height={180}
+                emptyMessage={block.metric === "adoption" ? "No weekly snapshot yet — check back after Monday's cron run." : "No data in this period yet."}
+              />
+            </CardContent>
+          </Card>
+        </div>
+      );
+    }
+    if (block.type === "text") {
+      return (
+        <div key={block.id} className={block.span === 2 ? "sm:col-span-2" : undefined}>
+          <Card className="h-full border-none bg-primary text-primary-foreground">
+            <CardContent className="p-5">
+              <p className="font-heading text-sm font-semibold">{block.title}</p>
+              <p className="mt-2 text-sm whitespace-pre-wrap text-primary-foreground/60">{block.body}</p>
+            </CardContent>
+          </Card>
+        </div>
+      );
+    }
+    // cta — an external https link (isSafeHref() in command-centre-
+    // layout.ts already rejected anything else) opens in a new tab with
+    // rel="noopener noreferrer"; an internal path uses Next's own Link
+    // like every other in-app link on this page.
+    const isExternal = block.href.startsWith("https://");
+    const ctaClassName =
+      "flex h-full items-center justify-center rounded-xl border border-accent/40 bg-accent/5 p-4 text-center font-heading text-sm font-semibold text-accent transition-colors hover:bg-accent/10";
+    return (
+      <div key={block.id} className={block.span === 2 ? "sm:col-span-2" : undefined}>
+        {isExternal ? (
+          <a href={block.href} target="_blank" rel="noopener noreferrer" className={ctaClassName}>
+            {block.label}
+          </a>
+        ) : (
+          <Link href={block.href} className={ctaClassName}>
+            {block.label}
+          </Link>
+        )}
+      </div>
+    );
+  }
+
+  // Home page tabs (see blockTab()'s own comment) — every non-stat block
+  // rendered once, grouped into its tab in the org's existing saved
+  // order. A tab with nothing real in it (every block in it hidden, or
+  // its section genuinely has no content right now) is simply left out
+  // of the tab bar entirely — same "don't show an empty shell" rule as
+  // every individual section already followed, just applied one level
+  // up. Exactly one populated tab skips the tab chrome outright: a
+  // single-tab tab bar would be UI for its own sake.
+  const tabContent: Record<CommandCentreTabId, ReactNode[]> = { overview: [], prospects: [], clients: [], performance: [] };
+  for (const block of blocks) {
+    if (block.type === "stat") continue;
+    const rendered = renderContentBlock(block);
+    if (rendered) tabContent[blockTab(block)].push(rendered);
+  }
+  const populatedTabs = COMMAND_CENTRE_TAB_ORDER.filter((id) => tabContent[id].length > 0);
+
   return (
     <div>
       <Eyebrow>Command Centre</Eyebrow>
@@ -904,21 +1048,11 @@ export default async function StudioHomePage() {
         <TodayStrip stats={todayStats} />
       </Reveal>
 
-      {/* Block canvas (Command Centre Phase 5b/5c — see Settings →
-          Command Centre layout). Stat cards, the section cards (Actions
-          required / Insights / Your briefing / Engagement risk / Model
-          performance / Client AI adoption / Top prospects / Recent
-          activity), and — since
-          Phase 5c — chart/text/call-to-action blocks all live in one
-          reorderable
-          grid: a stat/chart/text/cta block occupies 1 or 2 of 5 columns
-          depending on its saved width, a section block always spans the
-          full row (see command-centre-layout.ts's own comment on why),
-          and a section block with no real content right now renders
-          nothing for its slot rather than an empty card. Chart blocks
-          read from the same 30-day analytics already fetched for
-          Insights above — never a second query.
-          5 columns, every default stat card at span 1: genuinely
+      {/* Stat row (Command Centre Phase 5b/5c — see Settings → Command
+          Centre layout for show/hide/reorder/width). Always visible,
+          never tab-scoped — same "the org's own headline numbers
+          shouldn't be behind a click" reasoning as the TODAY masthead
+          above. 5 columns, every default stat card at span 1: genuinely
           uniform width, not just close — see command-centre-layout.ts's
           own comment on why health gave up its old span-2 default.
           items-start, not the grid default (stretch): even with health
@@ -932,94 +1066,47 @@ export default async function StudioHomePage() {
           plainer neighbours, which is a completely ordinary dashboard
           pattern. */}
       <Reveal delay={80} className="mt-6 grid items-start gap-4 sm:grid-cols-2 lg:grid-cols-5">
-        {blocks.map((block) => {
-          if (block.type === "stat") {
-            return (
-              <div key={block.id} className={block.span === 2 ? "sm:col-span-2" : undefined}>
-                {statContent[block.cardId]}
-              </div>
-            );
-          }
-          if (
-            block.type === "actions_required" ||
-            block.type === "insights" ||
-            block.type === "briefing" ||
-            block.type === "engagement_risk" ||
-            block.type === "model_performance" ||
-            block.type === "client_ai_adoption" ||
-            block.type === "top_prospects" ||
-            block.type === "recent_activity"
-          ) {
-            const content = sectionContent[block.type];
-            if (!content) return null;
-            return (
-              <div key={block.id} className="sm:col-span-2 lg:col-span-5">
-                {content}
-              </div>
-            );
-          }
-          if (block.type === "chart") {
-            // adoption (Command Centre improvement #8) reads
-            // adoptionSeries, the weekly-snapshotted trend
-            // studio-adoption-history.ts builds — real points only once
-            // the weekly cron has actually run at least once, same
-            // "empty rather than fabricated" rule as revenue/prospects
-            // before any data existed for them either.
-            const series = block.metric === "revenue" ? analytics.revenueSeries : block.metric === "prospects" ? analytics.prospectsSeries : adoptionSeries;
-            const forecast = block.metric === "revenue" ? analytics.revenueForecast : undefined;
-            const format = block.metric === "revenue" ? "money" : block.metric === "adoption" ? "percent" : "count";
-            return (
-              <div key={block.id} className={block.span === 2 ? "sm:col-span-2" : undefined}>
-                <Card className="h-full border-none bg-primary text-primary-foreground">
-                  <CardContent className="p-5">
-                    <p className="text-sm font-semibold">{CHART_METRIC_LABELS[block.metric]} over time</p>
-                    <AnalyticsChart
-                      series={series}
-                      forecast={forecast}
-                      kind={block.kind}
-                      format={format}
-                      height={180}
-                      emptyMessage={block.metric === "adoption" ? "No weekly snapshot yet — check back after Monday's cron run." : "No data in this period yet."}
-                    />
-                  </CardContent>
-                </Card>
-              </div>
-            );
-          }
-          if (block.type === "text") {
-            return (
-              <div key={block.id} className={block.span === 2 ? "sm:col-span-2" : undefined}>
-                <Card className="h-full border-none bg-primary text-primary-foreground">
-                  <CardContent className="p-5">
-                    <p className="font-heading text-sm font-semibold">{block.title}</p>
-                    <p className="mt-2 text-sm whitespace-pre-wrap text-primary-foreground/60">{block.body}</p>
-                  </CardContent>
-                </Card>
-              </div>
-            );
-          }
-          // cta — an external https link (isSafeHref() in command-centre-
-          // layout.ts already rejected anything else) opens in a new tab
-          // with rel="noopener noreferrer"; an internal path uses Next's
-          // own Link like every other in-app link on this page.
-          const isExternal = block.href.startsWith("https://");
-          const ctaClassName =
-            "flex h-full items-center justify-center rounded-xl border border-accent/40 bg-accent/5 p-4 text-center font-heading text-sm font-semibold text-accent transition-colors hover:bg-accent/10";
-          return (
+        {blocks
+          .filter((b): b is Extract<Block, { type: "stat" }> => b.type === "stat")
+          .map((block) => (
             <div key={block.id} className={block.span === 2 ? "sm:col-span-2" : undefined}>
-              {isExternal ? (
-                <a href={block.href} target="_blank" rel="noopener noreferrer" className={ctaClassName}>
-                  {block.label}
-                </a>
-              ) : (
-                <Link href={block.href} className={ctaClassName}>
-                  {block.label}
-                </Link>
-              )}
+              {statContent[block.cardId]}
             </div>
-          );
-        })}
+          ))}
       </Reveal>
+
+      {/* Everything else (Actions required / Insights / Your briefing /
+          Engagement risk / Model performance / Client AI adoption / Top
+          prospects / Recent activity, plus any chart/text/cta blocks) —
+          grouped into tabs instead of one long vertical stack, now that
+          the block library has grown to 8 section types plus whatever
+          charts/text/cta an org's added (see blockTab()'s own comment
+          on the grouping and why it's presentation-only: Settings →
+          Command Centre layout still owns order/width/visibility per
+          block, unchanged). A tab with nothing real in it isn't shown
+          at all; exactly one populated tab skips the tab bar outright. */}
+      {populatedTabs.length > 1 ? (
+        <Reveal delay={140} className="mt-6">
+          <Tabs defaultValue={populatedTabs[0]}>
+            <TabsList>
+              {populatedTabs.map((id) => (
+                <TabsTab key={id} value={id}>
+                  {COMMAND_CENTRE_TAB_LABELS[id]}
+                </TabsTab>
+              ))}
+            </TabsList>
+            {populatedTabs.map((id) => (
+              <TabsPanel key={id} value={id}>
+                <div className="grid items-start gap-4 sm:grid-cols-2 lg:grid-cols-5">{tabContent[id]}</div>
+              </TabsPanel>
+            ))}
+          </Tabs>
+        </Reveal>
+      ) : populatedTabs.length === 1 ? (
+        <Reveal delay={140} className="mt-6 grid items-start gap-4 sm:grid-cols-2 lg:grid-cols-5">
+          {tabContent[populatedTabs[0]]}
+        </Reveal>
+      ) : null}
 
       {/* Getting set up (P1 onboarding checklist) — deliberately not a
           block: it's a temporary, self-removing section (see its own
