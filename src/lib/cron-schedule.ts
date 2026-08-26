@@ -110,4 +110,11 @@ export const CRON_SPECS: CronSpec[] = [
     schedule: "0 9 * * 1",
     nextRun: () => nextWeekly(1, 9),
   },
+  {
+    name: "health-snapshot",
+    label: "Health snapshot",
+    description: "Records this week's Business Health score for every org, so the Command Centre can show a real trend over time.",
+    schedule: "0 5 * * 1",
+    nextRun: () => nextWeekly(1, 5),
+  },
 ];

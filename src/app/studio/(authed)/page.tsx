@@ -23,6 +23,8 @@ import {
   ShieldAlert,
   Cpu,
   Bot,
+  ArrowUp,
+  ArrowDown,
 } from "lucide-react";
 import { createServerSupabaseClient } from "@/lib/supabase-server-auth";
 import { getSupabaseAdmin } from "@/lib/supabase";
@@ -34,6 +36,7 @@ import { generateInsights, type InsightCategory } from "@/lib/studio-insights";
 import { computeClientEngagementRisk } from "@/lib/studio-engagement";
 import { getModelPerformance } from "@/lib/studio-model-performance";
 import { computeClientAiAdoption } from "@/lib/studio-ai-adoption";
+import { getHealthTrend } from "@/lib/studio-health-history";
 import { resolveLayout, CHART_METRIC_LABELS, type StatCardId } from "@/lib/command-centre-layout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Eyebrow } from "@/components/eyebrow";
@@ -234,6 +237,14 @@ export default async function StudioHomePage() {
     : { callCount: 0, successRatePct: null, medianLatencyMs: null, estimatedCostUsd: null };
   const aiAdoption = computeClientAiAdoption(clients ?? []);
 
+  // Business Health trend (Command Centre improvement #3) — same admin
+  // client as modelPerformance above, same reasoning: studio_health_snapshots
+  // is service-role-only, no session-facing read path. null (not a score
+  // of 0) when there's no real score yet, or no snapshot old enough to
+  // compare against — see getHealthTrend()'s own comment.
+  const healthTrend =
+    admin && agencyHealth.healthScore !== null ? await getHealthTrend(admin, membership.orgId, agencyHealth.healthScore) : null;
+
   // Actions Required (Command Centre Phase 1) — the genuinely urgent
   // subset of what used to be scattered across the checklist, the
   // briefing, and the Requests page's own count, gathered in one place.
@@ -310,7 +321,7 @@ export default async function StudioHomePage() {
               <Activity className="size-3.5 shrink-0" />
               Business Health
             </p>
-            <HelpTip explanation="An average of real, measured components across your whole client roster — site uptime, on-time payment, work completed, requests moving, and pipeline conversion. Only components with real data are included." />
+            <HelpTip explanation="An average of real, measured components across your whole client roster — site uptime, on-time payment, work completed, requests moving, and pipeline conversion. Only components with real data are included. Once there's at least three weeks of history, you'll also see how the score has moved." />
           </div>
           {agencyHealth.healthScore === null ? (
             <p className="mt-4 flex-1 text-sm text-primary-foreground/60">
@@ -331,6 +342,22 @@ export default async function StudioHomePage() {
             // need that crutch.
             <div className="mt-3 flex flex-1 flex-col items-center gap-2">
               <HealthRing score={agencyHealth.healthScore} size={48} strokeWidth={5} centerLabel={String(agencyHealth.healthScore)} />
+              {healthTrend && (
+                <p
+                  className={`flex items-center gap-0.5 text-[10px] font-medium ${
+                    healthTrend.deltaValue > 0
+                      ? "text-accent"
+                      : healthTrend.deltaValue < 0
+                        ? "text-destructive"
+                        : "text-primary-foreground/50"
+                  }`}
+                >
+                  {healthTrend.deltaValue > 0 && <ArrowUp className="size-2.5 shrink-0" />}
+                  {healthTrend.deltaValue < 0 && <ArrowDown className="size-2.5 shrink-0" />}
+                  {healthTrend.deltaValue === 0 ? "No change" : `${healthTrend.deltaValue > 0 ? "+" : ""}${healthTrend.deltaValue}`} vs{" "}
+                  {healthTrend.daysAgo}d ago
+                </p>
+              )}
               <div className="flex w-full flex-col">
                 {agencyHealth.components.map((c) => (
                   <div
