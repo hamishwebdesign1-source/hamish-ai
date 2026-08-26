@@ -54,12 +54,12 @@ export function AnalyticsChart({
   // naturally as a line continuing, not as a bar that hasn't happened yet.
   forecast?: ForecastPoint[];
   kind: "area" | "bar";
-  format: "money" | "count";
+  format: "money" | "count" | "percent";
   emptyMessage: React.ReactNode;
   height?: number;
 }) {
   const hasData = series.some((p) => p.value > 0);
-  const formatValue = (v: number) => (format === "money" ? `£${v.toLocaleString("en-GB")}` : `${v}`);
+  const formatValue = (v: number) => (format === "money" ? `£${v.toLocaleString("en-GB")}` : format === "percent" ? `${v}%` : `${v}`);
   // projectSeries() returns the series unchanged (no `forecast` field at
   // all) whenever it didn't have enough real signal to project from — so
   // this is true only when a genuine projection exists, not just because
@@ -99,7 +99,7 @@ export function AnalyticsChart({
               axisLine={false}
               tickLine={false}
               width={40}
-              tickFormatter={(v) => (format === "money" ? `£${v}` : `${v}`)}
+              tickFormatter={(v) => (format === "money" ? `£${v}` : format === "percent" ? `${v}%` : `${v}`)}
             />
             <Tooltip content={<ChartTooltip formatValue={formatValue} />} />
             <Area type="monotone" dataKey="value" stroke="var(--color-chart-2)" strokeWidth={2} fill="url(#analyticsChartFill)" />

@@ -112,8 +112,9 @@ export const CRON_SPECS: CronSpec[] = [
   },
   {
     name: "health-snapshot",
-    label: "Health snapshot",
-    description: "Records this week's Business Health score for every org, so the Command Centre can show a real trend over time.",
+    label: "Health & adoption snapshot",
+    description:
+      "Records this week's Business Health score and AI adoption rate for every org, so the Command Centre can show a real trend over time for both.",
     schedule: "0 5 * * 1",
     nextRun: () => nextWeekly(1, 5),
   },

@@ -41,6 +41,7 @@ import { timeAgo } from "@/lib/time-ago";
 import { getModelPerformance } from "@/lib/studio-model-performance";
 import { computeClientAiAdoption } from "@/lib/studio-ai-adoption";
 import { getHealthTrend } from "@/lib/studio-health-history";
+import { getAdoptionSeries } from "@/lib/studio-adoption-history";
 import { resolveLayout, CHART_METRIC_LABELS, type StatCardId } from "@/lib/command-centre-layout";
 import { resolveTodayStrip, TODAY_STAT_LABELS, type TodayStatId } from "@/lib/today-strip-config";
 import { Card, CardContent } from "@/components/ui/card";
@@ -294,6 +295,13 @@ export default async function StudioHomePage() {
   // compare against — see getHealthTrend()'s own comment.
   const healthTrend =
     admin && agencyHealth.healthScore !== null ? await getHealthTrend(admin, membership.orgId, agencyHealth.healthScore) : null;
+
+  // AI adoption trend chart data (Command Centre improvement #8) — same
+  // admin-client reasoning as healthTrend above. Empty array (not
+  // undefined) when there's no admin client or no snapshots yet — the
+  // chart block's own emptyMessage handles that, same as any other
+  // metric before it has real data.
+  const adoptionSeries = admin ? await getAdoptionSeries(admin, membership.orgId) : [];
 
   // Actions Required (Command Centre Phase 1) — the genuinely urgent
   // subset of what used to be scattered across the checklist, the
@@ -951,8 +959,15 @@ export default async function StudioHomePage() {
             );
           }
           if (block.type === "chart") {
-            const series = block.metric === "revenue" ? analytics.revenueSeries : analytics.prospectsSeries;
+            // adoption (Command Centre improvement #8) reads
+            // adoptionSeries, the weekly-snapshotted trend
+            // studio-adoption-history.ts builds — real points only once
+            // the weekly cron has actually run at least once, same
+            // "empty rather than fabricated" rule as revenue/prospects
+            // before any data existed for them either.
+            const series = block.metric === "revenue" ? analytics.revenueSeries : block.metric === "prospects" ? analytics.prospectsSeries : adoptionSeries;
             const forecast = block.metric === "revenue" ? analytics.revenueForecast : undefined;
+            const format = block.metric === "revenue" ? "money" : block.metric === "adoption" ? "percent" : "count";
             return (
               <div key={block.id} className={block.span === 2 ? "sm:col-span-2" : undefined}>
                 <Card className="h-full border-none bg-primary text-primary-foreground">
@@ -962,9 +977,9 @@ export default async function StudioHomePage() {
                       series={series}
                       forecast={forecast}
                       kind={block.kind}
-                      format={block.metric === "revenue" ? "money" : "count"}
+                      format={format}
                       height={180}
-                      emptyMessage="No data in this period yet."
+                      emptyMessage={block.metric === "adoption" ? "No weekly snapshot yet — check back after Monday's cron run." : "No data in this period yet."}
                     />
                   </CardContent>
                 </Card>
