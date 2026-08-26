@@ -12,6 +12,7 @@ import {
   LoaderCircle,
   Trash2,
   HeartPulse,
+  ShieldAlert,
   FileText,
   MessageCircle,
   Copy,
@@ -29,6 +30,7 @@ import {
   updateChatbotEmbedConfig,
 } from "@/app/studio/(authed)/clients/actions";
 import type { ClientHealth } from "@/lib/client-health";
+import type { ClientEngagementRisk } from "@/lib/studio-engagement";
 import { ClientsCopilot } from "@/components/platform/clients-copilot";
 
 type Client = {
@@ -84,6 +86,22 @@ function HealthBadge({ health }: { health: ClientHealth | undefined }) {
     <Badge variant={healthBadgeVariant(score)} className="gap-1">
       <HeartPulse className="size-3" />
       {score === null ? "No data yet" : `${score}%`}
+    </Badge>
+  );
+}
+
+// Engagement risk badge — same computeClientEngagementRisk() (studio-
+// engagement.ts) already driving the Command Centre's own Engagement risk
+// card, just surfaced per-client here too. A client with no risk entry
+// (the common case) gets no badge at all, not a green "all clear" one —
+// same "only show it when it's real" rule the health badge already
+// follows with its "No data yet" state.
+function RiskBadge({ risk }: { risk: ClientEngagementRisk | undefined }) {
+  if (!risk) return null;
+  return (
+    <Badge variant={risk.tier === "critical" ? "destructive" : "warning"} className="gap-1">
+      <ShieldAlert className="size-3" />
+      {risk.tier === "critical" ? "At risk" : "Worth a check-in"}
     </Badge>
   );
 }
@@ -402,12 +420,14 @@ function ClientCard({
   client,
   invoices,
   health,
+  risk,
   embedUsage,
   stripeReady,
 }: {
   client: Client;
   invoices: Invoice[];
   health: ClientHealth | undefined;
+  risk: ClientEngagementRisk | undefined;
   embedUsage: number;
   stripeReady: boolean;
 }) {
@@ -427,6 +447,7 @@ function ClientCard({
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-3">
+            <RiskBadge risk={risk} />
             <HealthBadge health={health} />
             {client.website_url && (
               <a
@@ -454,6 +475,19 @@ function ClientCard({
 
         {open && (
           <div className="mt-4 space-y-3 border-t border-border pt-4">
+            {risk && (
+              <div>
+                <p className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
+                  <ShieldAlert className="size-3.5 shrink-0 text-destructive" /> Engagement risk
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {risk.quietWeeks > 0 && `Quiet ${risk.quietWeeks} week${risk.quietWeeks === 1 ? "" : "s"}`}
+                  {risk.quietWeeks > 0 && risk.hasOverdueInvoice && " · "}
+                  {risk.hasOverdueInvoice && "Invoice overdue"}
+                </p>
+              </div>
+            )}
+
             {health && health.components.length > 0 && (
               <div>
                 <p className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
@@ -526,19 +560,35 @@ function ClientCard({
   );
 }
 
+// Critical first, then warning, then everyone else — same weighting
+// computeClientEngagementRisk() itself uses to order the dashboard's own
+// Engagement risk card. Array.prototype.sort is stable in every engine
+// this app runs on (V8, spec-guaranteed since ES2019), so clients within
+// the same tier (including "no risk at all") keep the created_at-desc
+// order the page query already sorted them in — this only ever reorders
+// across tiers, never within one.
+const RISK_TIER_WEIGHT: Record<string, number> = { critical: 2, warning: 1 };
+
 export function ClientsPanel({
   clients,
   invoicesByClient,
   healthByClient,
+  riskByClient,
   embedUsageByClient,
   stripeReady,
 }: {
   clients: Client[];
   invoicesByClient: Record<string, Invoice[]>;
   healthByClient: Record<string, ClientHealth>;
+  riskByClient: Record<string, ClientEngagementRisk>;
   embedUsageByClient: Record<string, number>;
   stripeReady: boolean;
 }) {
+  const riskCount = Object.keys(riskByClient).length;
+  const sortedClients = [...clients].sort(
+    (a, b) => (RISK_TIER_WEIGHT[riskByClient[b.id]?.tier ?? ""] ?? 0) - (RISK_TIER_WEIGHT[riskByClient[a.id]?.tier ?? ""] ?? 0)
+  );
+
   return (
     <div className="mx-auto max-w-4xl">
       <h1 className="font-heading text-2xl font-semibold md:text-3xl">Clients</h1>
@@ -563,17 +613,25 @@ export function ClientsPanel({
           <p className="mt-4 text-sm text-muted-foreground">
             <span className="font-mono font-semibold text-foreground">{clients.length}</span> client
             {clients.length === 1 ? "" : "s"}
+            {riskCount > 0 && (
+              <>
+                {" · "}
+                <span className="font-mono font-semibold text-destructive">{riskCount}</span>{" "}
+                <span className="text-destructive">may need a check-in — sorted to the top</span>
+              </>
+            )}
           </p>
           <div className="mt-3">
             <ClientsCopilot />
           </div>
           <div className="mt-3 space-y-2">
-            {clients.map((c) => (
+            {sortedClients.map((c) => (
               <ClientCard
                 key={c.id}
                 client={c}
                 invoices={invoicesByClient[c.id] ?? []}
                 health={healthByClient[c.id]}
+                risk={riskByClient[c.id]}
                 embedUsage={embedUsageByClient[c.id] ?? 0}
                 stripeReady={stripeReady}
               />

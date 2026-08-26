@@ -3,6 +3,7 @@ import { createServerSupabaseClient } from "@/lib/supabase-server-auth";
 import { getOrgMembership } from "@/lib/org-membership";
 import { ClientsPanel } from "@/components/platform/clients-panel";
 import { computeClientHealth, type ClientHealth } from "@/lib/client-health";
+import { computeClientEngagementRisk, type ClientEngagementRisk } from "@/lib/studio-engagement";
 
 type InvoiceRow = {
   id: string;
@@ -16,7 +17,9 @@ type InvoiceRow = {
   created_at: string;
 };
 
-type RequestRow = { id: string; client_id: string; status: string };
+// created_at added for Engagement Risk (studio-engagement.ts) — every
+// other column here was already fetched for computeClientHealth().
+type RequestRow = { id: string; client_id: string; status: string; created_at: string };
 type TaskRow = { id: string; request_id: string | null; status: string };
 type SiteCheckRow = { client_id: string; uptime_ok: boolean | null };
 type AuditLogRow = { client_id: string | null };
@@ -27,6 +30,13 @@ type AuditLogRow = { client_id: string | null };
 // one only ever runs once per request.
 function thirtyDaysAgoIso(): string {
   return new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+}
+
+// Same react-hooks/purity reasoning as thirtyDaysAgoIso() above —
+// computeClientEngagementRisk() (reused from the Command Centre, Phase 6c)
+// needs the real Date, not just a date-only string.
+function nowDate(): Date {
+  return new Date();
 }
 
 // Session-scoped client, RLS-enforced via clients_select_own_org /
@@ -65,7 +75,7 @@ export default async function StudioClientsPage() {
           .select("id, client_id, amount_pence, description, status, due_date, paid_at, stripe_hosted_invoice_url, created_at")
           .in("client_id", clientIds)
           .order("created_at", { ascending: false }),
-        supabase.from("requests").select("id, client_id, status").in("client_id", clientIds),
+        supabase.from("requests").select("id, client_id, status, created_at").in("client_id", clientIds),
         supabase.from("site_checks").select("client_id, uptime_ok").in("client_id", clientIds),
         // Phase 4 usage visibility — RLS (audit_log_select_embed_chat_own_org,
         // schema-rls-audit-log-embed-chat.sql) scopes this to just this one
@@ -115,12 +125,25 @@ export default async function StudioClientsPage() {
     embedUsageByClient[event.client_id] = (embedUsageByClient[event.client_id] ?? 0) + 1;
   }
 
+  // Engagement risk (reused from the Command Centre, studio-engagement.ts)
+  // — the dashboard's own Engagement risk card caps at 5 and points here
+  // ("+N more at risk — see Clients for the full list"), but until now
+  // this page had no risk indicator at all, so that link led nowhere
+  // useful. Same computation, same real signals (quiet weeks, overdue
+  // invoice), keyed by client id for the panel to look up per row.
+  const engagementRisks = computeClientEngagementRisk(clients ?? [], requests ?? [], invoices ?? [], nowDate());
+  const riskByClient: Record<string, ClientEngagementRisk> = {};
+  for (const risk of engagementRisks) {
+    riskByClient[risk.clientId] = risk;
+  }
+
   return (
     <ClientsPanel
       clients={clients ?? []}
       invoicesByClient={invoicesByClient}
       embedUsageByClient={embedUsageByClient}
       healthByClient={healthByClient}
+      riskByClient={riskByClient}
       stripeReady={stripeReady}
     />
   );
