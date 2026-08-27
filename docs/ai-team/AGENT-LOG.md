@@ -9,6 +9,26 @@ paragraph, not a full handoff report (those, if worth keeping, go in
 
 ---
 
+## 2026-08-27 — First real mission: Command Centre visual hierarchy
+
+Ran manually (the `/mission` skill and `.claude/agents/*` subagents aren't
+resolvable from this session — they load once at session start and this
+session's root only moved to the repo mid-conversation; needs a genuinely
+fresh session to use the real `subagent_type`/`/mission` mechanism). Ran
+the same chain by hand instead: UX/UI Director audited the Command Centre
+(code-grounded — no Studio login available), found `bg-primary` had
+drifted onto every card instead of the two genuinely-featured surfaces
+(TodayStrip, actions_required), flattening the page's hierarchy. Product
+Director approved the safe subset (the color-tier fix + 3 missing
+aria-labels) and deferred the riskier part (always-rendering
+actions_required first) pending a real screenshot. Lead Engineer
+implemented, verified (tsc/eslint/full suite clean), committed as
+`40e0552` — not pushed. QA independently re-verified and found one real,
+non-blocking issue (`HealthRing`'s hardcoded token drift) plus a genuine
+test-coverage gap over these files — both logged in `BACKLOG.md`. Full
+loop closes once Hamish screenshots the actual authenticated result — see
+`BACKLOG.md`'s "In progress" item.
+
 ## 2026-08-27 — AI product team stood up
 
 Product Director, UX/UI Director, Lead Engineer, AI/Agent Architect, QA
