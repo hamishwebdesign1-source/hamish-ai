@@ -179,33 +179,93 @@ const SALES_KIT_TOOL: Anthropic.Tool = {
   },
 };
 
-// Exported for draft-sales-kit.test.ts. Note this is a narrower contract
-// than stripBrief()/reconcilePhases() (website-brief.ts,
-// website-build-phases.ts): it strips markdown emphasis from an
-// already-shaped SalesKit, it does not defensively coerce an `unknown`
-// tool-call payload the way those two do — the one call site
-// (draftSalesKit() below) passes toolUse.input straight through an
-// unchecked `as SalesKit` cast first. Malformed AI output here throws
-// (caught by that function's own try/catch) rather than being reconciled
-// into a safe fallback shape.
-export function stripKit(kit: SalesKit): SalesKit {
+// Real-improvement pass — brought up to the same defensive-coercion
+// standard as stripBrief()/reconcilePhases() (website-brief.ts,
+// website-build-phases.ts): accepts the raw `unknown` tool-call payload
+// directly rather than trusting an unchecked `as SalesKit` cast at the
+// call site, coerces every field, and never throws on a malformed shape
+// — a missing/wrong-typed field becomes a real empty value that
+// isWellFormed() below can catch, the same "coerce, don't trust
+// structurally" instinct as sanitizeBlocksForWrite() in
+// command-centre-layout.ts.
+function toText(value: unknown): string {
+  return typeof value === "string" ? stripMarkdownEmphasis(value) : "";
+}
+
+function toStringArray(value: unknown): string[] {
+  if (Array.isArray(value)) return value.filter((v): v is string => typeof v === "string").map(stripMarkdownEmphasis);
+  if (typeof value === "string" && value.trim()) return [stripMarkdownEmphasis(value)];
+  return [];
+}
+
+export function stripKit(raw: unknown): SalesKit {
+  const r = (raw ?? {}) as Record<string, unknown>;
+  const outreach = (r.outreach_email ?? {}) as Record<string, unknown>;
+  const followUp = (r.follow_up_email ?? {}) as Record<string, unknown>;
+  const callScript = (r.call_script ?? {}) as Record<string, unknown>;
+  const proposal = (r.proposal_outline ?? {}) as Record<string, unknown>;
   return {
-    outreach_email: { subject: stripMarkdownEmphasis(kit.outreach_email.subject), body: stripMarkdownEmphasis(kit.outreach_email.body) },
-    follow_up_email: { subject: stripMarkdownEmphasis(kit.follow_up_email.subject), body: stripMarkdownEmphasis(kit.follow_up_email.body) },
+    outreach_email: { subject: toText(outreach.subject), body: toText(outreach.body) },
+    follow_up_email: { subject: toText(followUp.subject), body: toText(followUp.body) },
     call_script: {
-      opener: stripMarkdownEmphasis(kit.call_script.opener),
-      talking_points: kit.call_script.talking_points.map(stripMarkdownEmphasis),
-      if_hesitant: stripMarkdownEmphasis(kit.call_script.if_hesitant),
-      closing_ask: stripMarkdownEmphasis(kit.call_script.closing_ask),
+      opener: toText(callScript.opener),
+      talking_points: toStringArray(callScript.talking_points),
+      if_hesitant: toText(callScript.if_hesitant),
+      closing_ask: toText(callScript.closing_ask),
     },
-    linkedin_message: stripMarkdownEmphasis(kit.linkedin_message),
-    meeting_agenda: kit.meeting_agenda.map(stripMarkdownEmphasis),
+    linkedin_message: toText(r.linkedin_message),
+    meeting_agenda: toStringArray(r.meeting_agenda),
     proposal_outline: {
-      overview: stripMarkdownEmphasis(kit.proposal_outline.overview),
-      included: kit.proposal_outline.included.map(stripMarkdownEmphasis),
-      timeline_note: stripMarkdownEmphasis(kit.proposal_outline.timeline_note),
+      overview: toText(proposal.overview),
+      included: toStringArray(proposal.included),
+      timeline_note: toText(proposal.timeline_note),
     },
   };
+}
+
+// Same role as website-brief.ts's isWellFormed() — a cheap real-content
+// check the retry loop below uses to tell "the model returned a
+// genuinely complete kit" from "stripKit() had to fall back on most of
+// it." Thresholds match SALES_KIT_TOOL's own schema shape (every text
+// field required, talking_points/meeting_agenda/included are the only
+// arrays with no fixed minimum in the schema, so >=1 real item is the
+// bar here).
+export function isWellFormed(kit: SalesKit): boolean {
+  return (
+    kit.outreach_email.subject.length > 0 &&
+    kit.outreach_email.body.length > 0 &&
+    kit.follow_up_email.subject.length > 0 &&
+    kit.follow_up_email.body.length > 0 &&
+    kit.call_script.opener.length > 0 &&
+    kit.call_script.talking_points.length > 0 &&
+    kit.call_script.if_hesitant.length > 0 &&
+    kit.call_script.closing_ask.length > 0 &&
+    kit.linkedin_message.length > 0 &&
+    kit.meeting_agenda.length > 0 &&
+    kit.proposal_outline.overview.length > 0 &&
+    kit.proposal_outline.included.length > 0 &&
+    kit.proposal_outline.timeline_note.length > 0
+  );
+}
+
+async function requestKit(
+  anthropic: Anthropic,
+  model: string,
+  lead: LeadRow,
+  sender: SalesKitSender,
+  matched: { name: string; industry: string; demoUrl: string } | undefined
+): Promise<SalesKit | null> {
+  const response = await anthropic.messages.create({
+    model,
+    max_tokens: 2000,
+    system: buildSystemPrompt(lead, sender, matched),
+    tools: [SALES_KIT_TOOL],
+    tool_choice: { type: "tool", name: "submit_sales_kit" },
+    messages: [{ role: "user", content: "Write the full sales kit." }],
+  });
+
+  const toolUse = response.content.find((block): block is Anthropic.ToolUseBlock => block.type === "tool_use");
+  return toolUse ? stripKit(toolUse.input) : null;
 }
 
 // sender defaults to HamishAI's own internal identity — every existing
@@ -232,19 +292,23 @@ export async function draftSalesKit(leadId: string, sender: SalesKitSender = { n
   const matched = sender.isInternal ? matchCaseStudy(lead.category) : undefined;
 
   try {
-    const response = await anthropic.messages.create({
-      model,
-      max_tokens: 2000,
-      system: buildSystemPrompt(lead as LeadRow, sender, matched),
-      tools: [SALES_KIT_TOOL],
-      tool_choice: { type: "tool", name: "submit_sales_kit" },
-      messages: [{ role: "user", content: "Write the full sales kit." }],
-    });
+    // Three attempts, not one — same reasoning website-build-phases.ts's
+    // own header documents: production latency and occasional malformed
+    // tool-call output both turned out more common under real load than
+    // a single-attempt happy path assumed. Only the last attempt's
+    // result is accepted as a last resort if still imperfect, never a
+    // silent placeholder.
+    let kit: SalesKit | null = null;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const result = await requestKit(anthropic, model, lead as LeadRow, sender, matched);
+      if (result && isWellFormed(result)) {
+        kit = result;
+        break;
+      }
+      if (result && attempt === 2) kit = result; // last attempt: use what we have rather than nothing
+    }
+    if (!kit) return { error: "The AI did not return a sales kit." as const };
 
-    const toolUse = response.content.find((block): block is Anthropic.ToolUseBlock => block.type === "tool_use");
-    if (!toolUse) return { error: "The AI did not return a sales kit." as const };
-
-    const kit = stripKit(toolUse.input as SalesKit);
     const generatedAt = new Date().toISOString();
 
     const { error: updateError } = await supabase
