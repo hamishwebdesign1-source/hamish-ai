@@ -46,6 +46,27 @@ export async function snapshotAdoptionForAllOrgs() {
   return { snapshotted };
 }
 
+// Real-improvement pass — same retention gap, same fix as
+// studio-health-history.ts's own pruneOldHealthSnapshots(): this table
+// had no retention policy since it shipped. getAdoptionSeries() only
+// ever reads the most recent ADOPTION_SERIES_LIMIT rows anyway, so
+// anything older than that is already dead weight, not future history
+// a feature might want — pruned more aggressively than health
+// snapshots for exactly that reason (180 days is well past the 12-week
+// window the chart can even show).
+const SNAPSHOT_RETENTION_DAYS = 180;
+
+export async function pruneOldAdoptionSnapshots() {
+  const admin = getSupabaseAdmin();
+  if (!admin) return { error: "Supabase is not configured." as const };
+
+  const cutoff = new Date(Date.now() - SNAPSHOT_RETENTION_DAYS * 24 * 60 * 60 * 1000).toISOString();
+  const { error, count } = await admin.from("studio_adoption_snapshots").delete({ count: "exact" }).lt("created_at", cutoff);
+  if (error) return { error: "Failed to prune old adoption snapshots." as const };
+
+  return { pruned: count ?? 0 };
+}
+
 export type AdoptionSeriesPoint = { label: string; value: number };
 
 const ADOPTION_SERIES_LIMIT = 12; // ~3 months of weekly snapshots — a chart, not an unbounded log

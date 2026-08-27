@@ -67,6 +67,26 @@ export async function snapshotHealthForAllOrgs() {
   return { snapshotted };
 }
 
+// Real-improvement pass — this table had no retention policy at all
+// since it shipped: one real row per org, every week, forever. Not a
+// performance problem at any realistic scale (a few dozen rows per org
+// per year), but "grows forever, on purpose" isn't a real policy either
+// — 2 years (~104 weekly snapshots per org) is ample room for anything
+// this feature or a future one might want to compare against, while
+// still being an intentional bound rather than none at all.
+const SNAPSHOT_RETENTION_DAYS = 730;
+
+export async function pruneOldHealthSnapshots() {
+  const admin = getSupabaseAdmin();
+  if (!admin) return { error: "Supabase is not configured." as const };
+
+  const cutoff = new Date(Date.now() - SNAPSHOT_RETENTION_DAYS * MS_PER_DAY).toISOString();
+  const { error, count } = await admin.from("studio_health_snapshots").delete({ count: "exact" }).lt("created_at", cutoff);
+  if (error) return { error: "Failed to prune old health snapshots." as const };
+
+  return { pruned: count ?? 0 };
+}
+
 export type HealthTrend = { deltaValue: number; daysAgo: number };
 
 // How far back is "old enough" to compare against — a week or two of

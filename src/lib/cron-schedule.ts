@@ -132,7 +132,7 @@ export const CRON_SPECS: CronSpec[] = [
     name: "health-snapshot",
     label: "Health & adoption snapshot",
     description:
-      "Records this week's Business Health score and AI adoption rate for every org, so the Command Centre can show a real trend over time for both.",
+      "Records this week's Business Health score and AI adoption rate for every org, and prunes snapshots past their retention window (2 years / 180 days).",
     schedule: "0 5 * * 1",
     nextRun: () => nextWeekly(1, 5),
   },

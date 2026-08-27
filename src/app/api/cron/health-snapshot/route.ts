@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { snapshotHealthForAllOrgs } from "@/lib/studio-health-history";
-import { snapshotAdoptionForAllOrgs } from "@/lib/studio-adoption-history";
+import { snapshotHealthForAllOrgs, pruneOldHealthSnapshots } from "@/lib/studio-health-history";
+import { snapshotAdoptionForAllOrgs, pruneOldAdoptionSnapshots } from "@/lib/studio-adoption-history";
 import { sendErrorAlert } from "@/lib/send-error-alert";
 import { recordCronRun } from "@/lib/record-cron-run";
 
@@ -38,16 +38,33 @@ export async function GET(request: Request) {
     await sendErrorAlert("Adoption snapshot cron", adoptionResult.error ?? "Unknown error.");
   }
 
+  // Real-improvement pass — retention for both tables, same "don't let
+  // a secondary failure erase a real completed write" reasoning as the
+  // adoption snapshot above: a failed prune is logged, never turned
+  // into this whole run's failure.
+  const healthPruneResult = await pruneOldHealthSnapshots();
+  if ("error" in healthPruneResult) {
+    await sendErrorAlert("Health snapshot prune", healthPruneResult.error ?? "Unknown error.");
+  }
+  const adoptionPruneResult = await pruneOldAdoptionSnapshots();
+  if ("error" in adoptionPruneResult) {
+    await sendErrorAlert("Adoption snapshot prune", adoptionPruneResult.error ?? "Unknown error.");
+  }
+
   await recordCronRun("health-snapshot", "success", {
     summary: {
       snapshotted: healthResult.snapshotted,
       adoptionSnapshotted: "error" in adoptionResult ? null : adoptionResult.snapshotted,
       adoptionError: "error" in adoptionResult ? adoptionResult.error : null,
+      healthPruned: "error" in healthPruneResult ? null : healthPruneResult.pruned,
+      adoptionPruned: "error" in adoptionPruneResult ? null : adoptionPruneResult.pruned,
     },
   });
 
   return NextResponse.json({
     snapshotted: healthResult.snapshotted,
     adoptionSnapshotted: "error" in adoptionResult ? null : adoptionResult.snapshotted,
+    healthPruned: "error" in healthPruneResult ? null : healthPruneResult.pruned,
+    adoptionPruned: "error" in adoptionPruneResult ? null : adoptionPruneResult.pruned,
   });
 }
