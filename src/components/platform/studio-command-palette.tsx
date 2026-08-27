@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useCallback, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Search, CornerDownLeft, Users, Loader2, Sparkles, ArrowLeft, Send } from "lucide-react";
+import { Search, CornerDownLeft, Users, Loader2, Sparkles, ArrowLeft, Send, BookOpen, Megaphone, FolderKanban, Inbox } from "lucide-react";
 import { getNavSections } from "@/components/platform/studio-nav";
 import { searchStudio, type StudioSearchResult } from "@/app/studio/(authed)/command-search-actions";
 import { askClientsCopilot } from "@/app/studio/(authed)/clients/actions";
@@ -20,7 +20,25 @@ type PaletteItem = {
   label: string;
   sublabel?: string;
   href: string;
-  group: "Navigate" | "Prospects" | "Clients" | "Ask";
+  group: "Navigate" | "Prospects" | "Clients" | "Knowledge" | "Campaigns" | "Projects" | "Requests" | "Ask";
+};
+
+// Real-improvement pass — searchStudio() now covers 6 entity types, not
+// 2; one shared empty value instead of the same object literal repeated
+// at every reset site (initial state, close(), the catch branch below).
+const EMPTY_RESULTS: StudioSearchResult = { prospects: [], clients: [], knowledgeBase: [], campaigns: [], projects: [], requests: [] };
+
+// One real, distinct icon per result group — Prospects/Clients kept
+// sharing Users (both are "a business," the distinction is status, not
+// kind), the four new groups get their own rather than all reusing
+// Users regardless of what they actually are.
+const GROUP_ICON: Partial<Record<PaletteItem["group"], typeof Users>> = {
+  Prospects: Users,
+  Clients: Users,
+  Knowledge: BookOpen,
+  Campaigns: Megaphone,
+  Projects: FolderKanban,
+  Requests: Inbox,
 };
 
 // A synthetic href, never a real route — select() branches on this
@@ -55,7 +73,7 @@ export function StudioCommandPalette() {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
-  const [results, setResults] = useState<StudioSearchResult>({ prospects: [], clients: [] });
+  const [results, setResults] = useState<StudioSearchResult>(EMPTY_RESULTS);
   const [loading, setLoading] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -69,7 +87,7 @@ export function StudioCommandPalette() {
   const close = useCallback(() => {
     setOpen(false);
     setQuery("");
-    setResults({ prospects: [], clients: [] });
+    setResults(EMPTY_RESULTS);
     setActiveIndex(0);
     setConversation([]);
     setFollowUp("");
@@ -126,7 +144,7 @@ export function StudioCommandPalette() {
         const data = await searchStudio(query.trim());
         setResults(data);
       } catch {
-        setResults({ prospects: [], clients: [] });
+        setResults(EMPTY_RESULTS);
       } finally {
         setLoading(false);
       }
@@ -142,7 +160,7 @@ export function StudioCommandPalette() {
   const trimmedRaw = query.trim();
   const trimmed = trimmedRaw.toLowerCase();
   const filteredNav = trimmed ? navItems.filter((n) => n.label.toLowerCase().includes(trimmed)) : navItems;
-  const activeResults = trimmed.length >= 2 ? results : { prospects: [], clients: [] };
+  const activeResults = trimmed.length >= 2 ? results : EMPTY_RESULTS;
   const activeLoading = trimmed.length >= 2 && loading;
 
   const items: PaletteItem[] = [
@@ -159,6 +177,33 @@ export function StudioCommandPalette() {
       label: c.business_name,
       href: "/studio/clients",
       group: "Clients" as const,
+    })),
+    ...activeResults.knowledgeBase.map((k) => ({
+      key: `kb-${k.id}`,
+      label: k.title,
+      href: "/studio/knowledge",
+      group: "Knowledge" as const,
+    })),
+    ...activeResults.campaigns.map((c) => ({
+      key: `campaign-${c.id}`,
+      label: c.name,
+      sublabel: c.status,
+      href: "/studio/campaigns",
+      group: "Campaigns" as const,
+    })),
+    ...activeResults.projects.map((p) => ({
+      key: `project-${p.id}`,
+      label: p.name,
+      sublabel: p.status,
+      href: "/studio/projects",
+      group: "Projects" as const,
+    })),
+    ...activeResults.requests.map((r) => ({
+      key: `request-${r.id}`,
+      label: r.raw_text,
+      sublabel: r.status.replace("_", " "),
+      href: "/studio/requests",
+      group: "Requests" as const,
     })),
     // Appended last, not first — a query that matches a real nav/prospect/
     // client entry should still jump there on a bare Enter, same muscle
@@ -313,6 +358,7 @@ export function StudioCommandPalette() {
             {items.map((item, i) => {
               const showGroupHeader = item.group !== lastGroup;
               lastGroup = item.group;
+              const GroupIcon = item.group === "Ask" ? Sparkles : GROUP_ICON[item.group];
               return (
                 <div key={item.key}>
                   {showGroupHeader && <p className="text-eyebrow px-2.5 pt-2.5 pb-1 first:pt-1">{item.group}</p>}
@@ -326,10 +372,8 @@ export function StudioCommandPalette() {
                     )}
                   >
                     <span className="flex min-w-0 items-center gap-2">
-                      {item.group === "Ask" ? (
-                        <Sparkles className="size-3.5 shrink-0 text-accent" />
-                      ) : (
-                        item.group !== "Navigate" && <Users className="size-3.5 shrink-0 text-muted-foreground" />
+                      {GroupIcon && (
+                        <GroupIcon className={`size-3.5 shrink-0 ${item.group === "Ask" ? "text-accent" : "text-muted-foreground"}`} />
                       )}
                       <span className="truncate">{item.label}</span>
                       {item.sublabel && <span className="shrink-0 text-xs text-muted-foreground capitalize">{item.sublabel}</span>}
