@@ -1,12 +1,57 @@
 import { redirect } from "next/navigation";
-import { Check, Clock, CreditCard, Rocket, Zap, Building2, Sparkles } from "lucide-react";
+import { Check, Clock, CreditCard, Rocket, Zap, Building2, Sparkles, Gauge } from "lucide-react";
 import { createServerSupabaseClient } from "@/lib/supabase-server-auth";
 import { getOrgMembership } from "@/lib/org-membership";
 import { platformPlans, formatMonthlyPrice, PROSPECT_CREDIT_PACK, type PlatformPlanSlug } from "@/lib/platform-plans";
+import { getUsageStatus, type UsageEventType } from "@/lib/usage-limits";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { HelpTip } from "@/components/platform/help-tip";
 import { startCheckout, openBillingPortal, buyCreditPack } from "./actions";
+
+// Real-improvement pass — usage-limits.ts has always tracked 10 real,
+// individually plan-limited actions (getUsageStatus, one real ceiling
+// per type), but none of it was ever shown to a tenant anywhere — the
+// only way to learn you were close to a limit was to hit it. Display-
+// only labels, kept local rather than exported from usage-limits.ts
+// itself, same "display concern belongs where it's displayed"
+// reasoning as this file's own planIcons map below.
+const USAGE_LABELS: Record<UsageEventType, string> = {
+  prospect_researched: "Prospects researched",
+  sales_kit_generated: "Sales kits generated",
+  website_mockup_generated: "Website mockups generated",
+  icp_built: "ICPs built",
+  request_triaged: "Client requests triaged",
+  clients_copilot_question: "AI Business Analyst questions",
+  layout_redesign_proposed: "AI Design Assistant edits",
+  website_brief_generated: "Website briefs generated",
+  website_build_prompt_generated: "Website build prompts generated",
+  website_troubleshooting_generated: "Website troubleshooting fixes",
+};
+
+// Secondary (fair-use) types, in the same order usage-limits.ts's own
+// USAGE_MULTIPLIER lists them — prospect_researched is the one marketed
+// plan feature, shown on its own above these.
+const SECONDARY_USAGE_TYPES: UsageEventType[] = [
+  "sales_kit_generated",
+  "website_mockup_generated",
+  "icp_built",
+  "request_triaged",
+  "clients_copilot_question",
+  "layout_redesign_proposed",
+  "website_brief_generated",
+  "website_build_prompt_generated",
+  "website_troubleshooting_generated",
+];
+
+function usageBarColor(status: { used: number; limit: number }): string {
+  if (status.limit === 0) return "bg-white/10";
+  const pct = status.used / status.limit;
+  if (pct >= 1) return "bg-destructive";
+  if (pct >= 0.8) return "bg-warning";
+  return "bg-accent";
+}
 
 // Standalone helper, not inline in the component body — same pattern as
 // daysSince() in admin/(authed)/page.tsx, which react-hooks/purity's
@@ -48,13 +93,26 @@ export default async function StudioBillingPage({
   // on, so this is only ever the caller's own organisation.
   const { data: org } = await supabase
     .from("organisations")
-    .select("plan, subscription_status, trial_ends_at, stripe_customer_id, purchased_prospect_credits")
+    .select("plan, subscription_status, trial_ends_at, stripe_customer_id, purchased_prospect_credits, is_internal")
     .eq("id", membership.orgId)
     .single();
 
   const trialDaysLeft = org?.trial_ends_at ? daysUntil(org.trial_ends_at) : 0;
   const isTrialing = org?.subscription_status === "trialing";
   const isActive = org?.subscription_status === "active";
+
+  // Real-improvement pass — never computed for HamishAI's own internal
+  // org: is_internal genuinely has no plan ceiling (usage-limits.ts's
+  // own comment on why), so a "0 of 30" bar here would be showing a
+  // limit that doesn't actually apply, not real data.
+  const orgPlan = (org?.plan ?? "starter") as PlatformPlanSlug;
+  const showUsage = !org?.is_internal;
+  const [prospectUsage, secondaryUsage] = showUsage
+    ? await Promise.all([
+        getUsageStatus(membership.orgId, "prospect_researched", orgPlan),
+        Promise.all(SECONDARY_USAGE_TYPES.map((type) => getUsageStatus(membership.orgId, type, orgPlan))),
+      ])
+    : [null, []];
 
   return (
     // Centered column, not left-aligned-and-capped — see prospecting-panel.tsx's
@@ -114,6 +172,62 @@ export default async function StudioBillingPage({
           )}
         </CardContent>
       </Card>
+
+      {/* Real-improvement pass — usage-limits.ts has always tracked 10
+          real, individually plan-limited actions, but none of it was
+          ever shown to a tenant anywhere: the only way to learn you
+          were close to a limit was to hit it mid-task. prospect_researched
+          is the one marketed plan feature ("up to N researched prospects
+          a month" on the pricing grid below), shown prominently; the
+          other 9 are real fair-use ceilings, not marketed numbers, so
+          they're secondary. */}
+      {showUsage && prospectUsage && (
+        <Card>
+          <CardContent>
+            <p className="flex items-center gap-1.5 font-heading text-sm font-semibold">
+              <Gauge className="size-4 text-accent" />
+              Usage this month
+              <HelpTip explanation="Real counts from your own account this calendar month, against your plan's real limits. Resets on the 1st. The 9 secondary actions below are generous fair-use ceilings, not marketed plan features — you'd need a genuinely unusual amount of activity to get near them." />
+            </p>
+
+            <div className="mt-4">
+              <div className="flex items-center justify-between text-sm">
+                <span className="font-medium">{USAGE_LABELS.prospect_researched}</span>
+                <span className="font-mono text-xs text-muted-foreground">
+                  {prospectUsage.used} of {prospectUsage.limit}
+                  {(org?.purchased_prospect_credits ?? 0) > 0 && ` (+${org?.purchased_prospect_credits} credits)`}
+                </span>
+              </div>
+              <div className="mt-1.5 h-2 w-full overflow-hidden rounded-full bg-secondary">
+                <div
+                  className={`h-full rounded-full ${usageBarColor(prospectUsage)}`}
+                  style={{ width: `${Math.min(100, (prospectUsage.used / Math.max(1, prospectUsage.limit)) * 100)}%` }}
+                />
+              </div>
+            </div>
+
+            <div className="mt-4 grid gap-x-6 gap-y-3 border-t border-border pt-4 sm:grid-cols-2">
+              {SECONDARY_USAGE_TYPES.map((type, i) => {
+                const status = secondaryUsage[i];
+                if (!status) return null;
+                return (
+                  <div key={type}>
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-muted-foreground">{USAGE_LABELS[type]}</span>
+                      <span className="font-mono text-muted-foreground">
+                        {status.used} / {status.limit}
+                      </span>
+                    </div>
+                    <div className="mt-1 h-1 w-full overflow-hidden rounded-full bg-secondary">
+                      <div className={`h-full rounded-full ${usageBarColor(status)}`} style={{ width: `${Math.min(100, (status.used / Math.max(1, status.limit)) * 100)}%` }} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardContent className="flex flex-wrap items-center justify-between gap-4">
