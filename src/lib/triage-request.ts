@@ -231,6 +231,20 @@ export function isWellFormed(triage: TriageResult): boolean {
   );
 }
 
+// The auto-send eligibility predicate itself, separated out so it's
+// testable without mocking Supabase/Anthropic (same reasoning as
+// resolveSender()). forceHumanReview (checked by the caller, not baked in
+// here) overrides this independently — see triageRequest's own comment.
+export function computeWouldAutoSend(sender: Sender, status: string, triage: TriageResult): boolean {
+  return (
+    sender.isInternal &&
+    status === "triaged" &&
+    triage.covered_by_maintenance &&
+    (triage.complexity === "XS" || triage.complexity === "S") &&
+    triage.priority !== "urgent"
+  );
+}
+
 async function requestTriage(
   anthropic: Anthropic,
   model: string,
@@ -253,7 +267,24 @@ async function requestTriage(
   return toolUse ? stripTriage(toolUse.input) : null;
 }
 
-export async function triageRequest(clientId: string, rawText: string) {
+// forceHumanReview: set by checkEmailInbox() (email-inbox.ts) when an
+// inbound email's From header can't be corroborated by a genuine
+// Authentication-Results SPF+DKIM pass — see isAuthenticatedSender()'s own
+// comment there for the full design note. Every other caller (the admin UI,
+// /portal/requests, the internal API route) is a human deliberately
+// submitting text through the app itself, not an inbound email whose
+// From header could be spoofed, so they never set this and behaviour for
+// them is unchanged. When true, this suppresses every unsupervised email
+// this function would otherwise send under Hamish's own identity (the
+// auto-send reply and the "we need more info" email) without blocking the
+// request from being triaged and saved for a human to review in Studio —
+// the request still gets created, categorised, and (if applicable) gets a
+// suggested task, exactly as normal.
+export async function triageRequest(
+  clientId: string,
+  rawText: string,
+  options: { forceHumanReview?: boolean; forceHumanReviewReason?: string } = {}
+) {
   const supabase = getSupabaseAdmin();
   if (!supabase) return { error: "Supabase is not configured." as const };
 
@@ -441,7 +472,12 @@ export async function triageRequest(clientId: string, rawText: string) {
   // tenant sees this in their /studio/requests inbox and handles it
   // themselves instead — manual, not automated, same call as the
   // follow-up tracker.
-  if (sender.isInternal && status === "awaiting_info" && client.email) {
+  //
+  // Also suppressed by forceHumanReview — see triageRequest's own comment on
+  // the option. This is a real send under Hamish's identity built from
+  // unverified inbound content, the same category of risk as the auto-send
+  // below, even though it's only asking a question rather than answering one.
+  if (sender.isInternal && status === "awaiting_info" && client.email && !options.forceHumanReview) {
     const questions = triage.missing_info.map((q) => `- ${q}`).join("\n");
     await sendClientEmail(
       client.email,
@@ -460,12 +496,30 @@ export async function triageRequest(clientId: string, rawText: string) {
   // is Hamish trusting his own AI to email his own clients unsupervised;
   // that trust doesn't transfer to a tenant who's never seen this system
   // work. A tenant's requests always wait for a human in Studio, full stop.
-  const isAutoSendEligible =
-    sender.isInternal &&
-    status === "triaged" &&
-    triage.covered_by_maintenance &&
-    (triage.complexity === "XS" || triage.complexity === "S") &&
-    triage.priority !== "urgent";
+  const wouldAutoSend = computeWouldAutoSend(sender, status, triage);
+
+  // forceHumanReview overrides an otherwise-eligible auto-send — see
+  // triageRequest's own comment on the option for why (an inbound email
+  // whose From header couldn't be corroborated by SPF+DKIM). Logged
+  // separately below so it's visible whether this ever actually mattered,
+  // not just theoretically possible.
+  const isAutoSendEligible = wouldAutoSend && !options.forceHumanReview;
+
+  if (wouldAutoSend && options.forceHumanReview) {
+    await logAuditEvent({
+      actor: "system",
+      actorType: "system",
+      action: "request.auto_send_blocked_unverified_sender",
+      targetType: "request",
+      targetId: savedRequest.id,
+      clientId,
+      metadata: {
+        category: triage.category,
+        complexity: triage.complexity,
+        reason: options.forceHumanReviewReason ?? "unverified inbound sender",
+      },
+    });
+  }
 
   if (isAutoSendEligible && client.email) {
     await sendClientEmail(

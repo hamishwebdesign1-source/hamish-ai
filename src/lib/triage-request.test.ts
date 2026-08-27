@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { stripTriage, isWellFormed, resolveSender } from "./triage-request";
+import { stripTriage, isWellFormed, resolveSender, computeWouldAutoSend } from "./triage-request";
 
 function triage(overrides: Partial<ReturnType<typeof stripTriage>> = {}) {
   return {
@@ -190,5 +190,62 @@ describe("resolveSender", () => {
       name: "Hamish AI",
       isInternal: true,
     });
+  });
+});
+
+// P1 fix: email-inbox.ts now calls triageRequest(clientId, rawText, {
+// forceHumanReview }) when isAuthenticatedSender() couldn't corroborate the
+// inbound email's From header via SPF+DKIM. computeWouldAutoSend() is the
+// eligibility predicate itself (forceHumanReview is applied by the caller,
+// not baked into this function) — tested directly here, and the
+// caller-side override is asserted the same way triage-request.ts applies
+// it (`wouldAutoSend && !options.forceHumanReview`).
+describe("computeWouldAutoSend", () => {
+  function eligibleTriage(overrides: Partial<ReturnType<typeof stripTriage>> = {}) {
+    return {
+      category: "bug",
+      complexity: "S" as const,
+      suggested_approach: "Fix it.",
+      covered_by_maintenance: true,
+      coverage_reasoning: "Small, covered.",
+      draft_response: "Sorted.",
+      priority: "medium" as const,
+      missing_info: [] as string[],
+      suggested_task: undefined,
+      ...overrides,
+    };
+  }
+
+  it("is true for an internal sender, triaged status, covered/small/non-urgent request — the genuine happy path", () => {
+    expect(computeWouldAutoSend({ name: "Hamish AI", isInternal: true }, "triaged", eligibleTriage())).toBe(true);
+  });
+
+  it("is false for a non-internal sender even if otherwise eligible", () => {
+    expect(computeWouldAutoSend({ name: "Acme Agency", isInternal: false }, "triaged", eligibleTriage())).toBe(false);
+  });
+
+  it("is false when status isn't 'triaged' (e.g. awaiting_info)", () => {
+    expect(computeWouldAutoSend({ name: "Hamish AI", isInternal: true }, "awaiting_info", eligibleTriage())).toBe(false);
+  });
+
+  it("is false when not covered by maintenance, too large, or urgent", () => {
+    const sender = { name: "Hamish AI", isInternal: true };
+    expect(computeWouldAutoSend(sender, "triaged", eligibleTriage({ covered_by_maintenance: false }))).toBe(false);
+    expect(computeWouldAutoSend(sender, "triaged", eligibleTriage({ complexity: "L" }))).toBe(false);
+    expect(computeWouldAutoSend(sender, "triaged", eligibleTriage({ priority: "urgent" }))).toBe(false);
+  });
+
+  // The exact override triage-request.ts applies at the call site:
+  // isAutoSendEligible = wouldAutoSend && !options.forceHumanReview. An
+  // unverified inbound email (email-inbox.ts's isAuthenticatedSender()
+  // returning false) must never let a request reach an unsupervised send,
+  // no matter how "eligible" the AI's own judgment made it look.
+  it("an otherwise-eligible result is still overridden to false by forceHumanReview at the call site", () => {
+    const wouldAutoSend = computeWouldAutoSend({ name: "Hamish AI", isInternal: true }, "triaged", eligibleTriage());
+    expect(wouldAutoSend).toBe(true);
+
+    const forceHumanReview = true; // set when isAuthenticatedSender() returned false
+    const isAutoSendEligible = wouldAutoSend && !forceHumanReview;
+    expect(isAutoSendEligible).toBe(false);
   });
 });

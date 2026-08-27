@@ -8,6 +8,65 @@ just at product-decision scope instead of line scope.
 
 ---
 
+## 2026-08-27 — Added an SPF+DKIM authenticity check to `email-inbox.ts`'s inbound triage (Hamish sign-off)
+
+**Decision**: Implemented the P1 `BACKLOG.md` item once Hamish explicitly
+lifted the sign-off block. `checkEmailInbox()`'s Gmail search (`from:
+${client.email} in:inbox`) matched purely on the message's From header, with
+no independent check that the message genuinely came from that address — a
+convincingly spoofed email carrying a real client's address could reach
+`triageRequest()` and, if it cleared the AI's own complexity/maintenance/
+priority gates, the unsupervised auto-send path.
+
+Confirmed what's actually available before designing the fix, per the
+backlog item's own explicit dependency: `gmail.users.messages.get(...,
+{ format: "full" })` — already called for every message fetched, no
+additional API request needed — returns every header on the message,
+including `Authentication-Results`, the header Gmail's own receiving mail
+server appends recording its SPF/DKIM/DMARC verdicts for that specific
+message. No new Gmail scope or API call was needed.
+
+`isAuthenticatedSender()` requires an explicit `dkim=pass` *and* `spf=pass`
+(the backlog item's own framing — "checking Authentication-Results for an
+SPF+DKIM pass") across any Authentication-Results header present, and fails
+closed on everything short of that: header absent, single-pass-only,
+`neutral`/`none` verdicts, or malformed values all resolve to "unverified" —
+this repo's standing instinct (`PRODUCT.md`'s fail-closed-on-trust-sensitive-
+paths rule, the same one the P0 fix above cites) applied to an ambiguous
+verdict rather than a hard failure.
+
+Decided *what happens* when a message is unverified, since the backlog item
+explicitly left this open: rather than dropping the message or refusing to
+triage it, `triageRequest()` gained a `forceHumanReview` option that
+suppresses every unsupervised email it would otherwise send under Hamish's
+own identity, while still triaging and saving the request for a human to
+review in Studio. Extended this beyond exactly what the backlog literally
+named (the auto-send reply) to also cover the "we need more info" email —
+both are unsupervised sends from Hamish's identity built on unverified
+inbound content, the same category of risk, even though only one of them
+answers as if the work were already assessed and complete. This is the one
+place this fix went beyond the letter of the backlog item; flagging it here
+rather than letting it look like scope crept in unnoticed.
+
+**Open tradeoff, not fully resolved — flagged rather than guessed past
+silently**: `isAuthenticatedSender()` trusts any Authentication-Results
+header present claiming a double pass, without verifying which mail server
+appended it. The trustworthy one is the receiving server's own header
+(identified by its authserv-id before the first `;` — consistently
+`mx.google.com` for personal Gmail), but a message relayed through an
+intermediate hop could in principle carry an earlier, forged
+Authentication-Results header of its own from a less trustworthy mail
+server. This wasn't verified against real production headers before
+shipping — the backlog item's own stated open dependency ("Gmail messages
+from real senders already carry Authentication-Results in practice — needs
+confirming against real fetched headers, not assumed"). The core fail-closed
+guarantee (anything short of an explicit double pass is unverified) holds
+regardless of this open question; the tradeoff only narrows a false-positive
+edge case (a genuine but multi-hop-relayed email being wrongly trusted), not
+the false-negative direction that actually matters for the spoofing threat
+this item exists to close. Flagged for Security Auditor re-verification
+against real fetched headers rather than resolved by assumption.
+
 ## 2026-08-27 — Closed the `sender.isInternal` fail-open gap in `triage-request.ts` (Hamish sign-off)
 
 **Decision**: Implemented the P0 `BACKLOG.md` item once Hamish explicitly

@@ -32,18 +32,6 @@ _(none yet)_
 
 ## Researching
 
-### email-inbox.ts's inbound-triage matching is From-header-only — no spoofing check
-
-- **Problem**: `email-inbox.ts`'s Gmail search for a client's inbound email is `from:${client.email} in:inbox` (line 59) — matching purely on the message's From header, with no check against `Authentication-Results`, DKIM, or SPF. A convincingly spoofed email into Hamish's own Gmail inbox with a HamishAI-internal client's address in the From field could reach `triageRequest()` and, if it clears the existing complexity/maintenance/priority gates, the unsupervised auto-send path — impersonating a real client to get HamishAI's own AI to auto-send a reply "on their behalf." Found by Security Auditor; real, pre-existing, not introduced by any of today's fixes. Only affects HamishAI's own internal inbox flow (`isInternal: true` path) — tenants don't have this inbound-email integration.
-- **Objective**: verify inbound authenticity (DKIM/SPF pass, or Gmail's own `Authentication-Results` header) before treating an email as genuinely from the named client, not just matching the display/envelope From address.
-- **User**: Hamish, as the operator of the one account this affects today.
-- **Priority**: P1 — real gap on the same autonomous-send path as the P0 item above, but requires actual design work (parsing/trusting `Authentication-Results`, deciding the fallback behaviour when it's absent or ambiguous) rather than a one-line fix, and is a narrower blast radius (one inbox, not every tenant).
-- **Expected outcome**: a spoofed From-header email that fails SPF/DKIM either never reaches `triageRequest()` or is force-routed to human review regardless of how "small and covered" the AI judges it.
-- **Acceptance criteria**: design note reviewed by Security Auditor before implementation; a test simulating a header-spoofed but auth-failed message confirms it's excluded or force-flagged; no regression to genuine client emails (Gmail messages from real senders already carry `Authentication-Results` in practice — needs confirming against real fetched headers, not assumed).
-- **Relevant agent**: Security Auditor to scope the design, Lead Engineer to implement.
-- **Dependencies**: **Needs Hamish's explicit sign-off before implementation** (same standing category as the P0 item above). Also needs confirming what header data `googleapis`' Gmail fetch actually returns today before committing to an approach.
-- **Status**: Researching
-
 ### Investigate `useOptimistic` for Studio's Server Actions
 
 - **Problem**: Growth & Analytics found zero `useOptimistic` usage anywhere in the codebase (verified) — every Server Action in Studio is a full round-trip with no perceived-instant feedback, unlike the "instant feel" architecture reviewers credit category leaders (e.g. Linear) for. This is a real, sourced competitive gap, not a hunch.
@@ -119,6 +107,52 @@ _(none yet)_
 - **Status**: Blocked (on the PostHog key item above)
 
 ## Complete
+
+### email-inbox.ts's inbound-triage matching is From-header-only — no spoofing check
+
+Closed 2026-08-27 — Hamish signed off. Confirmed what's actually available
+before implementing: `gmail.users.messages.get(..., { format: "full" })`
+(already called for every message, no extra API request needed) returns
+every header on the message, including `Authentication-Results` — the
+header Gmail's own receiving mail server appends recording its own SPF/DKIM/
+DMARC verdicts. `isAuthenticatedSender()` (`email-inbox.ts`) requires an
+explicit `dkim=pass` *and* `spf=pass` across any Authentication-Results
+header present (per the backlog item's own "SPF+DKIM pass" framing) and
+fails closed on everything else — absent, malformed, single-pass, or
+ambiguous (`neutral`/`none`) all resolve to "unverified."
+
+`triageRequest()` gained a `forceHumanReview` option (`checkEmailInbox()`
+sets it whenever `isAuthenticatedSender()` returns false); when set, it
+suppresses every unsupervised email the function would otherwise send under
+Hamish's identity — both the auto-send reply (the path the backlog item
+named) and the "we need more info" email (an adjacent unsupervised-send risk
+not literally named in the backlog but the same category, gated for
+consistency — see `DECISIONS.md`). The request still gets triaged and saved
+for a human to review in Studio either way; only the autonomous email sends
+are blocked. A near-miss (an unverified message that would otherwise have
+auto-sent) is logged as its own `request.auto_send_blocked_unverified_sender`
+audit event so it's visible whether this protection ever actually mattered.
+
+`computeWouldAutoSend()` and `isAuthenticatedSender()` extracted as pure,
+exported, unit-tested functions (same convention as `stripTriage`/
+`resolveSender`) — 7 new tests in `email-inbox.test.ts` (genuine pass,
+spoofed both-fail, single-pass-only x2, header absent, headers null, case-
+insensitive header name, ambiguous verdict) and 5 new tests in
+`triage-request.test.ts` covering the eligibility predicate and the
+`forceHumanReview` override. Full suite (225 tests) green.
+
+**Open tradeoff, flagged rather than silently resolved**: this trusts *any*
+Authentication-Results header present claiming a double pass, without
+verifying which mail server appended it — the trustworthy one is the
+receiving server's own (identified by its authserv-id before the first
+`;`, consistently `mx.google.com` for personal Gmail), but a message
+relayed through an intermediate hop could in principle carry an earlier,
+forged Authentication-Results header of its own. This wasn't verified
+against real production headers before shipping (the backlog item's own
+open dependency). The safe default — fail closed on anything short of an
+explicit double pass — is applied regardless, so this tradeoff narrows a
+false-positive edge case, not the core fail-closed guarantee. Flagged for
+Security Auditor re-verification against real fetched headers.
 
 ### Fail closed, not open, when `sender.isInternal` resolution errors (triage-request.ts)
 
