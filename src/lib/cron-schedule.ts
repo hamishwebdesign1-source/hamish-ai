@@ -37,11 +37,14 @@ function nextWeekly(weekday: number, hour: number): Date {
   return next;
 }
 
-function nextMonthly(dayOfMonth: number, hour: number): Date {
+// minute defaults to 0 — every existing monthly schedule lands on the
+// hour; monthly-reports ("30 9 1 * *") is the first one that doesn't,
+// caught rather than silently shown 30 minutes early when it was added.
+function nextMonthly(dayOfMonth: number, hour: number, minute = 0): Date {
   const now = new Date();
-  let next = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), dayOfMonth, hour, 0));
+  let next = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), dayOfMonth, hour, minute));
   if (next.getTime() <= now.getTime()) {
-    next = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, dayOfMonth, hour, 0));
+    next = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, dayOfMonth, hour, minute));
   }
   return next;
 }
@@ -102,6 +105,21 @@ export const CRON_SPECS: CronSpec[] = [
     description: "Creates this month's invoice for every client on a recurring maintenance plan.",
     schedule: "0 9 1 * *",
     nextRun: () => nextMonthly(1, 9),
+  },
+  {
+    name: "monthly-reports",
+    label: "Monthly reports",
+    description: "Generates and sends this month's dated health-and-activity report snapshot for every client.",
+    schedule: "30 9 1 * *",
+    nextRun: () => nextMonthly(1, 9, 30),
+  },
+  {
+    name: "trial-reminders",
+    label: "Trial reminders",
+    description:
+      "Emails an agency on the free trial 3 days out, 1 day out, and the day their trial actually lapses, so they aren't cut off from prospecting with no warning.",
+    schedule: "0 11 * * *",
+    nextRun: () => nextDaily(11),
   },
   {
     name: "owner-digest",
