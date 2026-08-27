@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { sendTrialReminders } from "@/lib/trial-reminders";
-import { sendUsageWarnings } from "@/lib/usage-warnings";
+import { sendUsageWarnings, pruneOldUsageWarnings } from "@/lib/usage-warnings";
 import { sendErrorAlert } from "@/lib/send-error-alert";
 import { recordCronRun } from "@/lib/record-cron-run";
 
@@ -39,11 +39,20 @@ export async function GET(request: Request) {
     await sendErrorAlert("Usage warnings cron", usageResult.error ?? "Unknown error.");
   }
 
+  // Real-improvement pass — retention for usage_warnings_sent, same
+  // "don't let a secondary failure erase a real completed write"
+  // reasoning as everything else in this route.
+  const usagePruneResult = await pruneOldUsageWarnings();
+  if ("error" in usagePruneResult) {
+    await sendErrorAlert("Usage warnings prune", usagePruneResult.error ?? "Unknown error.");
+  }
+
   await recordCronRun("trial-reminders", "success", {
     summary: {
       sent: result.sent.length,
       usageWarningsSent: "error" in usageResult ? null : usageResult.sent.length,
       usageWarningsError: "error" in usageResult ? usageResult.error : null,
+      usageWarningsPruned: "error" in usagePruneResult ? null : usagePruneResult.pruned,
     },
   });
 

@@ -79,8 +79,17 @@ export default async function StudioBillingPage({
   // org: is_internal genuinely has no plan ceiling (usage-limits.ts's
   // own comment on why), so a "0 of 30" bar here would be showing a
   // limit that doesn't actually apply, not real data.
+  //
+  // getPlatformPlan() (called inside getUsageStatus()) throws on a slug
+  // it doesn't recognise — real risk, found by checking this feature's
+  // own robustness after shipping it: a legacy/mistyped org.plan value
+  // would otherwise crash this entire page's render, not just the
+  // usage section. Validated against the real plan list before ever
+  // calling into it, same "never trust a DB value blindly" instinct as
+  // everywhere else in this app.
   const orgPlan = (org?.plan ?? "starter") as PlatformPlanSlug;
-  const showUsage = !org?.is_internal;
+  const isValidPlan = platformPlans.some((p) => p.slug === orgPlan);
+  const showUsage = !org?.is_internal && isValidPlan;
   const [prospectUsage, secondaryUsage] = showUsage
     ? await Promise.all([
         getUsageStatus(membership.orgId, "prospect_researched", orgPlan),
