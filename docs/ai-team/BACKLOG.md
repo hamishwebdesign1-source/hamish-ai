@@ -38,16 +38,6 @@ _(none yet)_
 - **Dependencies**: needs `@testing-library/react` (or equivalent) added as a real dependency — not installed yet, checked 2026-08-27. A real decision (new tooling), not just writing the tests.
 - **Status**: Ready.
 
-### Add a real "clear demo data" affordance
-
-- **Problem**: the seed "Demo Client — delete me when done exploring" data (Clients, Requests) has copy that assumes an obvious way to delete it, but none was found during a 2026-08-27 live pass. Real onboarding friction — a new tenant either lives with fake data indefinitely or has to hand-delete each piece themselves.
-- **Objective**: TBD — needs Product Director to confirm intent (was a one-click "clear demo data" actually meant to exist, or is per-item manual deletion the deliberate design) before scoping a fix.
-- **User**: any new org exploring the product before real data exists.
-- **Priority**: P2.
-- **Relevant agent**: Product Director (confirm intent first), then Lead Engineer.
-- **Dependencies**: none.
-- **Status**: Ready.
-
 ## Researching
 
 _(none yet)_

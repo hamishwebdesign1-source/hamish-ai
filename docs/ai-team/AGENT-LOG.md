@@ -9,6 +9,20 @@ paragraph, not a full handoff report (those, if worth keeping, go in
 
 ---
 
+## 2026-08-27 — Retracted a backlog item: "no way to clear demo data" was wrong
+
+Filed "Add a real clear-demo-data affordance" earlier the same day based
+on a live pass that only read page text, never expanded a client card.
+Clients already has a real, proper delete flow — a type-the-business-
+name-to-confirm "Delete this client's data" control
+(`clients-panel.tsx`), wired to `deleteClientData()` — just behind the
+card's expand toggle, same collapsible convention as everywhere else in
+this app. Removed the backlog item rather than leave a wrong finding
+standing once it was already committed and pushed. Same self-correction
+discipline as the session's earlier retracted IDOR finding: re-verify
+before trusting a shallow first pass, and say so plainly when a finding
+turns out wrong rather than quietly deleting it.
+
 ## 2026-08-27 — Live-verified the Command Centre fix, then closed the real gap it found
 
 Hamish signed into a real authenticated Studio session and handed the
