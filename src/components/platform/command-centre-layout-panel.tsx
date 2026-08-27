@@ -81,6 +81,17 @@ export function CommandCentreLayoutPanel({
   initialBlocks: Block[];
   history: { id: string; created_at: string }[];
 }) {
+  // Real-improvement pass — this panel (block list, AI Design
+  // Assistant, add-block controls, version history) is the single
+  // densest thing on the Settings page, forcing every visitor to scroll
+  // past all of it to reach Branding/Data & Privacy below regardless of
+  // whether they came here to touch it. Collapsed by default, same
+  // established convention as ClientsCopilot on the Clients page (a
+  // tool that shares its page with other content shouldn't be the
+  // first thing pushing it down before anyone's asked for it) — CSS-
+  // only hiding, not unmounting, so no draft edit is ever lost by
+  // toggling this closed and back open.
+  const [open, setOpen] = useState(false);
   const [{ draftBlocks: initialDraft, order: initialOrder, hidden: initialHidden }] = useState(() => blocksToState(initialBlocks));
   const [draftBlocks, setDraftBlocks] = useState<Record<string, Block>>(initialDraft);
   const [order, setOrder] = useState<string[]>(initialOrder);
@@ -252,17 +263,26 @@ export function CommandCentreLayoutPanel({
   return (
     <Card>
       <CardContent>
-        <p className="flex items-center gap-2.5 font-heading text-sm font-semibold">
-          <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-accent/10 text-accent">
-            <LayoutGrid className="size-4" />
+        <button type="button" onClick={() => setOpen((o) => !o)} className="flex w-full items-center justify-between gap-2 text-left">
+          <span className="flex items-center gap-2.5 font-heading text-sm font-semibold">
+            <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-accent/10 text-accent">
+              <LayoutGrid className="size-4" />
+            </span>
+            Command Centre layout
           </span>
-          Command Centre layout
-        </p>
+          {open ? (
+            <ChevronUp className="size-4 shrink-0 text-muted-foreground" />
+          ) : (
+            <ChevronDown className="size-4 shrink-0 text-muted-foreground" />
+          )}
+        </button>
         <p className="mt-3 text-sm text-muted-foreground">
           Choose which blocks show on your Command Centre, their order and width, and add your own chart, text, or
           call-to-action blocks.
         </p>
 
+        {open && (
+        <>
         <ul className="mt-4 divide-y divide-border rounded-lg border border-border">
           {order.map((id, index) => {
             const block = draftBlocks[id];
@@ -517,6 +537,8 @@ export function CommandCentreLayoutPanel({
         </div>
         {status === "saved" && <p className="mt-2 text-xs text-accent">Saved — your Command Centre updates now.</p>}
         {error && <p className="mt-2 text-xs text-destructive">{error}</p>}
+        </>
+        )}
       </CardContent>
     </Card>
   );
