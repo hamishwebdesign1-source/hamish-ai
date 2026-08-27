@@ -284,13 +284,22 @@ export function CommandCentreLayoutPanel({
             return (
               <li key={id} className="px-3 py-2">
                 <div className="flex items-center gap-2">
+                  {/* Real touch-target fix — same gap as today-strip-panel.tsx's
+                      own reorder buttons: a bare 14px icon in an
+                      unpadded button was ~14x14px tappable. size-8 here
+                      rather than that file's size-9 — a two-row vertical
+                      stepper next to a single-line label has less room
+                      to grow before it visually dominates a compact
+                      settings row, so 32px is the real, defensible
+                      compromise for this specific layout, not the exact
+                      same number everywhere regardless of context. */}
                   <div className="flex flex-col">
                     <button
                       type="button"
                       aria-label={`Move ${blockLabel(block)} up`}
                       disabled={index === 0}
                       onClick={() => move(index, -1)}
-                      className="text-muted-foreground hover:text-foreground disabled:opacity-30"
+                      className="flex size-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-30"
                     >
                       <ChevronUp className="size-3.5" />
                     </button>
@@ -299,7 +308,7 @@ export function CommandCentreLayoutPanel({
                       aria-label={`Move ${blockLabel(block)} down`}
                       disabled={index === order.length - 1}
                       onClick={() => move(index, 1)}
-                      className="text-muted-foreground hover:text-foreground disabled:opacity-30"
+                      className="flex size-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-30"
                     >
                       <ChevronDown className="size-3.5" />
                     </button>

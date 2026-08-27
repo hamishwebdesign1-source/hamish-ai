@@ -91,14 +91,19 @@ export function TodayStripPanel({ initialStats }: { initialStats: TodayStatId[] 
         {selected.length > 0 && (
           <ol className="mt-4 space-y-1.5">
             {selected.map((id, i) => (
-              <li key={id} className="flex items-center gap-2 rounded-lg border border-border px-3 py-1.5 text-sm">
+              <li key={id} className="flex items-center gap-2 rounded-lg border border-border py-1 pr-1 pl-3 text-sm">
                 <span className="font-mono text-xs text-muted-foreground">{i + 1}</span>
                 <span className="flex-1">{TODAY_STAT_LABELS[id]}</span>
+                {/* Real touch-target fix — a bare 14px icon in an
+                    unpadded button was ~14x14px tappable, well under the
+                    44x44 guideline. size-9 (36px) matches the icon-
+                    button size already used elsewhere in this codebase
+                    (e.g. the avatar squares in clients-panel.tsx). */}
                 <button
                   type="button"
                   disabled={i === 0}
                   onClick={() => move(i, -1)}
-                  className="text-muted-foreground hover:text-foreground disabled:opacity-30"
+                  className="flex size-9 shrink-0 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-30"
                   aria-label={`Move ${TODAY_STAT_LABELS[id]} earlier`}
                 >
                   <ChevronUp className="size-3.5" />
@@ -107,7 +112,7 @@ export function TodayStripPanel({ initialStats }: { initialStats: TodayStatId[] 
                   type="button"
                   disabled={i === selected.length - 1}
                   onClick={() => move(i, 1)}
-                  className="text-muted-foreground hover:text-foreground disabled:opacity-30"
+                  className="flex size-9 shrink-0 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-30"
                   aria-label={`Move ${TODAY_STAT_LABELS[id]} later`}
                 >
                   <ChevronDown className="size-3.5" />
