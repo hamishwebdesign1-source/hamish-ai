@@ -24,17 +24,7 @@ rather than duplicating it.
 
 ## In progress
 
-### Screenshot-verify the Command Centre card-hierarchy fix (commit 40e0552)
-
-- **Problem**: 40e0552 restored bg-primary/bg-card tiering across the Command Centre (UX/UI Director audit → Lead Engineer implementation → QA static review, 2026-08-27), but no agent has Studio login credentials — the actual rendered result has never been seen, only reasoned about from token math.
-- **Objective**: confirm the visual hierarchy actually reads as intended on a real authenticated Command Centre.
-- **User**: any signed-in org owner viewing their own Command Centre home.
-- **Priority**: P0 — this is the one open loop blocking the change from being called fully done, and it's already committed (not pushed).
-- **Expected outcome**: a real screenshot (or Hamish's own look) confirms actions_required/TodayStrip read as featured and everything else reads as a calmer, consistent tier.
-- **Acceptance criteria**: screenshot taken on an authenticated session, both a sparse (new-org) and data-heavy org state if feasible; any visual issue found gets a fast follow-up fix.
-- **Relevant agent**: UX/UI Director (second pass, per its own mandate's "review the real thing, not the diff").
-- **Dependencies**: Hamish's own Studio login (no agent has one).
-- **Status**: Needs review.
+_(none yet)_
 
 ## Ready
 
@@ -45,16 +35,16 @@ rather than duplicating it.
 - **User**: whoever next touches Command Centre card rendering.
 - **Priority**: P2.
 - **Relevant agent**: Lead Engineer.
-- **Dependencies**: none.
+- **Dependencies**: needs `@testing-library/react` (or equivalent) added as a real dependency — not installed yet, checked 2026-08-27. A real decision (new tooling), not just writing the tests.
 - **Status**: Ready.
 
-### Move HealthRing off hardcoded text-primary-foreground
+### Add a real "clear demo data" affordance
 
-- **Problem**: `src/components/analytics/health-ring.tsx` hardcodes `text-primary-foreground` (+ two opacity tiers) instead of inheriting `currentColor`. Not visually broken today (`--card-foreground`/`--primary-foreground` happen to be near-identical near-white values in `.studio-shell`), but it's real token drift — if those two tokens are ever tuned to diverge, this becomes a silent contrast bug with no test to catch it. Found by QA during the 2026-08-27 Command Centre review.
-- **Objective**: HealthRing inherits its text color from whatever card it's placed in, correctly, regardless of future token changes.
-- **User**: N/A (a correctness/maintainability fix, not user-facing today).
+- **Problem**: the seed "Demo Client — delete me when done exploring" data (Clients, Requests) has copy that assumes an obvious way to delete it, but none was found during a 2026-08-27 live pass. Real onboarding friction — a new tenant either lives with fake data indefinitely or has to hand-delete each piece themselves.
+- **Objective**: TBD — needs Product Director to confirm intent (was a one-click "clear demo data" actually meant to exist, or is per-item manual deletion the deliberate design) before scoping a fix.
+- **User**: any new org exploring the product before real data exists.
 - **Priority**: P2.
-- **Relevant agent**: Lead Engineer.
+- **Relevant agent**: Product Director (confirm intent first), then Lead Engineer.
 - **Dependencies**: none.
 - **Status**: Ready.
 
@@ -76,6 +66,27 @@ _(none yet)_
 
 ## Complete
 
-_(none yet — completed work before this backlog existed is recorded in
-`PRODUCT-ROADMAP.md`'s "Recently completed" instead of being backfilled
-here)_
+### Screenshot-verify the Command Centre card-hierarchy fix (commit 40e0552)
+
+Closed 2026-08-27 — Hamish signed into a real Studio session and handed
+the Browser pane to it. Confirmed via exact computed pixel values
+(rgb(12,20,33) vs rgb(7,13,24)) that the fix was live and correct but
+visually subtle; shipped a follow-up accent ring (`e5931f7`) on top,
+re-verified live again after that deploy too.
+
+### Move HealthRing off hardcoded text-primary-foreground
+
+Closed 2026-08-27 (`0c4b85f`) — added an explicit `tone` prop instead of
+a `currentColor` switch, since the component has 5 real consumers and a
+global switch risked changing 4 of them nobody had audited.
+
+### docs/RUNBOOK.md's stale 5-job cron table
+
+Closed 2026-08-27 (`1ce4eb4`) — corrected to the real 13, cross-checked
+against `cron-schedule.ts`'s `CRON_SPECS`.
+
+### stripKit() missing defensive coercion
+
+Closed 2026-08-27 (`419f363`) — brought up to the same standard as
+`stripBrief()`/`reconcilePhases()`, plus a real 3-attempt retry loop in
+`draftSalesKit()` matching the sibling files' own convention.
