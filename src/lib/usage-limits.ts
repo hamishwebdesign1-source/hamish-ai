@@ -67,6 +67,42 @@ const USAGE_MULTIPLIER: Record<Exclude<UsageEventType, "prospect_researched">, n
   website_troubleshooting_generated: 10,
 };
 
+// Real-improvement pass — shared source of truth for human-readable
+// labels, needed in two places now (the Billing page's own usage
+// display, and usage-warnings.ts's proactive-limit emails). Started as
+// a display-only map local to billing/page.tsx; moved here once a
+// second real consumer needed the exact same labels, rather than let
+// two near-identical copies drift.
+export const USAGE_LABELS: Record<UsageEventType, string> = {
+  prospect_researched: "Prospects researched",
+  sales_kit_generated: "Sales kits generated",
+  website_mockup_generated: "Website mockups generated",
+  icp_built: "ICPs built",
+  request_triaged: "Client requests triaged",
+  clients_copilot_question: "AI Business Analyst questions",
+  layout_redesign_proposed: "AI Design Assistant edits",
+  website_brief_generated: "Website briefs generated",
+  website_build_prompt_generated: "Website build prompts generated",
+  website_troubleshooting_generated: "Website troubleshooting fixes",
+};
+
+// All 10 real metered types, in the same order USAGE_MULTIPLIER lists
+// the 9 secondary ones (prospect_researched first, the one marketed
+// plan feature) — the one place both billing/page.tsx and
+// usage-warnings.ts can loop over "every real usage type" from.
+export const ALL_USAGE_EVENT_TYPES: UsageEventType[] = [
+  "prospect_researched",
+  "sales_kit_generated",
+  "website_mockup_generated",
+  "icp_built",
+  "request_triaged",
+  "clients_copilot_question",
+  "layout_redesign_proposed",
+  "website_brief_generated",
+  "website_build_prompt_generated",
+  "website_troubleshooting_generated",
+];
+
 function limitFor(eventType: UsageEventType, plan: PlatformPlanSlug): number {
   const prospectsPerMonth = getPlatformPlan(plan).prospectsPerMonth;
   if (eventType === "prospect_researched") return prospectsPerMonth;

@@ -115,9 +115,9 @@ export const CRON_SPECS: CronSpec[] = [
   },
   {
     name: "trial-reminders",
-    label: "Trial reminders",
+    label: "Trial & usage reminders",
     description:
-      "Emails an agency on the free trial 3 days out, 1 day out, and the day their trial actually lapses, so they aren't cut off from prospecting with no warning.",
+      "Emails an agency on the free trial 3 days out, 1 day out, and the day their trial lapses, and warns any org that's crossed 80% of a real monthly usage limit, once per type per month.",
     schedule: "0 11 * * *",
     nextRun: () => nextDaily(11),
   },

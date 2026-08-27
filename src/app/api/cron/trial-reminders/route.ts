@@ -1,10 +1,21 @@
 import { NextResponse } from "next/server";
 import { sendTrialReminders } from "@/lib/trial-reminders";
+import { sendUsageWarnings } from "@/lib/usage-warnings";
 import { sendErrorAlert } from "@/lib/send-error-alert";
 import { recordCronRun } from "@/lib/record-cron-run";
 
 // Triggered daily by the Vercel Cron job in vercel.json — same
 // shared-secret bearer-token pattern as every other cron route.
+//
+// Also runs the proactive usage-limit warning (usage-warnings.ts, a
+// real-improvement pass) — deliberately folded into this same cron
+// rather than given its own vercel.json entry, same reasoning as
+// adoption-snapshot folding into health-snapshot: architecturally the
+// same shape (a daily check against a real threshold, one warning
+// email when crossed), and this session flagged the cron count as
+// worth a Vercel plan check more than once already. The two stay
+// separate functions/tables/failure modes below, just one shared
+// trigger.
 export async function GET(request: Request) {
   const authHeader = request.headers.get("authorization");
   const expected = `Bearer ${process.env.CRON_SECRET}`;
@@ -19,7 +30,25 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: result.error }, { status: 500 });
   }
 
-  await recordCronRun("trial-reminders", "success", { summary: { sent: result.sent.length } });
+  // A failed usage-warnings pass doesn't undo an already-successful
+  // trial-reminders one — each write stands on its own, same "never let
+  // a secondary failure erase a real completed run" instinct as the
+  // health/adoption snapshot cron already established.
+  const usageResult = await sendUsageWarnings();
+  if ("error" in usageResult) {
+    await sendErrorAlert("Usage warnings cron", usageResult.error ?? "Unknown error.");
+  }
 
-  return NextResponse.json({ sent: result.sent.length });
+  await recordCronRun("trial-reminders", "success", {
+    summary: {
+      sent: result.sent.length,
+      usageWarningsSent: "error" in usageResult ? null : usageResult.sent.length,
+      usageWarningsError: "error" in usageResult ? usageResult.error : null,
+    },
+  });
+
+  return NextResponse.json({
+    sent: result.sent.length,
+    usageWarningsSent: "error" in usageResult ? null : usageResult.sent.length,
+  });
 }

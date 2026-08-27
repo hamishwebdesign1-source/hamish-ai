@@ -3,7 +3,7 @@ import { Check, Clock, CreditCard, Rocket, Zap, Building2, Sparkles, Gauge } fro
 import { createServerSupabaseClient } from "@/lib/supabase-server-auth";
 import { getOrgMembership } from "@/lib/org-membership";
 import { platformPlans, formatMonthlyPrice, PROSPECT_CREDIT_PACK, type PlatformPlanSlug } from "@/lib/platform-plans";
-import { getUsageStatus, type UsageEventType } from "@/lib/usage-limits";
+import { getUsageStatus, USAGE_LABELS, ALL_USAGE_EVENT_TYPES } from "@/lib/usage-limits";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -13,37 +13,11 @@ import { startCheckout, openBillingPortal, buyCreditPack } from "./actions";
 // Real-improvement pass — usage-limits.ts has always tracked 10 real,
 // individually plan-limited actions (getUsageStatus, one real ceiling
 // per type), but none of it was ever shown to a tenant anywhere — the
-// only way to learn you were close to a limit was to hit it. Display-
-// only labels, kept local rather than exported from usage-limits.ts
-// itself, same "display concern belongs where it's displayed"
-// reasoning as this file's own planIcons map below.
-const USAGE_LABELS: Record<UsageEventType, string> = {
-  prospect_researched: "Prospects researched",
-  sales_kit_generated: "Sales kits generated",
-  website_mockup_generated: "Website mockups generated",
-  icp_built: "ICPs built",
-  request_triaged: "Client requests triaged",
-  clients_copilot_question: "AI Business Analyst questions",
-  layout_redesign_proposed: "AI Design Assistant edits",
-  website_brief_generated: "Website briefs generated",
-  website_build_prompt_generated: "Website build prompts generated",
-  website_troubleshooting_generated: "Website troubleshooting fixes",
-};
-
-// Secondary (fair-use) types, in the same order usage-limits.ts's own
-// USAGE_MULTIPLIER lists them — prospect_researched is the one marketed
-// plan feature, shown on its own above these.
-const SECONDARY_USAGE_TYPES: UsageEventType[] = [
-  "sales_kit_generated",
-  "website_mockup_generated",
-  "icp_built",
-  "request_triaged",
-  "clients_copilot_question",
-  "layout_redesign_proposed",
-  "website_brief_generated",
-  "website_build_prompt_generated",
-  "website_troubleshooting_generated",
-];
+// only way to learn you were close to a limit was to hit it.
+//
+// Secondary (fair-use) types — everything but prospect_researched, the
+// one marketed plan feature shown on its own above these.
+const SECONDARY_USAGE_TYPES = ALL_USAGE_EVENT_TYPES.filter((t) => t !== "prospect_researched");
 
 function usageBarColor(status: { used: number; limit: number }): string {
   if (status.limit === 0) return "bg-white/10";
