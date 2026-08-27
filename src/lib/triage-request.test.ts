@@ -42,11 +42,36 @@ describe("stripTriage", () => {
     expect(result.missing_info).toEqual(["Real question", "Another real question"]);
   });
 
-  it("falls back an invalid category/complexity/priority enum value to a safe default", () => {
-    const result = stripTriage(triage({ category: "not-a-real-category", complexity: "XXL", priority: "critical" } as unknown as Partial<ReturnType<typeof stripTriage>>));
+  it("falls back an invalid category/complexity enum value to a safe default", () => {
+    const result = stripTriage(triage({ category: "not-a-real-category", complexity: "XXL" } as unknown as Partial<ReturnType<typeof stripTriage>>));
     expect(result.category).toBe("other");
     expect(result.complexity).toBe("M");
-    expect(result.priority).toBe("medium");
+  });
+
+  // QA regression (post-083deeb): priority's fallback used to be "medium",
+  // which is the one direction that *allows* an unsupervised auto-send
+  // (isAutoSendEligible requires `priority !== "urgent"`). An unrecognized
+  // value — wrong casing, a hallucinated value outside PRIORITY_VALUES —
+  // could have been genuinely intended as urgent, so the fallback now fails
+  // closed toward "urgent" instead: it only ever routes to human review,
+  // never mis-blocks or mis-sends anything.
+  it("falls back an unrecognized/malformed priority to 'urgent' (fails closed), not 'medium'", () => {
+    const wrongCase = stripTriage(triage({ priority: "Urgent" } as unknown as Partial<ReturnType<typeof stripTriage>>));
+    expect(wrongCase.priority).toBe("urgent");
+
+    const hallucinated = stripTriage(triage({ priority: "critical" } as unknown as Partial<ReturnType<typeof stripTriage>>));
+    expect(hallucinated.priority).toBe("urgent");
+
+    // isWellFormed must still report true — the coercion is a real,
+    // silent field substitution, but it doesn't affect the "did the model
+    // return usable prose" signal isWellFormed checks. The safety net here
+    // is the fallback value itself, not a flag that coercion happened.
+    expect(isWellFormed(wrongCase)).toBe(true);
+
+    // This is the exact predicate isAutoSendEligible applies to triage.priority
+    // (triage-request.ts) — asserting it directly here so a future change to
+    // the fallback that reopens the auto-send gap fails this test too.
+    expect(wrongCase.priority !== "urgent").toBe(false);
   });
 
   it("coerces a non-boolean covered_by_maintenance to false rather than trusting a truthy value", () => {
@@ -83,7 +108,7 @@ describe("stripTriage", () => {
       covered_by_maintenance: false,
       coverage_reasoning: "",
       draft_response: "",
-      priority: "medium",
+      priority: "urgent",
       missing_info: [],
       suggested_task: undefined,
     });

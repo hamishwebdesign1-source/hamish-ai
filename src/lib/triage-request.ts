@@ -164,7 +164,17 @@ export function stripTriage(raw: unknown): TriageResult {
     covered_by_maintenance: toSafeBoolean(r.covered_by_maintenance),
     coverage_reasoning: toText(r.coverage_reasoning),
     draft_response: toText(r.draft_response),
-    priority: toEnum(r.priority, PRIORITY_VALUES, "medium"),
+    // Fails closed, unlike complexity/covered_by_maintenance's fallbacks
+    // which already fail closed toward blocking auto-send ("M" and
+    // false). An unrecognized/malformed priority (wrong casing, a
+    // hallucinated value outside PRIORITY_VALUES) used to fall back to
+    // "medium", which satisfies isAutoSendEligible's `priority !== "urgent"`
+    // check below and let a malformed value that may well have been
+    // *intended* as urgent slip into an unsupervised client email send with
+    // no trace that coercion happened. Defaulting to "urgent" here is free —
+    // it only ever routes a request to human review, never blocks or
+    // mis-sends anything (QA finding, post-083deeb).
+    priority: toEnum(r.priority, PRIORITY_VALUES, "urgent"),
     missing_info: toStringArray(r.missing_info),
     suggested_task: stripSuggestedTask(r.suggested_task),
   };

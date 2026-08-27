@@ -8,6 +8,40 @@ just at product-decision scope instead of line scope.
 
 ---
 
+## 2026-08-27 — Fixed `priority`'s fallback fail-open gap in `stripTriage()`; corrected this doc's own comparison to `draft-sales-kit.ts`
+
+**Decision**: `toEnum()`'s fallback for `priority` (added in the entry
+directly below this one) defaulted an unrecognized/malformed value —
+wrong casing, a hallucinated value outside `PRIORITY_VALUES` — to
+`"medium"`. `isAutoSendEligible` requires `triage.priority !== "urgent"`
+to allow an unsupervised, zero-human-review client email send, so a
+malformed value that may well have been *intended* as `"urgent"` (e.g.
+`"Urgent"`) silently lost its human-review guarantee, with `isWellFormed()`
+still reporting `true` and no trace in `request.auto_sent`'s metadata that
+any coercion happened. `complexity`'s fallback (`"M"`) and
+`covered_by_maintenance`'s fallback (`false`) both already fail *closed*
+(toward blocking auto-send) when malformed — `priority` was the one field
+whose fallback failed *open*. Changed the fallback to `"urgent"`: this
+costs nothing (it only ever routes an extra request to human review, never
+blocks or mis-sends anything) and closes the gap. QA caught this in review
+of the commit below; not caught at the time because the coercion work
+focused on "never crash / never save a structurally wrong type," not on
+each fallback's *direction* of safety once the field went on to gate a
+real send decision.
+
+**Correcting this doc**: the entry below frames this fix as "the same
+`stripKit()`/`isWellFormed()` defensive-coercion standard" as
+`draft-sales-kit.ts`. That's accurate for the coercion *architecture*
+(guard every field, never trust the cast, retry loop) but QA flagged, and
+this note confirms, that it doesn't hold for this specific failure mode:
+`draft-sales-kit.ts` has no enum fields and no `toEnum()`-equivalent, so it
+never had — and doesn't share — this fail-open-on-an-enum-fallback gap.
+`toEnum()` and this class of "which direction does an unrecognized value
+default to" question are unique to `triage-request.ts`, the one call site
+whose enum output (`priority`) directly gates an autonomous send decision.
+Read the entry below as "brought the coercion pattern up to the same
+standard," not "had, and fixed, the identical bug."
+
 ## 2026-08-27 — Brought `triage-request.ts` up to the `stripKit()`/`isWellFormed()` defensive-coercion standard
 
 **Decision**: `triage-request.ts` was the only AI tool-call site in the
@@ -17,7 +51,8 @@ was read directly via `triage.missing_info?.length`, the exact "field came
 back as a bare string" failure mode `research-lead.ts` and
 `draft-sales-kit.ts` already defend against. Added `stripTriage()` (coerces
 every field: string enums fall back to a safe default —
-`category`→`"other"`, `complexity`→`"M"`, `priority`→`"medium"` —
+`category`→`"other"`, `complexity`→`"M"`, `priority`→`"medium"` (later
+corrected to `"urgent"` — see the entry above this one) —
 `missing_info` coerces to `string[]` via the same `toStringArray` shape as
 `draft-sales-kit.ts`'s `stripKit()`, `covered_by_maintenance` coerces to a
 real boolean rather than trusting a truthy value, `suggested_task` is

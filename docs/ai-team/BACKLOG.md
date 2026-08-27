@@ -86,6 +86,14 @@ the full reasoning. Added `triage-request.test.ts` (15 tests). Scope held
 to coercion only — `sender.isInternal` gate and auto-send thresholds
 untouched.
 
+Follow-up (same day, QA review): `priority`'s fallback was itself
+fail-open (`"medium"` on an unrecognized value, which satisfies
+`isAutoSendEligible`'s `priority !== "urgent"` check) unlike
+`complexity`'s/`covered_by_maintenance`'s fallbacks, which already fail
+closed. Changed to `"urgent"`. See `DECISIONS.md`'s follow-up entry —
+also corrects that entry's comparison to `draft-sales-kit.ts`, which has
+no enum fields and never shared this specific gap.
+
 ### Add render/interaction test coverage for the Command Centre card components
 
 Closed 2026-08-27 — added `@testing-library/react`, `@testing-library/jest-dom`,
