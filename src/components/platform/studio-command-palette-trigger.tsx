@@ -13,6 +13,7 @@ export function StudioCommandPaletteTrigger() {
     <button
       type="button"
       onClick={() => window.dispatchEvent(new Event("hamishai:open-studio-command-palette"))}
+      aria-label="Search"
       className="flex items-center gap-2 rounded-lg border border-border bg-secondary/40 px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
     >
       <Search className="size-3.5" />

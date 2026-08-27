@@ -106,7 +106,27 @@ solution.
   `AddProspectControl` (`campaigns-panel.tsx`). All three now have real,
   specific labels ("Filter by status", "Sort prospects by", "Add a
   prospect to this campaign") rather than relying on placeholder option
-  text a screen reader won't announce as the control's name.
+  text a screen reader won't announce as the control's name. A follow-up
+  live-DOM check (2026-08, via an authenticated session's own browser
+  tools, not static reading) found two more in `requests-panel.tsx` —
+  the task→project assignment select and the request→website-project
+  picker — now labelled "Assign task to project" and "Choose website
+  project" respectively. Sweep every `<select>` when auditing this again,
+  not just the files touched by the most recent change.
+- A visible-text button whose label conditionally hides at a breakpoint
+  (e.g. `<span className="hidden sm:inline">Search</span>` inside
+  `StudioCommandPaletteTrigger`) loses that text from its accessible name
+  below the breakpoint — CSS `display: none` removes it from the
+  accessibility tree, `textContent` alone doesn't reveal this (verified
+  via `getComputedStyle` on the actual live DOM, not the text content
+  API). Give the button its own unconditional `aria-label` rather than
+  relying on visible text that might not always be visible.
+- `read_page`'s interactive-element scan is not reliable for auditing
+  accessible names — it reported buttons with real, correct visible text
+  (e.g. `ClientsCopilot`'s toggle) as unlabelled. Verify a suspected
+  missing-label finding with direct DOM inspection
+  (`getComputedStyle`/`aria-label`/`textContent` on the actual element)
+  before treating it as confirmed.
 - A CTA block's `href` (Command Centre no-code builder) only ever renders a
   real internal path or an `https://` URL — `sanitizeBlocksForWrite()`
   rejects `javascript:`, `data:`, protocol-relative, and plain `http://`

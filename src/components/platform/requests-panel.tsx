@@ -143,6 +143,7 @@ function TaskRow({ task, projects }: { task: Task; projects: Project[] }) {
             value={projectId}
             onChange={(e) => setTaskProject(e.target.value)}
             disabled={projectPending}
+            aria-label="Assign task to project"
             className={`${selectClasses} ml-auto`}
           >
             <option value="">No project</option>
@@ -217,6 +218,7 @@ function WebsiteTaskSection({
               value={selectedProjectId}
               onChange={(e) => setSelectedProjectId(e.target.value)}
               disabled={pending}
+              aria-label="Choose website project"
               className={selectClasses}
             >
               {websiteProjects.map((p) => (
