@@ -24,12 +24,14 @@ import type { HealthTrend } from "@/lib/studio-health-history";
 // section card) — the two things genuinely meant to read as "look here
 // first." These stat cards use plain bg-card/text-card-foreground
 // instead, same as every other Studio card (clients-panel.tsx,
-// campaigns-panel.tsx). HealthRing (analytics/health-ring.tsx) keeps
-// its own hardcoded text-primary-foreground center label unchanged —
-// still correct here since .studio-shell keeps both --card and
-// --primary as similarly dark surfaces (see globals.css), and HealthRing
-// is reused as-is on other genuinely-primary surfaces elsewhere (hero
-// product panel, client detail pages).
+// campaigns-panel.tsx). HealthRing (analytics/health-ring.tsx) now takes
+// an explicit tone="card" here — its previous hardcoded
+// text-primary-foreground center label happened to still look right on
+// bg-card (.studio-shell keeps --card and --primary as similarly-dark
+// surfaces), but that was luck, not a real fix, and QA flagged it as
+// real token drift. HealthRing's other real callers (hero product panel,
+// client detail pages) are genuinely on primary surfaces and keep the
+// tone="primary" default unchanged.
 //
 // Business Health uses the same horizontal icon+number+label shape as
 // every sibling here — a real, visible fix, not a stylistic preference:
@@ -64,7 +66,7 @@ export function buildStatContent(params: {
             </>
           ) : (
             <>
-              <HealthRing score={agencyHealth.healthScore} size={44} strokeWidth={5} centerLabel={String(agencyHealth.healthScore)} />
+              <HealthRing score={agencyHealth.healthScore} size={44} strokeWidth={5} centerLabel={String(agencyHealth.healthScore)} tone="card" />
               <div className="min-w-0">
                 <p className="flex items-center gap-1 text-xs text-muted-foreground">
                   Business Health
