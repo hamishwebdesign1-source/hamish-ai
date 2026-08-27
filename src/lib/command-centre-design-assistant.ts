@@ -47,6 +47,7 @@ const BLOCK_TOOL_SCHEMA = {
         "client_ai_adoption",
         "top_prospects",
         "recent_activity",
+        "health_breakdown",
         "chart",
         "text",
         "cta",
@@ -66,7 +67,7 @@ const BLOCK_TOOL_SCHEMA = {
       type: "integer",
       enum: [1, 2],
       description:
-        "1 = standard width, 2 = double width. Omit for actions_required/insights/briefing/engagement_risk/model_performance/client_ai_adoption/top_prospects/recent_activity, which always render full width.",
+        "1 = standard width, 2 = double width. Omit for actions_required/insights/briefing/engagement_risk/model_performance/client_ai_adoption/top_prospects/recent_activity/health_breakdown, which always render full width.",
     },
   },
   required: ["id", "type"],
@@ -107,7 +108,7 @@ function buildSystemPrompt(currentBlocks: Block[]): string {
 
 Available block types:
 - stat: one of 5 fixed cards — ${STAT_CARD_IDS.map((id) => `"${id}" (${STAT_LABELS[id]})`).join(", ")}. Each can appear at most once.
-- actions_required, insights, briefing, engagement_risk, model_performance, client_ai_adoption, top_prospects, recent_activity: fixed section blocks (${SECTION_TYPES.map((t) => `"${SECTION_LABELS[t]}"`).join(", ")}). Each can appear at most once. Always full width — never set span on these. engagement_risk lists clients who've gone quiet or fallen behind on an invoice — it's rule-based on real request/invoice dates, not a prediction. model_performance shows real success rate, latency and cost for this org's own AI Design Assistant and AI Business Analyst calls. client_ai_adoption shows what share of active clients have the AI chatbot feature turned on for their own website. top_prospects lists this org's own researched prospects ranked by their real score, up to 5 — the same ranking briefing's own best-opportunity box is drawn from. recent_activity is a real, dated feed of what's happened across the client roster — new clients, requests received and replied to, invoices paid, projects started — up to 8 most recent, newest first.
+- actions_required, insights, briefing, engagement_risk, model_performance, client_ai_adoption, top_prospects, recent_activity, health_breakdown: fixed section blocks (${SECTION_TYPES.map((t) => `"${SECTION_LABELS[t]}"`).join(", ")}). Each can appear at most once. Always full width — never set span on these. engagement_risk lists clients who've gone quiet or fallen behind on an invoice — it's rule-based on real request/invoice dates, not a prediction. model_performance shows real success rate, latency and cost for this org's own AI Design Assistant and AI Business Analyst calls. client_ai_adoption shows what share of active clients have the AI chatbot feature turned on for their own website. top_prospects lists this org's own researched prospects ranked by their real score, up to 5 — the same ranking briefing's own best-opportunity box is drawn from. recent_activity is a real, dated feed of what's happened across the client roster — new clients, requests received and replied to, invoices paid, projects started — up to 8 most recent, newest first. health_breakdown is the full, real component breakdown (site uptime, on-time payment, work completed, requests moving, pipeline conversion) behind the Business Health stat card, shown as percentage bars.
 - chart: a real chart of "revenue", "prospects", or "adoption" (the only three metrics with real data), rendered as "area" or "bar". adoption is a weekly-snapshotted trend of client_ai_adoption's own AI-chatbot-enabled percentage — only has real points once at least one weekly snapshot has run, so it may be empty on a brand-new org even when the other two metrics have data.
 - text: a free-form note with a title and body — use this for anything the agency wants to say that isn't a stat, chart, or link.
 - cta: a button linking to an internal page (starting with "/") or an external https:// page.

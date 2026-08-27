@@ -38,7 +38,8 @@ function blockLabel(block: Block): string {
     block.type === "model_performance" ||
     block.type === "client_ai_adoption" ||
     block.type === "top_prospects" ||
-    block.type === "recent_activity"
+    block.type === "recent_activity" ||
+    block.type === "health_breakdown"
   )
     return SECTION_LABELS[block.type];
   if (block.type === "chart") return `Chart — ${CHART_METRIC_LABELS[block.metric]}`;
@@ -275,7 +276,8 @@ export function CommandCentreLayoutPanel({
               block.type === "model_performance" ||
               block.type === "client_ai_adoption" ||
               block.type === "top_prospects" ||
-              block.type === "recent_activity";
+              block.type === "recent_activity" ||
+              block.type === "health_breakdown";
             const isHiddenBlock = isSingleton && hidden.has(id);
             const hasSpan = "span" in block;
 

@@ -20,7 +20,8 @@ export type SectionType =
   | "model_performance"
   | "client_ai_adoption"
   | "top_prospects"
-  | "recent_activity";
+  | "recent_activity"
+  | "health_breakdown";
 export type ChartMetric = "revenue" | "prospects" | "adoption";
 export type ChartKind = "area" | "bar";
 
@@ -40,6 +41,7 @@ export type Block =
   | { id: string; type: "client_ai_adoption" }
   | { id: string; type: "top_prospects" }
   | { id: string; type: "recent_activity" }
+  | { id: string; type: "health_breakdown" }
   | { id: string; type: "chart"; metric: ChartMetric; kind: ChartKind; span: BlockSpan }
   | { id: string; type: "text"; title: string; body: string; span: BlockSpan }
   | { id: string; type: "cta"; label: string; href: string; span: BlockSpan };
@@ -56,6 +58,7 @@ export const SECTION_TYPES: SectionType[] = [
   "client_ai_adoption",
   "top_prospects",
   "recent_activity",
+  "health_breakdown",
 ];
 
 export const STAT_LABELS: Record<StatCardId, string> = {
@@ -74,6 +77,7 @@ export const SECTION_LABELS: Record<SectionType, string> = {
   client_ai_adoption: "Client AI adoption",
   top_prospects: "Top prospects",
   recent_activity: "Recent activity",
+  health_breakdown: "Business Health breakdown",
 };
 export const CHART_METRIC_LABELS: Record<ChartMetric, string> = { revenue: "Revenue", prospects: "New prospects", adoption: "AI adoption" };
 export const CHART_KIND_LABELS: Record<ChartKind, string> = { area: "Area", bar: "Bar" };
@@ -81,12 +85,12 @@ export const CHART_KIND_LABELS: Record<ChartKind, string> = { area: "Area", bar:
 // The default layout every org sees until it customises anything — the 5
 // stat cards, then the section blocks in SECTION_TYPES order (Phase 5b
 // shipped the first 3; Phase 6c appended engagement_risk after briefing;
-// Command Centre improvement #8 appended top_prospects after
-// client_ai_adoption; the same improvement appended top_prospects and
-// recent_activity right after — each only ever reaches an org's live
-// default this way; a layout already saved before that point keeps
-// exactly what it saved, per sanitizeBlocksForWrite()'s own comment on
-// why that's correct).
+// Command Centre improvement #8 appended top_prospects and
+// recent_activity after client_ai_adoption; the professional-feel pass
+// right after that appended health_breakdown last — each only ever
+// reaches an org's live default this way; a layout already saved before
+// that point keeps exactly what it saved, per sanitizeBlocksForWrite()'s
+// own comment on why that's correct).
 //
 // All five stat cards default to span 1 — genuinely uniform size, not
 // just visually close. health used to default to span 2 (it holds a

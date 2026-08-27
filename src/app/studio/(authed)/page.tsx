@@ -56,23 +56,15 @@ import { TodayStrip, type TodayStat } from "@/components/platform/today-strip";
 import { Reveal } from "@/components/reveal";
 import { Tabs, TabsList, TabsTab, TabsPanel } from "@/components/ui/tabs";
 
-// Display-only shortenings for the Business Health card specifically —
-// computeAgencyHealth() itself still returns the real, full label
-// ("Client sites uptime"), used anywhere else this data appears. In the
-// health card's own single-width column, the full label wraps onto two
-// lines per row, which is what made the card as a whole so much taller
-// than its plain siblings that stretch had to paper over with dead
-// space in the rest of the row. One line per row instead — an unmapped
-// label (there shouldn't be one; this covers every component
-// computeAgencyHealth() can return) falls back to the real label rather
-// than silently dropping it.
-const HEALTH_LABEL_SHORT: Record<string, string> = {
-  "Client sites uptime": "Uptime",
-  "Client payments on time": "Payments",
-  "Delivery completed": "Delivery",
-  "Requests moving": "Requests",
-  "Pipeline conversion": "Pipeline",
-};
+// Real-data colour tiers for the Business Health breakdown bars — same
+// 80/50 thresholds clients-panel.tsx's own healthBadgeVariant() already
+// uses for the identical per-client score, just applied per-component
+// here instead of to one overall number.
+function healthBarColor(value: number): string {
+  if (value >= 80) return "bg-accent";
+  if (value >= 50) return "bg-warning";
+  return "bg-destructive";
+}
 
 const INSIGHT_ICON: Record<InsightCategory, typeof Sparkles> = {
   opportunity: Sparkles,
@@ -124,6 +116,7 @@ function blockTab(block: Block): CommandCentreTabId {
   switch (block.type) {
     case "actions_required":
     case "insights":
+    case "health_breakdown":
     case "text":
     case "cta":
       return "overview";
@@ -455,67 +448,57 @@ export default async function StudioHomePage() {
     // Every stat card is now this same dark language, not just Business
     // Health — direct instruction to replicate that card's style across
     // the whole page rather than keep it as the one dark exception.
-    // Header row is consistently icon+label (left) / HelpTip (right) via
-    // justify-between — the previous version packed HelpTip directly
-    // after the label with no room to breathe, which is the real reason
-    // the whole card read as cramped, not just the stat list below it.
+    // Same horizontal icon+number+label shape as every sibling below —
+    // a real, visible fix, not a stylistic preference: the previous
+    // vertical layout (header row, ring, then a 5-row driver
+    // breakdown stacked underneath) made this card visibly ~40% taller
+    // than its plain siblings in production, which read as broken, not
+    // as "an ordinary dashboard hero card a bit taller than its
+    // neighbours" the way it had been reasoned through here before.
+    // The driver breakdown itself wasn't dropped, just moved to where
+    // it has room to be useful — its own full-width health_breakdown
+    // section block, in the Overview tab.
     health: (
-      <Card className="h-full overflow-hidden border-none bg-primary text-primary-foreground">
-        <CardContent className="flex h-full flex-col p-5">
-          <div className="flex items-center justify-between gap-2">
-            <p className="flex items-center gap-1.5 text-xs font-semibold text-primary-foreground/70">
-              <Activity className="size-3.5 shrink-0" />
-              Business Health
-            </p>
-            <HelpTip explanation="An average of real, measured components across your whole client roster — site uptime, on-time payment, work completed, requests moving, and pipeline conversion. Only components with real data are included. Once there's at least three weeks of history, you'll also see how the score has moved." />
-          </div>
+      <Card className="h-full border-none bg-primary text-primary-foreground">
+        <CardContent className="flex items-center gap-3.5 p-5">
           {agencyHealth.healthScore === null ? (
-            <p className="mt-4 flex-1 text-sm text-primary-foreground/60">
-              Not enough data yet — this fills in once you have clients with real requests, invoices, or projects.
-            </p>
-          ) : (
-            // Ring above the breakdown, not beside it — this card is a
-            // single-width column now, same as every other stat card
-            // (see the grid's own comment on why). Kept deliberately
-            // compact: a small ring and one line per driver row (see
-            // HEALTH_LABEL_SHORT above) rather than the wider ring and
-            // two-line labels an earlier version of this layout had —
-            // that version was tall enough that making every card in
-            // the row match its height (the grid's old items-stretch)
-            // left real empty space in the plain cards beside it. This
-            // card being close to their natural height is what makes
-            // items-start (every card sized to its own content) not
-            // need that crutch.
-            <div className="mt-3 flex flex-1 flex-col items-center gap-2">
-              <HealthRing score={agencyHealth.healthScore} size={48} strokeWidth={5} centerLabel={String(agencyHealth.healthScore)} />
-              {healthTrend && (
-                <p
-                  className={`flex items-center gap-0.5 text-[10px] font-medium ${
-                    healthTrend.deltaValue > 0
-                      ? "text-accent"
-                      : healthTrend.deltaValue < 0
-                        ? "text-destructive"
-                        : "text-primary-foreground/50"
-                  }`}
-                >
-                  {healthTrend.deltaValue > 0 && <ArrowUp className="size-2.5 shrink-0" />}
-                  {healthTrend.deltaValue < 0 && <ArrowDown className="size-2.5 shrink-0" />}
-                  {healthTrend.deltaValue === 0 ? "No change" : `${healthTrend.deltaValue > 0 ? "+" : ""}${healthTrend.deltaValue}`} vs{" "}
-                  {healthTrend.daysAgo}d ago
-                </p>
-              )}
-              <div className="flex w-full flex-col">
-                {agencyHealth.components.map((c) => (
-                  <div
-                    key={c.label}
-                    className="flex items-center justify-between gap-2 border-t border-white/10 py-1.5 first:border-t-0 first:pt-0"
-                  >
-                    <p className="truncate text-[11px] text-primary-foreground/50">{HEALTH_LABEL_SHORT[c.label] ?? c.label}</p>
-                    <p className="shrink-0 text-xs leading-none font-semibold text-primary-foreground">{c.value}%</p>
-                  </div>
-                ))}
+            <>
+              <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-white/10">
+                <Activity className="size-5" />
+              </span>
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-primary-foreground/70">Not enough data yet</p>
+                <p className="text-xs text-primary-foreground/50">Business Health</p>
               </div>
-            </div>
+            </>
+          ) : (
+            <>
+              <HealthRing score={agencyHealth.healthScore} size={44} strokeWidth={5} centerLabel={String(agencyHealth.healthScore)} />
+              <div className="min-w-0">
+                <p className="flex items-center gap-1 text-xs text-primary-foreground/60">
+                  Business Health
+                  <HelpTip explanation="An average of real, measured components across your whole client roster — site uptime, on-time payment, work completed, requests moving, and pipeline conversion. Full breakdown in the Overview tab below. Once there's at least three weeks of history, you'll also see how the score has moved." />
+                </p>
+                {healthTrend ? (
+                  <p
+                    className={`flex items-center gap-0.5 text-xs font-medium ${
+                      healthTrend.deltaValue > 0
+                        ? "text-accent"
+                        : healthTrend.deltaValue < 0
+                          ? "text-destructive"
+                          : "text-primary-foreground/50"
+                    }`}
+                  >
+                    {healthTrend.deltaValue > 0 && <ArrowUp className="size-3 shrink-0" />}
+                    {healthTrend.deltaValue < 0 && <ArrowDown className="size-3 shrink-0" />}
+                    {healthTrend.deltaValue === 0 ? "No change" : `${healthTrend.deltaValue > 0 ? "+" : ""}${healthTrend.deltaValue}`} vs{" "}
+                    {healthTrend.daysAgo}d ago
+                  </p>
+                ) : (
+                  <p className="text-xs text-primary-foreground/40">See breakdown below</p>
+                )}
+              </div>
+            </>
           )}
         </CardContent>
       </Card>
@@ -572,8 +555,14 @@ export default async function StudioHomePage() {
             <PoundSterling className="size-5" />
           </span>
           <div>
+            {/* £0 is a real number (no active deals have a value estimate
+                yet), not missing data — shown plainly rather than as a
+                bare "—", which reads as an error next to real figures on
+                the same row. Conversion rate's own "—" a few cards over
+                is a different, genuine case: a rate is undefined with
+                zero prospects to divide by, not just currently zero. */}
             <p className="font-heading text-2xl font-semibold tabular-nums">
-              {pipelineValuePence > 0 ? <CountUp value={Math.round(pipelineValuePence / 100)} prefix="£" /> : "—"}
+              <CountUp value={Math.round(pipelineValuePence / 100)} prefix="£" />
             </p>
             <p className="text-xs text-primary-foreground/60">Pipeline value</p>
           </div>
@@ -596,7 +585,8 @@ export default async function StudioHomePage() {
       | "model_performance"
       | "client_ai_adoption"
       | "top_prospects"
-      | "recent_activity",
+      | "recent_activity"
+      | "health_breakdown",
       ReactNode
     >
   > = {
@@ -926,6 +916,38 @@ export default async function StudioHomePage() {
           </CardContent>
         </Card>
       ) : undefined,
+    // Professional-feel pass — the real component breakdown that used
+    // to be crammed into the Business Health stat card (see that card's
+    // own comment on why it moved). Full labels now that it has real
+    // room, plus a coloured bar per component using the same 80/50
+    // thresholds clients-panel.tsx's own healthBadgeVariant() already
+    // uses for the identical score.
+    health_breakdown:
+      agencyHealth.healthScore !== null && agencyHealth.components.length > 0 ? (
+        <Card className="border-none bg-primary text-primary-foreground">
+          <CardContent className="p-5">
+            <div className="flex items-center justify-between gap-2">
+              <p className="flex items-center gap-1.5 text-xs font-semibold text-primary-foreground/70">
+                <Activity className="size-3.5 shrink-0" /> Business Health breakdown
+              </p>
+              <HelpTip explanation="Same real, measured components behind your Business Health score above — site uptime, on-time payment, work completed, requests moving, and pipeline conversion. Only components with real data are shown." />
+            </div>
+            <div className="mt-4 space-y-3">
+              {agencyHealth.components.map((c) => (
+                <div key={c.label}>
+                  <div className="flex items-center justify-between gap-2 text-xs">
+                    <span className="text-primary-foreground/70">{c.label}</span>
+                    <span className="font-mono font-semibold text-primary-foreground">{c.value}%</span>
+                  </div>
+                  <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-white/10">
+                    <div className={`h-full rounded-full ${healthBarColor(c.value)}`} style={{ width: `${c.value}%` }} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      ) : undefined,
   };
 
   // Renders one non-stat block exactly as before (same JSX per type,
@@ -942,7 +964,8 @@ export default async function StudioHomePage() {
       block.type === "model_performance" ||
       block.type === "client_ai_adoption" ||
       block.type === "top_prospects" ||
-      block.type === "recent_activity"
+      block.type === "recent_activity" ||
+      block.type === "health_breakdown"
     ) {
       const content = sectionContent[block.type];
       if (!content) return null;
@@ -1077,12 +1100,13 @@ export default async function StudioHomePage() {
 
       {/* Everything else (Actions required / Insights / Your briefing /
           Engagement risk / Model performance / Client AI adoption / Top
-          prospects / Recent activity, plus any chart/text/cta blocks) —
-          grouped into tabs instead of one long vertical stack, now that
-          the block library has grown to 8 section types plus whatever
-          charts/text/cta an org's added (see blockTab()'s own comment
-          on the grouping and why it's presentation-only: Settings →
-          Command Centre layout still owns order/width/visibility per
+          prospects / Recent activity / Business Health breakdown, plus
+          any chart/text/cta blocks) — grouped into tabs instead of one
+          long vertical stack, now that the block library has grown to 9
+          section types plus whatever charts/text/cta an org's added
+          (see blockTab()'s own comment on the grouping and why it's
+          presentation-only: Settings → Command Centre layout still owns
+          order/width/visibility per
           block, unchanged). A tab with nothing real in it isn't shown
           at all; exactly one populated tab skips the tab bar outright. */}
       {populatedTabs.length > 1 ? (
