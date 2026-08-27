@@ -28,15 +28,7 @@ _(none yet)_
 
 ## Ready
 
-### Add render/interaction test coverage for the Command Centre card components
-
-- **Problem**: QA's 2026-08-27 review found zero automated test coverage over `page.tsx`'s card renderers, `command-centre-stat-cards.tsx`, and `command-centre-section-cards.tsx` — the existing `command-centre-layout.test.ts`/`command-centre-tab-grouping.test.ts` only cover the pure logic modules, not these `.tsx` files. A future accidental revert of the bg-primary/bg-card tiering wouldn't be caught by `npm run test`.
-- **Objective**: real regression coverage over these three files' card-tier logic.
-- **User**: whoever next touches Command Centre card rendering.
-- **Priority**: P2.
-- **Relevant agent**: Lead Engineer.
-- **Dependencies**: needs `@testing-library/react` (or equivalent) added as a real dependency — not installed yet, checked 2026-08-27. A real decision (new tooling), not just writing the tests.
-- **Status**: Ready.
+_(none yet)_
 
 ## Researching
 
@@ -80,3 +72,18 @@ against `cron-schedule.ts`'s `CRON_SPECS`.
 Closed 2026-08-27 (`419f363`) — brought up to the same standard as
 `stripBrief()`/`reconcilePhases()`, plus a real 3-attempt retry loop in
 `draftSalesKit()` matching the sibling files' own convention.
+
+### Add render/interaction test coverage for the Command Centre card components
+
+Closed 2026-08-27 — added `@testing-library/react`, `@testing-library/jest-dom`,
+and `jsdom` as real dev dependencies (per-file `// @vitest-environment
+jsdom` pragma, not a global environment switch — every other test file
+stays on the faster `node` environment). 25 new tests across
+`command-centre-stat-cards.test.tsx`/`command-centre-section-cards.test.tsx`
+covering exactly the regression QA flagged (bg-primary reserved for
+TodayStrip + actions_required only) plus real-content spot checks.
+`page.tsx`'s own inline chart/text/checklist block renderers remain
+untested — they're not extracted into standalone functions the way the
+stat/section cards are, so covering them would mean a refactor first, not
+just writing tests. A real, smaller follow-up if it matters later, not
+done as part of this item.
