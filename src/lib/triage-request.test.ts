@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { stripTriage, isWellFormed } from "./triage-request";
+import { stripTriage, isWellFormed, resolveSender } from "./triage-request";
 
 function triage(overrides: Partial<ReturnType<typeof stripTriage>> = {}) {
   return {
@@ -137,5 +137,58 @@ describe("isWellFormed", () => {
 
   it("agrees with stripTriage's own output on malformed input — never well-formed", () => {
     expect(isWellFormed(stripTriage("garbage"))).toBe(false);
+  });
+});
+
+// P0 fix: a failed/errored organisations lookup previously left
+// sender.isInternal:true standing (the function's pre-lookup default),
+// which flows straight into isAutoSendEligible's `sender.isInternal &&`
+// gate — meaning a transient DB read error could leave a tenant's own
+// client's request eligible for an unsupervised, zero-human-review email
+// auto-sent from HamishAI's own address. resolveSender() must fail closed:
+// any lookup error, or an unexpected null org with no error, resolves to
+// isInternal:false. See docs/ai-team/DECISIONS.md.
+describe("resolveSender", () => {
+  const client = { business_name: "Test Biz", org_id: "org-123" };
+
+  it("fails closed to isInternal:false on a genuine Supabase error on the organisations lookup — not the old isInternal:true default", () => {
+    const orgError = { message: "connection terminated unexpectedly", code: "57P01" };
+    const sender = resolveSender(client, null, orgError);
+
+    expect(sender.isInternal).toBe(false);
+
+    // Mirrors isAutoSendEligible's own gate in triageRequest exactly — this
+    // is the concrete bug this fix closes: with the old default, this
+    // predicate could be true for a request that belongs to a tenant's
+    // own client, not Hamish's.
+    const isAutoSendEligible = sender.isInternal && true && true && true;
+    expect(isAutoSendEligible).toBe(false);
+  });
+
+  it("also fails closed to isInternal:false when the lookup returns no error but no org row either — not just the 'org not found with an error' case", () => {
+    const sender = resolveSender(client, null, null);
+    expect(sender.isInternal).toBe(false);
+  });
+
+  it("still resolves isInternal:true for a genuinely internal org — correctly-succeeding path unchanged", () => {
+    const sender = resolveSender(client, { name: "Hamish AI", is_internal: true }, null);
+    expect(sender).toEqual({ name: "Hamish AI", isInternal: true });
+  });
+
+  it("still resolves isInternal:false with the org's own name for a genuinely non-internal org — correctly-succeeding path unchanged", () => {
+    const sender = resolveSender(client, { name: "Acme Agency", is_internal: false }, null);
+    expect(sender).toEqual({ name: "Acme Agency", isInternal: false });
+  });
+
+  it("only defaults to isInternal:true when org_id itself is absent (a legacy pre-backfill client), not on any lookup failure", () => {
+    const legacyClient = { business_name: "Legacy Client", org_id: null };
+    expect(resolveSender(legacyClient, null, null)).toEqual({ name: "Hamish AI", isInternal: true });
+    // Even a (nonsensical, but defensive) error alongside a missing org_id
+    // still can't reach the DB in the first place — org_id absence takes
+    // precedence since there's nothing to look up.
+    expect(resolveSender(legacyClient, null, { message: "should be unreachable" })).toEqual({
+      name: "Hamish AI",
+      isInternal: true,
+    });
   });
 });

@@ -8,6 +8,109 @@ just at product-decision scope instead of line scope.
 
 ---
 
+## 2026-08-27 — Closed the `sender.isInternal` fail-open gap in `triage-request.ts` (Hamish sign-off)
+
+**Decision**: Implemented the P0 `BACKLOG.md` item once Hamish explicitly
+lifted the sign-off block. `triageRequest()` previously initialised
+`sender = { name: "Hamish AI", isInternal: true }` *before* the
+`organisations` lookup and only overwrote it on a lookup that both
+succeeded and returned a non-internal org — the lookup's own `error` was
+read into a variable that was then discarded. A transient DB read failure
+(network blip, connection pool exhaustion) left `isInternal: true` standing
+for what could be a tenant's own client, satisfying `isAutoSendEligible`'s
+`sender.isInternal &&` gate and risking an unsupervised, zero-human-review
+email sent from HamishAI's own address about a business Hamish has no
+relationship with.
+
+Extracted the whole decision into a new exported, pure `resolveSender(client,
+org, orgError)` function — same reasoning as `stripTriage`/`isWellFormed`
+already being separated out: the failure-mode logic needed to be unit-
+testable without mocking Supabase or the Anthropic client. It now fails
+closed on two distinct cases the backlog item's acceptance criteria called
+out as needing separate coverage: a genuine lookup `error`, and a `null` org
+with no error (not just "org not found returning null" conflated with "the
+query itself failed"). Both now resolve to `isInternal: false`. The only
+path that still resolves to `isInternal: true` is `client.org_id` itself
+being absent — a legacy pre-backfill client, a structurally different case
+from a lookup failure, not something to fail closed on. The two correctly-
+succeeding paths (confirmed internal org, confirmed non-internal org) are
+untouched.
+
+One deliberate, in-scope side effect worth naming: because `isInternal` now
+correctly reads `false` on a lookup error (previously incorrectly `true`),
+every other `sender.isInternal`-gated block in `triageRequest()` also now
+behaves correctly on that same error path, not just the auto-send gate the
+backlog item was scoped around — the "awaiting_info" client email (sent from
+`hello@hamishai.org`, signed "Hamish AI") and the calendar-sync call (writes
+into Hamish's own personal Google Calendar) both also stop firing on an org-
+lookup error, instead of firing as they incorrectly did before. This wasn't
+separately scoped work; it's the same variable driving all three checks, so
+fixing it once correctly closes all three failure modes rather than only the
+one the backlog item named. Confirmed test suite (213 tests, `npm run test`)
+and `npx tsc --noEmit -p .` both green after the change.
+
+## 2026-08-27 — Synthesis of the "best in market" mission: what's genuinely done vs. backlogged, and two security items paused for sign-off
+
+**Decision**: Verified both "FIXED" claims from the UX/UI Director's and
+AI/Agent Architect's audits directly in the git history (`b400beb`,
+`eb8c12d`) rather than taking the summary handed to this pass on faith —
+both real, both QA-verified, both matched what their commits actually
+changed. Wrote 8 new `BACKLOG.md` entries for the genuinely real,
+not-yet-built findings from this mission's three parallel specialist
+passes (UX/UI Director, AI/Agent Architect, Growth & Analytics, Security
+Auditor): two security gaps in `triage-request.ts`/`email-inbox.ts`'s
+autonomous-send path (P0 and P1 respectively — deliberately paused on
+Hamish's explicit sign-off rather than implemented directly, since both
+touch the gate on an unsupervised client-facing email send, which is a
+standing "needs human approval" category per `PRODUCT.md`), the AI
+"recommend → act" wiring gap (P2, the single highest-leverage AI-nativeness
+opportunity found — also flagged for Hamish sign-off since it changes how
+easily a metered AI action can be triggered), a motion-consistency decision
+(resolved now rather than left open: extend `Reveal`/`CountUp` to Analytics
+and Billing specifically, since those are the only two of the other 12
+routes with comparable numeric-stat content, and explicitly do *not* spread
+it to the remaining list/CRUD routes), route-specific loading skeletons
+(P2), the missing production PostHog key (P1, pure Hamish action — an env
+var, not code), the resulting activation-funnel-definition follow-up (P2,
+blocked on the key), and a `useOptimistic` scoping spike (P2, Researching —
+deliberately not committing to implementation before UX/UI Director and
+Lead Engineer name specific, bounded candidates).
+
+**Deliberately not backlogged as separate buildable items**: AI/Agent
+Architect's opportunities #2 (one-click AI-drafted check-in message off
+`engagement_risk`) and #3 (extending autonomous triage to tenant orgs) —
+both real ideas, but #2 is speculative until opportunity #1 proves the
+recommend→act pattern actually gets used, and #3 is blocked on a genuine
+infra prerequisite (tenant-scoped outbound email) and is a bigger,
+cross-cutting call for a future mission's scoping, not a task ready to
+queue today. Backlogging speculative follow-ons to a not-yet-built feature
+would be exactly the kind of premature scope this role exists to push back
+on.
+
+**Final verdict on the mission** ("make Studio feel like the best AI SaaS
+platform"): most of what shipped today is audit-and-safety work, not the
+visible "feels premium" transformation the mission's wording implies on
+its face. Concretely different for a user *today*: Studio's tab panels now
+animate consistently everywhere they appear (previously only some did, an
+inconsistency a careful user would eventually notice), 4 form controls are
+now screen-reader accessible, and one real security gap (the `priority`
+fail-open on an autonomous client email send) is closed. Against this
+mission's own three falsifiable checks from the framing pass: "no dead-end/
+dishonest surfaces" — no new dishonest surface found or introduced;
+"consistency of interaction patterns across all 13 routes" — one real gap
+closed (tabs), several real gaps found and documented but not yet closed
+(motion, loading skeletons, eyebrow headers); "AI surfaces feeling agentic
+not bolted-on" — the AI review found Studio's existing AI-nativeness is
+already fairly strong and honest (not fabricated), identified the one
+concrete gap worth closing (recommend→act), and along the way found a real
+live safety issue in the AI pipeline that mattered more than the original
+"feels agentic" framing and was correctly prioritised over it. That
+re-prioritisation was the right call, not scope drift — a safety gap on an
+unsupervised email-send path is a precondition for AI trust, not a
+distraction from it. The honest summary for Hamish: today mostly produced
+a well-scoped, prioritised backlog and one real safety fix, not a visible
+platform-wide polish pass — the polish work is now queued, not done.
+
 ## 2026-08-27 — Fixed `priority`'s fallback fail-open gap in `stripTriage()`; corrected this doc's own comparison to `draft-sales-kit.ts`
 
 **Decision**: `toEnum()`'s fallback for `priority` (added in the entry

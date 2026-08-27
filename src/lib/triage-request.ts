@@ -30,6 +30,43 @@ type Client = {
 // submission to HamishAI's own clients in the first place.
 type Sender = { name: string; isInternal: boolean };
 
+// Decides who a triage run is on behalf of, from the organisations lookup's
+// own result — separated out so the failure-mode logic is testable without
+// mocking Supabase/Anthropic (same reason stripTriage/isWellFormed are their
+// own exported functions).
+//
+// Fails closed: an errored lookup (network blip, connection pool
+// exhaustion) or an unexpected null-with-no-error both resolve to
+// isInternal:false, never the previous silent default of isInternal:true.
+// That default used to flow straight into isAutoSendEligible's
+// `sender.isInternal &&` gate, meaning a transient DB read failure could
+// leave a tenant's own client's request eligible for an unsupervised,
+// zero-human-review email auto-sent from HamishAI's own address — a real,
+// found bug, not a hypothetical (see docs/ai-team/DECISIONS.md). The only
+// case that still resolves to isInternal:true is client.org_id itself being
+// absent (a pre-backfill legacy client, not a lookup failure) — everything
+// else that isn't a confirmed internal org resolves to isInternal:false.
+export function resolveSender(
+  client: Pick<Client, "business_name" | "org_id">,
+  org: { name: string; is_internal: boolean } | null,
+  orgError: unknown
+): Sender {
+  if (!client.org_id) return { name: "Hamish AI", isInternal: true };
+
+  if (orgError || !org) {
+    // Fail closed. Using client.business_name rather than "Hamish AI" for
+    // the name too — this sender is, by definition, not confirmed to be
+    // Hamish, and isInternal:false already routes every downstream
+    // isInternal-gated path (auto-send, the calendar sync, the
+    // "awaiting_info" email) away from acting as HamishAI's own identity.
+    return { name: client.business_name, isInternal: false };
+  }
+
+  return org.is_internal
+    ? { name: "Hamish AI", isInternal: true }
+    : { name: org.name, isInternal: false };
+}
+
 function buildTriageSystemPrompt(client: Client, sender: Sender) {
   const agentIntro = sender.isInternal
     ? `You are the Request Triage Agent for Hamish AI, an Edinburgh AI consultancy.`
@@ -228,21 +265,21 @@ export async function triageRequest(clientId: string, rawText: string) {
 
   if (clientError || !client) return { error: "Client not found." as const };
 
-  // Resolves who this request actually belongs to — see the Sender type's
-  // own comment above for why this can no longer default to "Hamish AI."
-  // Falls back to internal/Hamish framing only if org_id is somehow
-  // missing (shouldn't happen post-backfill), never silently to a
-  // tenant's own client.
-  let sender: Sender = { name: "Hamish AI", isInternal: true };
+  // Resolves who this request actually belongs to — see resolveSender()'s
+  // own comment above for the fail-closed behaviour on a lookup error, and
+  // the Sender type's comment for why this can no longer default to
+  // "Hamish AI" unconditionally.
+  let sender: Sender;
   if (client.org_id) {
-    const { data: org } = await supabase
+    const { data: org, error: orgError } = await supabase
       .from("organisations")
       .select("name, is_internal, plan")
       .eq("id", client.org_id)
       .single();
-    if (org && !org.is_internal) {
-      sender = { name: org.name, isInternal: false };
 
+    sender = resolveSender(client, org, orgError);
+
+    if (org && !orgError && !org.is_internal) {
       // Burst protection, checked before the monthly cap for the same
       // reason as checkUsage() in prospects/actions.ts: a tight loop of
       // submissions within an otherwise-unexceeded month is a different
@@ -267,6 +304,8 @@ export async function triageRequest(clientId: string, rawText: string) {
         };
       }
     }
+  } else {
+    sender = resolveSender(client, null, null);
   }
 
   const apiKey = process.env.ANTHROPIC_API_KEY;
