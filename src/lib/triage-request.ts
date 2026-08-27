@@ -107,6 +107,105 @@ type TriageResult = {
   suggested_task?: { title: string; description: string; acceptance_criteria: string };
 };
 
+const CATEGORY_VALUES = ["bug", "feature", "content", "question", "other"] as const;
+const COMPLEXITY_VALUES = ["XS", "S", "M", "L"] as const;
+const PRIORITY_VALUES = ["low", "medium", "high", "urgent"] as const;
+
+// Same "coerce, don't trust structurally" standard as stripKit()
+// (draft-sales-kit.ts) — this call site used to cast the tool-call result
+// straight to TriageResult and read missing_info?.length unguarded, the
+// exact "an array field came back as a bare string" failure mode this
+// codebase's own siblings (research-lead.ts, draft-sales-kit.ts) already
+// defend against. Matters more here than anywhere else in the app: this
+// result (including draft_response) can flow straight into an unsupervised
+// client email send (see isAutoSendEligible below), so every field actually
+// read downstream gets a real, safe fallback instead of an unchecked cast.
+function toText(value: unknown): string {
+  return typeof value === "string" ? stripMarkdownEmphasis(value) : "";
+}
+
+function toStringArray(value: unknown): string[] {
+  if (Array.isArray(value)) return value.filter((v): v is string => typeof v === "string" && v.length > 0);
+  if (typeof value === "string" && value.trim()) return [value.trim()];
+  return [];
+}
+
+function toEnum<T extends string>(value: unknown, allowed: readonly T[], fallback: T): T {
+  return typeof value === "string" && (allowed as readonly string[]).includes(value) ? (value as T) : fallback;
+}
+
+function toSafeBoolean(value: unknown): boolean {
+  return value === true;
+}
+
+// Optional on the schema itself — a half-filled task is worth less than no
+// task at all (same "mostly empty isn't worth saving" call as
+// sanitizeSalesStrategy() in research-lead.ts).
+function stripSuggestedTask(raw: unknown): TriageResult["suggested_task"] {
+  if (!raw || typeof raw !== "object") return undefined;
+  const r = raw as Record<string, unknown>;
+  const title = toText(r.title);
+  const description = toText(r.description);
+  const acceptance_criteria = toText(r.acceptance_criteria);
+  if (!title && !description && !acceptance_criteria) return undefined;
+  return { title, description, acceptance_criteria };
+}
+
+// Final safety net before anything reaches the database, the audit log, or
+// (for the auto-send-eligible subset) a real client's inbox — mirrors
+// stripKit()'s role exactly: accepts the raw `unknown` tool-call payload,
+// coerces every field, never throws on a malformed shape.
+export function stripTriage(raw: unknown): TriageResult {
+  const r = (raw ?? {}) as Record<string, unknown>;
+  return {
+    category: toEnum(r.category, CATEGORY_VALUES, "other"),
+    complexity: toEnum(r.complexity, COMPLEXITY_VALUES, "M"),
+    suggested_approach: toText(r.suggested_approach),
+    covered_by_maintenance: toSafeBoolean(r.covered_by_maintenance),
+    coverage_reasoning: toText(r.coverage_reasoning),
+    draft_response: toText(r.draft_response),
+    priority: toEnum(r.priority, PRIORITY_VALUES, "medium"),
+    missing_info: toStringArray(r.missing_info),
+    suggested_task: stripSuggestedTask(r.suggested_task),
+  };
+}
+
+// Same role as isWellFormed() in draft-sales-kit.ts — a cheap real-content
+// check the retry loop below uses to tell "the model returned a genuinely
+// usable triage" from "stripTriage() had to fall back on most of it."
+// missing_info is deliberately not checked for length — an empty array is
+// a legitimate, well-formed result (nothing missing), not a sign of a
+// malformed payload.
+export function isWellFormed(triage: TriageResult): boolean {
+  return (
+    triage.suggested_approach.length > 0 &&
+    triage.coverage_reasoning.length > 0 &&
+    triage.draft_response.length > 0
+  );
+}
+
+async function requestTriage(
+  anthropic: Anthropic,
+  model: string,
+  client: Client,
+  sender: Sender,
+  rawText: string
+): Promise<TriageResult | null> {
+  const response = await anthropic.messages.create({
+    model,
+    max_tokens: 1000,
+    system: buildTriageSystemPrompt(client, sender),
+    tools: [SUBMIT_TRIAGE_TOOL],
+    tool_choice: { type: "tool", name: "submit_triage" },
+    messages: [{ role: "user", content: rawText }],
+  });
+
+  const toolUse = response.content.find(
+    (block): block is Anthropic.ToolUseBlock => block.type === "tool_use"
+  );
+  return toolUse ? stripTriage(toolUse.input) : null;
+}
+
 export async function triageRequest(clientId: string, rawText: string) {
   const supabase = getSupabaseAdmin();
   if (!supabase) return { error: "Supabase is not configured." as const };
@@ -166,31 +265,29 @@ export async function triageRequest(clientId: string, rawText: string) {
   const anthropic = new Anthropic({ apiKey });
   const model = process.env.ANTHROPIC_MODEL || "claude-haiku-4-5-20251001";
 
-  let triage: TriageResult;
+  // Three attempts, not one — same reasoning as draft-sales-kit.ts's own
+  // retry loop: occasional malformed tool-call output (a field back as the
+  // wrong JS type, or a required field silently dropped) turned out more
+  // common under real load than a single-attempt happy path assumed. Only
+  // the last attempt's result is accepted as a last resort if still
+  // imperfect, never a silent placeholder.
+  let triage: TriageResult | null = null;
   try {
-    const response = await anthropic.messages.create({
-      model,
-      max_tokens: 1000,
-      system: buildTriageSystemPrompt(client, sender),
-      tools: [SUBMIT_TRIAGE_TOOL],
-      tool_choice: { type: "tool", name: "submit_triage" },
-      messages: [{ role: "user", content: rawText }],
-    });
-
-    const toolUse = response.content.find(
-      (block): block is Anthropic.ToolUseBlock => block.type === "tool_use"
-    );
-    if (!toolUse) return { error: "The AI did not return a structured result." as const };
-
-    triage = toolUse.input as TriageResult;
-    triage.draft_response = stripMarkdownEmphasis(triage.draft_response);
-    triage.suggested_approach = stripMarkdownEmphasis(triage.suggested_approach);
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const result = await requestTriage(anthropic, model, client, sender, rawText);
+      if (result && isWellFormed(result)) {
+        triage = result;
+        break;
+      }
+      if (result && attempt === 2) triage = result; // last attempt: use what we have rather than nothing
+    }
+    if (!triage) return { error: "The AI did not return a structured result." as const };
   } catch (error) {
     console.error("Triage request failed:", error);
     return { error: "The triage agent is temporarily unavailable." as const };
   }
 
-  const status = triage.missing_info?.length ? "awaiting_info" : "triaged";
+  const status = triage.missing_info.length ? "awaiting_info" : "triaged";
 
   const { data: savedRequest, error: insertError } = await supabase
     .from("requests")
@@ -214,7 +311,7 @@ export async function triageRequest(clientId: string, rawText: string) {
       coverage_reasoning: triage.coverage_reasoning,
       draft_response: triage.draft_response,
       priority: triage.priority,
-      missing_info: triage.missing_info ?? [],
+      missing_info: triage.missing_info,
       ai_raw: triage,
     })
     .select()

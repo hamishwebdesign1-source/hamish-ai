@@ -73,6 +73,19 @@ Closed 2026-08-27 (`419f363`) — brought up to the same standard as
 `stripBrief()`/`reconcilePhases()`, plus a real 3-attempt retry loop in
 `draftSalesKit()` matching the sibling files' own convention.
 
+### triage-request.ts missing defensive coercion on its tool-call result
+
+Closed 2026-08-27 — added `stripTriage()`/`isWellFormed()` plus a
+3-attempt retry loop matching `draft-sales-kit.ts`'s own convention;
+`missing_info` (previously read unguarded via `.length`, expected an
+array) now coerces safely to `string[]` the same way `stripKit()` does.
+This was the one AI call site whose output can reach an unsupervised
+client email send (`isAutoSendEligible`), so it was the wrong place in the
+codebase to have the weakest defensive treatment. See `DECISIONS.md` for
+the full reasoning. Added `triage-request.test.ts` (15 tests). Scope held
+to coercion only — `sender.isInternal` gate and auto-send thresholds
+untouched.
+
 ### Add render/interaction test coverage for the Command Centre card components
 
 Closed 2026-08-27 — added `@testing-library/react`, `@testing-library/jest-dom`,
