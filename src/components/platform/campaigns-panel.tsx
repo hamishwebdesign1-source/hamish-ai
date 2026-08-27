@@ -2,14 +2,14 @@
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
-import { Megaphone, Plus, Target } from "lucide-react";
+import { Megaphone, Plus, Target, X, Trash2 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { createCampaign, updateCampaignStatus, assignProspectToCampaign } from "@/app/studio/(authed)/campaigns/actions";
+import { createCampaign, updateCampaignStatus, assignProspectToCampaign, deleteCampaign } from "@/app/studio/(authed)/campaigns/actions";
 
 type Campaign = { id: string; name: string; objective: string | null; status: string; created_at: string };
 type Prospect = { id: string; business_name: string; campaign_id: string | null; status: string };
@@ -81,6 +81,37 @@ function NewCampaignForm() {
   );
 }
 
+// Real-improvement pass — assignProspectToCampaign already supported
+// clearing a prospect back to unassigned (campaignId: null), but nothing
+// in this UI ever called it that way, and a campaign's assigned
+// prospects were never listed here at all — only a count. Once added, a
+// prospect was stuck, with no way to see who was actually in a campaign
+// or move them back out.
+function AssignedProspectRow({ prospect }: { prospect: Prospect }) {
+  const [pending, startTransition] = useTransition();
+
+  function remove() {
+    startTransition(async () => {
+      await assignProspectToCampaign(prospect.id, null);
+    });
+  }
+
+  return (
+    <div className="flex items-center justify-between gap-2 py-1 text-xs">
+      <span className="truncate">{prospect.business_name}</span>
+      <Button
+        size="icon-xs"
+        variant="ghost"
+        aria-label={`Remove ${prospect.business_name} from this campaign`}
+        disabled={pending}
+        onClick={remove}
+      >
+        <X className="size-3" />
+      </Button>
+    </div>
+  );
+}
+
 function AddProspectControl({ campaignId, unassigned }: { campaignId: string; unassigned: Prospect[] }) {
   const [selected, setSelected] = useState("");
   const [pending, startTransition] = useTransition();
@@ -115,6 +146,9 @@ function AddProspectControl({ campaignId, unassigned }: { campaignId: string; un
 function CampaignCard({ campaign, prospects, unassigned }: { campaign: Campaign; prospects: Prospect[]; unassigned: Prospect[] }) {
   const [status, setStatus] = useState(campaign.status);
   const [pending, startTransition] = useTransition();
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [deletePending, startDeleteTransition] = useTransition();
+  const [deleted, setDeleted] = useState(false);
 
   const converted = prospects.filter((p) => p.status === "converted").length;
   const conversionRate = prospects.length > 0 ? Math.round((converted / prospects.length) * 100) : null;
@@ -127,6 +161,23 @@ function CampaignCard({ campaign, prospects, unassigned }: { campaign: Campaign;
       if (r && "error" in r) setStatus(campaign.status);
     });
   }
+
+  function remove() {
+    startDeleteTransition(async () => {
+      const r = await deleteCampaign(campaign.id);
+      if (r && "error" in r) {
+        setConfirmingDelete(false);
+        return;
+      }
+      setDeleted(true);
+    });
+  }
+
+  // revalidatePath re-fetches server data but doesn't unmount an already-
+  // rendered client card mid-transition — hide it immediately on success
+  // rather than leaving a just-deleted campaign visible until the next
+  // full navigation.
+  if (deleted) return null;
 
   return (
     <Card>
@@ -141,6 +192,20 @@ function CampaignCard({ campaign, prospects, unassigned }: { campaign: Campaign;
             <Button size="xs" variant="ghost" disabled={pending} onClick={toggleStatus}>
               {status === "completed" ? "Reopen" : "Mark completed"}
             </Button>
+            {confirmingDelete ? (
+              <>
+                <Button size="xs" variant="destructive" disabled={deletePending} onClick={remove}>
+                  {deletePending ? "…" : "Confirm"}
+                </Button>
+                <Button size="icon-xs" variant="ghost" aria-label="Cancel delete" onClick={() => setConfirmingDelete(false)}>
+                  <X className="size-3" />
+                </Button>
+              </>
+            ) : (
+              <Button size="icon-xs" variant="ghost" aria-label="Delete campaign" onClick={() => setConfirmingDelete(true)}>
+                <Trash2 className="size-3" />
+              </Button>
+            )}
           </div>
         </div>
         <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 font-mono text-[11px] text-muted-foreground">
@@ -148,6 +213,13 @@ function CampaignCard({ campaign, prospects, unassigned }: { campaign: Campaign;
           <span>{converted} converted</span>
           {conversionRate !== null ? <span>{conversionRate}% conversion</span> : <span>No data yet</span>}
         </div>
+        {prospects.length > 0 && (
+          <div className="mt-2 divide-y divide-border border-t border-border">
+            {prospects.map((p) => (
+              <AssignedProspectRow key={p.id} prospect={p} />
+            ))}
+          </div>
+        )}
         {status !== "completed" && <AddProspectControl campaignId={campaign.id} unassigned={unassigned} />}
       </CardContent>
     </Card>

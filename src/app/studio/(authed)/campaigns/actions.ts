@@ -51,6 +51,33 @@ export async function updateCampaignStatus(campaignId: string, status: "active" 
   return { ok: true as const };
 }
 
+// Real-improvement pass — campaigns previously had no way to be removed
+// once created (create + status-toggle only), so a typo'd name or a
+// duplicate stuck around forever. Severs the link on any assigned
+// prospects first rather than blocking on the FK (prospects.campaign_id
+// references campaigns(id) with no ON DELETE clause, schema-campaigns.sql)
+// — same "sever the link, don't cascade-delete real data" rule
+// deleteClientData() (clients/actions.ts) already follows for its own
+// nullable foreign keys. A prospect's own record is real data and must
+// survive its campaign being deleted.
+export async function deleteCampaign(campaignId: string) {
+  const orgId = await requireOrgId();
+  const admin = getSupabaseAdmin();
+  if (!admin) return { error: "Supabase is not configured." };
+
+  const { data: campaign } = await admin.from("campaigns").select("id").eq("id", campaignId).eq("org_id", orgId).maybeSingle();
+  if (!campaign) return { error: "Campaign not found." };
+
+  await admin.from("prospects").update({ campaign_id: null }).eq("campaign_id", campaignId);
+
+  const { error } = await admin.from("campaigns").delete().eq("id", campaignId);
+  if (error) return { error: "Failed to delete the campaign." };
+
+  revalidatePath("/studio/campaigns");
+  revalidatePath("/studio/prospects");
+  return { ok: true as const };
+}
+
 // A prospect's campaign is optional — passing null clears it back to
 // "unassigned." Same org-ownership check shape as every other
 // prospect-touching action in this app.
