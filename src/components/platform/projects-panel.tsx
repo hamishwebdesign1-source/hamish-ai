@@ -224,7 +224,12 @@ export function ProjectsPanel({ clients, projects, tasks }: { clients: Client[];
         </div>
       ) : (
         <>
-          <select value={filter} onChange={(e) => setFilter(e.target.value as typeof filter)} className={selectClasses}>
+          <select
+            value={filter}
+            onChange={(e) => setFilter(e.target.value as typeof filter)}
+            className={selectClasses}
+            aria-label="Filter projects"
+          >
             <option value="active">Active projects</option>
             <option value="all">All clients, all projects</option>
           </select>

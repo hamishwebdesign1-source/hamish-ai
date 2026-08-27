@@ -160,6 +160,7 @@ export function WebsiteProjectFilesPanel({ projectId, files }: { projectId: stri
             onChange={(e) => setKind(e.target.value as FileKind)}
             disabled={pending}
             className="h-8 rounded-lg border border-input bg-transparent px-2 text-xs"
+            aria-label="File kind"
           >
             <option value="logo">Logo</option>
             <option value="photo">Photo</option>

@@ -71,8 +71,10 @@ function EntryForm({
     <Card>
       <CardContent className="space-y-3 py-4">
         <div>
-          <Label className="text-xs">Applies to</Label>
-          <select value={clientId} onChange={(e) => setClientId(e.target.value)} className={selectClasses}>
+          <Label htmlFor="kb-client" className="text-xs">
+            Applies to
+          </Label>
+          <select id="kb-client" value={clientId} onChange={(e) => setClientId(e.target.value)} className={selectClasses}>
             <option value="">General (all clients)</option>
             {clients.map((c) => (
               <option key={c.id} value={c.id}>

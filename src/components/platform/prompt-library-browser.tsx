@@ -62,8 +62,11 @@ function PromptCard({ prompt, prefill }: { prompt: PromptTemplate; prefill: Prom
                 {tokens.map((token) =>
                   token === "PAGE NAME" && prefill.pageNames && prefill.pageNames.length > 0 ? (
                     <div key={token}>
-                      <label className="text-xs font-medium text-muted-foreground">{token}</label>
+                      <label htmlFor={`prompt-${prompt.id}-${token}`} className="text-xs font-medium text-muted-foreground">
+                        {token}
+                      </label>
                       <select
+                        id={`prompt-${prompt.id}-${token}`}
                         className="mt-1 h-9 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm"
                         value={values[token] ?? ""}
                         onChange={(e) => setValues((v) => ({ ...v, [token]: e.target.value }))}
