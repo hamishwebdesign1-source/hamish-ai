@@ -9,6 +9,16 @@ paragraph, not a full handoff report (those, if worth keeping, go in
 
 ---
 
+## 2026-08-27 — Closed the last Command Centre audit backlog item
+
+Actions Required now renders in a fixed position (right after the stat
+row/checklist, before any tab) rather than wherever an org's own saved
+block order put it — the position half of the "look here first"
+promise the color/ring fix only handled the visibility half of.
+Deliberately kept show/hide as a real per-org choice via Settings —
+only position is now fixed, not existence. `2187f6b`. This closes every
+item opened by the 2026-08-27 Command Centre audit.
+
 ## 2026-08-27 — Retracted a backlog item: "no way to clear demo data" was wrong
 
 Filed "Add a real clear-demo-data affordance" earlier the same day based

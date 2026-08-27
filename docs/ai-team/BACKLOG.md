@@ -36,17 +36,17 @@ _(none yet)_
 
 ## Not started
 
-### Structurally prioritise actions_required on the Command Centre
-
-- **Problem**: the UX/UI Director's 2026-08-27 audit's Priority 1(b) — always render `actions_required` first regardless of block order/tab, the way TodayStrip and the stat row already bypass the reorderable canvas for the same "shouldn't be hideable" reason. Deliberately deferred out of 40e0552's scope by Product Director: it changes established reorder/tab behaviour, not just a color token, and deserves its own screenshot-verified pass rather than shipping alongside a lower-risk change.
-- **Objective**: TBD — needs its own scoping pass once the visual-verification loop above closes.
-- **User**: any org relying on Settings → Command Centre layout to reorder blocks.
-- **Priority**: P2.
-- **Relevant agent**: Product Director (scope first), then UX/UI Director + Lead Engineer.
-- **Dependencies**: the screenshot-verification item above — see its actual rendered result before deciding whether this is still needed.
-- **Status**: Not started.
+_(none yet)_
 
 ## Complete
+
+### Structurally prioritise actions_required on the Command Centre
+
+Closed 2026-08-27 (`2187f6b`) — Product Director scoped it once its
+dependency (the screenshot-verification loop) closed: greenlit as a
+small, bounded change, deliberately kept separate from show/hide (a real
+per-org choice, still honoured) — only the fixed-vs-reorderable position
+changed.
 
 ### Screenshot-verify the Command Centre card-hierarchy fix (commit 40e0552)
 
