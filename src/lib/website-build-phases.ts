@@ -156,7 +156,12 @@ const BUILD_PHASES_TOOL: Anthropic.Tool = {
 // Reconciled against the requested phaseIds rather than trusted as-is:
 // any phase the model omitted or mis-shaped gets a real (if minimal)
 // fallback instead of silently vanishing from the sequence.
-function reconcilePhases(raw: unknown, phaseIds: BuildPhaseId[]): BuildPhase[] {
+// Exported for website-build-phases.test.ts — this is the actual fix for
+// the real production bug this file's own header documents (malformed
+// tool-call output silently saved as placeholder content, no error
+// shown), so it's worth testing directly rather than only through the
+// Anthropic-calling function that wraps it.
+export function reconcilePhases(raw: unknown, phaseIds: BuildPhaseId[]): BuildPhase[] {
   const list = Array.isArray(raw) ? raw : [];
   const byId = new Map<string, { instructions: string; checklist: string[] }>();
   for (const entry of list) {
@@ -180,7 +185,7 @@ function reconcilePhases(raw: unknown, phaseIds: BuildPhaseId[]): BuildPhase[] {
   });
 }
 
-function isWellFormed(phases: BuildPhase[]): boolean {
+export function isWellFormed(phases: BuildPhase[]): boolean {
   const realCount = phases.filter((p) => !p.instructions.startsWith("Ask your AI coding agent to work on:")).length;
   return realCount === phases.length;
 }

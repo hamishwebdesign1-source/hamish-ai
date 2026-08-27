@@ -179,7 +179,16 @@ const SALES_KIT_TOOL: Anthropic.Tool = {
   },
 };
 
-function stripKit(kit: SalesKit): SalesKit {
+// Exported for draft-sales-kit.test.ts. Note this is a narrower contract
+// than stripBrief()/reconcilePhases() (website-brief.ts,
+// website-build-phases.ts): it strips markdown emphasis from an
+// already-shaped SalesKit, it does not defensively coerce an `unknown`
+// tool-call payload the way those two do — the one call site
+// (draftSalesKit() below) passes toolUse.input straight through an
+// unchecked `as SalesKit` cast first. Malformed AI output here throws
+// (caught by that function's own try/catch) rather than being reconciled
+// into a safe fallback shape.
+export function stripKit(kit: SalesKit): SalesKit {
   return {
     outreach_email: { subject: stripMarkdownEmphasis(kit.outreach_email.subject), body: stripMarkdownEmphasis(kit.outreach_email.body) },
     follow_up_email: { subject: stripMarkdownEmphasis(kit.follow_up_email.subject), body: stripMarkdownEmphasis(kit.follow_up_email.body) },

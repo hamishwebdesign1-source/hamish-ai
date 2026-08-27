@@ -151,7 +151,10 @@ function toSitemap(value: unknown): { page: string; purpose: string }[] {
     .filter((s) => s.page);
 }
 
-function stripBrief(raw: unknown): WebsiteBrief {
+// Exported for website-brief.test.ts — same "never trust structurally"
+// defensive-coercion pattern as sanitizeBlocksForWrite() and
+// reconcilePhases(), worth testing directly.
+export function stripBrief(raw: unknown): WebsiteBrief {
   const r = (raw ?? {}) as Record<string, unknown>;
   return {
     businessOverview: toText(r.businessOverview),
@@ -180,7 +183,7 @@ function stripBrief(raw: unknown): WebsiteBrief {
 // even a good model can have an off run on structured output like this.
 const BRIEF_MODEL = process.env.ANTHROPIC_MODEL_WEBSITE_BRIEF || "claude-sonnet-5";
 
-function isWellFormed(brief: WebsiteBrief): boolean {
+export function isWellFormed(brief: WebsiteBrief): boolean {
   return (
     brief.businessOverview.length > 0 &&
     brief.objectives.length >= 1 &&

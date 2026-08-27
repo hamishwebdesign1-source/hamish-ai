@@ -114,7 +114,10 @@ const SUBMIT_CANDIDATES_TOOL: Anthropic.Tool = {
   },
 };
 
-function normaliseName(name: string): string {
+// Exported for discover-leads.test.ts — the deterministic weekly
+// category/area rotation is real scheduling logic worth testing
+// directly, not just implied by the comment above it.
+export function normaliseName(name: string): string {
   return name.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 }
 
@@ -130,7 +133,7 @@ function normaliseName(name: string): string {
 // duplicate of the same search instead of ever trying anything else.
 // HamishAI's own much larger grid (10 categories x 12 areas) is
 // unaffected — count (3) was already well under allPairs.length (120).
-function pickPairsForWeek(
+export function pickPairsForWeek(
   categories: string[],
   areas: string[],
   weekIndex: number,
@@ -147,7 +150,7 @@ function pickPairsForWeek(
   return pairs;
 }
 
-function isoWeekIndex(date: Date): number {
+export function isoWeekIndex(date: Date): number {
   // Not calendar-accurate ISO week numbering — just needs to change by
   // exactly 1 every 7 days so the rotation above advances predictably.
   return Math.floor(date.getTime() / (7 * 24 * 60 * 60 * 1000));
