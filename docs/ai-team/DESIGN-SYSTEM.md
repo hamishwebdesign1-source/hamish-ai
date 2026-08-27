@@ -15,6 +15,32 @@ deliberate, reviewed change (not silent drift).
 - **Tailwind v4 + Lightning CSS silently drops any rule using `color-mix()`**
   — no build error, it just vanishes. Use precomputed `oklch(... / X%)`
   alpha values instead.
+- **`bg-primary`/`text-primary-foreground` is reserved for exactly the
+  single most-important surface per context, never "every card on this
+  page."** The Command Centre originally applied it to all 7-8 blocks in
+  a row — TodayStrip, all 5 stat cards, the onboarding checklist, and
+  all 9 section cards — on the theory that Business Health's one
+  deliberate dark-card moment should become the whole page's style. In
+  practice `.studio-shell`'s `--background`/`--card`/`--primary` sit
+  only 0.04-0.07 OKLCH lightness units apart (globals.css), so that
+  read as one flat visual tier: "your most urgent action right now"
+  (Actions Required) and "a nice-to-know metric" (the Business Health
+  breakdown) rendered as identical cards, with nothing anywhere on the
+  page actually reading as the featured surface. Fixed in the UX/UI
+  Director's 2026-08 audit — `bg-primary`/`text-primary-foreground` now
+  belongs to exactly two Command Centre surfaces: TodayStrip
+  (today-strip.tsx) and the `actions_required` section card
+  (command-centre-section-cards.tsx) — the two things genuinely meant to
+  say "look here first." Every other card (the 5 stat cards, the
+  onboarding checklist, the other 8 section cards, chart/text/cta
+  blocks) uses plain `bg-card`/`text-card-foreground` instead, same as
+  every other Studio card (clients-panel.tsx, campaigns-panel.tsx) —
+  with `text-muted-foreground` in place of the old
+  `text-primary-foreground/NN` opacity tiers for de-emphasised text, and
+  `bg-secondary` in place of `bg-white/10` for icon-badge/progress-track/
+  pill backgrounds. Before reaching for `bg-primary` on a new Command
+  Centre card, ask whether it's genuinely more important than everything
+  else on the page — if not, it's a `bg-card`.
 
 ## Components
 
@@ -73,6 +99,14 @@ solution.
 
 - Every icon-only interactive element needs `aria-label`.
 - Every collapsible trigger needs `aria-expanded`.
+- A bare `<select>` with no visible `<label>` needs `aria-label` too — the
+  UX/UI Director's 2026-08 audit found three: the status-filter and
+  sort-by selects in the Prospects list toolbar (`prospecting-panel.tsx`)
+  and the "Add a prospect…" select inside a campaign's
+  `AddProspectControl` (`campaigns-panel.tsx`). All three now have real,
+  specific labels ("Filter by status", "Sort prospects by", "Add a
+  prospect to this campaign") rather than relying on placeholder option
+  text a screen reader won't announce as the control's name.
 - A CTA block's `href` (Command Centre no-code builder) only ever renders a
   real internal path or an `https://` URL — `sanitizeBlocksForWrite()`
   rejects `javascript:`, `data:`, protocol-relative, and plain `http://`

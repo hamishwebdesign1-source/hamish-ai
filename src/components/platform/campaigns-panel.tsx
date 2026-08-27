@@ -128,7 +128,12 @@ function AddProspectControl({ campaignId, unassigned }: { campaignId: string; un
 
   return (
     <div className="mt-3 flex items-center gap-2 border-t border-border pt-3">
-      <select value={selected} onChange={(e) => setSelected(e.target.value)} className={selectClasses}>
+      <select
+        value={selected}
+        onChange={(e) => setSelected(e.target.value)}
+        aria-label="Add a prospect to this campaign"
+        className={selectClasses}
+      >
         <option value="">Add a prospect…</option>
         {unassigned.map((p) => (
           <option key={p.id} value={p.id}>

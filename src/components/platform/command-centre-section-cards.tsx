@@ -42,6 +42,18 @@ import type { ClientActivityItem, ClientActivityKind } from "@/lib/studio-client
 // same "only render with real content" rule as every other part of
 // this app — page.tsx's own render loop already treats a missing entry
 // here as "render nothing for this slot."
+//
+// UX/UI Director audit (2026-08) — only actions_required (below) keeps
+// bg-primary/text-primary-foreground: it's "your most urgent action
+// right now" and is meant to read as the featured surface, same tier as
+// TodayStrip. The other 8 section cards used to share that identical
+// dark treatment, which flattened them all to the same visual weight as
+// the one card that's genuinely urgent. They use plain bg-card/
+// text-card-foreground instead now, with text-muted-foreground in place
+// of the old text-primary-foreground/NN opacity tiers and bg-secondary
+// in place of bg-white/10 for track/pill backgrounds — the same tokens
+// every other Studio card already uses (clients-panel.tsx,
+// campaigns-panel.tsx).
 
 const INSIGHT_ICON: Record<InsightCategory, LucideIcon> = {
   opportunity: Sparkles,
@@ -131,28 +143,28 @@ export function buildSectionContent(params: {
       ) : undefined,
     insights:
       insights.length > 0 ? (
-        <Card className="border-none bg-primary text-primary-foreground">
+        <Card className="border-none bg-card text-card-foreground">
           <CardContent className="p-5">
             <div className="flex items-center justify-between gap-2">
-              <p className="text-xs font-semibold text-primary-foreground/70">Insights</p>
+              <p className="text-xs font-semibold text-muted-foreground">Insights</p>
               <HelpTip explanation="AI-generated observations based on your latest platform data — real deltas and thresholds, never invented patterns. Each one shows the exact numbers behind it." />
             </div>
             <div className="mt-4 space-y-3">
               {insights.map((insight) => {
                 const Icon = INSIGHT_ICON[insight.category];
                 return (
-                  <div key={insight.id} className={`flex items-start gap-3 rounded-lg border-l-2 bg-white/[0.03] py-2 pr-2 pl-3 ${INSIGHT_BORDER[insight.category]}`}>
+                  <div key={insight.id} className={`flex items-start gap-3 rounded-lg border-l-2 bg-secondary/40 py-2 pr-2 pl-3 ${INSIGHT_BORDER[insight.category]}`}>
                     <Icon className={`mt-0.5 size-4 shrink-0 ${INSIGHT_COLOR[insight.category]}`} />
                     <div className="min-w-0">
-                      <p className="flex items-center gap-2 text-sm font-medium text-primary-foreground">
+                      <p className="flex items-center gap-2 text-sm font-medium">
                         {insight.headline}
                         {insight.impact === "high" && (
-                          <span className="shrink-0 rounded-full bg-white/10 px-1.5 py-0.5 font-mono text-[10px] font-semibold tracking-wide text-primary-foreground/70 uppercase">
+                          <span className="shrink-0 rounded-full bg-secondary px-1.5 py-0.5 font-mono text-[10px] font-semibold tracking-wide text-muted-foreground uppercase">
                             Priority
                           </span>
                         )}
                       </p>
-                      <p className="mt-0.5 text-xs text-primary-foreground/50">{insight.evidence}</p>
+                      <p className="mt-0.5 text-xs text-muted-foreground">{insight.evidence}</p>
                       {insight.action && (
                         <Link href={insight.action.href} className="mt-1 inline-block text-xs text-accent underline underline-offset-2">
                           {insight.action.label}
@@ -167,29 +179,29 @@ export function buildSectionContent(params: {
         </Card>
       ) : undefined,
     briefing: hasBriefingContent ? (
-      <Card className="border-none bg-primary text-primary-foreground">
+      <Card className="border-none bg-card text-card-foreground">
         <CardContent className="p-5">
-          <p className="text-xs font-semibold text-primary-foreground/70">Your briefing</p>
+          <p className="text-xs font-semibold text-muted-foreground">Your briefing</p>
           <div className="mt-4 flex flex-wrap gap-x-6 gap-y-3 text-sm">
             {briefing.newThisWeek > 0 && (
               <span className="flex items-center gap-1.5">
                 <Sparkles className="size-3.5 shrink-0 text-accent" />
                 <span className="font-mono font-semibold text-accent">{briefing.newThisWeek}</span>
-                <span className="text-primary-foreground/60">new this week</span>
+                <span className="text-muted-foreground">new this week</span>
               </span>
             )}
             {briefing.needsResearch > 0 && (
               <span className="flex items-center gap-1.5">
                 <Search className="size-3.5 shrink-0 text-accent" />
                 <span className="font-mono font-semibold text-accent">{briefing.needsResearch}</span>
-                <span className="text-primary-foreground/60">still need research</span>
+                <span className="text-muted-foreground">still need research</span>
               </span>
             )}
             {briefing.readyToContact > 0 && (
               <span className="flex items-center gap-1.5">
                 <Send className="size-3.5 shrink-0 text-accent" />
                 <span className="font-mono font-semibold text-accent">{briefing.readyToContact}</span>
-                <span className="text-primary-foreground/60">ready to contact</span>
+                <span className="text-muted-foreground">ready to contact</span>
               </span>
             )}
           </div>
@@ -199,11 +211,11 @@ export function buildSectionContent(params: {
                 <Lightbulb className="size-3.5 shrink-0" />
                 Your best opportunity right now
               </p>
-              <p className="mt-1 text-sm font-medium text-primary-foreground">
+              <p className="mt-1 text-sm font-medium">
                 {briefing.topOpportunity.businessName}{" "}
-                <span className="font-mono text-xs font-normal text-primary-foreground/50">({briefing.topOpportunity.overallScore}/5)</span>
+                <span className="font-mono text-xs font-normal text-muted-foreground">({briefing.topOpportunity.overallScore}/5)</span>
               </p>
-              <p className="mt-1 text-sm text-primary-foreground/60">{briefing.topOpportunity.pursueBecause}</p>
+              <p className="mt-1 text-sm text-muted-foreground">{briefing.topOpportunity.pursueBecause}</p>
             </div>
           )}
           <Button variant="link" size="sm" className="mt-3 h-auto px-0 text-accent" render={<Link href="/studio/prospects" />}>
@@ -220,10 +232,10 @@ export function buildSectionContent(params: {
     // is a week this client actually contacted the agency.
     engagement_risk:
       engagementRisks.length > 0 ? (
-        <Card className="border-none bg-primary text-primary-foreground">
+        <Card className="border-none bg-card text-card-foreground">
           <CardContent className="p-5">
             <div className="flex items-center justify-between gap-2">
-              <p className="flex items-center gap-1.5 text-xs font-semibold text-primary-foreground/70">
+              <p className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
                 <ShieldAlert className="size-3.5 shrink-0 text-destructive" /> Engagement risk
               </p>
               <HelpTip explanation="Clients who've gone 2+ weeks without a request, or who have an invoice past its due date — real dates, never a prediction. A client with neither signal simply isn't listed here." />
@@ -232,8 +244,8 @@ export function buildSectionContent(params: {
               {engagementRisks.slice(0, 5).map((risk) => (
                 <li key={risk.clientId} className="flex items-center gap-3">
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium text-primary-foreground">{risk.businessName}</p>
-                    <p className="mt-0.5 text-xs text-primary-foreground/50">
+                    <p className="truncate text-sm font-medium">{risk.businessName}</p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">
                       {risk.quietWeeks > 0 && `Quiet ${risk.quietWeeks} week${risk.quietWeeks === 1 ? "" : "s"}`}
                       {risk.quietWeeks > 0 && risk.hasOverdueInvoice && " · "}
                       {risk.hasOverdueInvoice && "Invoice overdue"}
@@ -241,7 +253,7 @@ export function buildSectionContent(params: {
                   </div>
                   <div className="flex shrink-0 gap-1">
                     {risk.weeks.map((week, i) => (
-                      <span key={i} title={week.label} className={`size-2.5 rounded-sm ${week.active ? "bg-accent/70" : "bg-white/10"}`} />
+                      <span key={i} title={week.label} className={`size-2.5 rounded-sm ${week.active ? "bg-accent/70" : "bg-secondary"}`} />
                     ))}
                   </div>
                   <span
@@ -255,7 +267,7 @@ export function buildSectionContent(params: {
               ))}
             </ul>
             {engagementRisks.length > 5 && (
-              <p className="mt-3 text-xs text-primary-foreground/50">
+              <p className="mt-3 text-xs text-muted-foreground">
                 +{engagementRisks.length - 5} more at risk — see{" "}
                 <Link href="/studio/clients" className="text-accent underline underline-offset-2">
                   Clients
@@ -275,10 +287,10 @@ export function buildSectionContent(params: {
     // $ figure — never an invented rate — before the first cron run.
     model_performance:
       modelPerformance.callCount > 0 ? (
-        <Card className="border-none bg-primary text-primary-foreground">
+        <Card className="border-none bg-card text-card-foreground">
           <CardContent className="p-5">
             <div className="flex items-center justify-between gap-2">
-              <p className="flex items-center gap-1.5 text-xs font-semibold text-primary-foreground/70">
+              <p className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
                 <Cpu className="size-3.5 shrink-0" /> Model performance
               </p>
               <HelpTip explanation="Real success rate, latency and estimated cost for your AI Design Assistant and AI Business Analyst calls over the last 30 days. Cost starts from Anthropic's published per-token USD rate, then converts to £ using a real, daily-refreshed USD/GBP reference rate — shown with the date it was fetched, never presented as live." />
@@ -286,13 +298,13 @@ export function buildSectionContent(params: {
             <div className="mt-4 grid grid-cols-3 gap-3">
               <div>
                 <p className="font-heading text-xl font-semibold tabular-nums">{modelPerformance.successRatePct}%</p>
-                <p className="text-xs text-primary-foreground/50">Success rate</p>
+                <p className="text-xs text-muted-foreground">Success rate</p>
               </div>
               <div>
                 <p className="font-heading text-xl font-semibold tabular-nums">
                   {modelPerformance.medianLatencyMs !== null ? `${(modelPerformance.medianLatencyMs / 1000).toFixed(1)}s` : "—"}
                 </p>
-                <p className="text-xs text-primary-foreground/50">Median latency</p>
+                <p className="text-xs text-muted-foreground">Median latency</p>
               </div>
               <div>
                 <p className="font-heading text-xl font-semibold tabular-nums">
@@ -302,15 +314,15 @@ export function buildSectionContent(params: {
                       ? `$${modelPerformance.estimatedCostUsd.toFixed(2)}`
                       : "—"}
                 </p>
-                <p className="text-xs text-primary-foreground/50">
+                <p className="text-xs text-muted-foreground">
                   Est. cost, 30d
                   {modelPerformance.estimatedCostGbp !== null && modelPerformance.estimatedCostUsd !== null && (
-                    <span className="text-primary-foreground/30"> (${modelPerformance.estimatedCostUsd.toFixed(2)})</span>
+                    <span className="text-muted-foreground/70"> (${modelPerformance.estimatedCostUsd.toFixed(2)})</span>
                   )}
                 </p>
               </div>
             </div>
-            <p className="mt-3 text-xs text-primary-foreground/40">
+            <p className="mt-3 text-xs text-muted-foreground">
               {modelPerformance.callCount} call{modelPerformance.callCount === 1 ? "" : "s"} in the last 30 days
               {modelPerformance.estimatedCostGbp !== null && modelPerformance.fxRateFetchedAt && (
                 <>
@@ -328,23 +340,23 @@ export function buildSectionContent(params: {
     // totalMessages) is now real, not "not tracked yet."
     client_ai_adoption:
       aiAdoption.activeClientCount > 0 ? (
-        <Card className="border-none bg-primary text-primary-foreground">
+        <Card className="border-none bg-card text-card-foreground">
           <CardContent className="p-5">
             <div className="flex items-center justify-between gap-2">
-              <p className="flex items-center gap-1.5 text-xs font-semibold text-primary-foreground/70">
+              <p className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
                 <Bot className="size-3.5 shrink-0" /> Client AI adoption
               </p>
               <HelpTip explanation="Share of your clients with the AI chatbot feature turned on for their own website, and how many of those actually had a real conversation in the last 30 days — enabled isn't the same as used." />
             </div>
             <div className="mt-4 flex items-baseline gap-3">
               <p className="font-heading text-2xl font-semibold tabular-nums">{aiAdoption.adoptionPct}%</p>
-              <p className="text-sm text-primary-foreground/60">
+              <p className="text-sm text-muted-foreground">
                 {aiAdoption.adoptedCount} of {aiAdoption.activeClientCount} client{aiAdoption.activeClientCount === 1 ? "" : "s"} have the AI chatbot
                 enabled
               </p>
             </div>
             {aiAdoption.adoptedCount > 0 && (
-              <p className="mt-2 text-xs text-primary-foreground/50">
+              <p className="mt-2 text-xs text-muted-foreground">
                 {aiAdoption.usedCount} of {aiAdoption.adoptedCount} enabled client{aiAdoption.adoptedCount === 1 ? "" : "s"} actually used it in the
                 last 30 days · {aiAdoption.totalMessages} message{aiAdoption.totalMessages === 1 ? "" : "s"} total
               </p>
@@ -360,10 +372,10 @@ export function buildSectionContent(params: {
     // own block rather than folded into Briefing.
     top_prospects:
       briefing.topOpportunities.length > 0 ? (
-        <Card className="border-none bg-primary text-primary-foreground">
+        <Card className="border-none bg-card text-card-foreground">
           <CardContent className="p-5">
             <div className="flex items-center justify-between gap-2">
-              <p className="flex items-center gap-1.5 text-xs font-semibold text-primary-foreground/70">
+              <p className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
                 <Lightbulb className="size-3.5 shrink-0" /> Top prospects
               </p>
               <HelpTip explanation="Your researched prospects, ranked by their real overall score (out of 5) — the same scoring your briefing's own best-opportunity box uses, just the top 5 instead of only the best one." />
@@ -375,11 +387,11 @@ export function buildSectionContent(params: {
                     {i + 1}
                   </span>
                   <div className="min-w-0">
-                    <p className="text-sm font-medium text-primary-foreground">
+                    <p className="text-sm font-medium">
                       {opp.businessName}{" "}
-                      <span className="font-mono text-xs font-normal text-primary-foreground/50">({opp.overallScore}/5)</span>
+                      <span className="font-mono text-xs font-normal text-muted-foreground">({opp.overallScore}/5)</span>
                     </p>
-                    <p className="mt-0.5 text-xs text-primary-foreground/50">{opp.pursueBecause}</p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">{opp.pursueBecause}</p>
                   </div>
                 </li>
               ))}
@@ -397,10 +409,10 @@ export function buildSectionContent(params: {
     // the event kinds).
     recent_activity:
       recentActivity.length > 0 ? (
-        <Card className="border-none bg-primary text-primary-foreground">
+        <Card className="border-none bg-card text-card-foreground">
           <CardContent className="p-5">
             <div className="flex items-center justify-between gap-2">
-              <p className="flex items-center gap-1.5 text-xs font-semibold text-primary-foreground/70">
+              <p className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
                 <History className="size-3.5 shrink-0" /> Recent activity
               </p>
               <HelpTip explanation="A real, dated feed of what's happened across your client roster — new clients, requests received and replied to, invoices paid, projects started. Up to 8 most recent, newest first." />
@@ -412,11 +424,11 @@ export function buildSectionContent(params: {
                   <li key={item.id} className="flex items-start gap-3">
                     <Icon className="mt-0.5 size-3.5 shrink-0 text-accent" />
                     <div className="min-w-0 flex-1">
-                      <p className="text-sm text-primary-foreground">
+                      <p className="text-sm">
                         <span className="font-medium">{item.businessName}</span> — {item.detail}
                       </p>
                     </div>
-                    <span className="shrink-0 font-mono text-[11px] text-primary-foreground/40">{timeAgo(item.occurredAt)}</span>
+                    <span className="shrink-0 font-mono text-[11px] text-muted-foreground">{timeAgo(item.occurredAt)}</span>
                   </li>
                 );
               })}
@@ -443,10 +455,10 @@ export function buildSectionContent(params: {
     // uses for the identical score.
     health_breakdown:
       agencyHealth.healthScore !== null && agencyHealth.components.length > 0 ? (
-        <Card className="border-none bg-primary text-primary-foreground">
+        <Card className="border-none bg-card text-card-foreground">
           <CardContent className="p-5">
             <div className="flex items-center justify-between gap-2">
-              <p className="flex items-center gap-1.5 text-xs font-semibold text-primary-foreground/70">
+              <p className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
                 <Activity className="size-3.5 shrink-0" /> Business Health breakdown
               </p>
               <HelpTip explanation="Same real, measured components behind your Business Health score above — site uptime, on-time payment, work completed, requests moving, and pipeline conversion. Only components with real data are shown." />
@@ -455,10 +467,10 @@ export function buildSectionContent(params: {
               {agencyHealth.components.map((c) => (
                 <div key={c.label}>
                   <div className="flex items-center justify-between gap-2 text-xs">
-                    <span className="text-primary-foreground/70">{c.label}</span>
-                    <span className="font-mono font-semibold text-primary-foreground">{c.value}%</span>
+                    <span className="text-muted-foreground">{c.label}</span>
+                    <span className="font-mono font-semibold">{c.value}%</span>
                   </div>
-                  <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-white/10">
+                  <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-secondary">
                     <div className={`h-full rounded-full ${healthBarColor(c.value)}`} style={{ width: `${c.value}%` }} />
                   </div>
                 </div>

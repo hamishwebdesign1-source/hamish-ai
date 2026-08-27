@@ -434,7 +434,7 @@ export default async function StudioHomePage() {
       const format = block.metric === "revenue" ? "money" : block.metric === "adoption" ? "percent" : "count";
       return (
         <div key={block.id} className={block.span === 2 ? "sm:col-span-2" : undefined}>
-          <Card className="h-full border-none bg-primary text-primary-foreground">
+          <Card className="h-full border-none bg-card text-card-foreground">
             <CardContent className="p-5">
               <p className="text-sm font-semibold">
                 {CHART_METRIC_LABELS[block.metric]} {block.metric === "adoption" ? "over time" : `— ${RANGE_LABELS[block.range]}`}
@@ -455,10 +455,10 @@ export default async function StudioHomePage() {
     if (block.type === "text") {
       return (
         <div key={block.id} className={block.span === 2 ? "sm:col-span-2" : undefined}>
-          <Card className="h-full border-none bg-primary text-primary-foreground">
+          <Card className="h-full border-none bg-card text-card-foreground">
             <CardContent className="p-5">
               <p className="font-heading text-sm font-semibold">{block.title}</p>
-              <p className="mt-2 text-sm whitespace-pre-wrap text-primary-foreground/60">{block.body}</p>
+              <p className="mt-2 text-sm whitespace-pre-wrap text-muted-foreground">{block.body}</p>
             </CardContent>
           </Card>
         </div>
@@ -566,20 +566,20 @@ export default async function StudioHomePage() {
           org that most needs this (a brand-new one, nothing set up yet)
           had to scroll past every populated tab to reach it. */}
       {!checklistComplete && (
-        <Card className="mt-6 border-none bg-primary text-primary-foreground">
+        <Card className="mt-6 border-none bg-card text-card-foreground">
           <CardContent className="p-5">
-            <p className="text-xs font-semibold text-primary-foreground/70">Getting set up</p>
+            <p className="text-xs font-semibold text-muted-foreground">Getting set up</p>
             <ul className="mt-4 space-y-2.5">
               {checklist.map((item) => (
                 <li key={item.label}>
                   <Link
                     href={item.href}
-                    className={`flex items-center gap-2 text-sm ${item.done ? "text-primary-foreground/40" : "text-primary-foreground/80 hover:text-primary-foreground"}`}
+                    className={`flex items-center gap-2 text-sm ${item.done ? "text-muted-foreground" : "hover:text-accent"}`}
                   >
                     {item.done ? (
                       <CheckCircle2 className="size-4 shrink-0 text-accent" />
                     ) : (
-                      <Circle className="size-4 shrink-0 text-primary-foreground/30" />
+                      <Circle className="size-4 shrink-0 text-muted-foreground/40" />
                     )}
                     <span className={item.done ? "line-through" : ""}>{item.label}</span>
                   </Link>
@@ -619,12 +619,12 @@ export default async function StudioHomePage() {
       ) : null}
 
       {config.services && config.services.length > 0 && (
-        <Card className="mt-6 border-none bg-primary text-primary-foreground">
+        <Card className="mt-6 border-none bg-card text-card-foreground">
           <CardContent className="p-5">
-            <p className="text-xs font-semibold text-primary-foreground/70">What you&apos;re set up to sell</p>
+            <p className="text-xs font-semibold text-muted-foreground">What you&apos;re set up to sell</p>
             <ul className="mt-4 space-y-2 text-sm">
               {config.services.map((service) => (
-                <li key={service} className="flex items-center gap-2 text-primary-foreground/70">
+                <li key={service} className="flex items-center gap-2 text-muted-foreground">
                   <CheckCircle2 className="size-3.5 shrink-0 text-accent" />
                   {service}
                 </li>

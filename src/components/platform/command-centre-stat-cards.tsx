@@ -15,17 +15,21 @@ import type { HealthTrend } from "@/lib/studio-health-history";
 // rest of the page's own closure — safe to turn into one real,
 // parameterised function rather than an inline object literal.
 //
-// The one dark surface on an otherwise light page — reserved for this
-// specifically, the same "one considered contrast moment, not a whole
-// dark UI" call the marketing/signup redesigns already made (signup-
-// brand-panel.tsx). HealthRing (analytics/health-ring.tsx) already
-// exists and is already built for exactly this dark-card context (its
-// center label uses text-primary-foreground) — reused here rather than
-// a second ring implementation, same component the hero product panel
-// and client detail pages already use. Every stat card uses this same
-// dark language, not just Business Health — direct instruction to
-// replicate that card's style across the whole page rather than keep
-// it as the one dark exception.
+// UX/UI Director audit (2026-08) — these 5 stat cards used to share the
+// same bg-primary/text-primary-foreground treatment as TodayStrip and
+// every section card, flattening the whole Command Centre into one
+// visual tier: "your most urgent action right now" and "a nice-to-know
+// stat" rendered identically. bg-primary/text-primary-foreground is now
+// reserved for exactly two surfaces (TodayStrip, the actions_required
+// section card) — the two things genuinely meant to read as "look here
+// first." These stat cards use plain bg-card/text-card-foreground
+// instead, same as every other Studio card (clients-panel.tsx,
+// campaigns-panel.tsx). HealthRing (analytics/health-ring.tsx) keeps
+// its own hardcoded text-primary-foreground center label unchanged —
+// still correct here since .studio-shell keeps both --card and
+// --primary as similarly dark surfaces (see globals.css), and HealthRing
+// is reused as-is on other genuinely-primary surfaces elsewhere (hero
+// product panel, client detail pages).
 //
 // Business Health uses the same horizontal icon+number+label shape as
 // every sibling here — a real, visible fix, not a stylistic preference:
@@ -46,23 +50,23 @@ export function buildStatContent(params: {
 
   return {
     health: (
-      <Card className="h-full border-none bg-primary text-primary-foreground">
+      <Card className="h-full border-none bg-card text-card-foreground">
         <CardContent className="flex items-center gap-3.5 p-5">
           {agencyHealth.healthScore === null ? (
             <>
-              <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-white/10">
+              <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-secondary">
                 <Activity className="size-5" />
               </span>
               <div className="min-w-0">
-                <p className="text-sm font-medium text-primary-foreground/70">Not enough data yet</p>
-                <p className="text-xs text-primary-foreground/50">Business Health</p>
+                <p className="text-sm font-medium text-muted-foreground">Not enough data yet</p>
+                <p className="text-xs text-muted-foreground">Business Health</p>
               </div>
             </>
           ) : (
             <>
               <HealthRing score={agencyHealth.healthScore} size={44} strokeWidth={5} centerLabel={String(agencyHealth.healthScore)} />
               <div className="min-w-0">
-                <p className="flex items-center gap-1 text-xs text-primary-foreground/60">
+                <p className="flex items-center gap-1 text-xs text-muted-foreground">
                   Business Health
                   <HelpTip explanation="An average of real, measured components across your whole client roster — site uptime, on-time payment, work completed, requests moving, and pipeline conversion. Full breakdown in the Overview tab below. Once there's at least three weeks of history, you'll also see how the score has moved." />
                 </p>
@@ -73,7 +77,7 @@ export function buildStatContent(params: {
                         ? "text-accent"
                         : healthTrend.deltaValue < 0
                           ? "text-destructive"
-                          : "text-primary-foreground/50"
+                          : "text-muted-foreground"
                     }`}
                   >
                     {healthTrend.deltaValue > 0 && <ArrowUp className="size-3 shrink-0" />}
@@ -82,7 +86,7 @@ export function buildStatContent(params: {
                     {healthTrend.daysAgo}d ago
                   </p>
                 ) : (
-                  <p className="text-xs text-primary-foreground/40">See breakdown below</p>
+                  <p className="text-xs text-muted-foreground">See breakdown below</p>
                 )}
               </div>
             </>
@@ -91,54 +95,54 @@ export function buildStatContent(params: {
       </Card>
     ),
     prospects: (
-      <Card className="h-full border-none bg-primary text-primary-foreground">
+      <Card className="h-full border-none bg-card text-card-foreground">
         <CardContent className="flex items-center gap-3.5 p-5">
-          <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-white/10">
+          <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-secondary">
             <Search className="size-5" />
           </span>
           <div>
             <p className="font-heading text-2xl font-semibold tabular-nums">
               <CountUp value={prospectCount ?? 0} />
             </p>
-            <p className="text-xs text-primary-foreground/60">Prospects found</p>
+            <p className="text-xs text-muted-foreground">Prospects found</p>
           </div>
         </CardContent>
       </Card>
     ),
     clients: (
-      <Card className="h-full border-none bg-primary text-primary-foreground">
+      <Card className="h-full border-none bg-card text-card-foreground">
         <CardContent className="flex items-center gap-3.5 p-5">
-          <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-white/10">
+          <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-secondary">
             <Users className="size-5" />
           </span>
           <div>
             <p className="font-heading text-2xl font-semibold tabular-nums">
               <CountUp value={clientCount} />
             </p>
-            <p className="text-xs text-primary-foreground/60">Clients</p>
+            <p className="text-xs text-muted-foreground">Clients</p>
           </div>
         </CardContent>
       </Card>
     ),
     conversion: (
-      <Card className="h-full border-none bg-primary text-primary-foreground">
+      <Card className="h-full border-none bg-card text-card-foreground">
         <CardContent className="flex items-center gap-3.5 p-5">
-          <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-white/10">
+          <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-secondary">
             <TrendingUp className="size-5" />
           </span>
           <div>
             <p className="font-heading text-2xl font-semibold tabular-nums">
               {prospectCount && prospectCount > 0 ? <CountUp value={Math.round((clientCount / prospectCount) * 100)} suffix="%" /> : "—"}
             </p>
-            <p className="text-xs text-primary-foreground/60">Conversion rate</p>
+            <p className="text-xs text-muted-foreground">Conversion rate</p>
           </div>
         </CardContent>
       </Card>
     ),
     pipeline: (
-      <Card className="h-full border-none bg-primary text-primary-foreground">
+      <Card className="h-full border-none bg-card text-card-foreground">
         <CardContent className="flex items-center gap-3.5 p-5">
-          <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-white/10">
+          <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-secondary">
             <PoundSterling className="size-5" />
           </span>
           <div>
@@ -151,7 +155,7 @@ export function buildStatContent(params: {
             <p className="font-heading text-2xl font-semibold tabular-nums">
               <CountUp value={Math.round(pipelineValuePence / 100)} prefix="£" />
             </p>
-            <p className="text-xs text-primary-foreground/60">Pipeline value</p>
+            <p className="text-xs text-muted-foreground">Pipeline value</p>
           </div>
         </CardContent>
       </Card>

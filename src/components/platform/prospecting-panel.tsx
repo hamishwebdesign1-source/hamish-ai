@@ -1297,6 +1297,7 @@ export function ProspectingPanel({
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)}
+                aria-label="Filter by status"
                 className="h-8 rounded-lg border border-input bg-transparent px-2 text-xs outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
               >
                 <option value="all">All statuses</option>
@@ -1310,6 +1311,7 @@ export function ProspectingPanel({
               <select
                 value={sortBy}
                 onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
+                aria-label="Sort prospects by"
                 className="h-8 rounded-lg border border-input bg-transparent px-2 text-xs outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
               >
                 <option value="score">Highest score</option>
