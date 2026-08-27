@@ -1,7 +1,9 @@
 import { redirect } from "next/navigation";
-import { CircleAlert, CheckCircle2, CreditCard, ExternalLink, Clock } from "lucide-react";
+import { CircleAlert, CheckCircle2, CreditCard, ExternalLink, Clock, Activity, Bot } from "lucide-react";
 import { createServerSupabaseClient } from "@/lib/supabase-server-auth";
+import { getSupabaseAdmin } from "@/lib/supabase";
 import { getOrgMembership } from "@/lib/org-membership";
+import { timeAgo } from "@/lib/time-ago";
 import { hasPlatformMsConfig } from "@/lib/tenant-graph-auth";
 import { SettingsPanel } from "@/components/platform/settings-panel";
 import { BrandingPanel } from "@/components/platform/branding-panel";
@@ -71,6 +73,37 @@ export default async function StudioSettingsPage({
     .eq("org_id", membership.orgId)
     .order("created_at", { ascending: false })
     .limit(10);
+
+  // Real-improvement pass — the weekly health/adoption snapshot cron
+  // (api/cron/health-snapshot) runs for every org with no way for a
+  // tenant to actually see it's working for theirs specifically — the
+  // Command Centre's own health trend and adoption chart show the
+  // *effect* (a delta, a chart point) once there's enough history, but
+  // never "is this actually current." These two dates are the one
+  // thing genuinely derivable per org — not a fabricated broader "job
+  // status" system, just the real, most recent row each table actually
+  // has. studio_health_snapshots/studio_adoption_snapshots are service-
+  // role-only (same convention as ai_call_log), read through the admin
+  // client.
+  const admin = getSupabaseAdmin();
+  const [{ data: lastHealthSnapshot }, { data: lastAdoptionSnapshot }] = admin
+    ? await Promise.all([
+        admin
+          .from("studio_health_snapshots")
+          .select("created_at")
+          .eq("org_id", membership.orgId)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+        admin
+          .from("studio_adoption_snapshots")
+          .select("created_at")
+          .eq("org_id", membership.orgId)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+      ])
+    : [{ data: null }, { data: null }];
 
   const params = await searchParams;
 
@@ -194,6 +227,44 @@ export default async function StudioSettingsPage({
           <DataPrivacyPanel orgName={org?.name ?? ""} deletionRequestedAt={org?.deletion_requested_at ?? null} />
         </div>
       </div>
+
+      {/* Real-improvement pass — see the query above's own comment on
+          why these two dates specifically, and why nothing broader. */}
+      {!org?.is_internal && (
+        <div>
+          <h2 className="font-heading text-xs font-semibold tracking-wide text-muted-foreground uppercase">System</h2>
+          <div className="mt-3">
+            <Card>
+              <CardContent className="space-y-3">
+                <div className="flex items-center gap-3">
+                  <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-accent/10 text-accent">
+                    <Activity className="size-4" />
+                  </span>
+                  <div>
+                    <p className="text-sm font-medium">Business Health trend</p>
+                    <p className="text-xs text-muted-foreground">
+                      {lastHealthSnapshot ? `Last recorded ${timeAgo(lastHealthSnapshot.created_at)}` : "Not recorded yet — runs weekly, Monday mornings."}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3 border-t border-border pt-3">
+                  <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-accent/10 text-accent">
+                    <Bot className="size-4" />
+                  </span>
+                  <div>
+                    <p className="text-sm font-medium">AI adoption trend</p>
+                    <p className="text-xs text-muted-foreground">
+                      {lastAdoptionSnapshot
+                        ? `Last recorded ${timeAgo(lastAdoptionSnapshot.created_at)}`
+                        : "Not recorded yet — runs weekly, Monday mornings."}
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
