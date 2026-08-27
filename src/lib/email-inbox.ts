@@ -35,23 +35,58 @@ async function getOrCreateProcessedLabelId(gmail: gmail_v1.Gmail): Promise<strin
 // every header on the message, including `Authentication-Results` — the
 // header Gmail's own receiving mail server appends recording its SPF/DKIM/
 // DMARC verdicts for that message. This function requires both `dkim=pass`
-// and `spf=pass` (per the backlog item's own framing) across any
-// Authentication-Results header present, and fails closed — absent,
-// malformed, or ambiguous (anything other than an explicit double pass) all
-// return false, i.e. "treat as unverified."
+// and `spf=pass` (per the backlog item's own framing) and fails closed —
+// absent, malformed, or ambiguous (anything other than an explicit double
+// pass) all return false, i.e. "treat as unverified."
 //
-// Known, deliberate limitation not fully resolved here: this checks that
-// *some* Authentication-Results header claims a double pass, without
-// verifying which mail server appended it (the trustworthy one is the
-// receiving server's own, identified by its authserv-id before the first
-// `;` — for personal Gmail this is consistently `mx.google.com`, but this
-// wasn't verified against real production headers before shipping, per the
-// backlog item's own open question). A message relayed through an
-// intermediate hop could in principle carry an earlier, less trustworthy
-// Authentication-Results header of its own. Flagged as a tradeoff for
-// Security Auditor re-verification against real fetched headers, not
-// guessed past silently — the safe default (fail closed on anything short
-// of an explicit double pass) is applied regardless of this open question.
+// Security Auditor re-verification (2026-08-27) of the tradeoff Lead
+// Engineer flagged when this shipped: checking "*some* Authentication-
+// Results header claims a double pass" is NOT equivalent to checking
+// "Gmail's own verdict claims a double pass," and the gap is real, not
+// theoretical. Confirmed against RFC 8601 itself (https://www.rfc-editor.org/rfc/rfc8601,
+// §5 "Removing Existing Header Fields" and §7.1 "Forged Header Fields"):
+// a receiving MTA is only REQUIRED to strip a pre-existing
+// Authentication-Results header that claims, via its authserv-id, to be
+// the MTA's *own* prior verdict (i.e. Gmail only has to strip a header
+// impersonating "mx.google.com"). Nothing in the spec — and no confirmed
+// evidence about Gmail's actual behaviour beyond that minimum — requires
+// stripping a header carrying a different, attacker-chosen authserv-id.
+// That means an attacker can freely append their own line to the raw
+// message they send, e.g.:
+//   Authentication-Results: attacker-controlled-host; dkim=pass; spf=pass
+// which Gmail has no obligation to remove (it isn't impersonating Gmail),
+// alongside Gmail's own genuine, failing verdict
+// (`mx.google.com; dkim=fail; spf=fail`) for the real spoofed message.
+// The old `.some()` check — scanning every Authentication-Results header
+// for a pass, regardless of who wrote it — would find the attacker's
+// fabricated line and wrongly return true. RFC 8601 §7.1 states this
+// exact risk in as many words and recommends trusting only a header field
+// "explicit list of hostnames" known to be the real receiving server —
+// exactly the authserv-id check added below.
+//
+// Fix: only a header whose authserv-id (the token before the first `;`,
+// per RFC 8601 §2.5) is a known Gmail identity is trusted; anything else —
+// however convincing — is ignored outright, not partially trusted. Per
+// Google's own documentation this is consistently `mx.google.com` for
+// Gmail's receiving MTA, for both personal Gmail and Google Workspace
+// mailboxes (the account wired up here, per .env.example, is a Google
+// Workspace integration). This has not yet been confirmed against a real,
+// fetched production header from this specific mailbox — flagged here
+// rather than guessed past silently. If a real header is ever observed
+// with a different Gmail authserv-id, add it to TRUSTED_AUTHSERV_IDS
+// rather than loosening the match.
+const TRUSTED_AUTHSERV_IDS = new Set(["mx.google.com"]);
+
+function extractAuthservId(headerValue: string): string | null {
+  const beforeFirstSemicolon = headerValue.split(";")[0]?.trim() ?? "";
+  if (!beforeFirstSemicolon) return null;
+  // authserv-id may be followed by an optional whitespace-separated
+  // authres-version token (RFC 8601 §2.5, e.g. "mx.google.com 1") — only
+  // the first whitespace-delimited token is the identity itself.
+  const token = beforeFirstSemicolon.split(/\s+/)[0];
+  return token ? token.toLowerCase() : null;
+}
+
 export function isAuthenticatedSender(
   headers: gmail_v1.Schema$MessagePartHeader[] | undefined | null
 ): boolean {
@@ -62,6 +97,13 @@ export function isAuthenticatedSender(
 
   return authResultsHeaders.some((h) => {
     const value = h.value ?? "";
+
+    // Reject outright, don't half-trust: a header whose authserv-id isn't a
+    // known Gmail identity did not come from Gmail's own authentication
+    // check and carries no signal at all, no matter what it claims.
+    const authservId = extractAuthservId(value);
+    if (!authservId || !TRUSTED_AUTHSERV_IDS.has(authservId)) return false;
+
     const dkim = /(?:^|[\s;])dkim=(\w+)/i.exec(value)?.[1]?.toLowerCase();
     const spf = /(?:^|[\s;])spf=(\w+)/i.exec(value)?.[1]?.toLowerCase();
     return dkim === "pass" && spf === "pass";

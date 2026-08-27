@@ -268,3 +268,60 @@ cron jobs) and has not yet been fixed — flagged in
 **Not built**: standalone Market/Competitor Research and Content/Marketing
 agents — no real recurring workload for either yet (see
 `docs/ai-team/README.md`'s team table). Revisit if one shows up.
+
+---
+
+## 2026-08-27 — Closed the `authserv-id` gap in `isAuthenticatedSender()` (Security Auditor)
+
+**Decision**: The tradeoff Lead Engineer flagged when the SPF+DKIM check
+shipped (commit `a92d344`) was real and exploitable, not a theoretical
+nitpick — fixed directly rather than just reported, per this being a small,
+scoped hardening of an already-approved control.
+
+**Verification**: Fetched RFC 8601 directly (rfc-editor.org) and
+cross-checked against independent documentation (smtpedia's
+Authentication-Results reference). RFC 8601 §5 ("Removing Existing Header
+Fields") only *requires* a receiving MTA to strip a pre-existing
+Authentication-Results header that claims, via its `authserv-id`, to have
+been added by that same MTA — i.e. Gmail is only obliged to strip a header
+impersonating `mx.google.com`. Nothing requires stripping a header carrying
+a *different*, attacker-chosen `authserv-id`. §7.1 ("Forged Header Fields")
+names this exact attack and recommends trusting only an explicit allowlist
+of known-good hostnames — never "any header claiming a pass."
+
+**Concretely**: an attacker can append their own line to the raw message
+they send, e.g. `Authentication-Results: attacker-host.example;
+dkim=pass; spf=pass`, which Gmail has no obligation to remove (it isn't
+impersonating Gmail's own identity), sitting alongside Gmail's own genuine,
+failing verdict for the real spoofed message
+(`mx.google.com; dkim=fail; spf=fail`). The shipped `.some()` check —
+scanning every Authentication-Results header for a double pass regardless
+of who wrote it — would find the attacker's fabricated line and wrongly
+report the sender as verified, defeating the entire point of the control.
+
+**Fix**: `isAuthenticatedSender()` (`src/lib/email-inbox.ts`) now extracts
+each header's `authserv-id` (the token before the first `;`, per RFC 8601
+§2.5) and only evaluates dkim/spf on a header whose `authserv-id` is in an
+explicit allowlist (`TRUSTED_AUTHSERV_IDS`, currently just `mx.google.com`
+— confirmed as Google's consistent identity for both personal Gmail and
+Google Workspace mailboxes per its own documentation, though not yet
+confirmed against a real header fetched from this specific mailbox in
+production). Any header with a different or missing `authserv-id` is
+ignored outright — reject, don't half-trust, this codebase's standing
+pattern (`isSafeHref()`'s allowlist being the house standard cited in the
+Security Auditor's own brief). Added `src/lib/email-inbox.test.ts` cases
+covering the exact injection scenario (forged header + genuine failing
+Gmail header together), a forged-header-only case, and confirming a
+genuine `mx.google.com` pass still works alongside an unrelated forged
+header. All 229 repo tests, lint, and `tsc --noEmit` pass.
+
+**Open item, not fully closed**: `mx.google.com` as Gmail's authserv-id has
+not been confirmed against a real, live-fetched header from the actual
+mailbox this cron polls (per `.env.example`, described as a Google
+Workspace integration). If a real production header ever shows a different
+value, add it to `TRUSTED_AUTHSERV_IDS` rather than loosening the match to
+a substring/prefix check. This is a stop-the-line-caliber control (it gates
+unsupervised auto-send under Hamish's identity) — shipping this hardening
+to production should still get Hamish's explicit confirmation per
+`docs/ai-team/README.md`'s approval boundaries, even though the code change
+itself was small enough to implement directly for review.
