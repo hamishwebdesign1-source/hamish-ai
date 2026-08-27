@@ -33,9 +33,23 @@ export type TodayStat = {
 // matching Business Health rather than being the one light exception —
 // direct instruction to replicate that card's style across the whole
 // page.
+//
+// UX/UI Director follow-up (2026-08) — bg-primary vs bg-card alone is a
+// real but small gap (.studio-shell: --card L0.16 -> --primary L0.19,
+// verified via a live authenticated session's exact computed pixel
+// values: rgb(7,13,24) vs rgb(12,20,33)), correct but easy to miss at a
+// glance. Rather than widen --primary itself — it's shared with
+// Button's default variant (button.tsx), so that would silently change
+// every primary button's colour across all of Studio, not just this
+// card — this adds a distinct accent ring on top instead, scoped to
+// exactly the two surfaces meant to read as featured (this one and
+// actions_required, command-centre-section-cards.tsx). --accent is
+// Studio's own "Signal Blue" (oklch 0.66 0.19 258), already a large
+// lightness jump from either dark tone, so it reads as a real highlight
+// without touching any shared token.
 export function TodayStrip({ stats }: { stats: TodayStat[] }) {
   return (
-    <div className="mt-6 overflow-hidden rounded-2xl bg-primary text-primary-foreground">
+    <div className="mt-6 overflow-hidden rounded-2xl bg-primary text-primary-foreground ring-1 ring-accent/50">
       <div className="flex items-center gap-2 border-b border-white/10 px-5 py-3">
         <span className="relative flex size-1.5">
           <span className="absolute inline-flex size-full animate-ping rounded-full bg-accent opacity-75" />

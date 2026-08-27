@@ -54,6 +54,14 @@ import type { ClientActivityItem, ClientActivityKind } from "@/lib/studio-client
 // in place of bg-white/10 for track/pill backgrounds — the same tokens
 // every other Studio card already uses (clients-panel.tsx,
 // campaigns-panel.tsx).
+//
+// Follow-up (2026-08) — bg-primary alone measured as only a small real
+// gap from bg-card (verified via a live authenticated session's exact
+// computed pixel values), correct but easy to miss at a glance. See
+// today-strip.tsx's matching comment for the full reasoning on why this
+// adds an accent ring here rather than widening --primary itself
+// (shared with Button's default variant — would ripple into every
+// primary button across Studio).
 
 const INSIGHT_ICON: Record<InsightCategory, LucideIcon> = {
   opportunity: Sparkles,
@@ -112,7 +120,7 @@ export function buildSectionContent(params: {
   return {
     actions_required:
       actionsRequired.length > 0 ? (
-        <Card className="border-none bg-primary text-primary-foreground">
+        <Card className="border-none bg-primary text-primary-foreground ring-accent/50">
           <CardContent className="p-5">
             <div className="flex items-center justify-between gap-2">
               <p className="flex items-center gap-1.5 text-xs font-semibold text-primary-foreground/70">
