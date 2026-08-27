@@ -928,6 +928,18 @@ export function ProspectingPanel({
   const [savePending, startSave] = useTransition();
   const [saveStatus, setSaveStatus] = useState<"idle" | "saved" | "error">("idle");
 
+  // Real-improvement pass — this page's own real shape, on closer
+  // reading, isn't the Command Centre's "9 parallel content types"
+  // (tabs was the right fix there); it's one setup form, one ad-hoc
+  // search tool, and one list — the list being the actual reason
+  // someone opens this page most days. The niche form was permanently
+  // pushing that list down even for a returning tenant who configured
+  // it once and never needs to see the full form again. Open by
+  // default only while nothing's actually saved yet; collapsed once a
+  // real niche exists, same established convention as
+  // CommandCentreLayoutPanel and ClientsCopilot.
+  const [nicheOpen, setNicheOpen] = useState(initialCategories.length === 0 || initialAreas.length === 0);
+
   const [icpDescription, setIcpDescription] = useState("");
   const [icpPending, startIcp] = useTransition();
   const [icpError, setIcpError] = useState<string | null>(null);
@@ -1097,7 +1109,24 @@ export function ProspectingPanel({
 
       <Card>
         <CardContent>
-          <p className="font-heading text-sm font-semibold">Describe your ideal customer</p>
+          <button type="button" onClick={() => setNicheOpen((o) => !o)} className="flex w-full items-center justify-between gap-2 text-left">
+            <div className="min-w-0">
+              <p className="font-heading text-sm font-semibold">Your niche</p>
+              {!nicheOpen && (
+                <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                  {categories || "No categories set"} · {areas || "No areas set"}
+                </p>
+              )}
+            </div>
+            {nicheOpen ? (
+              <ChevronUp className="size-4 shrink-0 text-muted-foreground" />
+            ) : (
+              <ChevronDown className="size-4 shrink-0 text-muted-foreground" />
+            )}
+          </button>
+          {nicheOpen && (
+            <>
+          <p className="mt-4 font-heading text-sm font-semibold">Describe your ideal customer</p>
           <p className="mt-1 text-xs text-muted-foreground">
             One sentence is enough — it fills in the fields below for you to review before saving.
           </p>
@@ -1124,7 +1153,7 @@ export function ProspectingPanel({
           {icpError && <p className="mt-2 text-xs text-destructive">{icpError}</p>}
           {icpNotes && <p className="mt-2 text-xs text-accent">{icpNotes}</p>}
 
-          <p className="mt-5 font-heading text-sm font-semibold">Your niche</p>
+          <p className="mt-5 font-heading text-sm font-semibold">Categories &amp; areas</p>
           <div className="mt-4 grid gap-4 sm:grid-cols-2">
             <div className="space-y-1.5">
               <Label htmlFor="categories" className="text-xs">
@@ -1162,6 +1191,8 @@ export function ProspectingPanel({
             {saveStatus === "saved" && <span className="text-xs text-accent">Saved.</span>}
             {saveStatus === "error" && <span className="text-xs text-destructive">Couldn&apos;t save — try again.</span>}
           </div>
+            </>
+          )}
         </CardContent>
       </Card>
 
