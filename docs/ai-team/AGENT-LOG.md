@@ -9,6 +9,22 @@ paragraph, not a full handoff report (those, if worth keeping, go in
 
 ---
 
+## 2026-08-27 — Live-verified the Command Centre fix, then closed the real gap it found
+
+Hamish signed into a real authenticated Studio session and handed the
+Browser pane to it — the actual unblock for the "no agent has Studio
+credentials" gap from earlier the same day (agents still can't create
+accounts or enter credentials themselves; a human signing in and letting
+an already-authenticated session be driven is the legitimate path
+around that, not an exception to it). Read exact computed pixel values
+from the live page: `40e0552`'s bg-primary/bg-card split is real and
+correctly applied (rgb(12,20,33) vs rgb(7,13,24)) but visually subtle.
+Rather than widen `--primary` itself (checked first — it's shared with
+`Button`'s default variant, would've silently changed every primary
+button across Studio), added a scoped `ring-accent/50` highlight to
+exactly TodayStrip and `actions_required`. Committed `e5931f7`, not yet
+pushed/deployed/re-verified live as this entry was written.
+
 ## 2026-08-27 — First real mission: Command Centre visual hierarchy
 
 Ran manually (the `/mission` skill and `.claude/agents/*` subagents aren't
