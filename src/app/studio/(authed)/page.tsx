@@ -885,6 +885,17 @@ export default async function StudioHomePage() {
                 );
               })}
             </ol>
+            {/* Real-improvement pass — every sibling section with a real
+                list (Top prospects, Your briefing) ends in a link to
+                where the full picture lives; this one didn't, an
+                inconsistency in this session's own earlier work. No
+                per-record client route exists yet, same reasoning as
+                command-search-actions.ts's own comment, so this points
+                at the list, not one specific row. */}
+            <Button variant="link" size="sm" className="mt-3 h-auto px-0 text-accent" render={<Link href="/studio/clients" />}>
+              View all clients
+              <ArrowRight className="size-3.5" />
+            </Button>
           </CardContent>
         </Card>
       ) : undefined,
