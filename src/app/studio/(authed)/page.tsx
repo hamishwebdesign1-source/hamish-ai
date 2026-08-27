@@ -219,10 +219,16 @@ export default async function StudioHomePage() {
   const blocks = resolveLayout(org?.command_centre_layout);
 
   const config = (org?.prospecting_config ?? {}) as { agencyType?: string; services?: string[] };
-  const briefing = await getStudioBriefing(supabase, membership.orgId);
-  const hasBriefingContent = briefing.newThisWeek > 0 || briefing.needsResearch > 0 || briefing.readyToContact > 0;
 
-  const [{ count: prospectCount }, { data: clients }, { data: activeDeals }, { count: emailConnectionCount }] = await Promise.all([
+  // Real-improvement pass — briefing used to be its own sequential await
+  // ahead of this batch even though it needs nothing this batch produces
+  // (just supabase + orgId, same as everything else here) — a real,
+  // avoidable extra round trip on every single page load, not just a
+  // stylistic difference. It runs its own separate `prospects` query
+  // (full rows, not this batch's plain count), so there's no read
+  // conflict joining it in.
+  const [briefing, { count: prospectCount }, { data: clients }, { data: activeDeals }, { count: emailConnectionCount }] = await Promise.all([
+    getStudioBriefing(supabase, membership.orgId),
     supabase.from("prospects").select("id", { count: "exact", head: true }).eq("org_id", membership.orgId),
     // business_name added for Engagement Risk (Phase 6c); chatbot_embed_enabled
     // added for Client AI Adoption (Phase 6d); created_at added for
@@ -241,6 +247,7 @@ export default async function StudioHomePage() {
       .not("deal_value_pence", "is", null),
     supabase.from("email_connections").select("id", { count: "exact", head: true }).eq("org_id", membership.orgId),
   ]);
+  const hasBriefingContent = briefing.newThisWeek > 0 || briefing.needsResearch > 0 || briefing.readyToContact > 0;
   const clientCount = clients?.length ?? 0;
   const clientIds = (clients ?? []).map((c) => c.id);
 
@@ -308,15 +315,6 @@ export default async function StudioHomePage() {
   // it from).
   const recentActivity = computeRecentClientActivity(clients ?? [], requests ?? [], invoices ?? [], projects ?? []);
 
-  // Model Performance + Client AI Adoption (Command Centre Phase 6d).
-  // ai_call_log (schema-ai-call-log.sql) is service-role-only, same
-  // convention as usage_events — no session-facing read path, so this
-  // reads through the admin client like usage-limits.ts already does,
-  // not the session-scoped `supabase` this page uses everywhere else.
-  const admin = getSupabaseAdmin();
-  const modelPerformance = admin
-    ? await getModelPerformance(admin, membership.orgId)
-    : { callCount: 0, successRatePct: null, medianLatencyMs: null, estimatedCostUsd: null, estimatedCostGbp: null, fxRateFetchedAt: null };
   const embedUsageByClient: Record<string, number> = {};
   for (const event of embedChatEvents ?? []) {
     if (!event.client_id) continue;
@@ -324,25 +322,13 @@ export default async function StudioHomePage() {
   }
   const aiAdoption = computeClientAiAdoption(clients ?? [], embedUsageByClient);
 
-  // Business Health trend (Command Centre improvement #3) — same admin
-  // client as modelPerformance above, same reasoning: studio_health_snapshots
-  // is service-role-only, no session-facing read path. null (not a score
-  // of 0) when there's no real score yet, or no snapshot old enough to
-  // compare against — see getHealthTrend()'s own comment.
-  const healthTrend =
-    admin && agencyHealth.healthScore !== null ? await getHealthTrend(admin, membership.orgId, agencyHealth.healthScore) : null;
-
-  // AI adoption trend chart data (Command Centre improvement #8) — same
-  // admin-client reasoning as healthTrend above. Empty array (not
-  // undefined) when there's no admin client or no snapshots yet — the
-  // chart block's own emptyMessage handles that, same as any other
-  // metric before it has real data.
-  const adoptionSeries = admin ? await getAdoptionSeries(admin, membership.orgId) : [];
-
   // Actions Required (Command Centre Phase 1) — the genuinely urgent
   // subset of what used to be scattered across the checklist, the
   // briefing, and the Requests page's own count, gathered in one place.
   // Only real, only shown when non-zero — no "0 actions required" noise.
+  // Computed here, ahead of the async batch below, since it needs none
+  // of what that batch fetches — just briefing/overdueProjectCount/
+  // openRequestCount, already in hand.
   const actionsRequired = [
     { count: briefing.followUpsDue, label: "follow-up", href: "/studio/prospects", icon: BellRing },
     { count: overdueProjectCount, label: "overdue project", href: "/studio/projects", icon: FolderClock },
@@ -350,12 +336,34 @@ export default async function StudioHomePage() {
   ].filter((a) => a.count > 0);
   const actionsTotal = actionsRequired.reduce((sum, a) => sum + a.count, 0);
 
+  // Model Performance + Business Health trend + AI adoption trend +
+  // 30-day analytics (Command Centre Phase 6d / improvements #3 / #8 /
+  // Phase 3) — four independent reads batched into one round trip
+  // instead of four sequential awaits (a real-improvement pass fix, not
+  // how these shipped originally): none of the four needs anything the
+  // others produce, each only needs supabase/admin + orgId (+
+  // agencyHealth.healthScore, already computed synchronously above from
+  // data already in hand). ai_call_log and studio_health_snapshots/
+  // studio_adoption_snapshots are service-role-only, same convention as
+  // usage_events — read through the admin client, not the session-
+  // scoped `supabase` this page uses everywhere else.
+  const admin = getSupabaseAdmin();
+  const [modelPerformance, healthTrend, adoptionSeries, analytics] = await Promise.all([
+    admin
+      ? getModelPerformance(admin, membership.orgId)
+      : Promise.resolve({ callCount: 0, successRatePct: null, medianLatencyMs: null, estimatedCostUsd: null, estimatedCostGbp: null, fxRateFetchedAt: null }),
+    admin && agencyHealth.healthScore !== null
+      ? getHealthTrend(admin, membership.orgId, agencyHealth.healthScore)
+      : Promise.resolve(null),
+    admin ? getAdoptionSeries(admin, membership.orgId) : Promise.resolve([]),
+    getStudioAnalytics(supabase, membership.orgId, "30d"),
+  ]);
+
   // AI Insight Feed (Command Centre Phase 3) — rule-based, not
   // LLM-generated (see studio-insights.ts's own comment on why). Reuses
   // the same 30-day analytics computation the Analytics page itself
   // shows, so an insight's numbers are never out of step with what a
   // tenant sees if they click through to investigate it.
-  const analytics = await getStudioAnalytics(supabase, membership.orgId, "30d");
   const insights = generateInsights(analytics, agencyHealth, overdueProjectCount);
 
   // TODAY masthead (see today-strip.tsx's own comment) — every value
@@ -1098,6 +1106,39 @@ export default async function StudioHomePage() {
           ))}
       </Reveal>
 
+      {/* Getting set up (P1 onboarding checklist) — deliberately not a
+          block: it's a temporary, self-removing section (see its own
+          comment below), not a permanent piece of the layout an agency
+          would want to reorder or hide. Moved here, right after the
+          stat row and ahead of the tabs, in the professional-feel pass
+          — it used to render after the whole tabbed area, meaning the
+          org that most needs this (a brand-new one, nothing set up yet)
+          had to scroll past every populated tab to reach it. */}
+      {!checklistComplete && (
+        <Card className="mt-6 border-none bg-primary text-primary-foreground">
+          <CardContent className="p-5">
+            <p className="text-xs font-semibold text-primary-foreground/70">Getting set up</p>
+            <ul className="mt-4 space-y-2.5">
+              {checklist.map((item) => (
+                <li key={item.label}>
+                  <Link
+                    href={item.href}
+                    className={`flex items-center gap-2 text-sm ${item.done ? "text-primary-foreground/40" : "text-primary-foreground/80 hover:text-primary-foreground"}`}
+                  >
+                    {item.done ? (
+                      <CheckCircle2 className="size-4 shrink-0 text-accent" />
+                    ) : (
+                      <Circle className="size-4 shrink-0 text-primary-foreground/30" />
+                    )}
+                    <span className={item.done ? "line-through" : ""}>{item.label}</span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Everything else (Actions required / Insights / Your briefing /
           Engagement risk / Model performance / Client AI adoption / Top
           prospects / Recent activity / Business Health breakdown, plus
@@ -1131,36 +1172,6 @@ export default async function StudioHomePage() {
           {tabContent[populatedTabs[0]]}
         </Reveal>
       ) : null}
-
-      {/* Getting set up (P1 onboarding checklist) — deliberately not a
-          block: it's a temporary, self-removing section (see its own
-          comment below), not a permanent piece of the layout an agency
-          would want to reorder or hide. Always renders directly after
-          the block canvas while incomplete. */}
-      {!checklistComplete && (
-        <Card className="mt-6 border-none bg-primary text-primary-foreground">
-          <CardContent className="p-5">
-            <p className="text-xs font-semibold text-primary-foreground/70">Getting set up</p>
-            <ul className="mt-4 space-y-2.5">
-              {checklist.map((item) => (
-                <li key={item.label}>
-                  <Link
-                    href={item.href}
-                    className={`flex items-center gap-2 text-sm ${item.done ? "text-primary-foreground/40" : "text-primary-foreground/80 hover:text-primary-foreground"}`}
-                  >
-                    {item.done ? (
-                      <CheckCircle2 className="size-4 shrink-0 text-accent" />
-                    ) : (
-                      <Circle className="size-4 shrink-0 text-primary-foreground/30" />
-                    )}
-                    <span className={item.done ? "line-through" : ""}>{item.label}</span>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </CardContent>
-        </Card>
-      )}
 
       {config.services && config.services.length > 0 && (
         <Card className="mt-6 border-none bg-primary text-primary-foreground">
