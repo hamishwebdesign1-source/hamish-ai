@@ -494,9 +494,27 @@ export default async function StudioHomePage() {
   // every individual section already followed, just applied one level
   // up. Exactly one populated tab skips the tab chrome outright: a
   // single-tab tab bar would be UI for its own sake.
+  // Product Director + UX/UI Director follow-up (2026-08) to the card-
+  // hierarchy fix (40e0552/0c4b85f/e5931f7) — the color/ring treatment
+  // fixed *visibility* (actions_required no longer looks identical to
+  // every other card), but not *position*: it was still just one block
+  // among however many an org's own saved Overview-tab order put it
+  // among, same as TodayStrip/the stat row used to be before they were
+  // pulled out of the reorderable canvas for the same "shouldn't be
+  // hideable" reason (see the stat row's own comment above). Deliberately
+  // NOT the same as show/hide, which stays a real per-org choice: if a
+  // tenant has removed this block from their layout entirely
+  // (Settings → Command Centre layout), it's genuinely absent here, same
+  // as before. What changes is that when it IS present, it always
+  // renders in one fixed spot — right after the stat row/checklist,
+  // before any tab — rather than wherever the org's own block order (or
+  // whichever tab happened to claim it) put it.
+  const actionsRequiredBlock = blocks.find((b) => b.type === "actions_required");
+  const actionsRequiredContent = actionsRequiredBlock ? sectionContent.actions_required : null;
+
   const tabContent: Record<CommandCentreTabId, ReactNode[]> = { overview: [], prospects: [], clients: [], performance: [] };
   for (const block of blocks) {
-    if (block.type === "stat") continue;
+    if (block.type === "stat" || block.type === "actions_required") continue;
     const rendered = renderContentBlock(block);
     if (rendered) tabContent[blockTab(block)].push(rendered);
   }
@@ -590,17 +608,24 @@ export default async function StudioHomePage() {
         </Card>
       )}
 
-      {/* Everything else (Actions required / Insights / Your briefing /
-          Engagement risk / Model performance / Client AI adoption / Top
-          prospects / Recent activity / Business Health breakdown, plus
-          any chart/text/cta blocks) — grouped into tabs instead of one
-          long vertical stack, now that the block library has grown to 9
-          section types plus whatever charts/text/cta an org's added
-          (see blockTab()'s own comment on the grouping and why it's
-          presentation-only: Settings → Command Centre layout still owns
-          order/width/visibility per
-          block, unchanged). A tab with nothing real in it isn't shown
-          at all; exactly one populated tab skips the tab bar outright. */}
+      {/* Actions required — always the first thing after the numbers,
+          before any tab (see the fixed-position comment above
+          tabContent's own loop for the full reasoning). Full-width, same
+          treatment its own card already had inside the block grid. */}
+      {actionsRequiredContent && <Reveal delay={110} className="mt-6">{actionsRequiredContent}</Reveal>}
+
+      {/* Everything else (Insights / Your briefing / Engagement risk /
+          Model performance / Client AI adoption / Top prospects / Recent
+          activity / Business Health breakdown, plus any chart/text/cta
+          blocks) — grouped into tabs instead of one long vertical stack,
+          now that the block library has grown to 9 section types plus
+          whatever charts/text/cta an org's added (see blockTab()'s own
+          comment on the grouping and why it's presentation-only:
+          Settings → Command Centre layout still owns order/width/
+          visibility per block, unchanged — actions_required excluded
+          here since it's rendered in its own fixed spot above). A tab
+          with nothing real in it isn't shown at all; exactly one
+          populated tab skips the tab bar outright. */}
       {populatedTabs.length > 1 ? (
         <Reveal delay={140} className="mt-6">
           <CommandCentreTabs
