@@ -44,6 +44,12 @@ import { computeClientAiAdoption } from "@/lib/studio-ai-adoption";
 import { getHealthTrend } from "@/lib/studio-health-history";
 import { getAdoptionSeries } from "@/lib/studio-adoption-history";
 import { resolveLayout, CHART_METRIC_LABELS, type StatCardId, type Block } from "@/lib/command-centre-layout";
+import {
+  blockTab,
+  COMMAND_CENTRE_TAB_ORDER,
+  COMMAND_CENTRE_TAB_LABELS,
+  type CommandCentreTabId,
+} from "@/lib/command-centre-tab-grouping";
 import { resolveTodayStrip, TODAY_STAT_LABELS, type TodayStatId } from "@/lib/today-strip-config";
 import { Card, CardContent } from "@/components/ui/card";
 import { Eyebrow } from "@/components/eyebrow";
@@ -95,49 +101,6 @@ const ACTIVITY_ICON: Record<ClientActivityKind, typeof Users> = {
   invoice_paid: PoundSterling,
   project_started: Rocket,
 };
-
-// Home page tabs — a presentation-only grouping, not a block-canvas
-// concept. Settings → Command Centre layout still owns which blocks
-// exist, their order, and their width; this only decides which of 4
-// tabs a given non-stat block's card renders under on the home page
-// itself. Stat cards stay outside the tabs entirely, in their own
-// always-visible row above — the same "shouldn't be hidden" reasoning
-// today-strip.tsx's own comment already gives for the TODAY masthead
-// applies just as much to the org's own headline numbers.
-type CommandCentreTabId = "overview" | "prospects" | "clients" | "performance";
-const COMMAND_CENTRE_TAB_ORDER: CommandCentreTabId[] = ["overview", "prospects", "clients", "performance"];
-const COMMAND_CENTRE_TAB_LABELS: Record<CommandCentreTabId, string> = {
-  overview: "Overview",
-  prospects: "Prospects",
-  clients: "Clients",
-  performance: "Performance",
-};
-
-function blockTab(block: Block): CommandCentreTabId {
-  switch (block.type) {
-    case "actions_required":
-    case "insights":
-    case "health_breakdown":
-    case "text":
-    case "cta":
-      return "overview";
-    case "briefing":
-    case "top_prospects":
-      return "prospects";
-    case "engagement_risk":
-    case "recent_activity":
-    case "client_ai_adoption":
-      return "clients";
-    case "model_performance":
-      return "performance";
-    case "chart":
-      // adoption is a Performance metric; revenue/prospects both read
-      // as pipeline numbers, so they sit with the rest of Prospects.
-      return block.metric === "adoption" ? "performance" : "prospects";
-    default:
-      return "overview";
-  }
-}
 
 // Pulled out of the component body, same reasoning as clients/page.tsx's
 // thirtyDaysAgoIso() — react-hooks/purity flags a current-time read
