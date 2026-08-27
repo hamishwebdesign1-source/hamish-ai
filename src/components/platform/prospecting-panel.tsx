@@ -721,7 +721,7 @@ function ProspectCard({ prospect }: { prospect: Prospect }) {
   return (
     <Card>
       <CardContent className="py-3">
-        <button type="button" onClick={() => setOpen((o) => !o)} className="flex w-full items-center justify-between gap-3 text-left">
+        <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open} className="flex w-full items-center justify-between gap-3 text-left">
           <div className="min-w-0">
             <div className="flex items-center gap-2">
               <p className="truncate text-sm font-medium">{prospect.business_name}</p>
@@ -1109,7 +1109,12 @@ export function ProspectingPanel({
 
       <Card>
         <CardContent>
-          <button type="button" onClick={() => setNicheOpen((o) => !o)} className="flex w-full items-center justify-between gap-2 text-left">
+          <button
+            type="button"
+            onClick={() => setNicheOpen((o) => !o)}
+            aria-expanded={nicheOpen}
+            className="flex w-full items-center justify-between gap-2 text-left"
+          >
             <div className="min-w-0">
               <p className="font-heading text-sm font-semibold">Your niche</p>
               {!nicheOpen && (

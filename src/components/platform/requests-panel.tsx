@@ -296,7 +296,7 @@ function RequestCard({
   return (
     <Card>
       <CardContent className="py-3">
-        <button type="button" onClick={() => setOpen((o) => !o)} className="flex w-full items-center justify-between gap-3 text-left">
+        <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open} className="flex w-full items-center justify-between gap-3 text-left">
           <div className="min-w-0">
             <p className="truncate text-sm font-medium">{clientName(request)}</p>
             <p className="mt-0.5 truncate text-xs text-muted-foreground">{request.raw_text}</p>

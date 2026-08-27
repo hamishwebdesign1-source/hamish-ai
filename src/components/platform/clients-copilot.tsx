@@ -56,6 +56,7 @@ export function ClientsCopilot() {
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
         className="flex w-full items-center justify-between gap-2 bg-secondary/40 px-4 py-2.5 text-left"
       >
         <span className="flex items-center gap-1.5 text-sm font-medium">

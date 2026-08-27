@@ -264,7 +264,12 @@ export function CommandCentreLayoutPanel({
   return (
     <Card>
       <CardContent>
-        <button type="button" onClick={() => setOpen((o) => !o)} className="flex w-full items-center justify-between gap-2 text-left">
+        <button
+          type="button"
+          onClick={() => setOpen((o) => !o)}
+          aria-expanded={open}
+          className="flex w-full items-center justify-between gap-2 text-left"
+        >
           <span className="flex items-center gap-2.5 font-heading text-sm font-semibold">
             <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-accent/10 text-accent">
               <LayoutGrid className="size-4" />
