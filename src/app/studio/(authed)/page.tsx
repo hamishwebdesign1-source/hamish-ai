@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
 import {
   Search,
   Users,
@@ -54,7 +55,7 @@ import { HealthRing } from "@/components/analytics/health-ring";
 import { CountUp } from "@/components/platform/count-up";
 import { TodayStrip, type TodayStat } from "@/components/platform/today-strip";
 import { Reveal } from "@/components/reveal";
-import { Tabs, TabsList, TabsTab, TabsPanel } from "@/components/ui/tabs";
+import { CommandCentreTabs } from "@/components/platform/command-centre-tabs";
 
 // Real-data colour tiers for the Business Health breakdown bars — same
 // 80/50 thresholds clients-panel.tsx's own healthBadgeVariant() already
@@ -1060,6 +1061,15 @@ export default async function StudioHomePage() {
   }
   const populatedTabs = COMMAND_CENTRE_TAB_ORDER.filter((id) => tabContent[id].length > 0);
 
+  // Real-improvement pass — which tab was last active, read server-side
+  // so the very first render already shows the right one (see command-
+  // centre-tabs.tsx's own comment on why a cookie, not localStorage).
+  // Falls back to the first populated tab whenever the cookied one isn't
+  // valid right now — no cookie yet, or a tab that's since emptied out.
+  const cookieStore = await cookies();
+  const cookiedTab = cookieStore.get("studio_cc_tab")?.value;
+  const activeTab = populatedTabs.includes(cookiedTab as CommandCentreTabId) ? (cookiedTab as CommandCentreTabId) : populatedTabs[0];
+
   return (
     <div>
       <Eyebrow>Command Centre</Eyebrow>
@@ -1152,20 +1162,14 @@ export default async function StudioHomePage() {
           at all; exactly one populated tab skips the tab bar outright. */}
       {populatedTabs.length > 1 ? (
         <Reveal delay={140} className="mt-6">
-          <Tabs defaultValue={populatedTabs[0]}>
-            <TabsList>
-              {populatedTabs.map((id) => (
-                <TabsTab key={id} value={id}>
-                  {COMMAND_CENTRE_TAB_LABELS[id]}
-                </TabsTab>
-              ))}
-            </TabsList>
-            {populatedTabs.map((id) => (
-              <TabsPanel key={id} value={id}>
-                <div className="grid items-start gap-4 sm:grid-cols-2 lg:grid-cols-5">{tabContent[id]}</div>
-              </TabsPanel>
-            ))}
-          </Tabs>
+          <CommandCentreTabs
+            activeTab={activeTab}
+            tabs={populatedTabs.map((id) => ({
+              id,
+              label: COMMAND_CENTRE_TAB_LABELS[id],
+              content: <div className="grid items-start gap-4 sm:grid-cols-2 lg:grid-cols-5">{tabContent[id]}</div>,
+            }))}
+          />
         </Reveal>
       ) : populatedTabs.length === 1 ? (
         <Reveal delay={140} className="mt-6 grid items-start gap-4 sm:grid-cols-2 lg:grid-cols-5">
