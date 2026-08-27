@@ -24,6 +24,7 @@ import {
   type ChartMetric,
   type ChartKind,
 } from "@/lib/command-centre-layout";
+import { RANGE_LABELS, type AnalyticsRange } from "@/lib/studio-analytics";
 
 const selectClasses =
   "h-8 rounded-lg border border-input bg-transparent px-2 text-xs outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50";
@@ -151,7 +152,7 @@ export function CommandCentreLayoutPanel({
     const id = generateBlockId(type);
     const block: Block =
       type === "chart"
-        ? { id, type, metric: "revenue", kind: "area", span: 2 }
+        ? { id, type, metric: "revenue", kind: "area", range: "30d", span: 2 }
         : type === "text"
           ? { id, type, title: "New note", body: "", span: 2 }
           : { id, type: "cta", label: "Learn more", href: "/studio/settings", span: 1 };
@@ -394,6 +395,27 @@ export function CommandCentreLayoutPanel({
                         </option>
                       ))}
                     </select>
+                    {/* Real-improvement pass — every chart block used to
+                        show a fixed 30-day window regardless of what a
+                        tenant actually wanted, even though the real
+                        Analytics page already lets them pick between
+                        four. adoption has no other real window to pick
+                        from (studio-adoption-history.ts's own comment on
+                        why), so this only shows for revenue/prospects. */}
+                    {block.metric !== "adoption" && (
+                      <select
+                        value={block.range}
+                        onChange={(e) => updateBlock(id, { range: e.target.value as AnalyticsRange })}
+                        className={selectClasses}
+                        aria-label="Chart date range"
+                      >
+                        {Object.entries(RANGE_LABELS).map(([value, label]) => (
+                          <option key={value} value={value}>
+                            {label}
+                          </option>
+                        ))}
+                      </select>
+                    )}
                   </div>
                 )}
 

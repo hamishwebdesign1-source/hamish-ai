@@ -56,6 +56,12 @@ const BLOCK_TOOL_SCHEMA = {
     cardId: { type: "string", enum: STAT_CARD_IDS, description: "Required, and only used, when type is 'stat'." },
     metric: { type: "string", enum: ["revenue", "prospects", "adoption"], description: "Required, and only used, when type is 'chart'." },
     kind: { type: "string", enum: ["area", "bar"], description: "Required, and only used, when type is 'chart'." },
+    range: {
+      type: "string",
+      enum: ["7d", "30d", "90d", "12m"],
+      description:
+        "Required when type is 'chart' and metric is 'revenue' or 'prospects' — the date window to show, same four choices as the Analytics page's own range picker. Ignored (omit or default to '30d') when metric is 'adoption', which has no other window to pick from.",
+    },
     title: { type: "string", description: "Required, and only used, when type is 'text'. Max 60 characters." },
     body: { type: "string", description: "Required, and only used, when type is 'text'. Max 500 characters." },
     label: { type: "string", description: "Required, and only used, when type is 'cta'. Max 40 characters." },
@@ -97,7 +103,8 @@ const PROPOSE_LAYOUT_TOOL: Anthropic.Tool = {
 
 function describeBlock(block: Block): string {
   if (block.type === "stat") return `stat card "${STAT_LABELS[block.cardId]}" (id ${block.id}, width ${block.span === 2 ? "double" : "standard"})`;
-  if (block.type === "chart") return `chart of ${CHART_METRIC_LABELS[block.metric]} as a ${CHART_KIND_LABELS[block.kind]} chart (id ${block.id}, width ${block.span === 2 ? "double" : "standard"})`;
+  if (block.type === "chart")
+    return `chart of ${CHART_METRIC_LABELS[block.metric]}${block.metric === "adoption" ? "" : ` over ${block.range}`} as a ${CHART_KIND_LABELS[block.kind]} chart (id ${block.id}, width ${block.span === 2 ? "double" : "standard"})`;
   if (block.type === "text") return `text block titled "${block.title}" (id ${block.id})`;
   if (block.type === "cta") return `call-to-action "${block.label}" linking to ${block.href} (id ${block.id})`;
   return `${SECTION_LABELS[block.type]} section (id ${block.id}, always full width)`;
@@ -109,7 +116,7 @@ function buildSystemPrompt(currentBlocks: Block[]): string {
 Available block types:
 - stat: one of 5 fixed cards — ${STAT_CARD_IDS.map((id) => `"${id}" (${STAT_LABELS[id]})`).join(", ")}. Each can appear at most once.
 - actions_required, insights, briefing, engagement_risk, model_performance, client_ai_adoption, top_prospects, recent_activity, health_breakdown: fixed section blocks (${SECTION_TYPES.map((t) => `"${SECTION_LABELS[t]}"`).join(", ")}). Each can appear at most once. Always full width — never set span on these. engagement_risk lists clients who've gone quiet or fallen behind on an invoice — it's rule-based on real request/invoice dates, not a prediction. model_performance shows real success rate, latency and cost for this org's own AI Design Assistant and AI Business Analyst calls. client_ai_adoption shows what share of active clients have the AI chatbot feature turned on for their own website. top_prospects lists this org's own researched prospects ranked by their real score, up to 5 — the same ranking briefing's own best-opportunity box is drawn from. recent_activity is a real, dated feed of what's happened across the client roster — new clients, requests received and replied to, invoices paid, projects started — up to 8 most recent, newest first. health_breakdown is the full, real component breakdown (site uptime, on-time payment, work completed, requests moving, pipeline conversion) behind the Business Health stat card, shown as percentage bars.
-- chart: a real chart of "revenue", "prospects", or "adoption" (the only three metrics with real data), rendered as "area" or "bar". adoption is a weekly-snapshotted trend of client_ai_adoption's own AI-chatbot-enabled percentage — only has real points once at least one weekly snapshot has run, so it may be empty on a brand-new org even when the other two metrics have data.
+- chart: a real chart of "revenue", "prospects", or "adoption" (the only three metrics with real data), rendered as "area" or "bar". revenue/prospects also take a "range" — "7d", "30d", "90d", or "12m", the same four windows the Analytics page's own picker offers; default to "30d" if the instruction doesn't say. adoption ignores range entirely — it's a weekly-snapshotted trend of client_ai_adoption's own AI-chatbot-enabled percentage with no other window to pick from, and only has real points once at least one weekly snapshot has run, so it may be empty on a brand-new org even when the other two metrics have data.
 - text: a free-form note with a title and body — use this for anything the agency wants to say that isn't a stat, chart, or link.
 - cta: a button linking to an internal page (starting with "/") or an external https:// page.
 

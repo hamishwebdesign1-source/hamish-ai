@@ -34,7 +34,7 @@ import { getSupabaseAdmin } from "@/lib/supabase";
 import { getOrgMembership } from "@/lib/org-membership";
 import { getStudioBriefing } from "@/lib/studio-briefing";
 import { computeAgencyHealth } from "@/lib/client-health";
-import { getStudioAnalytics } from "@/lib/studio-analytics";
+import { getStudioAnalytics, RANGE_LABELS, type AnalyticsRange, type AnalyticsData } from "@/lib/studio-analytics";
 import { generateInsights, type InsightCategory } from "@/lib/studio-insights";
 import { computeClientEngagementRisk } from "@/lib/studio-engagement";
 import { computeRecentClientActivity, type ClientActivityKind } from "@/lib/studio-client-activity";
@@ -301,18 +301,30 @@ export default async function StudioHomePage() {
   const actionsTotal = actionsRequired.reduce((sum, a) => sum + a.count, 0);
 
   // Model Performance + Business Health trend + AI adoption trend +
-  // 30-day analytics (Command Centre Phase 6d / improvements #3 / #8 /
-  // Phase 3) — four independent reads batched into one round trip
-  // instead of four sequential awaits (a real-improvement pass fix, not
-  // how these shipped originally): none of the four needs anything the
-  // others produce, each only needs supabase/admin + orgId (+
+  // analytics (Command Centre Phase 6d / improvements #3 / #8 / Phase
+  // 3) — four independent reads batched into one round trip instead of
+  // four sequential awaits (a real-improvement pass fix, not how these
+  // shipped originally): none of the four needs anything the others
+  // produce, each only needs supabase/admin + orgId (+
   // agencyHealth.healthScore, already computed synchronously above from
   // data already in hand). ai_call_log and studio_health_snapshots/
   // studio_adoption_snapshots are service-role-only, same convention as
   // usage_events — read through the admin client, not the session-
   // scoped `supabase` this page uses everywhere else.
+  //
+  // Analytics is no longer a single fixed-30d call — chart blocks can
+  // each pick their own range now (command-centre-layout.ts's own
+  // comment on why), so this fetches every distinct range an org's
+  // saved chart blocks actually use, not all four always. "30d" is
+  // always included regardless: Insights below is a fixed, rule-based
+  // 30-day view no matter what any chart block picked.
+  const chartRanges = new Set<AnalyticsRange>(["30d"]);
+  for (const block of blocks) {
+    if (block.type === "chart" && block.metric !== "adoption") chartRanges.add(block.range);
+  }
+
   const admin = getSupabaseAdmin();
-  const [modelPerformance, healthTrend, adoptionSeries, analytics] = await Promise.all([
+  const [modelPerformance, healthTrend, adoptionSeries, analyticsEntries] = await Promise.all([
     admin
       ? getModelPerformance(admin, membership.orgId)
       : Promise.resolve({ callCount: 0, successRatePct: null, medianLatencyMs: null, estimatedCostUsd: null, estimatedCostGbp: null, fxRateFetchedAt: null }),
@@ -320,8 +332,10 @@ export default async function StudioHomePage() {
       ? getHealthTrend(admin, membership.orgId, agencyHealth.healthScore)
       : Promise.resolve(null),
     admin ? getAdoptionSeries(admin, membership.orgId) : Promise.resolve([]),
-    getStudioAnalytics(supabase, membership.orgId, "30d"),
+    Promise.all(Array.from(chartRanges).map(async (range) => [range, await getStudioAnalytics(supabase, membership.orgId, range)] as const)),
   ]);
+  const analyticsByRange = Object.fromEntries(analyticsEntries) as Record<AnalyticsRange, AnalyticsData>;
+  const analytics = analyticsByRange["30d"];
 
   // AI Insight Feed (Command Centre Phase 3) — rule-based, not
   // LLM-generated (see studio-insights.ts's own comment on why). Reuses
@@ -963,15 +977,22 @@ export default async function StudioHomePage() {
       // the weekly-snapshotted trend studio-adoption-history.ts builds —
       // real points only once the weekly cron has actually run at least
       // once, same "empty rather than fabricated" rule as revenue/
-      // prospects before any data existed for them either.
-      const series = block.metric === "revenue" ? analytics.revenueSeries : block.metric === "prospects" ? analytics.prospectsSeries : adoptionSeries;
-      const forecast = block.metric === "revenue" ? analytics.revenueForecast : undefined;
+      // prospects before any data existed for them either. revenue/
+      // prospects now read whichever range this specific block picked
+      // (real-improvement pass — see command-centre-layout.ts's own
+      // comment on why), off analyticsByRange rather than a single
+      // fixed-30d analytics object.
+      const rangeData = block.metric === "adoption" ? null : analyticsByRange[block.range];
+      const series = block.metric === "revenue" ? rangeData!.revenueSeries : block.metric === "prospects" ? rangeData!.prospectsSeries : adoptionSeries;
+      const forecast = block.metric === "revenue" ? rangeData!.revenueForecast : undefined;
       const format = block.metric === "revenue" ? "money" : block.metric === "adoption" ? "percent" : "count";
       return (
         <div key={block.id} className={block.span === 2 ? "sm:col-span-2" : undefined}>
           <Card className="h-full border-none bg-primary text-primary-foreground">
             <CardContent className="p-5">
-              <p className="text-sm font-semibold">{CHART_METRIC_LABELS[block.metric]} over time</p>
+              <p className="text-sm font-semibold">
+                {CHART_METRIC_LABELS[block.metric]} {block.metric === "adoption" ? "over time" : `— ${RANGE_LABELS[block.range]}`}
+              </p>
               <AnalyticsChart
                 series={series}
                 forecast={forecast}

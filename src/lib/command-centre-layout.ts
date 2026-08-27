@@ -1,3 +1,5 @@
+import type { AnalyticsRange } from "@/lib/studio-analytics";
+
 // Command Centre no-code Builder, Phase 5c — adds real per-block content:
 // a chart block (metric + kind, sourced from studio-analytics.ts's own
 // two real time-series — revenue and prospects, nothing invented), a
@@ -24,6 +26,12 @@ export type SectionType =
   | "health_breakdown";
 export type ChartMetric = "revenue" | "prospects" | "adoption";
 export type ChartKind = "area" | "bar";
+// Real-improvement pass — chart blocks were hardcoded to the same 30-day
+// window every time, even though AnalyticsRange (imported below, the
+// exact type studio-analytics.ts and the Analytics page's own range
+// picker already use) supports 7d/30d/90d/12m. adoption is unaffected
+// by range — it always shows whatever real weekly snapshots exist,
+// there's no other window to choose (studio-adoption-history.ts).
 
 // Section types are separate union members (not one member typed
 // `type: SectionType`) specifically so TypeScript's discriminated-union
@@ -42,7 +50,7 @@ export type Block =
   | { id: string; type: "top_prospects" }
   | { id: string; type: "recent_activity" }
   | { id: string; type: "health_breakdown" }
-  | { id: string; type: "chart"; metric: ChartMetric; kind: ChartKind; span: BlockSpan }
+  | { id: string; type: "chart"; metric: ChartMetric; kind: ChartKind; range: AnalyticsRange; span: BlockSpan }
   | { id: string; type: "text"; title: string; body: string; span: BlockSpan }
   | { id: string; type: "cta"; label: string; href: string; span: BlockSpan };
 
@@ -126,6 +134,9 @@ function isChartMetric(value: unknown): value is ChartMetric {
 function isChartKind(value: unknown): value is ChartKind {
   return value === "area" || value === "bar";
 }
+function isAnalyticsRange(value: unknown): value is AnalyticsRange {
+  return value === "7d" || value === "30d" || value === "90d" || value === "12m";
+}
 function isSpan(value: unknown): value is BlockSpan {
   return value === 1 || value === 2;
 }
@@ -187,7 +198,17 @@ export function sanitizeBlocksForWrite(blocks: unknown): Block[] | null {
       clean.push({ id: r.type, type: r.type });
     } else if (r.type === "chart") {
       if (!isChartMetric(r.metric) || !isChartKind(r.kind) || typeof r.id !== "string" || !r.id) continue;
-      clean.push({ id: r.id, type: "chart", metric: r.metric, kind: r.kind, span: isSpan(r.span) ? r.span : 2 });
+      // Defaults to 30d for a chart block saved before this field
+      // existed — identical to what every chart block already showed,
+      // so an old layout renders exactly as it did before this change.
+      clean.push({
+        id: r.id,
+        type: "chart",
+        metric: r.metric,
+        kind: r.kind,
+        range: isAnalyticsRange(r.range) ? r.range : "30d",
+        span: isSpan(r.span) ? r.span : 2,
+      });
     } else if (r.type === "text") {
       const title = clampText(r.title, 60);
       const body = clampText(r.body, 500);
