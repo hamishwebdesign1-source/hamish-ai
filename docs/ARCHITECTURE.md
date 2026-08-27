@@ -5,6 +5,17 @@ regenerated per phase — the three decisions below are the ones worth a new
 contributor (or future you) reading before touching the client portal or
 billing code.
 
+**2026 update — the Agency Platform layer.** Everything below this line was
+true when written, but one line in "The client / membership model" no longer
+is: *"There is deliberately no `organisations` table separate from
+`clients`"* — that decision was reversed. `/studio` (the Agency Platform) now
+exists on top of everything below, multi-tenant, and it's real product
+surface, not a plan. See "The Agency Platform layer" section below for what
+changed and why the rest of this document is still accurate underneath it.
+This correction exists because this file drifted out of date silently for a
+long stretch — the whole point of `docs/ai-team/` (see `docs/ai-team/README.md`)
+is to make sure that doesn't happen again.
+
 ## The two-systems split
 
 There are two visually similar but fundamentally different "analytics"
@@ -94,6 +105,75 @@ Two billing paths coexist on purpose, not as a migration in progress:
   `"charge_automatically"` — most clients don't have a card on file, and
   silently auto-charging one the moment they add it via the Stripe Customer
   Portal (`/portal/billing`) isn't a good default without them expecting it.
+
+## The Agency Platform layer
+
+Everything above this line describes what a `clients` row and a signed-in
+`/portal` user are. This section describes what got wrapped *around* that:
+`organisations` — every other table above still means exactly what it did,
+just now scoped one level down from an org rather than being the whole
+universe.
+
+**The model, one sentence**: HamishAI stopped being a single-operator
+business running this codebase for itself, and became a platform where
+other people's agencies run *their own* single-operator business on the
+exact same client/portal/billing machinery — multi-tenant on top of what
+was single-tenant.
+
+- **`organisations`** (`supabase/schema-organisations.sql`) is the tenant
+  boundary one level above `clients`. Every `clients` row now carries an
+  `org_id`; a `clients` row still means exactly what it did before (one of
+  *that org's own* clients), it's just no longer implicitly HamishAI's own.
+- **`memberships`** (not `client_members` — a separate table, same shape)
+  maps a signed-in email to an `org_id` + role, resolved via
+  `getOrgMembership()` (`src/lib/org-membership.ts`). This is the org-level
+  equivalent of `client_members`/`getPortalMembership()`: one more join
+  added on top, not a redesign of what was there.
+- **`HAMISHAI_ORG_ID`** (a literal, fixed UUID) is HamishAI's own
+  organisation — Hamish's own business runs *as a tenant of its own
+  platform*, flagged `is_internal: true` on its `organisations` row.
+  `is_internal` orgs are never usage-capped and never billed — every other
+  org is a genuine paying (or trialling) customer. Get this distinction
+  right before writing any usage/billing logic: check `is_internal` first,
+  same as every existing Server Action does.
+- **`/studio/(authed)/*`** (13 route folders as of this writing — analytics,
+  billing, campaigns, clients, feedback, help, knowledge, prospects,
+  projects, requests, settings, website-builder, plus the Command Centre
+  home page) is the tenant-facing Agency Platform product itself: an org's
+  own agency-running tool. `requireOrgId()` (a small local helper, copied
+  per `actions.ts` file rather than shared — an established, deliberate
+  convention in this codebase, not an oversight) resolves the signed-in
+  session to an `orgId` via `getOrgMembership()`, the same
+  session-scoped-client-for-reads / service-role-client-for-privileged-writes
+  split as everything else in this document, one level up.
+- **Command Centre** (`/studio`'s own home page) is a no-code block-canvas
+  dashboard (`src/lib/command-centre-layout.ts`) — an org can add/remove/
+  reorder stat cards, section cards, charts (with a real date-range picker),
+  freeform text, and CTA blocks. `sanitizeBlocksForWrite()` is the write-path
+  validator (never trust a Server Action argument structurally); an AI
+  Design Assistant (`command-centre-design-assistant.ts`) can propose layout
+  changes via natural language, always through the same validator.
+- **Platform billing** (`src/lib/platform-plans.ts`: Starter/Professional/
+  Agency) is a *third*, distinct billing layer from the two already
+  described above — this is HamishAI charging the **org itself** a monthly
+  fee to use the Agency Platform, separate from that org's own clients being
+  billed by the org (the "Billing" section above, still accurate,
+  unchanged). `usage-limits.ts` meters 10 real AI actions per org per plan
+  (`getUsageStatus()`), calendar-month-scoped, fails open on a DB error
+  (same instinct as `chat-rate-limit.ts`'s `isRateLimited()`).
+- **13 cron jobs** now, not the 5 `docs/RUNBOOK.md` describes — see
+  `src/lib/cron-schedule.ts`'s `CRON_SPECS` for the authoritative live list
+  (kept consistency-tested against `vercel.json` — see
+  `src/lib/cron-schedule.test.ts`). `docs/RUNBOOK.md` needs the same
+  refresh this file just got; flagged, not yet done.
+- **Discipline established and expected to hold**: every Server Action that
+  mutates a row by an id argument either filters `.eq("org_id", orgId)`
+  inline or verifies ownership via a preceding scoped `SELECT` before the
+  write — the service-role client bypasses RLS entirely, so this
+  application-level check is the *only* protection on the write path (RLS
+  still protects reads for session-scoped queries). A full sweep of every
+  `/studio` Server Action's `.update()`/`.delete()` call found zero gaps as
+  of this writing — keep it that way; see `docs/ai-team/DECISIONS.md`.
 
 ## Everything else
 

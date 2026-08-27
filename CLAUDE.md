@@ -61,3 +61,29 @@ Custom illustrations/diagrams under `public/images/{ai-solutions,case-studies,ho
 ### Deployment
 
 Hosted on Vercel, custom domain `hamishai.org` (apex redirects to `www`), repo at `github.com/hamishwebdesign1-source/hamish-ai`. Outbound email domain is verified on Resend. Env vars are configured in the Vercel project, not committed (`.env.local` is gitignored).
+
+## The Agency Platform (`/studio`) — not covered above
+
+Everything above this line describes the original marketing site. This
+codebase grew a second, much larger product on top of it: `/studio`, a
+multi-tenant Agency Platform where other agencies run their own client-
+services business on the same machinery Hamish built for his own. 13 route
+folders under `src/app/studio/(authed)/`, its own Supabase `organisations`/
+`memberships` tenant layer, its own Stripe billing (separate from the
+per-client billing described above), a no-code Command Centre dashboard, and
+13 cron jobs (`vercel.json` + `src/lib/cron-schedule.ts`, consistency-tested
+in `cron-schedule.test.ts`). There is now a real test suite (`vitest` —
+`npm run test`), contrary to this file's "no test suite" line above, which
+predates it.
+
+**Read `docs/ARCHITECTURE.md` in full before touching `/studio`** — its
+"Agency Platform layer" section covers the tenant model, the RLS-vs-
+service-role client boundary (critical: the service-role client bypasses
+RLS entirely, so every Server Action's own ownership check is the *only*
+real protection on a write), and the usage-limits/billing layer.
+
+**An AI product team is set up for this codebase** — `docs/ai-team/` (start
+at `docs/ai-team/README.md`) and `.claude/agents/*.md`. For a high-level
+product/business goal on the Agency Platform, run `/mission <goal>` rather
+than working it entirely in the main thread. For a specific scoped task,
+call the matching specialist agent directly.
