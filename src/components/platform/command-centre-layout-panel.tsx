@@ -337,12 +337,16 @@ export function CommandCentreLayoutPanel({
                   <span className={`flex-1 truncate text-sm ${isHiddenBlock ? "text-muted-foreground line-through" : ""}`}>
                     {blockLabel(block)}
                   </span>
+                  {/* Real-improvement pass — same touch-target gap as
+                      the reorder chevrons above, size-8 to match: these
+                      three were still a bare 16px icon with no size or
+                      padding at all. */}
                   {hasSpan && !isHiddenBlock && (
                     <button
                       type="button"
                       aria-label={block.span === 2 ? `Make ${blockLabel(block)} standard width` : `Make ${blockLabel(block)} double width`}
                       onClick={() => toggleSpan(id)}
-                      className="text-muted-foreground hover:text-foreground"
+                      className="flex size-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground"
                       title={block.span === 2 ? "Double width" : "Standard width"}
                     >
                       {block.span === 2 ? <RectangleHorizontal className="size-4" /> : <Square className="size-4" />}
@@ -353,7 +357,7 @@ export function CommandCentreLayoutPanel({
                       type="button"
                       aria-label={isHiddenBlock ? `Show ${blockLabel(block)}` : `Hide ${blockLabel(block)}`}
                       onClick={() => toggleHidden(id)}
-                      className="text-muted-foreground hover:text-foreground"
+                      className="flex size-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground"
                     >
                       {isHiddenBlock ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
                     </button>
@@ -362,7 +366,7 @@ export function CommandCentreLayoutPanel({
                       type="button"
                       aria-label={`Remove ${blockLabel(block)}`}
                       onClick={() => removeBlock(id)}
-                      className="text-muted-foreground hover:text-destructive"
+                      className="flex size-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
                     >
                       <Trash2 className="size-4" />
                     </button>

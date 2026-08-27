@@ -599,7 +599,7 @@ function CopyButton({ text }: { text: string }) {
         setCopied(true);
         setTimeout(() => setCopied(false), 1500);
       }}
-      className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-accent"
+      className="flex items-center gap-1 rounded-md py-1.5 text-[11px] text-muted-foreground hover:text-accent"
     >
       <Copy className="size-3" /> {copied ? "Copied" : "Copy"}
     </button>
