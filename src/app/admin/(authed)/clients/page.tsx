@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { Users } from "lucide-react";
+import { Users, Search, X } from "lucide-react";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { sendClientEmail } from "@/lib/send-client-email";
 import { logAuditEvent } from "@/lib/audit-log";
@@ -152,9 +152,9 @@ const clientStatusVariant: Record<string, "success" | "warning" | "secondary"> =
 export default async function ClientsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; member_error?: string; from_lead?: string }>;
+  searchParams: Promise<{ status?: string; member_error?: string; from_lead?: string; q?: string }>;
 }) {
-  const { status: statusFilter, member_error: memberError, from_lead: fromLeadId } = await searchParams;
+  const { status: statusFilter, member_error: memberError, from_lead: fromLeadId, q: searchQuery } = await searchParams;
   const supabase = getSupabaseAdmin();
   const { data: allClients, error: clientsError } = supabase
     ? await supabase.from("clients").select("*").order("created_at", { ascending: false })
@@ -174,10 +174,31 @@ export default async function ClientsPage({
           .maybeSingle()
       : { data: null };
 
-  const clients = statusFilter ? allClients?.filter((c) => (c.status ?? "active") === statusFilter) : allClients;
+  const statusFiltered = statusFilter ? allClients?.filter((c) => (c.status ?? "active") === statusFilter) : allClients;
   const activeCount = allClients?.filter((c) => (c.status ?? "active") === "active").length ?? 0;
   const pausedCount = allClients?.filter((c) => c.status === "paused").length ?? 0;
   const churnedCount = allClients?.filter((c) => c.status === "churned").length ?? 0;
+
+  // Studio improvement — the same long-flat-list shape that motivated
+  // Studio's own clients-panel.tsx search fix, ported here. Same "search
+  // across every plausible identifying field" pattern as admin/leads'
+  // own q param (leads/page.tsx), narrowed to the fields this table
+  // actually has.
+  const trimmedQuery = searchQuery?.trim().toLowerCase();
+  const clients = trimmedQuery
+    ? statusFiltered?.filter((c) =>
+        [c.business_name, c.email, c.website_url].some((field) => field && String(field).toLowerCase().includes(trimmedQuery))
+      )
+    : statusFiltered;
+
+  function filterHref(overrides: { status?: string; q?: string }) {
+    const next = { status: statusFilter, q: searchQuery, ...overrides };
+    const params = new URLSearchParams();
+    if (next.status) params.set("status", next.status);
+    if (next.q) params.set("q", next.q);
+    const qs = params.toString();
+    return qs ? `/admin/clients?${qs}` : "/admin/clients";
+  }
 
   return (
     <div>
@@ -288,18 +309,37 @@ export default async function ClientsPage({
             <FilterTabs
               activeKey={statusFilter}
               options={[
-                { key: undefined, label: "All", count: allClients?.length ?? 0, href: "/admin/clients" },
-                { key: "active", label: "Active", count: activeCount, href: "/admin/clients?status=active" },
-                { key: "paused", label: "Paused", count: pausedCount, href: "/admin/clients?status=paused" },
-                { key: "churned", label: "Churned", count: churnedCount, href: "/admin/clients?status=churned" },
+                { key: undefined, label: "All", count: allClients?.length ?? 0, href: filterHref({ status: undefined }) },
+                { key: "active", label: "Active", count: activeCount, href: filterHref({ status: "active" }) },
+                { key: "paused", label: "Paused", count: pausedCount, href: filterHref({ status: "paused" }) },
+                { key: "churned", label: "Churned", count: churnedCount, href: filterHref({ status: "churned" }) },
               ]}
             />
           </div>
+          {/* GET form, not a client component — keeps this page a plain
+              server component, same admin/leads' own search precedent. */}
+          <form action="/admin/clients" className="mt-3 flex items-center gap-2">
+            {statusFilter && <input type="hidden" name="status" value={statusFilter} />}
+            <div className="relative flex-1">
+              <Search className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
+              <Input name="q" defaultValue={searchQuery ?? ""} placeholder="Search by name, email, or website…" className="h-9 pl-8" />
+            </div>
+            <Button type="submit" variant="outline" size="sm">
+              Search
+            </Button>
+            {trimmedQuery && (
+              <Link href={filterHref({ q: undefined })}>
+                <Button type="button" variant="ghost" size="icon-sm" className="text-muted-foreground">
+                  <X className="size-4" />
+                </Button>
+              </Link>
+            )}
+          </form>
           {!clients?.length && (
             <Card className="mt-3">
               <CardContent className="flex flex-col items-center gap-2 py-8 text-center text-sm text-muted-foreground">
                 <Users className="size-6 text-muted-foreground/60" />
-                No clients yet — add your first one.
+                {trimmedQuery ? "No clients match that search." : "No clients yet — add your first one."}
               </CardContent>
             </Card>
           )}
