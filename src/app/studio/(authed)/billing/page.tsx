@@ -8,6 +8,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { HelpTip } from "@/components/platform/help-tip";
+import { Reveal } from "@/components/reveal";
+import { CountUp } from "@/components/platform/count-up";
 import { startCheckout, openBillingPortal, buyCreditPack } from "./actions";
 
 // Real-improvement pass — usage-limits.ts has always tracked 10 real,
@@ -164,52 +166,61 @@ export default async function StudioBillingPage({
           a month" on the pricing grid below), shown prominently; the
           other 9 are real fair-use ceilings, not marketed numbers, so
           they're secondary. */}
+      {/* Same CountUp/Reveal treatment as Command Centre's own stat cards
+          (command-centre-stat-cards.tsx) — see reveal.tsx's comment for
+          why this is scoped to numeric KPI/usage surfaces specifically,
+          not every /studio route. The ratio itself ("X of Y") isn't a
+          single CountUp target the way a plain stat card's number is, so
+          only the "used" half — the number that actually changes month
+          to month — animates; the limit is a static plan fact. */}
       {showUsage && prospectUsage && (
-        <Card>
-          <CardContent>
-            <p className="flex items-center gap-1.5 font-heading text-sm font-semibold">
-              <Gauge className="size-4 text-accent" />
-              Usage this month
-              <HelpTip explanation="Real counts from your own account this calendar month, against your plan's real limits. Resets on the 1st. The 9 secondary actions below are generous fair-use ceilings, not marketed plan features — you'd need a genuinely unusual amount of activity to get near them." />
-            </p>
+        <Reveal>
+          <Card>
+            <CardContent>
+              <p className="flex items-center gap-1.5 font-heading text-sm font-semibold">
+                <Gauge className="size-4 text-accent" />
+                Usage this month
+                <HelpTip explanation="Real counts from your own account this calendar month, against your plan's real limits. Resets on the 1st. The 9 secondary actions below are generous fair-use ceilings, not marketed plan features — you'd need a genuinely unusual amount of activity to get near them." />
+              </p>
 
-            <div className="mt-4">
-              <div className="flex items-center justify-between text-sm">
-                <span className="font-medium">{USAGE_LABELS.prospect_researched}</span>
-                <span className="font-mono text-xs text-muted-foreground">
-                  {prospectUsage.used} of {prospectUsage.limit}
-                  {(org?.purchased_prospect_credits ?? 0) > 0 && ` (+${org?.purchased_prospect_credits} credits)`}
-                </span>
+              <div className="mt-4">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="font-medium">{USAGE_LABELS.prospect_researched}</span>
+                  <span className="font-mono text-xs text-muted-foreground">
+                    <CountUp value={prospectUsage.used} /> of {prospectUsage.limit}
+                    {(org?.purchased_prospect_credits ?? 0) > 0 && ` (+${org?.purchased_prospect_credits} credits)`}
+                  </span>
+                </div>
+                <div className="mt-1.5 h-2 w-full overflow-hidden rounded-full bg-secondary">
+                  <div
+                    className={`h-full rounded-full ${usageBarColor(prospectUsage)}`}
+                    style={{ width: `${Math.min(100, (prospectUsage.used / Math.max(1, prospectUsage.limit)) * 100)}%` }}
+                  />
+                </div>
               </div>
-              <div className="mt-1.5 h-2 w-full overflow-hidden rounded-full bg-secondary">
-                <div
-                  className={`h-full rounded-full ${usageBarColor(prospectUsage)}`}
-                  style={{ width: `${Math.min(100, (prospectUsage.used / Math.max(1, prospectUsage.limit)) * 100)}%` }}
-                />
-              </div>
-            </div>
 
-            <div className="mt-4 grid gap-x-6 gap-y-3 border-t border-border pt-4 sm:grid-cols-2">
-              {SECONDARY_USAGE_TYPES.map((type, i) => {
-                const status = secondaryUsage[i];
-                if (!status) return null;
-                return (
-                  <div key={type}>
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="text-muted-foreground">{USAGE_LABELS[type]}</span>
-                      <span className="font-mono text-muted-foreground">
-                        {status.used} / {status.limit}
-                      </span>
+              <div className="mt-4 grid gap-x-6 gap-y-3 border-t border-border pt-4 sm:grid-cols-2">
+                {SECONDARY_USAGE_TYPES.map((type, i) => {
+                  const status = secondaryUsage[i];
+                  if (!status) return null;
+                  return (
+                    <div key={type}>
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-muted-foreground">{USAGE_LABELS[type]}</span>
+                        <span className="font-mono text-muted-foreground">
+                          <CountUp value={status.used} /> / {status.limit}
+                        </span>
+                      </div>
+                      <div className="mt-1 h-1 w-full overflow-hidden rounded-full bg-secondary">
+                        <div className={`h-full rounded-full ${usageBarColor(status)}`} style={{ width: `${Math.min(100, (status.used / Math.max(1, status.limit)) * 100)}%` }} />
+                      </div>
                     </div>
-                    <div className="mt-1 h-1 w-full overflow-hidden rounded-full bg-secondary">
-                      <div className={`h-full rounded-full ${usageBarColor(status)}`} style={{ width: `${Math.min(100, (status.used / Math.max(1, status.limit)) * 100)}%` }} />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </CardContent>
-        </Card>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+        </Reveal>
       )}
 
       <Card>

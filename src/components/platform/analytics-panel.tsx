@@ -6,6 +6,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { HelpTip } from "@/components/platform/help-tip";
 import { AnalyticsChart } from "@/components/platform/analytics-chart";
+import { Reveal } from "@/components/reveal";
+import { CountUp } from "@/components/platform/count-up";
 import type { AnalyticsData, AnalyticsRange, Kpi } from "@/lib/studio-analytics";
 import { RANGE_LABELS, percentChange } from "@/lib/studio-analytics";
 
@@ -18,11 +20,6 @@ const KPI_EXPLANATIONS: Record<string, string> = {
   "Requests handled": "Client requests you replied to within this period.",
 };
 
-function formatKpiValue(kpi: Kpi) {
-  if (kpi.format === "money") return `£${(kpi.value / 100).toLocaleString("en-GB", { maximumFractionDigits: 0 })}`;
-  return kpi.value.toLocaleString("en-GB");
-}
-
 function KpiCard({ kpi }: { kpi: Kpi }) {
   const change = percentChange(kpi.value, kpi.previousValue);
   return (
@@ -32,7 +29,15 @@ function KpiCard({ kpi }: { kpi: Kpi }) {
           {kpi.label}
           {KPI_EXPLANATIONS[kpi.label] && <HelpTip explanation={KPI_EXPLANATIONS[kpi.label]} />}
         </p>
-        <p className="mt-2 font-heading text-2xl font-semibold tabular-nums">{formatKpiValue(kpi)}</p>
+        <p className="mt-2 font-heading text-2xl font-semibold tabular-nums">
+          {/* Same CountUp/Reveal treatment as Command Centre's own stat
+              cards (command-centre-stat-cards.tsx) — see reveal.tsx's
+              comment for why this is scoped to numeric KPI surfaces only,
+              not every /studio route. Money KPIs are stored in pence
+              (studio-analytics.ts), same £-prefix-on-a-rounded-pounds-
+              value convention as pipeline value's own CountUp there. */}
+          {kpi.format === "money" ? <CountUp value={Math.round(kpi.value / 100)} prefix="£" /> : <CountUp value={kpi.value} />}
+        </p>
         {change ? (
           <p
             className={`mt-1.5 flex items-center gap-1 text-xs font-medium ${
@@ -74,11 +79,11 @@ export function AnalyticsPanel({ data }: { data: AnalyticsData }) {
         </div>
       </div>
 
-      <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <Reveal className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {data.kpis.map((kpi) => (
           <KpiCard key={kpi.label} kpi={kpi} />
         ))}
-      </div>
+      </Reveal>
 
       <div className="mt-6 grid gap-4 lg:grid-cols-2">
         <Card>

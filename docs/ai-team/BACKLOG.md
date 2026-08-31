@@ -58,18 +58,6 @@ _(none yet)_
 - **Dependencies**: **Flag for Hamish** before build — even though this reuses existing metered actions rather than adding a new billable action type, it changes how easily a user can trigger metered AI usage (one click from the dashboard vs. a deliberate navigation), which is worth a conscious yes/no rather than assuming it's fine. Opportunities #2 (one-click AI-drafted check-in message off `engagement_risk`) and #3 (extending autonomous triage to tenant orgs) were also raised by AI/Agent Architect but are deliberately *not* backlogged as buildable items here — #2 is speculative until this first one proves the pattern works, and #3 is blocked on a real infra prerequisite (tenant-scoped outbound email) and is a bigger, cross-cutting call for a future mission, not a scoped task today.
 - **Status**: Not started
 
-### Decide and apply a real rule for Reveal/CountUp motion beyond Command Centre
-
-- **Problem**: `Reveal`/`CountUp` motion exists only on the Command Centre (`command-centre-stat-cards.tsx`, `today-strip.tsx`); the other 12 `/studio` routes have no equivalent, with no documented reason why. Left as-is this reads as unfinished rather than deliberate, but mechanically spreading animation to every route (most of which are CRUD/list/settings pages with no numeric KPI cards) isn't obviously correct either — verified only Analytics and Billing have comparable numeric-stat displays among the other 12 routes; the rest (Clients, Prospects, Requests, Projects, Campaigns, Website Builder, Settings, Feedback, Knowledge, Help) are list/form-heavy with nothing analogous to animate.
-- **Objective**: a made, documented decision — not a mechanical rollout. Apply `CountUp`/`Reveal` to Analytics' and Billing's numeric stat displays (the two routes with genuinely equivalent content to Command Centre's), and write down, in a short code comment or `docs/ARCHITECTURE.md` note, that motion is reserved for numeric KPI/stat-card surfaces specifically, not applied to list/CRUD pages as a default expectation.
-- **User**: any Studio user moving between routes — the goal is that the *absence* of motion on, say, Settings reads as intentional (nothing there to animate) rather than as an inconsistency bug.
-- **Priority**: P3 — cosmetic/consistency, not a functional gap; worth doing once, not worth blocking on.
-- **Expected outcome**: Analytics and Billing's stat cards animate consistently with Command Centre's; a one-paragraph documented rule exists so this doesn't get re-litigated as a "finding" in a future audit.
-- **Acceptance criteria**: Analytics/Billing stat displays use the shared `CountUp`/`Reveal` components where they show a comparable numeric KPI; a written rule exists (comment or doc) stating the scope is intentionally limited to KPI/stat surfaces.
-- **Relevant agent**: UX/UI Director (confirm Analytics/Billing content matches the Command Centre pattern before implementing), Lead Engineer (apply).
-- **Dependencies**: none.
-- **Status**: Not started
-
 ### Route-specific loading skeletons instead of one Command-Centre-shaped skeleton for all 13 routes
 
 - **Problem**: `src/app/studio/(authed)/loading.tsx` is a single shared skeleton (verified: one file for the whole `(authed)` route group) shaped like the Command Centre's layout, shown while *any* of the 13 routes streams in — so navigating to, say, Settings or Feedback briefly shows a skeleton that looks nothing like the page that's about to render. This directly undercuts the "consistency of interaction patterns across all 13 routes" falsifiable check from the mission's original framing: it's not that the pattern is inconsistent, it's that the one pattern that exists is actively wrong for 12 of the 13 destinations.
@@ -107,6 +95,30 @@ _(none yet)_
 - **Status**: Blocked (on the PostHog key item above)
 
 ## Complete
+
+### Decide and apply a real rule for Reveal/CountUp motion beyond Command Centre
+
+Closed 2026-08-31 — confirmed the backlog's own audit before touching
+anything: read Analytics (`analytics-panel.tsx`) and Billing
+(`studio/(authed)/billing/page.tsx`) directly, both genuinely have
+numeric-KPI content comparable to Command Centre's stat cards (Analytics'
+4 KPI cards; Billing's "usage this month" bars), the other 10 routes don't.
+Analytics' `KpiCard` now renders its value through `CountUp` (money KPIs
+pass `Math.round(value / 100)` with a `£` prefix, same pence-to-pounds
+convention as the Command Centre pipeline-value card; count KPIs pass the
+raw value) and its KPI grid is wrapped in `Reveal`, matching Command
+Centre's own `<Reveal className="mt-6 grid ...">` wrapper pattern exactly.
+Billing's "usage this month" card is wrapped in `Reveal`, and the `used`
+half of each `used / limit` usage bar (the number that actually changes
+month to month; the limit is a static plan fact) now renders via
+`CountUp` — the prospect-researched bar and all 9 secondary fair-use bars.
+No new motion variant invented; both routes reuse `Reveal`/`CountUp`
+exactly as imported everywhere else. A code comment now lives at the top
+of `src/components/reveal.tsx` documenting the scope explicitly (Command
+Centre + Analytics + Billing only, the other 10 routes' lack of motion is
+intentional) so this doesn't get re-flagged as a "gap" in a future audit.
+`npx tsc --noEmit`, `npx eslint`, and the full `vitest` suite (229 tests)
+all green.
 
 ### email-inbox.ts's inbound-triage matching is From-header-only — no spoofing check
 
