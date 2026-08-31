@@ -3,10 +3,12 @@
 import { useEffect, useRef, useState, useCallback, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Search, CornerDownLeft, Users, Loader2, Sparkles, ArrowLeft, Send, BookOpen, Megaphone, FolderKanban, Inbox } from "lucide-react";
+import { Search, CornerDownLeft, Users, Loader2, Sparkles, ArrowLeft, Send, BookOpen, Megaphone, FolderKanban, Inbox, Zap } from "lucide-react";
 import { getNavSections } from "@/components/platform/studio-nav";
 import { searchStudio, type StudioSearchResult } from "@/app/studio/(authed)/command-search-actions";
 import { askClientsCopilot } from "@/app/studio/(authed)/clients/actions";
+import { runDiscovery } from "@/app/studio/(authed)/prospects/actions";
+import { DiscoveryResultMessage, type DiscoveryResult } from "@/components/platform/discovery-result-message";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -20,7 +22,7 @@ type PaletteItem = {
   label: string;
   sublabel?: string;
   href: string;
-  group: "Navigate" | "Prospects" | "Clients" | "Knowledge" | "Campaigns" | "Projects" | "Requests" | "Ask";
+  group: "Navigate" | "Actions" | "Prospects" | "Clients" | "Knowledge" | "Campaigns" | "Projects" | "Requests" | "Ask";
 };
 
 // Real-improvement pass — searchStudio() now covers 6 entity types, not
@@ -33,6 +35,7 @@ const EMPTY_RESULTS: StudioSearchResult = { prospects: [], clients: [], knowledg
 // kind), the four new groups get their own rather than all reusing
 // Users regardless of what they actually are.
 const GROUP_ICON: Partial<Record<PaletteItem["group"], typeof Users>> = {
+  Actions: Zap,
   Prospects: Users,
   Clients: Users,
   Knowledge: BookOpen,
@@ -40,6 +43,19 @@ const GROUP_ICON: Partial<Record<PaletteItem["group"], typeof Users>> = {
   Projects: FolderKanban,
   Requests: Inbox,
 };
+
+// Studio improvement (backlog: "the palette is navigate-or-ask only, no
+// direct action commands") — the same synthetic-href precedent ASK_HREF
+// already established: select() branches on this exact value to run the
+// action instead of navigating, rather than a parallel data structure.
+// Runs the caller's own already-saved prospecting_config, exactly what
+// "Find prospects now" on the Prospects page itself runs — one real,
+// already-tested, already usage/rate-limited Server Action, just reachable
+// from anywhere in Studio instead of only that one page.
+const RUN_DISCOVERY_HREF = "__run_discovery_now__";
+const ACTION_ITEMS: PaletteItem[] = [
+  { key: "run-discovery", label: "Run prospect discovery now", href: RUN_DISCOVERY_HREF, group: "Actions" },
+];
 
 // A synthetic href, never a real route — select() branches on this
 // exact value to run the ask flow instead of navigating. Kept inside
@@ -84,6 +100,9 @@ export function StudioCommandPalette() {
   const [askError, setAskError] = useState<string | null>(null);
   const [asking, startAsking] = useTransition();
 
+  const [discoveryResult, setDiscoveryResult] = useState<DiscoveryResult | null>(null);
+  const [runningDiscovery, startDiscovery] = useTransition();
+
   const close = useCallback(() => {
     setOpen(false);
     setQuery("");
@@ -92,6 +111,7 @@ export function StudioCommandPalette() {
     setConversation([]);
     setFollowUp("");
     setAskError(null);
+    setDiscoveryResult(null);
   }, []);
 
   // Cmd/Ctrl+K opens from anywhere on an authed Studio page; Escape
@@ -160,11 +180,17 @@ export function StudioCommandPalette() {
   const trimmedRaw = query.trim();
   const trimmed = trimmedRaw.toLowerCase();
   const filteredNav = trimmed ? navItems.filter((n) => n.label.toLowerCase().includes(trimmed)) : navItems;
+  // Same "always visible with no query, filtered by label once one is
+  // typed" rule as filteredNav above — same reason: a real action command
+  // should be reachable by typing what it does ("discovery"), not only by
+  // its exact label.
+  const filteredActions = trimmed ? ACTION_ITEMS.filter((a) => a.label.toLowerCase().includes(trimmed)) : ACTION_ITEMS;
   const activeResults = trimmed.length >= 2 ? results : EMPTY_RESULTS;
   const activeLoading = trimmed.length >= 2 && loading;
 
   const items: PaletteItem[] = [
     ...filteredNav,
+    ...filteredActions,
     ...activeResults.prospects.map((p) => ({
       key: `prospect-${p.id}`,
       label: p.business_name,
@@ -229,9 +255,27 @@ export function StudioCommandPalette() {
     });
   }
 
+  // Left running whichever component happens to render next (no
+  // router.refresh() here) — the Prospects page itself already
+  // revalidates its own path inside runDiscovery(), so navigating there
+  // after a run shows the real new rows the same way clicking "Find
+  // prospects now" on that page always has.
+  function runDiscoveryNow() {
+    if (runningDiscovery) return;
+    setDiscoveryResult(null);
+    startDiscovery(async () => {
+      const result = await runDiscovery();
+      setDiscoveryResult(result);
+    });
+  }
+
   function select(item: PaletteItem) {
     if (item.href === ASK_HREF) {
       runAsk(trimmedRaw);
+      return;
+    }
+    if (item.href === RUN_DISCOVERY_HREF) {
+      runDiscoveryNow();
       return;
     }
     close();
@@ -352,6 +396,17 @@ export function StudioCommandPalette() {
           </div>
         ) : (
           <div className="max-h-80 overflow-y-auto p-1.5">
+            {(runningDiscovery || discoveryResult) && (
+              <div className="border-b border-border px-2.5 pb-2.5" aria-live="polite">
+                {runningDiscovery ? (
+                  <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                    <Loader2 className="size-3.5 shrink-0 animate-spin" /> Running discovery…
+                  </p>
+                ) : (
+                  discoveryResult && <DiscoveryResultMessage result={discoveryResult} />
+                )}
+              </div>
+            )}
             {items.length === 0 && (
               <p className="px-3 py-6 text-center text-sm text-muted-foreground">Keep typing to search or ask a question…</p>
             )}

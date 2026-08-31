@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useMemo, useOptimistic, useState, useTransition } from "react";
 import {
   Search,
@@ -58,6 +59,7 @@ import {
   updateProspectDealValue,
   deleteProspect,
 } from "@/app/studio/(authed)/prospects/actions";
+import { DiscoveryResultMessage, type DiscoveryResult } from "@/components/platform/discovery-result-message";
 import type { UsageStatus } from "@/lib/usage-limits";
 import type { LeadResearch, ScoreBreakdown } from "@/lib/research-lead";
 import type { WebsiteMockup } from "@/lib/draft-website-mockup";
@@ -800,52 +802,81 @@ function SalesKitSection({ prospect }: { prospect: Prospect }) {
   );
 }
 
-function ProspectCard({ prospect }: { prospect: Prospect }) {
+function ProspectCard({
+  prospect,
+  selected,
+  onToggleSelect,
+}: {
+  prospect: Prospect;
+  selected: boolean;
+  onToggleSelect: () => void;
+}) {
   const [open, setOpen] = useState(false);
   const hasContact = prospect.phone || prospect.email;
 
   return (
     <Card>
       <CardContent className="py-3">
-        <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open} className="flex w-full items-center justify-between gap-3 text-left">
-          <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <p className="truncate text-sm font-medium">{prospect.business_name}</p>
-              {/* score_breakdown.overall is the same average shown in the
-                  expanded fit/need/value/confidence bars below — showing
-                  the old, unrelated single-formula score here instead
-                  would show two different numbers for "the score" on the
-                  same card, which is exactly what happened before this
-                  fix. Falls back to the old score only for a prospect
-                  researched before score_breakdown existed. */}
-              {(prospect.score_breakdown?.overall ?? prospect.score) !== null && (
-                <span className="shrink-0 font-mono text-[11px] text-muted-foreground">
-                  score {prospect.score_breakdown?.overall ?? prospect.score}/5
+        <div className="flex items-center gap-3">
+          {/* Studio improvement — bulk actions. Sibling to the toggle
+              button rather than nested inside it (a checkbox inside a
+              clickable row would fire both the toggle and the expand/
+              collapse on one click) — same reasoning as clients-panel.tsx's
+              website link using onClick={(e) => e.stopPropagation()}
+              inside its own row button, just solved by not nesting at all
+              here since this needs its own independent click target. */}
+          <input
+            type="checkbox"
+            checked={selected}
+            onChange={onToggleSelect}
+            aria-label={`Select ${prospect.business_name}`}
+            className="size-4 shrink-0 rounded border-border accent-accent"
+          />
+          <button
+            type="button"
+            onClick={() => setOpen((o) => !o)}
+            aria-expanded={open}
+            className="flex min-w-0 flex-1 items-center justify-between gap-3 text-left"
+          >
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <p className="truncate text-sm font-medium">{prospect.business_name}</p>
+                {/* score_breakdown.overall is the same average shown in the
+                    expanded fit/need/value/confidence bars below — showing
+                    the old, unrelated single-formula score here instead
+                    would show two different numbers for "the score" on the
+                    same card, which is exactly what happened before this
+                    fix. Falls back to the old score only for a prospect
+                    researched before score_breakdown existed. */}
+                {(prospect.score_breakdown?.overall ?? prospect.score) !== null && (
+                  <span className="shrink-0 font-mono text-[11px] text-muted-foreground">
+                    score {prospect.score_breakdown?.overall ?? prospect.score}/5
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {[prospect.category, prospect.neighbourhood].filter(Boolean).join(" · ")}
+              </p>
+            </div>
+            <div className="flex shrink-0 items-center gap-2">
+              {leadNeedsFollowUp(prospect) && (
+                <span className="flex items-center gap-1 text-[11px] font-medium text-destructive">
+                  <BellRing className="size-3 shrink-0" />
+                  {getLeadCadenceAction(prospect) === "call" ? "Call due" : "Follow-up due"}
                 </span>
               )}
+              {prospect.status !== "converted" && (
+                <Badge
+                  variant={prospect.status === "qualified" ? "accent" : "secondary"}
+                  className={`capitalize ${prospect.status === "lost" ? "opacity-60" : ""}`}
+                >
+                  {prospect.status.replace(/_/g, " ")}
+                </Badge>
+              )}
+              {open ? <ChevronUp className="size-4 text-muted-foreground" /> : <ChevronDown className="size-4 text-muted-foreground" />}
             </div>
-            <p className="text-xs text-muted-foreground">
-              {[prospect.category, prospect.neighbourhood].filter(Boolean).join(" · ")}
-            </p>
-          </div>
-          <div className="flex shrink-0 items-center gap-2">
-            {leadNeedsFollowUp(prospect) && (
-              <span className="flex items-center gap-1 text-[11px] font-medium text-destructive">
-                <BellRing className="size-3 shrink-0" />
-                {getLeadCadenceAction(prospect) === "call" ? "Call due" : "Follow-up due"}
-              </span>
-            )}
-            {prospect.status !== "converted" && (
-              <Badge
-                variant={prospect.status === "qualified" ? "accent" : "secondary"}
-                className={`capitalize ${prospect.status === "lost" ? "opacity-60" : ""}`}
-              >
-                {prospect.status.replace(/_/g, " ")}
-              </Badge>
-            )}
-            {open ? <ChevronUp className="size-4 text-muted-foreground" /> : <ChevronDown className="size-4 text-muted-foreground" />}
-          </div>
-        </button>
+          </button>
+        </div>
 
         {open && (
           <div className="mt-4 space-y-4 border-t border-border pt-4">
@@ -928,68 +959,10 @@ function ProspectCard({ prospect }: { prospect: Prospect }) {
   );
 }
 
-type DiscoveryResult = Awaited<ReturnType<typeof runDiscovery>>;
-
-// Shared by "Find prospects now" (the saved-niche rotation) and "Search
-// now" (searchProspects — an immediate, one-off search) — both call a
-// DiscoverLeadsResult-shaped Server Action and need to show the exact
-// same set of outcomes (a plain error, the trial/limit/niche guards, or
-// a real inserted count), so there's one rendering of each state, not
-// two that could quietly drift apart.
-function DiscoveryResultMessage({ result }: { result: DiscoveryResult }) {
-  if ("error" in result) return <p className="text-sm text-destructive">{result.error}</p>;
-  if ("nicheRequired" in result && result.nicheRequired) {
-    return (
-      <p className="flex items-center gap-1.5 text-sm text-destructive">
-        <CircleAlert className="size-4 shrink-0" />
-        Enter at least one category and one area above before finding prospects.
-      </p>
-    );
-  }
-  if ("billingRequired" in result && result.billingRequired) {
-    return (
-      <p className="flex items-center gap-1.5 text-sm text-destructive">
-        <CircleAlert className="size-4 shrink-0" />
-        Your trial has ended.{" "}
-        <Link href="/studio/billing" className="underline underline-offset-2">
-          Subscribe to keep finding prospects
-        </Link>
-        .
-      </p>
-    );
-  }
-  if ("limitReached" in result && result.limitReached) {
-    return (
-      <p className="flex items-center gap-1.5 text-sm text-destructive">
-        <CircleAlert className="size-4 shrink-0" />
-        Monthly limit reached ({result.limitReached.used} of {result.limitReached.limit}) — nothing new searched this
-        run.
-      </p>
-    );
-  }
-  if ("inserted" in result) {
-    return (
-      <>
-        <p className="text-sm text-accent">
-          Found {result.inserted.length} new prospect{result.inserted.length === 1 ? "" : "s"}
-          {result.skippedDuplicates.length > 0 ? ` (${result.skippedDuplicates.length} already known, skipped)` : ""}.
-        </p>
-        {/* Distinct from "found 0" — a search that actually failed (an
-            API error, or the model exhausting its search budget without
-            ever submitting a result) shouldn't look identical to one
-            that genuinely found nothing. */}
-        {result.searchFailures.length > 0 && (
-          <p className="mt-1 flex items-center gap-1.5 text-sm text-destructive">
-            <CircleAlert className="size-4 shrink-0" />
-            {result.searchFailures.length} search{result.searchFailures.length === 1 ? "" : "es"} failed (
-            {result.searchFailures.join(", ")}) — try again.
-          </p>
-        )}
-      </>
-    );
-  }
-  return null;
-}
+// DiscoveryResult / DiscoveryResultMessage moved to their own file
+// (Studio improvement) — see discovery-result-message.tsx's own comment
+// on why (studio-command-palette.tsx now reuses it too, and shouldn't
+// have to pull in this whole panel module to get one small component).
 
 // A single client component rather than splitting settings/results/usage
 // into three — they all react to the same runDiscovery() call (a fresh
@@ -1009,6 +982,7 @@ export function ProspectingPanel({
   purchasedCredits: number;
   prospects: Prospect[];
 }) {
+  const router = useRouter();
   const [categories, setCategories] = useState(initialCategories.join(", "));
   const [areas, setAreas] = useState(initialAreas.join(", "));
   const [savePending, startSave] = useTransition();
@@ -1050,7 +1024,7 @@ export function ProspectingPanel({
   }
 
   const [runPending, startRun] = useTransition();
-  const [runResult, setRunResult] = useState<Awaited<ReturnType<typeof runDiscovery>> | null>(null);
+  const [runResult, setRunResult] = useState<DiscoveryResult | null>(null);
 
   // Shared by both the explicit "Save niche" button and "Find prospects
   // now" — this used to be two separate actions, which meant typing a
@@ -1137,6 +1111,66 @@ export function ProspectingPanel({
     else if (sortBy === "name") sorted.sort((a, b) => a.business_name.localeCompare(b.business_name));
     return sorted;
   }, [prospects, search, statusFilter, sortBy]);
+
+  // Studio improvement — bulk "mark as contacted" for however many rows
+  // are currently selected, calling the exact same markProspectContacted()
+  // Server Action ContactTrackingControl already uses per-row, just once
+  // per selected id instead of one click at a time. Selection is real ids
+  // only (a Set, not "select all prospects" as a separate concept), so a
+  // filter/search change that hides a selected row never silently expands
+  // what a later bulk action would touch.
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkPending, startBulk] = useTransition();
+  const [bulkError, setBulkError] = useState<string | null>(null);
+  const [bulkDone, setBulkDone] = useState<number | null>(null);
+
+  const visibleSelectedCount = visibleProspects.filter((p) => selected.has(p.id)).length;
+  const allVisibleSelected = visibleProspects.length > 0 && visibleSelectedCount === visibleProspects.length;
+
+  function toggleSelected(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleSelectAllVisible() {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (allVisibleSelected) {
+        for (const p of visibleProspects) next.delete(p.id);
+      } else {
+        for (const p of visibleProspects) next.add(p.id);
+      }
+      return next;
+    });
+  }
+
+  function bulkMarkContacted() {
+    const ids = Array.from(selected);
+    if (ids.length === 0 || bulkPending) return;
+    setBulkError(null);
+    setBulkDone(null);
+    startBulk(async () => {
+      const results = await Promise.all(ids.map((id) => markProspectContacted(id)));
+      const failed = results.filter((r) => r && "error" in r).length;
+      setSelected(new Set());
+      if (failed > 0) {
+        setBulkError(`${failed} of ${ids.length} failed to update — try again for those.`);
+      }
+      setBulkDone(ids.length - failed);
+      // Explicit, unlike ContactTrackingControl's own per-row action —
+      // that control has its own useOptimistic local state to show the
+      // change instantly regardless; this bulk bar has no such per-row
+      // optimism (it's driving N rows' worth of ProspectCard/
+      // ContactTrackingControl state it doesn't own), so it needs the
+      // real refresh itself rather than relying on one to happen
+      // implicitly.
+      router.refresh();
+    });
+  }
 
   return (
     // Centered as one column (mx-auto), not just capped — capping alone
@@ -1417,11 +1451,43 @@ export function ProspectingPanel({
             No prospects match that search or filter.
           </div>
         ) : (
-          <div className="mt-3 space-y-2">
-            {visibleProspects.map((p) => (
-              <ProspectCard key={p.id} prospect={p} />
-            ))}
-          </div>
+          <>
+            {/* Studio improvement — bulk actions. Only shown once there's a
+                real list to select from (visibleProspects.length > 0 is
+                already guaranteed by this branch); the bar itself only
+                appears once something's actually selected, same "don't
+                show controls for a state that isn't real yet" rule as the
+                rest of this page. */}
+            <div className="mt-3 flex items-center gap-2 text-xs text-muted-foreground">
+              <input
+                type="checkbox"
+                checked={allVisibleSelected}
+                onChange={toggleSelectAllVisible}
+                aria-label="Select all visible prospects"
+                className="size-4 shrink-0 rounded border-border accent-accent"
+              />
+              <span>Select all {visibleProspects.length}</span>
+              {selected.size > 0 && (
+                <span className="ml-auto flex items-center gap-2">
+                  <span>{selected.size} selected</span>
+                  <Button size="xs" variant="outline" disabled={bulkPending} onClick={bulkMarkContacted}>
+                    {bulkPending ? "Updating…" : `Mark ${selected.size} as contacted`}
+                  </Button>
+                </span>
+              )}
+            </div>
+            {bulkDone !== null && !bulkPending && (
+              <p className="mt-1.5 text-xs text-accent">
+                {bulkDone} prospect{bulkDone === 1 ? "" : "s"} marked as contacted.
+              </p>
+            )}
+            {bulkError && <p className="mt-1.5 text-xs text-destructive">{bulkError}</p>}
+            <div className="mt-2 space-y-2">
+              {visibleProspects.map((p) => (
+                <ProspectCard key={p.id} prospect={p} selected={selected.has(p.id)} onToggleSelect={() => toggleSelected(p.id)} />
+              ))}
+            </div>
+          </>
         )}
       </div>
     </div>
