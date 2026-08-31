@@ -251,6 +251,26 @@ _(none yet)_
   will need to sign into a real Studio session and hand over the Browser
   pane, same as the earlier Command Centre visual fix, before this is
   actually done.
+- **Live check (orchestrator, via Hamish's real signed-in session, 2026-08-31)**:
+  Hamish signed into a real Studio session and handed the Browser pane over.
+  Confirmed via `getComputedStyle`/`getBoundingClientRect` at actual desktop
+  width (1780px) that the glow renders exactly where designed — both blobs
+  land in the true left/right gutters outside the `max-w-6xl` content
+  column, not occluded by the header or sidebar as a narrower test width
+  had first suggested. The real problem: at the spec's original 5%/6%
+  alpha, the blended lightness only moves ~2 points on a 0-100 scale —
+  correct per the design math, but visually imperceptible, especially once
+  screenshotted/compressed. Hamish's own reaction confirmed this ("where?").
+  Bumped `--gradient-blue-soft-dark`/`--gradient-cyan-soft-dark` from 5%/6%
+  to 16%/18% alpha directly (no new proposal round needed — this is a
+  magnitude adjustment within the already-approved direction, not a new
+  design decision). Re-checked contrast math at the new values: blended
+  peak lightness still lands around L10-16 (base ~L2.6, text foreground
+  ~L90+) — nowhere close to threatening the 15-17:1 contrast ratios already
+  verified, since the glow only ever sits in card-free gutters with no text
+  in them. `npx tsc --noEmit -p .` clean. Pending: a second live screenshot
+  after this deploys to confirm it now actually reads as intentional, not
+  just technically present.
 - **Status**: Needs review
 
 ## Complete

@@ -71,8 +71,8 @@
      Target: the brightest blended point of the glow stays visibly below
      .studio-shell's --card lightness, so it reads as background texture,
      never a competing surface tier. */
-  --gradient-blue-soft-dark: oklch(0.58 0.21 258 / 5%);
-  --gradient-cyan-soft-dark: oklch(0.78 0.13 200 / 6%);
+  --gradient-blue-soft-dark: oklch(0.58 0.21 258 / 16%);
+  --gradient-cyan-soft-dark: oklch(0.78 0.13 200 / 18%);
 }
 
 :root {
