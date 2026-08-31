@@ -3,6 +3,8 @@ import { getSupabaseAdmin } from "@/lib/supabase";
 import { sendClientEmail } from "@/lib/send-client-email";
 import { getStudioBriefing } from "@/lib/studio-briefing";
 import { computeClientEngagementRisk } from "@/lib/studio-engagement";
+import { getUsageStatus } from "@/lib/usage-limits";
+import { platformPlans, type PlatformPlanSlug } from "@/lib/platform-plans";
 
 // Owner-facing digest — Command Centre improvement #2 from this session's
 // studio review. Every real "you should look at this" signal on /studio
@@ -74,6 +76,30 @@ export async function sendOwnerDigests() {
 async function buildOwnerDigestSummary(admin: SupabaseClient, orgId: string): Promise<string | null> {
   const briefing = await getStudioBriefing(admin, orgId);
 
+  // Studio improvement — pairs with billing/page.tsx's own new in-app
+  // "approaching your monthly limit" warning (same 80% threshold, same
+  // getUsageStatus() call): that one's pull-only (you have to open
+  // Billing to see it), this pushes the identical signal proactively,
+  // same reasoning as this whole digest's own existence for Actions
+  // Required/Engagement Risk. is_internal orgs have no real plan
+  // ceiling (usage-limits.ts's own comment) so are skipped, same guard
+  // billing/page.tsx uses; an unrecognised/legacy org.plan value is
+  // skipped rather than risking getUsageStatus() throwing and failing
+  // this whole tenant's digest over one bad value.
+  const { data: org } = await admin.from("organisations").select("plan, is_internal").eq("id", orgId).single();
+  const orgPlan = org?.plan as PlatformPlanSlug | undefined;
+  const usageLine =
+    org && !org.is_internal && orgPlan && platformPlans.some((p) => p.slug === orgPlan)
+      ? await (async () => {
+          const usage = await getUsageStatus(orgId, "prospect_researched", orgPlan);
+          if (usage.limit === 0) return null;
+          const pct = usage.used / usage.limit;
+          if (pct >= 1) return `- Monthly prospect limit reached (${usage.used} of ${usage.limit}) — top up credits or upgrade your plan.`;
+          if (pct >= 0.8) return `- Approaching your monthly prospect limit (${usage.used} of ${usage.limit}).`;
+          return null;
+        })()
+      : null;
+
   const { data: clients } = await admin.from("clients").select("id, business_name").eq("org_id", orgId);
   const clientIds = (clients ?? []).map((c) => c.id);
 
@@ -106,6 +132,7 @@ async function buildOwnerDigestSummary(admin: SupabaseClient, orgId: string): Pr
   if (openRequestCount > 0) {
     actionLines.push(`- ${openRequestCount} client request${openRequestCount === 1 ? "" : "s"} awaiting your reply`);
   }
+  if (usageLine) actionLines.push(usageLine);
 
   const riskLines = engagementRisks
     .slice(0, 5)
