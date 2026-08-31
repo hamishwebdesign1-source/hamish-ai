@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
-import { FolderKanban, Plus, CalendarDays, CircleAlert } from "lucide-react";
+import { FolderKanban, Plus, CalendarDays, CircleAlert, Search } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -235,7 +235,17 @@ export function ProjectsPanel({ clients, projects, tasks }: { clients: Client[];
     return map;
   }, [projects, filter]);
 
-  const clientsWithActivity = clients.filter((c) => (projectsByClient.get(c.id) ?? []).length > 0 || filter === "all");
+  // Studio improvement — same client-side search pattern as
+  // clients-panel.tsx/requests-panel.tsx. Filters by client name (this
+  // page is grouped by client, not a flat project list), on top of the
+  // existing active/all filter above.
+  const [search, setSearch] = useState("");
+  const searchLower = search.trim().toLowerCase();
+  const clientsWithActivity = clients.filter(
+    (c) =>
+      ((projectsByClient.get(c.id) ?? []).length > 0 || filter === "all") &&
+      (!searchLower || c.business_name.toLowerCase().includes(searchLower))
+  );
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">
@@ -260,21 +270,35 @@ export function ProjectsPanel({ clients, projects, tasks }: { clients: Client[];
         </div>
       ) : (
         <>
-          <select
-            value={filter}
-            onChange={(e) => setFilter(e.target.value as typeof filter)}
-            className={selectClasses}
-            aria-label="Filter projects"
-          >
-            <option value="active">Active projects</option>
-            <option value="all">All clients, all projects</option>
-          </select>
-
-          <div className="space-y-6">
-            {clientsWithActivity.map((c) => (
-              <ClientProjectsGroup key={c.id} client={c} projects={projectsByClient.get(c.id) ?? []} tasksByProject={tasksByProject} />
-            ))}
+          <div className="flex flex-wrap items-center gap-2">
+            <select
+              value={filter}
+              onChange={(e) => setFilter(e.target.value as typeof filter)}
+              className={selectClasses}
+              aria-label="Filter projects"
+            >
+              <option value="active">Active projects</option>
+              <option value="all">All clients, all projects</option>
+            </select>
+            {clients.length > 4 && (
+              <div className="relative ml-auto w-full max-w-56">
+                <Search className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
+                <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search by client…" className="h-9 pl-8 text-sm" />
+              </div>
+            )}
           </div>
+
+          {clientsWithActivity.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+              No clients match that search.
+            </div>
+          ) : (
+            <div className="space-y-6">
+              {clientsWithActivity.map((c) => (
+                <ClientProjectsGroup key={c.id} client={c} projects={projectsByClient.get(c.id) ?? []} tasksByProject={tasksByProject} />
+              ))}
+            </div>
+          )}
         </>
       )}
     </div>
