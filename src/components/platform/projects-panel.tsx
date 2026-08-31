@@ -25,6 +25,37 @@ function isOverdue(targetDate: string | null, status: string) {
   return new Date(targetDate) < new Date(new Date().toDateString());
 }
 
+// Studio improvement — the overdue/not-overdue split was binary, so a
+// project due tomorrow read identically to one due in 6 months until the
+// exact day it flipped red. DUE_SOON_DAYS gives a project manager an
+// actual heads-up window, same "warning tier before critical" shape as
+// studio-engagement.ts's own tierFor() (quiet-but-not-yet-critical gets
+// its own state rather than jumping straight from fine to alarming).
+const DUE_SOON_DAYS = 5;
+
+function daysUntil(targetDate: string): number {
+  const today = new Date(new Date().toDateString());
+  const target = new Date(targetDate);
+  return Math.round((target.getTime() - today.getTime()) / (24 * 60 * 60 * 1000));
+}
+
+function isDueSoon(targetDate: string | null, status: string): boolean {
+  if (!targetDate || status === "done") return false;
+  const days = daysUntil(targetDate);
+  return days >= 0 && days <= DUE_SOON_DAYS;
+}
+
+// The day-count line next to the date — "overdue" used to be the only
+// state that said anything beyond the raw date; this gives every state
+// (including plain "active", once it's still comfortably in the future)
+// a real, honest count rather than leaving the reader to do the maths.
+function dueDateNote(targetDate: string): string {
+  const days = daysUntil(targetDate);
+  if (days < 0) return `${Math.abs(days)} day${Math.abs(days) === 1 ? "" : "s"} overdue`;
+  if (days === 0) return "due today";
+  return `${days} day${days === 1 ? "" : "s"} left`;
+}
+
 function ProjectCard({ project, tasks }: { project: Project; tasks: Task[] }) {
   const [pending, startTransition] = useTransition();
   const [status, setStatus] = useState(project.status);
@@ -32,6 +63,7 @@ function ProjectCard({ project, tasks }: { project: Project; tasks: Task[] }) {
   const done = tasks.filter((t) => t.status === "done").length;
   const pct = tasks.length ? Math.round((done / tasks.length) * 100) : null;
   const overdue = isOverdue(project.target_date, status);
+  const dueSoon = isDueSoon(project.target_date, status);
 
   function toggleDone() {
     const next = status === "done" ? "active" : "done";
@@ -50,9 +82,9 @@ function ProjectCard({ project, tasks }: { project: Project; tasks: Task[] }) {
             <p className="truncate text-sm font-medium">{project.name}</p>
             <div className="mt-0.5 flex items-center gap-2 text-xs text-muted-foreground">
               {project.target_date && (
-                <span className={`flex items-center gap-1 ${overdue ? "text-destructive" : ""}`}>
+                <span className={`flex items-center gap-1 ${overdue ? "text-destructive" : dueSoon ? "text-warning" : ""}`}>
                   <CalendarDays className="size-3" /> {formatDate(project.target_date)}
-                  {overdue && " · overdue"}
+                  {status !== "done" && ` · ${dueDateNote(project.target_date)}`}
                 </span>
               )}
               {tasks.length > 0 && <span>{done}/{tasks.length} tasks done</span>}
@@ -64,6 +96,10 @@ function ProjectCard({ project, tasks }: { project: Project; tasks: Task[] }) {
             ) : overdue ? (
               <Badge variant="destructive" className="gap-1">
                 <CircleAlert className="size-3" /> Overdue
+              </Badge>
+            ) : dueSoon ? (
+              <Badge variant="warning" className="gap-1">
+                <CircleAlert className="size-3" /> Due soon
               </Badge>
             ) : (
               <Badge variant="accent">Active</Badge>
