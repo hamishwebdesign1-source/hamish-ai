@@ -1124,6 +1124,24 @@ export function ProspectingPanel({
   const [bulkError, setBulkError] = useState<string | null>(null);
   const [bulkDone, setBulkDone] = useState<number | null>(null);
 
+  // Studio improvement — bulk "generate outreach kits," same selection
+  // set as bulk mark-contacted above, own pending/error/done state (a
+  // real AI call per id, not a plain DB write, so it shouldn't share
+  // bulkPending's "Updating…" wording or block on it). Capped, unlike
+  // mark-contacted: each one is a real, costed Anthropic call, so a
+  // selection larger than MAX_BULK_KITS disables the button rather than
+  // firing a burst that would just fail most of the way through
+  // generateSalesKit()'s own per-call usage/rate-limit check anyway — a
+  // hard cap here is a better experience than a mostly-failed batch.
+  // Sequential, not Promise.all, for the same reason: a burst of N
+  // simultaneous calls is exactly what isStudioActionRateLimited()
+  // exists to catch, so this paces itself instead of triggering it.
+  const MAX_BULK_KITS = 5;
+  const [kitsPending, startKits] = useTransition();
+  const [kitsError, setKitsError] = useState<string | null>(null);
+  const [kitsDone, setKitsDone] = useState<number | null>(null);
+  const [kitsProgress, setKitsProgress] = useState<{ done: number; total: number } | null>(null);
+
   const visibleSelectedCount = visibleProspects.filter((p) => selected.has(p.id)).length;
   const allVisibleSelected = visibleProspects.length > 0 && visibleSelectedCount === visibleProspects.length;
 
@@ -1168,6 +1186,27 @@ export function ProspectingPanel({
       // ContactTrackingControl state it doesn't own), so it needs the
       // real refresh itself rather than relying on one to happen
       // implicitly.
+      router.refresh();
+    });
+  }
+
+  function bulkGenerateKits() {
+    const ids = Array.from(selected).slice(0, MAX_BULK_KITS);
+    if (ids.length === 0 || kitsPending) return;
+    setKitsError(null);
+    setKitsDone(null);
+    setKitsProgress({ done: 0, total: ids.length });
+    startKits(async () => {
+      let failed = 0;
+      for (const id of ids) {
+        const r = await generateSalesKit(id);
+        if (r && "error" in r) failed++;
+        setKitsProgress((prev) => (prev ? { done: prev.done + 1, total: prev.total } : prev));
+      }
+      setSelected(new Set());
+      setKitsProgress(null);
+      if (failed > 0) setKitsError(`${failed} of ${ids.length} kits failed to generate — try those individually.`);
+      setKitsDone(ids.length - failed);
       router.refresh();
     });
   }
@@ -1468,20 +1507,44 @@ export function ProspectingPanel({
               />
               <span>Select all {visibleProspects.length}</span>
               {selected.size > 0 && (
-                <span className="ml-auto flex items-center gap-2">
+                <span className="ml-auto flex flex-wrap items-center gap-2">
                   <span>{selected.size} selected</span>
                   <Button size="xs" variant="outline" disabled={bulkPending} onClick={bulkMarkContacted}>
                     {bulkPending ? "Updating…" : `Mark ${selected.size} as contacted`}
                   </Button>
+                  <Button
+                    size="xs"
+                    variant="outline"
+                    disabled={kitsPending || selected.size > MAX_BULK_KITS}
+                    onClick={bulkGenerateKits}
+                    title={selected.size > MAX_BULK_KITS ? `Select ${MAX_BULK_KITS} or fewer to generate kits in bulk` : undefined}
+                  >
+                    {kitsPending
+                      ? kitsProgress
+                        ? `Generating ${kitsProgress.done}/${kitsProgress.total}…`
+                        : "Generating…"
+                      : `Generate ${Math.min(selected.size, MAX_BULK_KITS)} outreach kit${Math.min(selected.size, MAX_BULK_KITS) === 1 ? "" : "s"}`}
+                  </Button>
                 </span>
               )}
             </div>
+            {selected.size > MAX_BULK_KITS && (
+              <p className="mt-1.5 text-xs text-muted-foreground">
+                Only the first {MAX_BULK_KITS} selected can have outreach kits generated at once — real AI calls, one per prospect.
+              </p>
+            )}
             {bulkDone !== null && !bulkPending && (
               <p className="mt-1.5 text-xs text-accent">
                 {bulkDone} prospect{bulkDone === 1 ? "" : "s"} marked as contacted.
               </p>
             )}
             {bulkError && <p className="mt-1.5 text-xs text-destructive">{bulkError}</p>}
+            {kitsDone !== null && !kitsPending && (
+              <p className="mt-1.5 text-xs text-accent">
+                {kitsDone} outreach kit{kitsDone === 1 ? "" : "s"} generated.
+              </p>
+            )}
+            {kitsError && <p className="mt-1.5 text-xs text-destructive">{kitsError}</p>}
             <div className="mt-2 space-y-2">
               {visibleProspects.map((p) => (
                 <ProspectCard key={p.id} prospect={p} selected={selected.has(p.id)} onToggleSelect={() => toggleSelected(p.id)} />
