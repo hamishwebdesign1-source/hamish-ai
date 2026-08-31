@@ -9,6 +9,31 @@ paragraph, not a full handoff report (those, if worth keeping, go in
 
 ---
 
+## 2026-08-31 — "/studio-focused SaaS improvements" mission: 7 shipped changes, 2 live-verified in a real session
+
+Hamish redirected the team's focus to `/studio` specifically (not the
+marketing site or `/portal`). Shipped, in order: motion consistency
+(Reveal/CountUp on Analytics/Billing) + route-specific loading skeletons;
+`useOptimistic` on prospect status actions (candidate 1 of 3 scoped, 2
+deliberately deferred) plus 3 adjacent silent-failure bugs; the PostHog
+activation funnel spec (Growth caught that a naive single funnel would
+have misreported real paying customers as drop-offs — split into two);
+an ambient background treatment for Studio (activated the previously-unused
+`.aurora-bg` utility, cool-navy direction picked by Hamish); and the
+"recommend → act" feature wiring Command Centre's AI recommendations to a
+real one-click outreach-kit generator. Two real data-loss incidents hit
+`BACKLOG.md`/`DESIGN-SYSTEM.md` from concurrent agents editing shared docs
+without committing in between — both recovered from agents' own handoff
+reports, not silently lost; worth a process fix (commit shared docs more
+often between parallel dispatches) rather than relying on recovery each
+time. Hamish signed into a real Studio session twice for live verification:
+caught that the background glow's original alpha (5-6%) was technically
+correct but imperceptible ("where?") — bumped to 16-18% and re-confirmed
+visible; and confirmed the outreach-kit button links through to a real,
+specific, non-generic generated kit. See `BACKLOG.md`'s "Complete" section
+for full technical detail per item, `DECISIONS.md` for the concurrent-edit
+process note.
+
 ## 2026-08-27 — "Best in market" mission synthesis: 8 backlog items, 2 real fixes verified, honest verdict delivered
 
 Product Director closed out the "make Studio feel like the best AI SaaS

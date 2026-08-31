@@ -8,6 +8,33 @@ just at product-decision scope instead of line scope.
 
 ---
 
+## 2026-08-31 — Process fix: commit shared docs between parallel agent dispatches, don't rely on recovery
+
+**Decision**: When running multiple specialist agents in parallel who each
+update `BACKLOG.md`/`DESIGN-SYSTEM.md` as part of their own task, the
+orchestrator should commit those docs to git between dispatch rounds
+whenever practical, rather than letting several agents' uncommitted edits
+sit in the working tree simultaneously.
+
+**Why**: Hit this twice in the same mission (2026-08-31). Two different
+Lead Engineer agents, each following the repo's own "don't blanket-`git
+add`" discipline, each independently did a `git reset` on `BACKLOG.md` to
+avoid bundling unrelated concurrent uncommitted work into their own commit
+— but each reset target predated other agents' genuinely-finished
+uncommitted edits (the orchestrator's own stale-entry cleanup, Growth &
+Analytics' full PostHog funnel spec, UX/UI Director's `useOptimistic`
+scoping note). Both times the lost content was recoverable because the
+authoring agent's own handoff report (still in the orchestrator's context)
+contained the full text — but that's luck, not a real safety net; a longer
+mission or a summarized context could have lost it for good.
+
+**Not done**: didn't add file-locking or a stricter multi-agent-docs
+protocol — that's more process than this team's actual collision rate
+justifies. The fix is simpler: commit `docs/ai-team/*.md` right after each
+agent that touches them reports back, before dispatching the next round,
+so a `git reset` anywhere only ever loses uncommitted seconds of work, not
+whole scoping notes.
+
 ## 2026-08-27 — Added an SPF+DKIM authenticity check to `email-inbox.ts`'s inbound triage (Hamish sign-off)
 
 **Decision**: Implemented the P1 `BACKLOG.md` item once Hamish explicitly
