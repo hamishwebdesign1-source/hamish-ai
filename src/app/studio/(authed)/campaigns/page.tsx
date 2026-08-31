@@ -24,8 +24,16 @@ export default async function StudioCampaignsPage() {
       .order("created_at", { ascending: false }),
     // Every prospect, not just already-assigned ones — the "add
     // prospects to this campaign" control needs to offer the unassigned
-    // ones too.
-    supabase.from("prospects").select("id, business_name, campaign_id, status").eq("org_id", membership.orgId).order("business_name"),
+    // ones too. deal_value_pence added (Studio improvement) so each
+    // campaign can show a real, summed pipeline value — the same
+    // tenant-entered field prospecting-panel.tsx already surfaces per
+    // prospect, never AI-estimated (updateProspectDealValue()'s own
+    // comment on why).
+    supabase
+      .from("prospects")
+      .select("id, business_name, campaign_id, status, deal_value_pence")
+      .eq("org_id", membership.orgId)
+      .order("business_name"),
   ]);
 
   return <CampaignsPanel campaigns={campaigns ?? []} prospects={prospects ?? []} />;

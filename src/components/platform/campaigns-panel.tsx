@@ -12,7 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { createCampaign, updateCampaignStatus, assignProspectToCampaign, deleteCampaign } from "@/app/studio/(authed)/campaigns/actions";
 
 type Campaign = { id: string; name: string; objective: string | null; status: string; created_at: string };
-type Prospect = { id: string; business_name: string; campaign_id: string | null; status: string };
+type Prospect = { id: string; business_name: string; campaign_id: string | null; status: string; deal_value_pence: number | null };
 
 const selectClasses =
   "h-8 rounded-lg border border-input bg-transparent px-2 text-xs outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50";
@@ -172,6 +172,16 @@ function CampaignCard({ campaign, prospects, unassigned }: { campaign: Campaign;
 
   const converted = prospects.filter((p) => p.status === "converted").length;
   const conversionRate = prospects.length > 0 ? Math.round((converted / prospects.length) * 100) : null;
+  // Studio improvement — the same tenant-entered deal_value_pence
+  // prospecting-panel.tsx already sums for the Command Centre's overall
+  // pipeline stat (page.tsx's own pipelineValuePence), just scoped to
+  // this one campaign's prospects. Only over prospects still active (not
+  // yet won or lost) — matches page.tsx's own .not("status", "in",
+  // "(converted,lost)") filter, so a campaign's pipeline figure means
+  // the same thing here as it does on the Command Centre.
+  const pipelineValuePence = prospects
+    .filter((p) => p.status !== "converted" && p.status !== "lost")
+    .reduce((sum, p) => sum + (p.deal_value_pence ?? 0), 0);
 
   function toggleStatus() {
     const next = status === "completed" ? "active" : "completed";
@@ -232,6 +242,7 @@ function CampaignCard({ campaign, prospects, unassigned }: { campaign: Campaign;
           <span>{prospects.length} prospect{prospects.length === 1 ? "" : "s"}</span>
           <span>{converted} converted</span>
           {conversionRate !== null ? <span>{conversionRate}% conversion</span> : <span>No data yet</span>}
+          {pipelineValuePence > 0 && <span>£{Math.round(pipelineValuePence / 100).toLocaleString("en-GB")} pipeline</span>}
         </div>
         {prospects.length > 0 && (
           <div className="mt-2 divide-y divide-border border-t border-border">
