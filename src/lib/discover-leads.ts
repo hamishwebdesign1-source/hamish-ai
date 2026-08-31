@@ -254,7 +254,15 @@ Never invent a business, a website, or a phone number. If you can't confirm a de
     );
   }
 
-  if (!toolUse) return [];
+  // Even the forced nudge above can come back with no tool_use at all
+  // (the model text-explains instead, or the API call itself errors) —
+  // that's the exact "never answering" failure mode the comment above
+  // exists to catch, not a confirmed "genuinely found nothing" result.
+  // Throwing here (instead of the previous silent `return []`) routes it
+  // through the same searchFailures reporting both callers already use
+  // for a thrown searchCandidates() error, so a real search failure never
+  // renders identically to a real, confirmed-empty "Found 0 prospects."
+  if (!toolUse) throw new Error("The model didn't return a result, even after a follow-up nudge.");
 
   const input = toolUse.input as { candidates: Candidate[] };
   return input.candidates ?? [];
