@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState, useTransition } from "react";
+import { useMemo, useOptimistic, useState, useTransition } from "react";
 import {
   Search,
   ExternalLink,
@@ -102,35 +102,61 @@ function formatDaysAgo(iso: string) {
 // own inbox (Gmail/Outlook) so this fills in on its own is a real,
 // separate feature (per-tenant OAuth, Google/Microsoft app verification),
 // not something bolted on here.
-function ContactTrackingControl({ prospect }: { prospect: Prospect }) {
+// Built fresh with useOptimistic (BACKLOG.md's 2026-08-31 scoping note,
+// candidate 1) rather than the hand-rolled useState-flip-then-revert
+// pattern used elsewhere in this codebase (CampaignCard.toggleStatus etc)
+// — there was no existing optimism here at all to migrate. Rollback UI
+// per that same note: an inline text-destructive line under the row,
+// plus a brief bg-destructive/10 highlight on the row itself, cleared
+// after ~1.5s — the same transient-boolean-plus-timeout mechanism
+// CopyButton/EmbedChatbotControl already use for their own "copied" state.
+export function ContactTrackingControl({ prospect }: { prospect: Prospect }) {
+  const [optimisticProspect, setOptimisticProspect] = useOptimistic(
+    prospect,
+    (state: Prospect, patch: Partial<Prospect>) => ({ ...state, ...patch })
+  );
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [rolledBack, setRolledBack] = useState(false);
 
-  if (prospect.status === "converted") return null;
+  function flagRollback() {
+    setRolledBack(true);
+    setTimeout(() => setRolledBack(false), 1500);
+  }
 
-  if (!prospect.contacted_at) {
+  if (optimisticProspect.status === "converted") return null;
+
+  const rowHighlight = rolledBack ? "bg-destructive/10" : "";
+
+  if (!optimisticProspect.contacted_at) {
     return (
-      <div className="flex items-center gap-2">
-        <Button
-          size="sm"
-          variant="outline"
-          disabled={pending}
-          onClick={() =>
-            startTransition(async () => {
-              setError(null);
-              const r = await markProspectContacted(prospect.id);
-              if (r && "error" in r) setError(r.error ?? "Failed to update.");
-            })
-          }
-        >
-          <Send className="size-3.5" /> Mark as contacted
-        </Button>
-        {error && <span className="text-xs text-destructive">{error}</span>}
+      <div className="flex flex-col gap-1">
+        <div className={`flex items-center gap-2 rounded-md p-1 transition-colors ${rowHighlight}`}>
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={pending}
+            onClick={() =>
+              startTransition(async () => {
+                setError(null);
+                setOptimisticProspect({ status: "contacted", contacted_at: new Date().toISOString(), last_contact_method: "email" });
+                const r = await markProspectContacted(prospect.id);
+                if (r && "error" in r) {
+                  setError(r.error ?? "Failed to update — try again.");
+                  flagRollback();
+                }
+              })
+            }
+          >
+            <Send className="size-3.5" /> Mark as contacted
+          </Button>
+        </div>
+        {error && <p className="text-xs text-destructive">{error}</p>}
       </div>
     );
   }
 
-  if (prospect.replied_at) {
+  if (optimisticProspect.replied_at) {
     return (
       <Badge variant="secondary" className="gap-1">
         <MessageSquareText className="size-3" /> Replied
@@ -138,35 +164,41 @@ function ContactTrackingControl({ prospect }: { prospect: Prospect }) {
     );
   }
 
-  const cadenceAction = getLeadCadenceAction(prospect);
+  const cadenceAction = getLeadCadenceAction(optimisticProspect);
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      <span className="text-xs text-muted-foreground">
-        Contacted {formatDaysAgo(prospect.contacted_at)}
-        {prospect.last_contact_method ? ` by ${prospect.last_contact_method}` : ""}
-      </span>
-      {cadenceAction && (
-        <span className="flex items-center gap-1 text-xs font-medium text-destructive">
-          <BellRing className="size-3.5 shrink-0" />
-          {cadenceAction === "call" ? "Call due" : "Follow-up due"}
+    <div className="flex flex-col gap-1">
+      <div className={`flex flex-wrap items-center gap-2 rounded-md p-1 transition-colors ${rowHighlight}`}>
+        <span className="text-xs text-muted-foreground">
+          Contacted {formatDaysAgo(optimisticProspect.contacted_at)}
+          {optimisticProspect.last_contact_method ? ` by ${optimisticProspect.last_contact_method}` : ""}
         </span>
-      )}
-      <Button
-        size="sm"
-        variant="outline"
-        disabled={pending}
-        onClick={() =>
-          startTransition(async () => {
-            setError(null);
-            const r = await markProspectReplied(prospect.id);
-            if (r && "error" in r) setError(r.error ?? "Failed to update.");
-          })
-        }
-      >
-        <MessageSquareText className="size-3.5" /> Mark as replied
-      </Button>
-      {error && <span className="text-xs text-destructive">{error}</span>}
+        {cadenceAction && (
+          <span className="flex items-center gap-1 text-xs font-medium text-destructive">
+            <BellRing className="size-3.5 shrink-0" />
+            {cadenceAction === "call" ? "Call due" : "Follow-up due"}
+          </span>
+        )}
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={pending}
+          onClick={() =>
+            startTransition(async () => {
+              setError(null);
+              setOptimisticProspect({ replied_at: new Date().toISOString() });
+              const r = await markProspectReplied(prospect.id);
+              if (r && "error" in r) {
+                setError(r.error ?? "Failed to update — try again.");
+                flagRollback();
+              }
+            })
+          }
+        >
+          <MessageSquareText className="size-3.5" /> Mark as replied
+        </Button>
+      </div>
+      {error && <p className="text-xs text-destructive">{error}</p>}
     </div>
   );
 }
@@ -275,61 +307,109 @@ function RemoveProspectControl({ prospect }: { prospect: Prospect }) {
 // pursuing" or "pursued, didn't work out." Hidden once the prospect has
 // reached either of its own terminal states (converted, or already
 // lost) — a won or lost deal isn't still "qualifiable."
-function PipelineStageControl({ prospect }: { prospect: Prospect }) {
+// Same useOptimistic-from-scratch treatment as ContactTrackingControl
+// above, per the same scoping note — see its comment for why.
+export function PipelineStageControl({ prospect }: { prospect: Prospect }) {
+  const [optimisticProspect, setOptimisticProspect] = useOptimistic(
+    prospect,
+    (state: Prospect, patch: Partial<Prospect>) => ({ ...state, ...patch })
+  );
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [rolledBack, setRolledBack] = useState(false);
 
+  function flagRollback() {
+    setRolledBack(true);
+    setTimeout(() => setRolledBack(false), 1500);
+  }
+
+  // Checked against the real, server-confirmed prop, not the optimistic
+  // local guess — an in-flight (unconfirmed) "mark as lost" click sets
+  // optimisticProspect.status to "lost" immediately, and if this guard
+  // read that instead, the whole row (and its own rollback error message)
+  // would disappear before the server ever confirmed the write, which
+  // would defeat the rollback UI below. Once the write actually succeeds,
+  // revalidatePath refreshes this prop for real and the row correctly
+  // disappears for good.
   if (prospect.status === "converted" || prospect.status === "lost") return null;
 
   return (
-    <div className="flex items-center gap-2">
-      {prospect.status !== "qualified" && (
-        <Button
-          size="sm"
-          variant="outline"
-          disabled={pending}
-          onClick={() =>
-            startTransition(async () => {
-              setError(null);
-              const r = await markProspectQualified(prospect.id);
-              if (r && "error" in r) setError(r.error ?? "Failed to update.");
-            })
-          }
-        >
-          <CheckCheck className="size-3.5" /> Mark as qualified
-        </Button>
-      )}
-      <Button
-        size="sm"
-        variant="ghost"
-        className="text-muted-foreground hover:text-destructive"
-        disabled={pending}
-        onClick={() =>
-          startTransition(async () => {
-            setError(null);
-            const r = await markProspectLost(prospect.id);
-            if (r && "error" in r) setError(r.error ?? "Failed to update.");
-          })
-        }
-      >
-        <ThumbsDown className="size-3.5" /> Mark as lost
-      </Button>
-      {error && <span className="text-xs text-destructive">{error}</span>}
+    <div className="flex flex-col gap-1">
+      <div className={`flex items-center gap-2 rounded-md p-1 transition-colors ${rolledBack ? "bg-destructive/10" : ""}`}>
+        {optimisticProspect.status === "lost" ? (
+          <span className="text-xs text-muted-foreground">Marked as lost…</span>
+        ) : (
+          <>
+            {optimisticProspect.status !== "qualified" && (
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={pending}
+                onClick={() =>
+                  startTransition(async () => {
+                    setError(null);
+                    setOptimisticProspect({ status: "qualified" });
+                    const r = await markProspectQualified(prospect.id);
+                    if (r && "error" in r) {
+                      setError(r.error ?? "Failed to update — try again.");
+                      flagRollback();
+                    }
+                  })
+                }
+              >
+                <CheckCheck className="size-3.5" /> Mark as qualified
+              </Button>
+            )}
+            <Button
+              size="sm"
+              variant="ghost"
+              className="text-muted-foreground hover:text-destructive"
+              disabled={pending}
+              onClick={() =>
+                startTransition(async () => {
+                  setError(null);
+                  setOptimisticProspect({ status: "lost" });
+                  const r = await markProspectLost(prospect.id);
+                  if (r && "error" in r) {
+                    setError(r.error ?? "Failed to update — try again.");
+                    flagRollback();
+                  }
+                })
+              }
+            >
+              <ThumbsDown className="size-3.5" /> Mark as lost
+            </Button>
+          </>
+        )}
+      </div>
+      {error && <p className="text-xs text-destructive">{error}</p>}
     </div>
   );
 }
 
 // Entirely optional, never AI-generated — see updateProspectDealValue()'s
 // own comment on why a made-up number would be worse than no number.
-function DealValueControl({ prospect }: { prospect: Prospect }) {
+export function DealValueControl({ prospect }: { prospect: Prospect }) {
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState(prospect.deal_value_pence ? String(prospect.deal_value_pence / 100) : "");
   const [pending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
 
+  // Flagged in BACKLOG.md's useOptimistic scoping note as safe but too
+  // low-frequency to be worth bespoke optimistic-UI engineering — the real
+  // bug here was that the result was never checked at all, silently
+  // reverting to the stale value on a failed save. Fixed as an ordinary
+  // bug fix: check the result, keep the editor open with the same inline
+  // error convention as everything else in this file on failure.
   function save() {
+    setError(null);
     startTransition(async () => {
       const parsed = value.trim() ? parseFloat(value) : null;
-      await updateProspectDealValue(prospect.id, parsed);
+      const r = await updateProspectDealValue(prospect.id, parsed);
+      if (r && "error" in r) {
+        setError(r.error ?? "Failed to update — try again.");
+        return;
+      }
       setEditing(false);
     });
   }
@@ -338,7 +418,10 @@ function DealValueControl({ prospect }: { prospect: Prospect }) {
     return (
       <button
         type="button"
-        onClick={() => setEditing(true)}
+        onClick={() => {
+          setError(null);
+          setEditing(true);
+        }}
         className="flex items-center gap-1 text-xs text-muted-foreground hover:text-accent"
       >
         <PoundSterling className="size-3" />
@@ -348,21 +431,24 @@ function DealValueControl({ prospect }: { prospect: Prospect }) {
   }
 
   return (
-    <div className="flex items-center gap-1.5">
-      <Input
-        type="number"
-        min="0"
-        step="1"
-        value={value}
-        onChange={(e) => setValue(e.target.value)}
-        onKeyDown={(e) => e.key === "Enter" && save()}
-        autoFocus
-        className="h-7 w-24 text-xs"
-        placeholder="£"
-      />
-      <Button size="xs" disabled={pending} onClick={save}>
-        {pending ? "…" : "Save"}
-      </Button>
+    <div className="flex flex-col gap-1">
+      <div className="flex items-center gap-1.5">
+        <Input
+          type="number"
+          min="0"
+          step="1"
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && save()}
+          autoFocus
+          className="h-7 w-24 text-xs"
+          placeholder="£"
+        />
+        <Button size="xs" disabled={pending} onClick={save}>
+          {pending ? "…" : "Save"}
+        </Button>
+      </div>
+      {error && <p className="text-xs text-destructive">{error}</p>}
     </div>
   );
 }

@@ -32,17 +32,7 @@ _(none yet)_
 
 ## Researching
 
-### Investigate `useOptimistic` for Studio's Server Actions
-
-- **Problem**: Growth & Analytics found zero `useOptimistic` usage anywhere in the codebase (verified) — every Server Action in Studio is a full round-trip with no perceived-instant feedback, unlike the "instant feel" architecture reviewers credit category leaders (e.g. Linear) for. This is a real, sourced competitive gap, not a hunch.
-- **Objective**: identify which existing Server Actions would most benefit from optimistic UI (likely candidates: toggling/deleting in list-heavy panels — Clients, Prospects, Campaigns, Projects) and produce a scoped implementation plan, not a wall-to-wall rewrite.
-- **User**: any Studio user doing frequent small interactions (status toggles, deletes, marking items done) where a round-trip delay is most noticeable.
-- **Priority**: P2 — genuine polish opportunity tied to the "feels premium" goal, but not a correctness or trust issue, and needs real scoping before committing engineering time.
-- **Expected outcome**: a short design note naming 2-4 concrete, bounded actions to convert first, with the rollback/error-state behaviour specified (an optimistic update that silently fails is worse than the round-trip it replaced).
-- **Acceptance criteria**: UX/UI Director + Lead Engineer produce a written scoping note (candidates + risks) before any code lands; if approved, first candidate ships with a test covering both the optimistic success and the rollback-on-error path.
-- **Relevant agent**: UX/UI Director (scoping), Lead Engineer (implementation once scoped).
-- **Dependencies**: none blocking the scoping step; implementation depends on that scoping note being reviewed.
-- **Status**: Researching
+_(none yet)_
 
 ## Not started
 
@@ -92,6 +82,96 @@ _(none yet)_
 - **Status**: Not started
 
 ## Complete
+
+### Investigate `useOptimistic` for Studio's Server Actions
+
+Closed 2026-08-31 (Lead Engineer, implementing UX/UI Director's 2026-08-31
+scoping note) — **candidate 1 only** shipped; candidates 2 and 3 are a real,
+scoped follow-up, not silently dropped (see below). Note: the scoping
+note's full text (ranked candidates, the two hand-rolled-vs-none gaps it
+found, the "flagged as wrong candidates" list) was lost from this file
+between being written and this closure, apparently overwritten by a
+concurrent edit to this same file from another agent's session (the same
+class of issue the "Recover PostHog funnel spec…" entry above hit) — its
+substance is restated here from the implementing session's own record of
+it, so the reasoning isn't lost a second time.
+
+**What the scoping note found and ranked**, restated: `prospecting-panel.tsx`
+had zero optimism at all on `ContactTrackingControl`
+(`markProspectContacted`/`markProspectReplied`) and `PipelineStageControl`
+(`markProspectQualified`/`markProspectLost`) — button goes pending/disabled
+only, no local state flip. Separately, `CampaignCard.toggleStatus`,
+`ProjectCard.toggleDone`, `TaskRow.setTaskStatus`, and
+`TaskRow.setTaskProject` already had *hand-rolled* optimism (a `useState`
+flip + `startTransition` + silent revert on error) predating this item.
+Ranked candidates to convert: **1. Prospect status actions** (this closure —
+highest frequency, safest, zero prior optimism to migrate, build fresh with
+the hook). **2. Task status toggle** (`TaskRow.setTaskStatus`,
+`requests-panel.tsx`) — already hand-rolled correctly, so converting is
+close to a mechanical proof of the pattern; not done in this pass. **3.
+Campaign + project status toggles** (`CampaignCard.toggleStatus`,
+`ProjectCard.toggleDone`) — bundled together, lower frequency; not done in
+this pass. Flagged as **wrong candidates for optimism, do not build**:
+`convertProspectToClient` (irreversible, server-dependent outcome),
+`deleteProspect`/`deleteCampaign`/`deleteClientData` (irreversible deletes —
+wait for confirmation), and any AI-generation action (no plausible "guess"
+to render optimistically).
+
+**Candidate 1 shipped**: `ContactTrackingControl` and `PipelineStageControl`
+(`src/components/platform/prospecting-panel.tsx`) rebuilt with real
+`useOptimistic` — an immediate visible status flip (contacted/replied,
+qualified/lost) before the Server Action round trip resolves, reverting
+automatically on `{error}` (React's own `useOptimistic` unwind, not a
+manual reset). Rollback UI matches the scoping note's exact spec: an inline
+`text-destructive` line under the row ("Failed to update — try again." as
+the fallback copy) plus a transient `bg-destructive/10` highlight on the
+row, cleared after 1.5s via `setTimeout` — the same transient-boolean-plus-
+timeout mechanism `CopyButton`/`EmbedChatbotControl` already use for their
+own "copied" state. One real design correction made mid-implementation:
+`PipelineStageControl`'s "hide once terminal" guard now checks the *real*
+`prospect` prop, not the optimistic local guess — checking the optimistic
+value would hide the whole row (rollback message included) the instant
+"mark as lost" was clicked, before the server ever confirmed it, defeating
+the rollback UI's own purpose.
+
+Also fixed while in this file, per the scoping note's own flag:
+`DealValueControl` (`updateProspectDealValue`) previously discarded its
+Server Action's result entirely and unconditionally closed the editor,
+silently reverting to the stale value on failure. Now checks the result,
+keeps the editor open, and shows the same inline error on failure. Not
+converted to `useOptimistic` itself — the scoping note explicitly flagged
+it as safe but too low-frequency (set once per prospect, rarely revised)
+to be worth bespoke optimistic-UI engineering.
+
+New test coverage (`prospecting-panel.test.tsx`, 8 tests): both the
+optimistic-success path (visible flip before the mocked action resolves,
+using a manually-controlled deferred promise) and the rollback-on-error
+path (reverts, inline error text, fallback copy) for both controls,
+including the qualified→lost and contacted→replied sequences.
+
+**Not done, real follow-up**: candidates 2 (`TaskRow.setTaskStatus`,
+`requests-panel.tsx`) and 3 (`CampaignCard.toggleStatus` +
+`ProjectCard.toggleDone`) from the scoping note above — same rollback-UI
+treatment needed, since today they revert completely silently on error
+(the exact anti-pattern this backlog item's objective warns about, already
+shipped). Left as a follow-up, not claimed done here.
+
+**Separate, already-fixed adjacent bugs** (not `useOptimistic`, flagged by
+the same scoping note as a quick fix while in the area):
+`AssignedProspectRow.remove`/`AddProspectControl.add`
+(`campaigns-panel.tsx`, both call `assignProspectToCampaign`) and
+`RequestCard.markResponded` (`requests-panel.tsx` → `markRequestResponded`)
+never checked their Server Action's result, silently re-enabling the button
+on failure with no message. All three now show the same inline
+`text-destructive` error convention on failure.
+
+`npx tsc --noEmit`, `npx eslint` (touched files), and the full `vitest`
+suite all green for every file this closure touched. One unrelated failure
+was observed in the full suite (`top-opportunity-kit-action.test.tsx`) —
+confirmed via `git status` to be another agent's own untracked,
+concurrently-in-progress work on a different backlog item ("Wire a
+one-click action to Command Centre's AI recommendations"), not caused by
+or related to this change; not touched here.
 
 ### Define the activation funnel over existing events now that PostHog is live
 
