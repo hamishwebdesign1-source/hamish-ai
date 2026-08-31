@@ -279,6 +279,7 @@ function RequestCard({
   const [draftSaved, setDraftSaved] = useState(false);
   const [respondPending, startRespond] = useTransition();
   const [responded, setResponded] = useState(Boolean(request.responded_at));
+  const [respondError, setRespondError] = useState<string | null>(null);
 
   function saveDraft() {
     setDraftSaved(false);
@@ -289,9 +290,14 @@ function RequestCard({
   }
 
   function markResponded() {
+    setRespondError(null);
     startRespond(async () => {
       const r = await markRequestResponded(request.id);
-      if (!("error" in r)) setResponded(true);
+      if ("error" in r) {
+        setRespondError(r.error ?? "Failed to update — try again.");
+        return;
+      }
+      setResponded(true);
     });
   }
 
@@ -391,16 +397,19 @@ function RequestCard({
               </div>
             )}
 
-            <div className="flex justify-end border-t border-border pt-3">
-              {responded ? (
-                <Badge variant="success" className="gap-1">
-                  <Check className="size-3" /> Responded
-                </Badge>
-              ) : (
-                <Button size="sm" disabled={respondPending} onClick={markResponded}>
-                  {respondPending ? "…" : "Mark as responded"}
-                </Button>
-              )}
+            <div className="border-t border-border pt-3">
+              <div className="flex justify-end">
+                {responded ? (
+                  <Badge variant="success" className="gap-1">
+                    <Check className="size-3" /> Responded
+                  </Badge>
+                ) : (
+                  <Button size="sm" disabled={respondPending} onClick={markResponded}>
+                    {respondPending ? "…" : "Mark as responded"}
+                  </Button>
+                )}
+              </div>
+              {respondError && <p className="mt-1.5 text-right text-xs text-destructive">{respondError}</p>}
             </div>
           </div>
         )}

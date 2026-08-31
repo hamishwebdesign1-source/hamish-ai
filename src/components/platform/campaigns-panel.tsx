@@ -89,25 +89,31 @@ function NewCampaignForm() {
 // or move them back out.
 function AssignedProspectRow({ prospect }: { prospect: Prospect }) {
   const [pending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
 
   function remove() {
+    setError(null);
     startTransition(async () => {
-      await assignProspectToCampaign(prospect.id, null);
+      const r = await assignProspectToCampaign(prospect.id, null);
+      if (r && "error" in r) setError(r.error ?? "Failed to update — try again.");
     });
   }
 
   return (
-    <div className="flex items-center justify-between gap-2 py-1 text-xs">
-      <span className="truncate">{prospect.business_name}</span>
-      <Button
-        size="icon-xs"
-        variant="ghost"
-        aria-label={`Remove ${prospect.business_name} from this campaign`}
-        disabled={pending}
-        onClick={remove}
-      >
-        <X className="size-3" />
-      </Button>
+    <div className="py-1">
+      <div className="flex items-center justify-between gap-2 text-xs">
+        <span className="truncate">{prospect.business_name}</span>
+        <Button
+          size="icon-xs"
+          variant="ghost"
+          aria-label={`Remove ${prospect.business_name} from this campaign`}
+          disabled={pending}
+          onClick={remove}
+        >
+          <X className="size-3" />
+        </Button>
+      </div>
+      {error && <p className="text-xs text-destructive">{error}</p>}
     </div>
   );
 }
@@ -115,35 +121,44 @@ function AssignedProspectRow({ prospect }: { prospect: Prospect }) {
 function AddProspectControl({ campaignId, unassigned }: { campaignId: string; unassigned: Prospect[] }) {
   const [selected, setSelected] = useState("");
   const [pending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
 
   if (unassigned.length === 0) return null;
 
   function add() {
     if (!selected) return;
+    setError(null);
     startTransition(async () => {
-      await assignProspectToCampaign(selected, campaignId);
+      const r = await assignProspectToCampaign(selected, campaignId);
+      if (r && "error" in r) {
+        setError(r.error ?? "Failed to update — try again.");
+        return;
+      }
       setSelected("");
     });
   }
 
   return (
-    <div className="mt-3 flex items-center gap-2 border-t border-border pt-3">
-      <select
-        value={selected}
-        onChange={(e) => setSelected(e.target.value)}
-        aria-label="Add a prospect to this campaign"
-        className={selectClasses}
-      >
-        <option value="">Add a prospect…</option>
-        {unassigned.map((p) => (
-          <option key={p.id} value={p.id}>
-            {p.business_name}
-          </option>
-        ))}
-      </select>
-      <Button size="xs" variant="outline" disabled={!selected || pending} onClick={add}>
-        {pending ? "Adding…" : "Add"}
-      </Button>
+    <div className="mt-3 border-t border-border pt-3">
+      <div className="flex items-center gap-2">
+        <select
+          value={selected}
+          onChange={(e) => setSelected(e.target.value)}
+          aria-label="Add a prospect to this campaign"
+          className={selectClasses}
+        >
+          <option value="">Add a prospect…</option>
+          {unassigned.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.business_name}
+            </option>
+          ))}
+        </select>
+        <Button size="xs" variant="outline" disabled={!selected || pending} onClick={add}>
+          {pending ? "Adding…" : "Add"}
+        </Button>
+      </div>
+      {error && <p className="mt-1.5 text-xs text-destructive">{error}</p>}
     </div>
   );
 }
