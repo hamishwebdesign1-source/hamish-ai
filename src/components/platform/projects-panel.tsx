@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { FolderKanban, Plus, CalendarDays, CircleAlert, Search } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -56,7 +57,17 @@ function dueDateNote(targetDate: string): string {
   return `${days} day${days === 1 ? "" : "s"} left`;
 }
 
-function ProjectCard({ project, tasks }: { project: Project; tasks: Task[] }) {
+function ProjectCard({
+  project,
+  tasks,
+  selected,
+  onToggleSelect,
+}: {
+  project: Project;
+  tasks: Task[];
+  selected?: boolean;
+  onToggleSelect?: () => void;
+}) {
   const [pending, startTransition] = useTransition();
   const [status, setStatus] = useState(project.status);
 
@@ -78,16 +89,30 @@ function ProjectCard({ project, tasks }: { project: Project; tasks: Task[] }) {
     <Card>
       <CardContent className="py-3">
         <div className="flex items-center justify-between gap-3">
-          <div className="min-w-0">
-            <p className="truncate text-sm font-medium">{project.name}</p>
-            <div className="mt-0.5 flex items-center gap-2 text-xs text-muted-foreground">
-              {project.target_date && (
-                <span className={`flex items-center gap-1 ${overdue ? "text-destructive" : dueSoon ? "text-warning" : ""}`}>
-                  <CalendarDays className="size-3" /> {formatDate(project.target_date)}
-                  {status !== "done" && ` · ${dueDateNote(project.target_date)}`}
-                </span>
-              )}
-              {tasks.length > 0 && <span>{done}/{tasks.length} tasks done</span>}
+          <div className="flex min-w-0 items-center gap-3">
+            {/* Studio improvement — bulk actions. Only rendered for a
+                still-active project, matching exactly when "Mark done"
+                itself is offered below. */}
+            {status !== "done" && onToggleSelect && (
+              <input
+                type="checkbox"
+                checked={selected ?? false}
+                onChange={onToggleSelect}
+                aria-label={`Select ${project.name}`}
+                className="size-4 shrink-0 rounded border-border accent-accent"
+              />
+            )}
+            <div className="min-w-0">
+              <p className="truncate text-sm font-medium">{project.name}</p>
+              <div className="mt-0.5 flex items-center gap-2 text-xs text-muted-foreground">
+                {project.target_date && (
+                  <span className={`flex items-center gap-1 ${overdue ? "text-destructive" : dueSoon ? "text-warning" : ""}`}>
+                    <CalendarDays className="size-3" /> {formatDate(project.target_date)}
+                    {status !== "done" && ` · ${dueDateNote(project.target_date)}`}
+                  </span>
+                )}
+                {tasks.length > 0 && <span>{done}/{tasks.length} tasks done</span>}
+              </div>
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-2">
@@ -190,7 +215,19 @@ function NewProjectForm({ clientId }: { clientId: string }) {
   );
 }
 
-function ClientProjectsGroup({ client, projects, tasksByProject }: { client: Client; projects: Project[]; tasksByProject: Map<string, Task[]> }) {
+function ClientProjectsGroup({
+  client,
+  projects,
+  tasksByProject,
+  selected,
+  onToggleSelect,
+}: {
+  client: Client;
+  projects: Project[];
+  tasksByProject: Map<string, Task[]>;
+  selected: Set<string>;
+  onToggleSelect: (id: string) => void;
+}) {
   return (
     <div>
       <div className="flex items-center justify-between gap-3">
@@ -202,7 +239,13 @@ function ClientProjectsGroup({ client, projects, tasksByProject }: { client: Cli
       ) : (
         <div className="mt-2 space-y-2">
           {projects.map((p) => (
-            <ProjectCard key={p.id} project={p} tasks={tasksByProject.get(p.id) ?? []} />
+            <ProjectCard
+              key={p.id}
+              project={p}
+              tasks={tasksByProject.get(p.id) ?? []}
+              selected={selected.has(p.id)}
+              onToggleSelect={() => onToggleSelect(p.id)}
+            />
           ))}
         </div>
       )}
@@ -211,6 +254,7 @@ function ClientProjectsGroup({ client, projects, tasksByProject }: { client: Cli
 }
 
 export function ProjectsPanel({ clients, projects, tasks }: { clients: Client[]; projects: Project[]; tasks: Task[] }) {
+  const router = useRouter();
   const [filter, setFilter] = useState<"active" | "all">("active");
 
   const tasksByProject = useMemo(() => {
@@ -246,6 +290,55 @@ export function ProjectsPanel({ clients, projects, tasks }: { clients: Client[];
       ((projectsByClient.get(c.id) ?? []).length > 0 || filter === "all") &&
       (!searchLower || c.business_name.toLowerCase().includes(searchLower))
   );
+
+  // Studio improvement — bulk actions, same pattern as prospecting-panel.tsx's
+  // own bulk "mark as contacted"/requests-panel.tsx's bulk "mark as
+  // responded". Selectable set is every still-active project across
+  // every currently-visible client group (search + active/all filter
+  // both already applied via clientsWithActivity/projectsByClient).
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkPending, startBulk] = useTransition();
+  const [bulkError, setBulkError] = useState<string | null>(null);
+  const [bulkDone, setBulkDone] = useState<number | null>(null);
+
+  const selectableProjects = clientsWithActivity.flatMap((c) => (projectsByClient.get(c.id) ?? []).filter((p) => p.status !== "done"));
+  const allVisibleSelected = selectableProjects.length > 0 && selectableProjects.every((p) => selected.has(p.id));
+
+  function toggleSelected(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleSelectAllVisible() {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (allVisibleSelected) {
+        for (const p of selectableProjects) next.delete(p.id);
+      } else {
+        for (const p of selectableProjects) next.add(p.id);
+      }
+      return next;
+    });
+  }
+
+  function bulkMarkDone() {
+    const ids = Array.from(selected);
+    if (ids.length === 0 || bulkPending) return;
+    setBulkError(null);
+    setBulkDone(null);
+    startBulk(async () => {
+      const results = await Promise.all(ids.map((id) => updateProjectStatus(id, "done")));
+      const failed = results.filter((r) => r && "error" in r).length;
+      setSelected(new Set());
+      if (failed > 0) setBulkError(`${failed} of ${ids.length} failed to update — try again for those.`);
+      setBulkDone(ids.length - failed);
+      router.refresh();
+    });
+  }
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">
@@ -293,11 +386,46 @@ export function ProjectsPanel({ clients, projects, tasks }: { clients: Client[];
               No clients match that search.
             </div>
           ) : (
-            <div className="space-y-6">
-              {clientsWithActivity.map((c) => (
-                <ClientProjectsGroup key={c.id} client={c} projects={projectsByClient.get(c.id) ?? []} tasksByProject={tasksByProject} />
-              ))}
-            </div>
+            <>
+              {selectableProjects.length > 0 && (
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <input
+                    type="checkbox"
+                    checked={allVisibleSelected}
+                    onChange={toggleSelectAllVisible}
+                    aria-label="Select all visible active projects"
+                    className="size-4 shrink-0 rounded border-border accent-accent"
+                  />
+                  <span>Select all {selectableProjects.length} active</span>
+                  {selected.size > 0 && (
+                    <span className="ml-auto flex items-center gap-2">
+                      <span>{selected.size} selected</span>
+                      <Button size="xs" variant="outline" disabled={bulkPending} onClick={bulkMarkDone}>
+                        {bulkPending ? "Updating…" : `Mark ${selected.size} done`}
+                      </Button>
+                    </span>
+                  )}
+                </div>
+              )}
+              {bulkDone !== null && !bulkPending && (
+                <p className="text-xs text-accent">
+                  {bulkDone} project{bulkDone === 1 ? "" : "s"} marked done.
+                </p>
+              )}
+              {bulkError && <p className="text-xs text-destructive">{bulkError}</p>}
+              <div className="space-y-6">
+                {clientsWithActivity.map((c) => (
+                  <ClientProjectsGroup
+                    key={c.id}
+                    client={c}
+                    projects={projectsByClient.get(c.id) ?? []}
+                    tasksByProject={tasksByProject}
+                    selected={selected}
+                    onToggleSelect={toggleSelected}
+                  />
+                ))}
+              </div>
+            </>
           )}
         </>
       )}
