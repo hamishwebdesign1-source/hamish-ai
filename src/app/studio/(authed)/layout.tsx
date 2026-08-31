@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { LogOut } from "lucide-react";
+import { LogOut, Clock } from "lucide-react";
 import { createServerSupabaseClient } from "@/lib/supabase-server-auth";
 import { getOrgMembership } from "@/lib/org-membership";
 import { Button } from "@/components/ui/button";
@@ -12,6 +12,21 @@ import { HelpModeProvider } from "@/components/platform/help-mode-context";
 import { HelpModeToggle } from "@/components/platform/help-mode-toggle";
 import { StudioTour } from "@/components/platform/studio-tour";
 import { IdentifyOrg } from "@/components/platform/identify-org";
+
+// Studio improvement — trial_ends_at was only ever shown on the Billing
+// page (billing/page.tsx's own trialDaysLeft), so an agency on day 6 of
+// a 7-day trial had no idea unless they happened to visit that one page.
+// Same 3-day threshold trial-reminders.ts's own email reminder already
+// uses (schema-trial-reminders.sql's trial_reminder_7d_sent_at, despite
+// the stale column name — see that file's own comment), so the in-app
+// banner and the email agree on when "ending soon" starts. Kept as its
+// own local copy of the day-count maths rather than importing
+// billing/page.tsx's own daysUntil() — same "own local copy" convention
+// that file's own comment documents for the same reasoning (daysSince()
+// in admin/(authed)/page.tsx).
+function daysUntilTrialEnds(trialEndsAt: string): number {
+  return Math.max(0, Math.ceil((new Date(trialEndsAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24)));
+}
 
 // Same shape as portal/(authed)/layout.tsx, one level up: session check,
 // then a membership-based gate, session-scoped client throughout so RLS
@@ -33,7 +48,14 @@ export default async function StudioAuthedLayout({ children }: { children: React
   const membership = await getOrgMembership(supabase, user.email);
   if (!membership) redirect("/platform/onboarding");
 
-  const { data: org } = await supabase.from("organisations").select("name, tour_completed_at").eq("id", membership.orgId).single();
+  const { data: org } = await supabase
+    .from("organisations")
+    .select("name, tour_completed_at, subscription_status, trial_ends_at, is_internal")
+    .eq("id", membership.orgId)
+    .single();
+
+  const trialDaysLeft = org?.trial_ends_at ? daysUntilTrialEnds(org.trial_ends_at) : null;
+  const showTrialBanner = !org?.is_internal && org?.subscription_status === "trialing" && trialDaysLeft !== null && trialDaysLeft <= 3;
 
   return (
     <HelpModeProvider>
@@ -92,6 +114,16 @@ export default async function StudioAuthedLayout({ children }: { children: React
             </div>
           </div>
         </header>
+        {showTrialBanner && (
+          <div className="border-b border-warning/30 bg-warning/10 px-6 py-2 text-center text-xs font-medium text-warning">
+            <Clock className="mr-1 inline size-3.5 align-text-bottom" />
+            Your trial ends in {trialDaysLeft} day{trialDaysLeft === 1 ? "" : "s"} —{" "}
+            <Link href="/studio/billing" className="underline underline-offset-2">
+              subscribe to keep access
+            </Link>
+            .
+          </div>
+        )}
         <div className="mx-auto flex max-w-6xl gap-8 px-6">
           <StudioSidebar />
           <main className="min-w-0 flex-1 py-10">{children}</main>
