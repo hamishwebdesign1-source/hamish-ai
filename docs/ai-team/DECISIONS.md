@@ -8,6 +8,61 @@ just at product-decision scope instead of line scope.
 
 ---
 
+## 2026-08-31 — Scoping "AI ROI" as an attribution rule over existing prospect timestamps, not a new metering/analytics system
+
+**Decision**: Scoped the mission's "AI ROI" goal into one buildable
+`BACKLOG.md` item (`AI-assisted signed value`) rather than a bigger
+analytics build, after confirming three things directly against the
+schema/code: (1) `usage_events` has no entity reference at all (`org_id`,
+`event_type`, `created_at` only) — it cannot attribute an AI action to a
+specific prospect, so attribution has to come from timestamp columns
+already living on the `prospects` row itself
+(`sales_kit_generated_at`/`website_mockup_generated_at`); (2) `prospects`
+has no `converted_at` column — `clients.created_at`
+(inserted atomically inside `convertProspectToClient`, with
+`source_lead_id` pointing back) is the real, reliable proxy for "when this
+deal closed," not any prospect-side field; (3) `deal_value_pence` (a
+tenant's own optional, manual estimate, already trusted for Command
+Centre's "Pipeline value" card) is the only real monetary figure available
+at conversion time — `invoices.amount_pence` is real billed money but
+requires a separate invoicing step this platform doesn't force, and would
+make the feature return near-nothing at current real volume (2 signed-up
+orgs).
+
+**Attribution rule chosen**: a client counts as AI-assisted for a month if
+it was created that month, has a `source_lead_id`, and that prospect's
+`sales_kit_generated_at` or `website_mockup_generated_at` is not null and
+predates the client's `created_at`. `research_generated_at` was
+deliberately excluded — `discover-leads.ts` now researches every prospect
+found through normal discovery automatically, so that timestamp no longer
+distinguishes "AI did something for this deal" from "this prospect exists
+at all"; including it would make the metric fire on nearly every
+conversion regardless of real AI-driven outreach effort, which is a
+correctness bug dressed as a feature, not a stricter rule.
+
+**Home chosen**: Billing, not Command Centre, for v1 — the mission's own
+framing ("instead of usage metering that tracks activity but never ties it
+to outcome") names Billing's existing "Usage this month" card as the exact
+surface being complained about, so pairing an outcome figure there directly
+answers the stated problem rather than starting a new dashboard concept.
+Command Centre gets a scaled-down fast-follow later, not v1 — kept thin
+per `PRODUCT.md`'s own Campaigns precedent.
+
+**Explicitly not resolved unilaterally, correctly deferred to build time**:
+exact card copy/placement (flagged for UX/UI Director), and whether the
+count-only vs count+£ split reads well live — flagged in the backlog item
+itself, not decided here.
+
+**Ruled out**: using `invoices.amount_pence` as the money source (too
+sparse/laggy at real current volume, and conflates "AI helped win this"
+with "this org also chose to invoice through the platform," a separate
+adoption question); including `research_generated_at` in the attribution
+set (see above — no longer a meaningful signal); treating a `null`
+recorded deal value as `£0` in the sum (would silently understate/misrepres-
+ent "no data" as "we checked and it's worthless").
+
+---
+
 ## 2026-08-31 — Scoping "clear Command Centre like an inbox": two real candidates backlogged, several ruled out, "queue" framing flagged as needing a caveat
 
 **Decision**: Scoped Hamish's brainstorm idea ("extend recommend→act to

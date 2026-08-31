@@ -28,7 +28,176 @@ _(none yet)_
 
 ## Ready
 
-_(none yet)_
+### AI-assisted signed value — a real, computed "AI ROI" number on Billing
+
+- **Problem**: Billing's "Usage this month" card (`src/app/studio/(authed)/billing/page.tsx`)
+  shows an agency owner 10 real, plan-limited action counts ("14 of 30 sales
+  kits generated") with no outcome ever attached — pure activity metering.
+  It never answers the question that actually drives renewal/upgrade
+  decisions: did any of that AI activity turn into a real client. There is
+  no existing metric anywhere in the app that ties a specific AI action to
+  a specific won deal — `studio-analytics.ts`'s "Revenue" KPI and Command
+  Centre's "Pipeline value" stat are both real, but neither is AI-attributed
+  (Revenue is all paid invoices regardless of origin; Pipeline value is
+  every open deal's estimate regardless of whether AI touched it).
+- **Objective**: an agency owner can see a real, computed, honestly-labelled
+  figure — "this month, N of your M signed clients had a sales kit or
+  website mockup generated for them before they signed, worth £X in
+  recorded deal value" — turning usage metering into an outcome-tied
+  retention lever, without fabricating anything usage-limits.ts's own data
+  can't actually support.
+- **User**: an agency owner (especially one on the fence about renewing or
+  upgrading) who wants evidence the AI activity they're paying for is
+  actually landing clients, not just running.
+- **Priority**: P1 — directly answers a stated product goal, is fully
+  computable from columns that already exist today (zero migration), and
+  is a natural extension of an already-shipped pattern (Billing's usage
+  card, Command Centre's Pipeline value card) rather than new plumbing.
+- **What's actually real and computable (verified against the schema/code,
+  not assumed)**:
+  - `usage_events` (`schema-usage-events.sql`) carries only `org_id`,
+    `event_type`, `created_at` — **no entity reference at all**. It cannot
+    tell you *which* prospect a sales-kit generation touched, only that the
+    org generated one. Any per-prospect attribution has to come from the
+    `prospects` row itself, not this table.
+  - `prospects` gained real, timestamped AI-touch columns via separate
+    migrations: `sales_kit_generated_at` (`schema-sales-kit.sql`) and
+    `website_mockup_generated_at` (`schema-website-mockup.sql`) — both set
+    only by an explicit, tenant-triggered action
+    (`generateSalesKit`/`generateWebsiteMockup`,
+    `prospects/actions.ts`), never automatically. `research_generated_at`
+    (`schema-lead-research.sql`) also exists but is **excluded from this
+    metric's attribution rule** — `discover-leads.ts`'s `researchLead()`
+    call now runs automatically for every prospect found through normal
+    discovery (confirmed by reading `insertCandidates()`'s own call site,
+    not assumed), so it no longer distinguishes "AI did something for this
+    specific deal" from "this prospect exists at all." Including it would
+    make nearly every converted prospect qualify by default, diluting the
+    signal into meaninglessness.
+  - `prospects.status = 'converted'` is set by `convertProspectToClient`
+    (`prospects/actions.ts`), but **there is no `converted_at` timestamp
+    column on `prospects`** — confirmed via a full grep of every
+    `alter table prospects` statement in `supabase/`. The real, reliable
+    proxy is `clients.created_at`: the `clients` row is inserted atomically
+    in the same function, at the exact moment of conversion, with
+    `source_lead_id` pointing back at the prospect
+    (`schema-client-source-lead.sql`). Use `clients.created_at`, not any
+    prospect column, as "when this deal closed."
+  - `prospects.deal_value_pence` (`schema-prospect-pipeline.sql`) is the
+    only real monetary figure available at/around conversion — a tenant's
+    own manual, optional estimate (`updateProspectDealValue`'s own comment:
+    "null is a valid, common state... haven't sized this one yet"), never
+    AI-generated. Already trusted at face value for Command Centre's
+    existing "Pipeline value" stat card (`page.tsx`, summed over open
+    deals) — this task reuses that exact same trust level and field, just
+    summed over a different (closed, AI-touched) subset. **It is not
+    verified/billed revenue** — `invoices.amount_pence` is the only real
+    billed-money table, but requires the org to have separately invoiced
+    that client through the platform, which is a materially sparser,
+    laggier data source at this org's real current volume (2 signed-up
+    orgs) — using it would make this feature return near-nothing, near-
+    always. `deal_value_pence` is the honest, already-established choice;
+    it just must never be labelled as "revenue" or "billed."
+- **The attribution rule** (disclosed to the user, not a black box): a
+  client counts as **AI-assisted** for a given calendar month if —
+  1. `clients.created_at` falls in that calendar month (same calendar-month
+     convention as `usage-limits.ts`'s `startOfMonth()`, not a rolling 30
+     days).
+  2. `clients.source_lead_id` is not null (manually-added clients have no
+     prospect to check an AI touch against, and are excluded from this
+     metric's population entirely — still counted everywhere else, e.g.
+     the "New clients" KPI, just not here).
+  3. The referenced prospect's `sales_kit_generated_at` OR
+     `website_mockup_generated_at` is not null **and is `<=`
+     `clients.created_at`** — the AI deliverable existed before the deal
+     closed, not generated afterwards as an unrelated coincidence.
+  - **What this does NOT claim**: this is correlation ("AI touched this
+    prospect before it became a client"), not causation ("AI is why it
+    signed"). The UI copy and its `HelpTip` must say so explicitly, e.g.:
+    *"Counts a client as AI-assisted if you generated a sales kit or
+    website mockup for them before they signed. This shows the AI action
+    happened first — not that it's the reason they signed. Deal value, if
+    recorded, is your own estimate on the prospect, not verified invoiced
+    revenue."*
+  - The £ figure sums `deal_value_pence` only across AI-assisted clients
+    that have a non-null value — clients with no recorded estimate simply
+    don't add to the sum (never treated as £0 requiring display, never
+    invented). The **count** ("N of M clients signed this month were
+    AI-assisted") is real and useful independent of whether deal values are
+    recorded at all, and should be the headline figure with £ as a
+    secondary line only when at least one non-null value exists in that
+    set — this also means the feature doesn't collapse to a discouraging
+    "£0" the moment `deal_value_pence` adoption is low, which is the
+    likely real state today given how optional that field is.
+- **Where this surfaces, and why**: **Billing**, not Command Centre, for
+  v1 — this is a direct answer to the mission's own framing ("instead of
+  usage metering that tracks activity but never ties it to outcome"):
+  Billing's existing "Usage this month" card *is* that exact usage-metering
+  surface today, so pairing an outcome figure right next to/above it is the
+  most direct fix to the actual problem, not a new dashboard concept. A
+  scaled-down Command Centre version (a stat card alongside "Pipeline
+  value") is a real, obvious fast-follow — same incremental-shipping
+  pattern as `topOpportunity` → `top_prospects` this session — but not v1
+  scope, to keep this thin.
+  - When zero clients converted this month at all (the likely common case
+    at current real volume), **hide the card entirely** rather than show
+    an empty "0 of 0" state — same "only render what has real content"
+    rule `studio-insights.ts`/Command Centre's section cards already
+    follow, and a bare zero on a feature meant to demonstrate value would
+    read as "nothing's working," the opposite of a retention lever.
+- **Expected outcome**: Billing shows a new card (module suggestion:
+  `src/lib/studio-ai-roi.ts`, matching the pure-function-plus-real-rows
+  convention of `client-health.ts`/`studio-engagement.ts`/
+  `studio-briefing.ts`) with the AI-assisted client count this month, and
+  (when real deal-value data exists for at least one of them) the summed
+  estimated deal value, with an honest `HelpTip` disclosure of the
+  attribution rule and its correlation-not-causation limit.
+- **Acceptance criteria**:
+  - New pure function (e.g. `computeAiAssistedSignedValue`) takes real rows
+    only — `clients` (`id`, `created_at`, `source_lead_id`) and `prospects`
+    (`id`, `deal_value_pence`, `sales_kit_generated_at`,
+    `website_mockup_generated_at`) already scoped to the org and to clients
+    created this calendar month — and returns `{ signedThisMonth: number,
+    aiAssistedCount: number, aiAssistedValuePence: number | null,
+    aiAssistedClients: Array<{ clientId, businessName, dealValuePence:
+    number | null, touchedVia: "sales_kit" | "website_mockup" | "both" }>
+    }`. `aiAssistedValuePence` is `null` (not `0`) when no AI-assisted
+    client in that set has a recorded `deal_value_pence`, so the UI can
+    distinguish "no data" from "genuinely zero."
+  - Zero new usage-event type, zero new schema/migration — every column
+    referenced already exists in production.
+  - Query added to `billing/page.tsx` follows the same session-scoped
+    org-membership pattern every other query on that page already uses;
+    `is_internal` orgs are included (this isn't a plan-limit concept, no
+    reason to exclude Hamish's own org the way usage bars do).
+  - Card hidden entirely when `signedThisMonth === 0`; count-only shown
+    when `aiAssistedValuePence === null`; count + £ shown when it isn't.
+  - `HelpTip` (or equivalent) states the attribution rule and the
+    correlation-not-causation limit in plain language, matching this
+    entry's own suggested copy or materially equivalent.
+  - Tests cover: a client with no `source_lead_id` excluded from the
+    population; a prospect whose AI-touch timestamp is *after*
+    `clients.created_at` excluded (touched-after-signing doesn't count); a
+    prospect with only `research_generated_at` set (no sales kit/mockup)
+    excluded; the null-vs-zero distinction for `aiAssistedValuePence`; a
+    client outside the current calendar month excluded.
+  - `npx tsc --noEmit`, `npx eslint`, full `vitest` suite green.
+- **Relevant agent**: Lead Engineer (build); UX/UI Director should confirm
+  card placement/copy on Billing reads clearly next to the existing usage
+  card rather than competing with it; Growth & Analytics is the natural
+  owner of watching whether this number, once real volume exists, actually
+  changes retention/upgrade behaviour — not something to claim now.
+- **Dependencies**: none blocking — every column this relies on
+  (`clients.created_at`, `clients.source_lead_id`,
+  `prospects.deal_value_pence`, `prospects.sales_kit_generated_at`,
+  `prospects.website_mockup_generated_at`) already exists in production.
+- **Does NOT need Hamish's sign-off before building**: no schema migration,
+  no billing/Stripe/payment logic change, no auth/RLS change, no new
+  usage-metered AI call — purely a new read-only display computed from
+  existing rows, additive to an existing page. Falls squarely inside
+  `docs/ai-team/README.md`'s "safe autonomous actions," not its approval-
+  required list.
+- **Status**: Ready
 
 ## Researching
 
