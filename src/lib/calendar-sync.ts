@@ -5,12 +5,25 @@ import { getGoogleAuthClient } from "@/lib/google-auth";
 // created, so following up doesn't depend on remembering to check the
 // admin tool. The due-date offset is a priority-based heuristic, not a
 // real deadline commitment — it's a reminder, not a promise to the client.
-const DUE_OFFSET_DAYS: Record<string, number> = {
+// Exported (Studio improvement) — google-setup/page.tsx's own "Recent
+// calendar events" card used to show when a reminder was *created*
+// (timeAgo(t.created_at)), not when it's actually due, even though the
+// real due date was always fully derivable from this same table plus the
+// task's own priority. Same offsets the real calendar event itself was
+// created with, so the two never drift.
+export const DUE_OFFSET_DAYS: Record<string, number> = {
   urgent: 1,
   high: 2,
   medium: 5,
   low: 10,
 };
+
+export function computeTaskDueDate(createdAt: string, priority: string): Date {
+  const offsetDays = DUE_OFFSET_DAYS[priority] ?? 5;
+  const due = new Date(createdAt);
+  due.setDate(due.getDate() + offsetDays);
+  return due;
+}
 
 export async function createTaskCalendarEvent(params: {
   taskId: string;

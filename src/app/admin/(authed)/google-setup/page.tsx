@@ -5,6 +5,16 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { timeAgo } from "@/lib/time-ago";
+import { computeTaskDueDate } from "@/lib/calendar-sync";
+
+// Standalone, not inline in the component body — react-hooks/purity flags
+// Date.now() called directly during a component's own render (even a
+// Server Component's), same convention this session has used
+// consistently elsewhere (billing/page.tsx's own daysUntil(), etc.).
+function daysUntilDue(createdAt: string, priority: string): number {
+  const due = computeTaskDueDate(createdAt, priority);
+  return Math.round((due.getTime() - Date.now()) / (24 * 60 * 60 * 1000));
+}
 
 const SCOPES = [
   "https://www.googleapis.com/auth/gmail.modify",
@@ -46,14 +56,19 @@ export default async function GoogleSetupPage() {
         .limit(8)
     : { data: [] };
 
-  const { data: calendarTasks } = supabase
+  // Studio improvement — priority/status added so this card can show the
+  // real due date (computeTaskDueDate(), calendar-sync.ts) instead of
+  // just when the reminder was created, and so a finished task doesn't
+  // keep cluttering an "upcoming" list.
+  const { data: calendarTasksData } = supabase
     ? await supabase
         .from("tasks")
-        .select("id, title, created_at, requests(clients(business_name))")
+        .select("id, title, created_at, priority, status, requests(clients(business_name))")
         .not("calendar_event_id", "is", null)
         .order("created_at", { ascending: false })
-        .limit(8)
+        .limit(20)
     : { data: [] };
+  const calendarTasks = (calendarTasksData ?? []).filter((t) => t.status !== "done").slice(0, 8);
 
   return (
     <div>
@@ -147,20 +162,25 @@ export default async function GoogleSetupPage() {
             </CardHeader>
             <CardContent>
               {!calendarTasks?.length ? (
-                <p className="text-sm text-muted-foreground">No calendar events created yet.</p>
+                <p className="text-sm text-muted-foreground">No upcoming calendar events.</p>
               ) : (
                 <ul className="space-y-2">
-                  {calendarTasks.map((t) => (
-                    <li key={t.id} className="rounded-lg border border-border bg-card px-3 py-2">
-                      <p className="line-clamp-1 text-sm font-medium">{t.title}</p>
-                      <p className="mt-0.5 text-xs text-muted-foreground">
-                        {(t.requests as unknown as { clients: { business_name: string } | null } | null)?.clients
-                          ?.business_name ?? "Unknown client"}
-                        {" · "}
-                        {timeAgo(t.created_at)}
-                      </p>
-                    </li>
-                  ))}
+                  {calendarTasks.map((t) => {
+                    const days = daysUntilDue(t.created_at, t.priority ?? "medium");
+                    return (
+                      <li key={t.id} className="rounded-lg border border-border bg-card px-3 py-2">
+                        <p className="line-clamp-1 text-sm font-medium">{t.title}</p>
+                        <p className="mt-0.5 text-xs text-muted-foreground">
+                          {(t.requests as unknown as { clients: { business_name: string } | null } | null)?.clients
+                            ?.business_name ?? "Unknown client"}
+                          {" · "}
+                          <span className={days < 0 ? "text-destructive" : undefined}>
+                            {days < 0 ? `Overdue by ${Math.abs(days)}d` : days === 0 ? "Due today" : `Due in ${days}d`}
+                          </span>
+                        </p>
+                      </li>
+                    );
+                  })}
                 </ul>
               )}
             </CardContent>
