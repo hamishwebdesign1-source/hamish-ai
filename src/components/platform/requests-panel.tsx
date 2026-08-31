@@ -14,11 +14,13 @@ import {
   Globe,
   ArrowRight,
   RefreshCw,
+  Search,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
 import { RequestStatusBadge, TaskStatusBadge, PriorityBadge } from "@/components/status-badges";
 import {
   markRequestResponded,
@@ -269,6 +271,17 @@ function WebsiteTaskSection({
   );
 }
 
+// Studio improvement — an unanswered request read identically whether it
+// arrived 10 minutes ago or 10 days ago; same "give a real heads-up
+// before it's genuinely stale" shape as projects-panel.tsx's own
+// due-soon tier and studio-engagement.ts's quietWeeks thresholds.
+const REQUEST_AGE_WARNING_DAYS = 2;
+const REQUEST_AGE_CRITICAL_DAYS = 5;
+
+function requestAgeDays(createdAt: string): number {
+  return Math.floor((Date.now() - new Date(createdAt).getTime()) / (24 * 60 * 60 * 1000));
+}
+
 function RequestCard({
   request,
   tasks,
@@ -336,6 +349,16 @@ function RequestCard({
             <p className="mt-0.5 truncate text-xs text-muted-foreground">{request.raw_text}</p>
           </div>
           <div className="flex shrink-0 items-center gap-2">
+            {!responded &&
+              (() => {
+                const age = requestAgeDays(request.created_at);
+                if (age < REQUEST_AGE_WARNING_DAYS) return null;
+                return (
+                  <span className={`text-[11px] font-medium ${age >= REQUEST_AGE_CRITICAL_DAYS ? "text-destructive" : "text-warning"}`}>
+                    {age}d old
+                  </span>
+                );
+              })()}
             {request.priority && <PriorityBadge priority={request.priority} />}
             {responded ? <Badge variant="success">Responded</Badge> : <RequestStatusBadge status={request.status} />}
             {open ? <ChevronUp className="size-4 text-muted-foreground" /> : <ChevronDown className="size-4 text-muted-foreground" />}
@@ -461,6 +484,11 @@ export function RequestsPanel({
   websiteProjects: WebsiteProject[];
 }) {
   const [filter, setFilter] = useState<"all" | "open" | "responded">("open");
+  // Studio improvement — same client-side search pattern as
+  // prospecting-panel.tsx/knowledge-panel.tsx, filtering the request text
+  // and its own client name, on top of (not instead of) the existing
+  // open/all/responded status filter below.
+  const [search, setSearch] = useState("");
 
   const tasksByRequest = useMemo(() => {
     const map = new Map<string, Task[]>();
@@ -493,10 +521,13 @@ export function RequestsPanel({
   }, [websiteProjects]);
 
   const visible = useMemo(() => {
-    if (filter === "all") return requests;
-    if (filter === "responded") return requests.filter((r) => r.responded_at);
-    return requests.filter((r) => !r.responded_at);
-  }, [requests, filter]);
+    let list = filter === "all" ? requests : filter === "responded" ? requests.filter((r) => r.responded_at) : requests.filter((r) => !r.responded_at);
+    const searchLower = search.trim().toLowerCase();
+    if (searchLower) {
+      list = list.filter((r) => r.raw_text.toLowerCase().includes(searchLower) || clientName(r).toLowerCase().includes(searchLower));
+    }
+    return list;
+  }, [requests, filter, search]);
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">
@@ -517,17 +548,23 @@ export function RequestsPanel({
         </div>
       ) : (
         <>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {(["open", "all", "responded"] as const).map((f) => (
               <Button key={f} size="sm" variant={filter === f ? "secondary" : "ghost"} onClick={() => setFilter(f)}>
                 {f === "open" ? "Needs a reply" : f === "responded" ? "Responded" : "All"}
               </Button>
             ))}
+            {requests.length > 4 && (
+              <div className="relative ml-auto w-full max-w-56">
+                <Search className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
+                <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search requests…" className="h-8 pl-8 text-xs" />
+              </div>
+            )}
           </div>
 
           {visible.length === 0 ? (
             <div className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
-              Nothing in this view.
+              {search.trim() ? "No requests match that search." : "Nothing in this view."}
             </div>
           ) : (
             <div className="space-y-2">
