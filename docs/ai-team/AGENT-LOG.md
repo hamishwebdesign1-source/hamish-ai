@@ -9,6 +9,37 @@ paragraph, not a full handoff report (those, if worth keeping, go in
 
 ---
 
+## 2026-08-31 — "AI ROI" mission: a real, attribution-based figure shipped to Billing
+
+Hamish's own pick, after being offered a choice between "AI ROI number,"
+predictive churn detection, and a no-code automation rules engine — the
+smallest, most self-contained option, deliberately, given the prior
+session's own diminishing-returns finding on small polish waves. Product
+Director scoped it by reading the actual schema first, not assuming: found
+`usage_events` has no entity reference at all (can't attribute an action to
+a specific prospect), `prospects` has no `converted_at` column
+(`clients.created_at` is the real proxy), and `research_generated_at` had
+to be excluded from the attribution rule because it now runs automatically
+on every discovered prospect, no longer distinguishing real AI effort from
+mere existence. Landed on: a client counts as AI-assisted if a sales kit or
+website mockup was generated for its source prospect before it signed —
+correlation, disclosed as such, not causation. Lead Engineer built it
+(`src/lib/studio-ai-roi.ts` + a new Billing card), then QA and UX/UI
+Director reviewed in parallel and both found real issues rather than
+rubber-stamping: QA caught a genuine date-comparison bug (raw ISO-string
+`<=` can invert chronological order across JS-vs-Postgres timestamp format/
+precision differences within the same second — switched to epoch-ms
+comparison); UX/UI Director caught that the honest "0 of N AI-assisted"
+state read as a bare discouraging verdict with nothing else on it, and that
+the card's own title over-promised a £ figure it usually won't have.
+QA agent stalled once mid-run (600s watchdog) but had already written its
+fix and tests before stalling — recovered from the working tree, not lost.
+298 tests passing, `tsc`/`eslint`/`npm run build` all clean, independently
+re-verified by the orchestrator after each agent's pass. Not live-browser
+verified — no session/credentials available this run; flagged for Hamish
+to eyeball on `/studio/billing`. Committed (`74651a2`, `d256e99`), not
+pushed pending Hamish's go-ahead.
+
 ## 2026-08-31 — "/studio-focused SaaS improvements" mission: 7 shipped changes, 2 live-verified in a real session
 
 Hamish redirected the team's focus to `/studio` specifically (not the

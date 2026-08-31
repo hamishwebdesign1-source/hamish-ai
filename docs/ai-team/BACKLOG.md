@@ -28,6 +28,237 @@ _(none yet)_
 
 ## Ready
 
+_(none yet)_
+
+## Researching
+
+_(none yet)_
+
+## Not started
+
+_(none yet)_
+
+## Needs review
+
+### One-click "Send payment reminder" on Command Centre's Engagement Risk card, for rows with a real overdue invoice
+
+- **Problem**: `engagement_risk` rows (`studio-engagement.ts`) already
+  carry a real, per-client `hasOverdueInvoice` boolean, computed from real
+  `invoices.status`/`due_date` — but the Command Centre card only shows a
+  badge, no id, no action. A working, already-shipped, non-AI, non-metered
+  pipeline for exactly this — `sendInvoiceReminder(invoiceId)`
+  (`src/lib/send-invoice-reminder.ts`) — already exists and is live in
+  production today via `/admin/clients/[id]`'s "Send reminder" form
+  (single-tenant, Hamish's own agency) — it has simply never been wired
+  into the multi-tenant `/studio` product, which currently has no invoice-
+  reminder entry point anywhere.
+- **Objective**: an owner viewing Command Centre's Engagement Risk card can
+  send the same real payment-reminder email to a client with a real
+  overdue invoice, in one click, without leaving Command Centre.
+- **User**: an agency owner running Command Centre who sees a client
+  flagged "Invoice overdue" and wants to nudge them immediately.
+- **Priority**: P1 (next) — real signal, a real existing entity id (once
+  threaded through), and a real existing pipeline; the net-new work is a
+  Studio-scoped Server Action wrapper and a UI leaf, not new plumbing or a
+  new AI pipeline.
+- **Expected outcome**: engagement_risk rows with `hasOverdueInvoice` show
+  a "Send reminder" / "Reminder sent" one-click control; clicking it sends
+  the exact same email `sendInvoiceReminder()` already sends via `/admin`,
+  scoped and ownership-checked for the calling org.
+- **Acceptance criteria**:
+  - `ClientEngagementRisk`/`computeClientEngagementRisk`
+    (`studio-engagement.ts`) extended to carry the specific overdue
+    invoice's `id` (and `reminder_sent_at`) alongside the existing
+    boolean — zero new query: `invoices.id` is already selected on this
+    same page load (`page.tsx`'s existing `invoices` fetch).
+  - A new Studio-scoped Server Action (e.g. `sendClientInvoiceReminderAction`
+    in `clients/actions.ts`) verifies the invoice's client belongs to the
+    caller's org (same `.eq("org_id", orgId)` ownership-check pattern
+    `createClientInvoice` already uses) before calling the existing
+    `sendInvoiceReminder()` verbatim — no new email template, no new AI
+    call, no new usage-event type.
+  - A new client leaf component matching the shipped state machine
+    (resting/pending/success/error — no usage-limit state needed, this
+    isn't AI-metered) wired under engagement_risk rows with
+    `hasOverdueInvoice`.
+  - A reminder already sent (`reminder_sent_at` not null) renders as
+    already-done, same "don't re-offer something that already happened"
+    rule as `hasKitInitially`.
+  - Tests cover the ownership check (reject an invoice belonging to
+    another org), already-sent state, pending/success/error.
+  - `npx tsc --noEmit`, `npx eslint`, full `vitest` suite green.
+- **Relevant agent**: Lead Engineer (build, done); Security Auditor should
+  spot-check the new ownership check specifically — this is a new write
+  path that sends a real email to a real client off a one-click UI
+  control, a materially different risk shape from the shipped precedent
+  (which only *generates content for the owner to review*, sends nothing).
+  Flag for Hamish's explicit sign-off before merging, on the same basis
+  the shipped `topOpportunity` action needed sign-off ("does a one-click
+  dashboard entry point to a real customer-facing action change the risk
+  profile") — even though this path is neither AI nor metered, it's the
+  first Command Centre one-click control that fires an email with no
+  review step in between.
+- **Dependencies**: none blocking — `sendInvoiceReminder()`, `invoices.id`/
+  `reminder_sent_at`, and the ownership-check pattern all already exist.
+- **Closure note (Lead Engineer, 2026-08-31)**: built as scoped, plus one
+  real bug found and fixed before wiring anything up, per this item's own
+  instruction to check the email's identity first.
+
+  **The identity bug, confirmed real**: `sendInvoiceReminder()`
+  (`src/lib/send-invoice-reminder.ts`) had zero sender-identity handling —
+  it always called `sendClientEmail()` (hardcoded
+  `"Hamish AI <hello@hamishai.org>"`, `send-client-email.ts`) and always
+  signed the body "— Hamish AI", regardless of whose client the invoice
+  actually belonged to. Harmless while the only caller was `/admin`
+  (always genuinely Hamish's own clients), but this is the *exact* risk
+  category `create-invoice.ts`'s and `triage-request.ts`'s own
+  `sender.isInternal` gates already exist in this codebase to close for
+  every other client-facing send — confirmed by reading those two files'
+  own comments directly, not inferred. Sending a tenant's own client a
+  payment reminder signed "Hamish AI" would have been a real, visible,
+  first-of-its-kind identity leak the moment any non-internal org used
+  this feature.
+
+  **Fix, same precedent, not reinvented**: `sendInvoiceReminder()` now
+  resolves the invoice's client's org (same shape as `create-invoice.ts`'s
+  own sender resolution — a client with no `org_id` is treated as a
+  legacy internal client, matching `resolveSender()`'s own rule) and
+  refuses to send at all — returning `{ error, reason:
+  "tenant_email_unsupported" }` — for any client whose org isn't a
+  *confirmed* internal org. This fixes the gap at the shared function, so
+  it also protects the existing `/admin` call site going forward, not just
+  this new one (no behaviour change there today — Hamish's own clients are
+  always internal-org or legacy `org_id: null`).
+
+  **Real per-tenant email sending doesn't exist yet, so this narrows the
+  feature's scope — flagged, not silently shipped**: Studio's Command
+  Centre UI (`command-centre-section-cards.tsx`, gated via a new
+  `isInternalOrg` prop threaded from `page.tsx`'s own already-fetched
+  `org.is_internal`) now renders the "Send reminder" control *only* for
+  HamishAI's own internal org — the same "isInternal check happens one
+  level up, in the page" precedent `branding-panel.tsx` already
+  established (there, the inverse: hidden *for* the internal org). This
+  means, as shipped, only Hamish's own agency can actually use this
+  one-click control today — every other real tenant org still sees the
+  existing "Invoice overdue" badge with no action, i.e. no regression, but
+  also not the broad multi-tenant capability the objective above
+  describes. Building real per-tenant email identity (a verified sending
+  domain or reply-to per org) is a separate, materially larger piece of
+  infrastructure, out of scope here. **This is exactly the kind of design
+  call this task's own brief said not to resolve unilaterally** — moving
+  to Needs review rather than Complete for that reason, and because the
+  item's own "Relevant agent" note already calls for Security Auditor
+  spot-check + Hamish's explicit sign-off before this is genuinely done.
+  If Hamish wants the multi-tenant capability sooner, the real per-tenant
+  email-identity work is the actual next dependency, not more wiring here.
+
+  **Separate, pre-existing data-integrity gap found and flagged, not
+  fixed** (out of scope for this item): the Stripe subscription webhook's
+  own `invoices` insert (`src/app/api/webhooks/stripe/route.ts`) doesn't
+  set `org_id` explicitly, unlike `create-invoice.ts` (fixed earlier this
+  session) — so a recurring-subscription invoice's `org_id` column
+  silently defaults to HamishAI's own org id regardless of whose client
+  it's actually for (same bug class `knowledge/actions.ts`'s own comment
+  already names as "found and fixed on requests.org_id and
+  invoices.org_id," except this one insert site was missed). Not a
+  cross-tenant security hole on its own (worst case is a false-negative
+  ownership check for the true tenant, not a leak to a different tenant),
+  but real and worth a follow-up. Working around it rather than relying on
+  it: the new ownership check in `sendClientInvoiceReminderAction`
+  (`clients/actions.ts`) verifies via the invoice's `clients!inner(org_id)`
+  relationship (same join `requestBelongsToOrg` already uses), not
+  `invoices.org_id` directly, so this feature's own correctness doesn't
+  depend on that column being reliable.
+
+  Implementation: `ClientEngagementRisk` gained `overdueInvoiceId`/
+  `reminderSentAt`; `computeClientEngagementRisk` picks the
+  earliest-due-date overdue invoice when a client has more than one
+  (deterministic tie-break on `id` if due dates match exactly).
+  `sendClientInvoiceReminderAction` (`clients/actions.ts`) verifies
+  ownership then calls `sendInvoiceReminder()` verbatim. New client leaf
+  `SendInvoiceReminderAction` (`send-invoice-reminder-action.tsx`) matches
+  `TopOpportunityKitAction`'s exact resting/pending/success/error shape,
+  minus the usage-limit state (not AI-metered). 3 new/updated test files:
+  `studio-engagement.test.ts` (tie-break + id/reminder_sent_at surfacing),
+  `send-invoice-reminder.test.ts` (the new sender gate — internal org,
+  legacy no-org_id client, non-internal org refused, fail-closed on an
+  errored org lookup), `clients/actions.test.ts` (the ownership check —
+  this codebase's first Server-Action-level test, rejecting an invoice
+  belonging to another org, verbatim delegation, error passthrough) and
+  `command-centre-section-cards.test.tsx` (the `isInternalOrg` gate itself,
+  already-sent state, pending/success/error). All 3 real call sites of
+  `computeClientEngagementRisk` (`page.tsx`, `clients/page.tsx`,
+  `owner-digest.ts`) updated to select the one new `reminder_sent_at`
+  column. `npx tsc --noEmit -p .` clean, `npx eslint` clean on every
+  touched file, full `vitest` suite green (266 tests, up from 244).
+- **Status**: Needs review
+
+### Wire the same outreach-kit action to Command Centre's Top Prospects list (fast-follow to the shipped topOpportunity action)
+
+- **Problem**: the single `topOpportunity` callout in the "Your briefing"
+  card already lets an owner one-click-generate a sales kit without leaving
+  Command Centre (`src/components/platform/top-opportunity-kit-action.tsx`,
+  shipped 2026-08-31). The `top_prospects` section card renders the
+  identical data shape — `briefing.topOpportunities`, a `TopOpportunity[]`
+  with the same real `id`/`hasSalesKit` fields (`src/lib/studio-briefing.ts`)
+  — for all 5 top-ranked prospects, but only the first one (folded into
+  "Your briefing") had the action wired; the other 4 rows (and the whole
+  card, for an org that's configured `top_prospects` as its own block) still
+  only linked out to `/studio/prospects`.
+- **Objective**: every row in the `top_prospects` section card gets the same
+  one-click "Generate outreach kit" / "Outreach kit ready" control the
+  `topOpportunity` callout already has, not just the card's single featured
+  row.
+- **User**: an agency owner scanning Command Centre who wants to act on any
+  of their top 5 real prospects without navigating to `/studio/prospects`
+  first.
+- **Priority**: P1 (next) — smallest possible increment on a pattern
+  already built, tested, and live; zero new pipeline, zero new usage type.
+- **Expected outcome**: an owner can generate (or see already-generated)
+  outreach kits for all 5 top prospects directly from Command Centre; they
+  only navigate to `/studio/prospects` to actually review/copy/send the
+  generated content, not to trigger generation itself.
+- **Acceptance criteria**: `TopOpportunityKitAction` (or an equivalent
+  thin wrapper) renders under each of the 5 `top_prospects` rows in
+  `command-centre-section-cards.tsx`, keyed off each row's own `id`/
+  `hasSalesKit`; `generateSalesKit()` called verbatim — no new pipeline, no
+  new usage-event type; resting/pending/success/error/usage-limit states
+  and `aria-live` region match the shipped precedent exactly; tests confirm
+  each row's pending/success/error state is independent (one row's click
+  doesn't affect its siblings); `npx tsc --noEmit`, `npx eslint`, full
+  `vitest` suite green.
+- **Relevant agent**: Lead Engineer (build, done); UX/UI Director should
+  confirm 5 independent action controls in one card doesn't read as
+  visually noisy before this ships more broadly.
+- **Dependencies**: none — reuses `TopOpportunityKitAction`,
+  `generateSalesKit()`, and `briefing.topOpportunities` as-is.
+- **Closure note (Lead Engineer, 2026-08-31)**: built as scoped.
+  `TopOpportunityKitAction` gained an opt-in `compact` prop (tighter
+  `xs`-size button, `mt-1.5` instead of `mt-2`) and every `top_prospects`
+  row now mounts its own instance keyed off `opp.id`/`opp.hasSalesKit`,
+  passing `compact`. `generateSalesKit()` is called verbatim, same
+  resting/pending/success/error/usage-limit states and `aria-live="polite"`
+  region as the shipped `topOpportunity` precedent — no new pipeline, no
+  new usage-event type. Row independence (one row's pending/error state
+  never affecting a sibling) is covered in both
+  `top-opportunity-kit-action.test.tsx` (2 sibling instances) and
+  `command-centre-section-cards.test.tsx` (all 5 real rows, keyed by id,
+  through `buildSectionContent`'s actual `top_prospects` output). Full
+  suite green: `npx tsc --noEmit -p .`, `npx eslint`, `npm run test`
+  (250/250). **Left open**: the backlog's own visual-density question.
+  I made the conservative call the backlog invited ("implement the most
+  conservative/compact reasonable option... flag it for UX/UI Director's
+  visual judgment") rather than guess confidently — `compact` shrinks the
+  button and margin but doesn't otherwise redesign the row (no accordion,
+  no icon-only collapse, no hover-reveal). Whether 4 real xs-buttons plus
+  1 "ready" link, stacked in one already-dense card, reads as noisy on a
+  live authenticated screen is a real call only UX/UI Director's visual
+  judgment can close — moving to Needs review rather than Complete for
+  that reason, not because any acceptance criterion is unmet.
+- **Status**: Needs review
+
+## Complete
+
 ### AI-assisted signed value — a real, computed "AI ROI" number on Billing
 
 - **Problem**: Billing's "Usage this month" card (`src/app/studio/(authed)/billing/page.tsx`)
@@ -273,236 +504,33 @@ current volume of 2 signed-up orgs) was not confirmed against a real
 signed-in session. UX/UI Director should confirm card placement/copy reads
 clearly next to the existing usage card, per this entry's own "Relevant
 agent" note.
+
+**QA + UX/UI Director review pass (orchestrator, 2026-08-31)** — both ran
+against the finished build, in parallel; both found and fixed a real issue
+rather than rubber-stamping it. **QA**: the attribution rule's date
+comparison used raw ISO-string `<=`, which can invert real chronological
+order when a JS `Date#toISOString()` timestamp (`draft-sales-kit.ts`/
+`draft-website-mockup.ts`) is compared against a Postgres/PostgREST
+`timestamptz` value sharing the same second but a different offset/
+precision suffix (`"Z"` sorts after `"9"` lexically) — switched to epoch-
+millisecond comparison, immune to format/precision differences; added 4
+tests covering the exact bug, an inclusive exact-timestamp match, and both
+calendar-month boundary edges. **UX/UI Director**: the "0 of N AI-assisted"
+state (real, deliberately not hidden) read as a bare verdict with nothing
+else on it, right on the page an owner reads before a renew/upgrade
+decision — added a muted, actionable line instead of fabricating
+positivity; also renamed the on-page heading from "AI-assisted signed
+value" to "AI-assisted clients" (the old title over-promised a £ figure
+the card usually won't have at current real `deal_value_pence` adoption),
+and gave the £ line the same `CountUp`/`tabular-nums` treatment every
+other real figure in Studio already has. Live-browser check still not
+possible (port 3000 held by another session; no test credentials past the
+auth wall) — this remains the one unverified acceptance criterion, flagged
+for Hamish to eyeball on `/studio/billing` whenever convenient, not
+blocking. `npx tsc --noEmit`, `npx eslint`, full `vitest` suite (298
+tests), and `npm run build` all re-verified clean by the orchestrator
+after both agents' changes, not just each agent's own self-report.
 - **Status**: Complete
-
-## Researching
-
-_(none yet)_
-
-## Not started
-
-_(none yet)_
-
-## Needs review
-
-### One-click "Send payment reminder" on Command Centre's Engagement Risk card, for rows with a real overdue invoice
-
-- **Problem**: `engagement_risk` rows (`studio-engagement.ts`) already
-  carry a real, per-client `hasOverdueInvoice` boolean, computed from real
-  `invoices.status`/`due_date` — but the Command Centre card only shows a
-  badge, no id, no action. A working, already-shipped, non-AI, non-metered
-  pipeline for exactly this — `sendInvoiceReminder(invoiceId)`
-  (`src/lib/send-invoice-reminder.ts`) — already exists and is live in
-  production today via `/admin/clients/[id]`'s "Send reminder" form
-  (single-tenant, Hamish's own agency) — it has simply never been wired
-  into the multi-tenant `/studio` product, which currently has no invoice-
-  reminder entry point anywhere.
-- **Objective**: an owner viewing Command Centre's Engagement Risk card can
-  send the same real payment-reminder email to a client with a real
-  overdue invoice, in one click, without leaving Command Centre.
-- **User**: an agency owner running Command Centre who sees a client
-  flagged "Invoice overdue" and wants to nudge them immediately.
-- **Priority**: P1 (next) — real signal, a real existing entity id (once
-  threaded through), and a real existing pipeline; the net-new work is a
-  Studio-scoped Server Action wrapper and a UI leaf, not new plumbing or a
-  new AI pipeline.
-- **Expected outcome**: engagement_risk rows with `hasOverdueInvoice` show
-  a "Send reminder" / "Reminder sent" one-click control; clicking it sends
-  the exact same email `sendInvoiceReminder()` already sends via `/admin`,
-  scoped and ownership-checked for the calling org.
-- **Acceptance criteria**:
-  - `ClientEngagementRisk`/`computeClientEngagementRisk`
-    (`studio-engagement.ts`) extended to carry the specific overdue
-    invoice's `id` (and `reminder_sent_at`) alongside the existing
-    boolean — zero new query: `invoices.id` is already selected on this
-    same page load (`page.tsx`'s existing `invoices` fetch).
-  - A new Studio-scoped Server Action (e.g. `sendClientInvoiceReminderAction`
-    in `clients/actions.ts`) verifies the invoice's client belongs to the
-    caller's org (same `.eq("org_id", orgId)` ownership-check pattern
-    `createClientInvoice` already uses) before calling the existing
-    `sendInvoiceReminder()` verbatim — no new email template, no new AI
-    call, no new usage-event type.
-  - A new client leaf component matching the shipped state machine
-    (resting/pending/success/error — no usage-limit state needed, this
-    isn't AI-metered) wired under engagement_risk rows with
-    `hasOverdueInvoice`.
-  - A reminder already sent (`reminder_sent_at` not null) renders as
-    already-done, same "don't re-offer something that already happened"
-    rule as `hasKitInitially`.
-  - Tests cover the ownership check (reject an invoice belonging to
-    another org), already-sent state, pending/success/error.
-  - `npx tsc --noEmit`, `npx eslint`, full `vitest` suite green.
-- **Relevant agent**: Lead Engineer (build, done); Security Auditor should
-  spot-check the new ownership check specifically — this is a new write
-  path that sends a real email to a real client off a one-click UI
-  control, a materially different risk shape from the shipped precedent
-  (which only *generates content for the owner to review*, sends nothing).
-  Flag for Hamish's explicit sign-off before merging, on the same basis
-  the shipped `topOpportunity` action needed sign-off ("does a one-click
-  dashboard entry point to a real customer-facing action change the risk
-  profile") — even though this path is neither AI nor metered, it's the
-  first Command Centre one-click control that fires an email with no
-  review step in between.
-- **Dependencies**: none blocking — `sendInvoiceReminder()`, `invoices.id`/
-  `reminder_sent_at`, and the ownership-check pattern all already exist.
-- **Closure note (Lead Engineer, 2026-08-31)**: built as scoped, plus one
-  real bug found and fixed before wiring anything up, per this item's own
-  instruction to check the email's identity first.
-
-  **The identity bug, confirmed real**: `sendInvoiceReminder()`
-  (`src/lib/send-invoice-reminder.ts`) had zero sender-identity handling —
-  it always called `sendClientEmail()` (hardcoded
-  `"Hamish AI <hello@hamishai.org>"`, `send-client-email.ts`) and always
-  signed the body "— Hamish AI", regardless of whose client the invoice
-  actually belonged to. Harmless while the only caller was `/admin`
-  (always genuinely Hamish's own clients), but this is the *exact* risk
-  category `create-invoice.ts`'s and `triage-request.ts`'s own
-  `sender.isInternal` gates already exist in this codebase to close for
-  every other client-facing send — confirmed by reading those two files'
-  own comments directly, not inferred. Sending a tenant's own client a
-  payment reminder signed "Hamish AI" would have been a real, visible,
-  first-of-its-kind identity leak the moment any non-internal org used
-  this feature.
-
-  **Fix, same precedent, not reinvented**: `sendInvoiceReminder()` now
-  resolves the invoice's client's org (same shape as `create-invoice.ts`'s
-  own sender resolution — a client with no `org_id` is treated as a
-  legacy internal client, matching `resolveSender()`'s own rule) and
-  refuses to send at all — returning `{ error, reason:
-  "tenant_email_unsupported" }` — for any client whose org isn't a
-  *confirmed* internal org. This fixes the gap at the shared function, so
-  it also protects the existing `/admin` call site going forward, not just
-  this new one (no behaviour change there today — Hamish's own clients are
-  always internal-org or legacy `org_id: null`).
-
-  **Real per-tenant email sending doesn't exist yet, so this narrows the
-  feature's scope — flagged, not silently shipped**: Studio's Command
-  Centre UI (`command-centre-section-cards.tsx`, gated via a new
-  `isInternalOrg` prop threaded from `page.tsx`'s own already-fetched
-  `org.is_internal`) now renders the "Send reminder" control *only* for
-  HamishAI's own internal org — the same "isInternal check happens one
-  level up, in the page" precedent `branding-panel.tsx` already
-  established (there, the inverse: hidden *for* the internal org). This
-  means, as shipped, only Hamish's own agency can actually use this
-  one-click control today — every other real tenant org still sees the
-  existing "Invoice overdue" badge with no action, i.e. no regression, but
-  also not the broad multi-tenant capability the objective above
-  describes. Building real per-tenant email identity (a verified sending
-  domain or reply-to per org) is a separate, materially larger piece of
-  infrastructure, out of scope here. **This is exactly the kind of design
-  call this task's own brief said not to resolve unilaterally** — moving
-  to Needs review rather than Complete for that reason, and because the
-  item's own "Relevant agent" note already calls for Security Auditor
-  spot-check + Hamish's explicit sign-off before this is genuinely done.
-  If Hamish wants the multi-tenant capability sooner, the real per-tenant
-  email-identity work is the actual next dependency, not more wiring here.
-
-  **Separate, pre-existing data-integrity gap found and flagged, not
-  fixed** (out of scope for this item): the Stripe subscription webhook's
-  own `invoices` insert (`src/app/api/webhooks/stripe/route.ts`) doesn't
-  set `org_id` explicitly, unlike `create-invoice.ts` (fixed earlier this
-  session) — so a recurring-subscription invoice's `org_id` column
-  silently defaults to HamishAI's own org id regardless of whose client
-  it's actually for (same bug class `knowledge/actions.ts`'s own comment
-  already names as "found and fixed on requests.org_id and
-  invoices.org_id," except this one insert site was missed). Not a
-  cross-tenant security hole on its own (worst case is a false-negative
-  ownership check for the true tenant, not a leak to a different tenant),
-  but real and worth a follow-up. Working around it rather than relying on
-  it: the new ownership check in `sendClientInvoiceReminderAction`
-  (`clients/actions.ts`) verifies via the invoice's `clients!inner(org_id)`
-  relationship (same join `requestBelongsToOrg` already uses), not
-  `invoices.org_id` directly, so this feature's own correctness doesn't
-  depend on that column being reliable.
-
-  Implementation: `ClientEngagementRisk` gained `overdueInvoiceId`/
-  `reminderSentAt`; `computeClientEngagementRisk` picks the
-  earliest-due-date overdue invoice when a client has more than one
-  (deterministic tie-break on `id` if due dates match exactly).
-  `sendClientInvoiceReminderAction` (`clients/actions.ts`) verifies
-  ownership then calls `sendInvoiceReminder()` verbatim. New client leaf
-  `SendInvoiceReminderAction` (`send-invoice-reminder-action.tsx`) matches
-  `TopOpportunityKitAction`'s exact resting/pending/success/error shape,
-  minus the usage-limit state (not AI-metered). 3 new/updated test files:
-  `studio-engagement.test.ts` (tie-break + id/reminder_sent_at surfacing),
-  `send-invoice-reminder.test.ts` (the new sender gate — internal org,
-  legacy no-org_id client, non-internal org refused, fail-closed on an
-  errored org lookup), `clients/actions.test.ts` (the ownership check —
-  this codebase's first Server-Action-level test, rejecting an invoice
-  belonging to another org, verbatim delegation, error passthrough) and
-  `command-centre-section-cards.test.tsx` (the `isInternalOrg` gate itself,
-  already-sent state, pending/success/error). All 3 real call sites of
-  `computeClientEngagementRisk` (`page.tsx`, `clients/page.tsx`,
-  `owner-digest.ts`) updated to select the one new `reminder_sent_at`
-  column. `npx tsc --noEmit -p .` clean, `npx eslint` clean on every
-  touched file, full `vitest` suite green (266 tests, up from 244).
-- **Status**: Needs review
-
-### Wire the same outreach-kit action to Command Centre's Top Prospects list (fast-follow to the shipped topOpportunity action)
-
-- **Problem**: the single `topOpportunity` callout in the "Your briefing"
-  card already lets an owner one-click-generate a sales kit without leaving
-  Command Centre (`src/components/platform/top-opportunity-kit-action.tsx`,
-  shipped 2026-08-31). The `top_prospects` section card renders the
-  identical data shape — `briefing.topOpportunities`, a `TopOpportunity[]`
-  with the same real `id`/`hasSalesKit` fields (`src/lib/studio-briefing.ts`)
-  — for all 5 top-ranked prospects, but only the first one (folded into
-  "Your briefing") had the action wired; the other 4 rows (and the whole
-  card, for an org that's configured `top_prospects` as its own block) still
-  only linked out to `/studio/prospects`.
-- **Objective**: every row in the `top_prospects` section card gets the same
-  one-click "Generate outreach kit" / "Outreach kit ready" control the
-  `topOpportunity` callout already has, not just the card's single featured
-  row.
-- **User**: an agency owner scanning Command Centre who wants to act on any
-  of their top 5 real prospects without navigating to `/studio/prospects`
-  first.
-- **Priority**: P1 (next) — smallest possible increment on a pattern
-  already built, tested, and live; zero new pipeline, zero new usage type.
-- **Expected outcome**: an owner can generate (or see already-generated)
-  outreach kits for all 5 top prospects directly from Command Centre; they
-  only navigate to `/studio/prospects` to actually review/copy/send the
-  generated content, not to trigger generation itself.
-- **Acceptance criteria**: `TopOpportunityKitAction` (or an equivalent
-  thin wrapper) renders under each of the 5 `top_prospects` rows in
-  `command-centre-section-cards.tsx`, keyed off each row's own `id`/
-  `hasSalesKit`; `generateSalesKit()` called verbatim — no new pipeline, no
-  new usage-event type; resting/pending/success/error/usage-limit states
-  and `aria-live` region match the shipped precedent exactly; tests confirm
-  each row's pending/success/error state is independent (one row's click
-  doesn't affect its siblings); `npx tsc --noEmit`, `npx eslint`, full
-  `vitest` suite green.
-- **Relevant agent**: Lead Engineer (build, done); UX/UI Director should
-  confirm 5 independent action controls in one card doesn't read as
-  visually noisy before this ships more broadly.
-- **Dependencies**: none — reuses `TopOpportunityKitAction`,
-  `generateSalesKit()`, and `briefing.topOpportunities` as-is.
-- **Closure note (Lead Engineer, 2026-08-31)**: built as scoped.
-  `TopOpportunityKitAction` gained an opt-in `compact` prop (tighter
-  `xs`-size button, `mt-1.5` instead of `mt-2`) and every `top_prospects`
-  row now mounts its own instance keyed off `opp.id`/`opp.hasSalesKit`,
-  passing `compact`. `generateSalesKit()` is called verbatim, same
-  resting/pending/success/error/usage-limit states and `aria-live="polite"`
-  region as the shipped `topOpportunity` precedent — no new pipeline, no
-  new usage-event type. Row independence (one row's pending/error state
-  never affecting a sibling) is covered in both
-  `top-opportunity-kit-action.test.tsx` (2 sibling instances) and
-  `command-centre-section-cards.test.tsx` (all 5 real rows, keyed by id,
-  through `buildSectionContent`'s actual `top_prospects` output). Full
-  suite green: `npx tsc --noEmit -p .`, `npx eslint`, `npm run test`
-  (250/250). **Left open**: the backlog's own visual-density question.
-  I made the conservative call the backlog invited ("implement the most
-  conservative/compact reasonable option... flag it for UX/UI Director's
-  visual judgment") rather than guess confidently — `compact` shrinks the
-  button and margin but doesn't otherwise redesign the row (no accordion,
-  no icon-only collapse, no hover-reveal). Whether 4 real xs-buttons plus
-  1 "ready" link, stacked in one already-dense card, reads as noisy on a
-  live authenticated screen is a real call only UX/UI Director's visual
-  judgment can close — moving to Needs review rather than Complete for
-  that reason, not because any acceptance criterion is unmet.
-- **Status**: Needs review
-
-## Complete
 
 ### Studio's background — off flat black, toward a toned, "some imagery" identity
 
