@@ -1,9 +1,11 @@
-import { ThumbsUp, ThumbsDown, ShieldCheck } from "lucide-react";
+import Link from "next/link";
+import { ThumbsUp, ThumbsDown, ShieldCheck, Search, X } from "lucide-react";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { reviewAutoSend } from "@/app/admin/actions";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { FilterTabs } from "@/components/ui/filter-tabs";
 
 type ClientRef = { business_name: string } | null;
@@ -11,9 +13,9 @@ type ClientRef = { business_name: string } | null;
 export default async function AutoSendAuditPage({
   searchParams,
 }: {
-  searchParams: Promise<{ filter?: string }>;
+  searchParams: Promise<{ filter?: string; q?: string }>;
 }) {
-  const { filter } = await searchParams;
+  const { filter, q: searchQuery } = await searchParams;
   const supabase = getSupabaseAdmin();
 
   const { data: allRequests, error: requestsError } = supabase
@@ -32,7 +34,7 @@ export default async function AutoSendAuditPage({
   const unreviewed = requests.filter((r) => !r.auto_send_reviewed);
   const accuracyRate = reviewed.length > 0 ? Math.round((accurate.length / reviewed.length) * 100) : null;
 
-  const filtered =
+  const statusFiltered =
     filter === "unreviewed"
       ? unreviewed
       : filter === "accurate"
@@ -40,6 +42,27 @@ export default async function AutoSendAuditPage({
         : filter === "inaccurate"
           ? inaccurate
           : requests;
+
+  // Studio improvement — same client-side-over-already-fetched-rows
+  // search pattern as every other list page in the app, ported here as
+  // volume grows. Searches the client name and the request text/category.
+  const trimmedQuery = searchQuery?.trim().toLowerCase();
+  const filtered = trimmedQuery
+    ? statusFiltered.filter((r) =>
+        [(r.clients as unknown as ClientRef)?.business_name, r.raw_text, r.category].some(
+          (field) => field && String(field).toLowerCase().includes(trimmedQuery)
+        )
+      )
+    : statusFiltered;
+
+  function filterHref(overrides: { filter?: string; q?: string }) {
+    const next = { filter, q: searchQuery, ...overrides };
+    const params = new URLSearchParams();
+    if (next.filter) params.set("filter", next.filter);
+    if (next.q) params.set("q", next.q);
+    const qs = params.toString();
+    return qs ? `/admin/audit?${qs}` : "/admin/audit";
+  }
 
   const revalidatePath = "/admin/audit";
 
@@ -76,19 +99,39 @@ export default async function AutoSendAuditPage({
         <FilterTabs
           activeKey={filter}
           options={[
-            { key: undefined, label: "All", count: requests.length, href: "/admin/audit" },
-            { key: "unreviewed", label: "Awaiting review", count: unreviewed.length, href: "/admin/audit?filter=unreviewed" },
-            { key: "accurate", label: "Accurate", count: accurate.length, href: "/admin/audit?filter=accurate" },
-            { key: "inaccurate", label: "Inaccurate", count: inaccurate.length, href: "/admin/audit?filter=inaccurate" },
+            { key: undefined, label: "All", count: requests.length, href: filterHref({ filter: undefined }) },
+            { key: "unreviewed", label: "Awaiting review", count: unreviewed.length, href: filterHref({ filter: "unreviewed" }) },
+            { key: "accurate", label: "Accurate", count: accurate.length, href: filterHref({ filter: "accurate" }) },
+            { key: "inaccurate", label: "Inaccurate", count: inaccurate.length, href: filterHref({ filter: "inaccurate" }) },
           ]}
         />
       </div>
+
+      {/* GET form, not a client component — same admin/leads.tsx own
+          search precedent. */}
+      <form action="/admin/audit" className="mt-3 flex items-center gap-2">
+        {filter && <input type="hidden" name="filter" value={filter} />}
+        <div className="relative flex-1">
+          <Search className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
+          <Input name="q" defaultValue={searchQuery ?? ""} placeholder="Search by client, request, or category…" className="h-9 pl-8" />
+        </div>
+        <Button type="submit" variant="outline" size="sm">
+          Search
+        </Button>
+        {trimmedQuery && (
+          <Link href={filterHref({ q: undefined })}>
+            <Button type="button" variant="ghost" size="icon-sm" className="text-muted-foreground">
+              <X className="size-4" />
+            </Button>
+          </Link>
+        )}
+      </form>
 
       <div className="mt-6">
         {!filtered.length && (
           <Card className="p-8 text-center text-sm text-muted-foreground">
             <ShieldCheck className="mx-auto mb-2 size-6 text-muted-foreground/60" />
-            Nothing in this view.
+            {trimmedQuery ? "No entries match that search." : "Nothing in this view."}
           </Card>
         )}
         <ul className="space-y-2">
