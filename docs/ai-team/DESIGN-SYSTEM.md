@@ -42,19 +42,43 @@ deliberate, reviewed change (not silent drift).
   Centre card, ask whether it's genuinely more important than everything
   else on the page — if not, it's a `bg-card`.
 
-## Pending: Studio's background (proposal written, not yet decided)
+## Studio's background — "Toned Ink" + "Ambient signal" (shipped, pending live visual sign-off)
 
-`.studio-shell`'s `--background`/`--card`/`--primary` (L0.12/0.16/0.19,
-chroma 0.025-0.03, hue 260) read as near-black — Hamish flagged this
-directly ("a nice slightly toned background... some imagery," 2026-08).
-`.aurora-bg` is defined in `globals.css` (a 3-blob radial-gradient mesh off
-the brand gradient tokens) but is **not applied anywhere in the live
-codebase** — confirmed by a repo-wide search, only doc/CSS references exist.
-Full proposal with exact OKLCH values for two directions (tokens-only "Toned
-Ink" vs. tokens + a dark-tuned, violet-dropped `.aurora-bg` activation) is in
-`BACKLOG.md`'s "Studio's background" entry — read that before touching these
-tokens; don't silently pick a hue/chroma target, it's called out there as
-Hamish's own aesthetic call to make.
+Hamish picked **Direction 1+2, cool navy** (hue 258) from `BACKLOG.md`'s
+"Studio's background" entry over the warm-neutral-ink alternative (hue ~50).
+`.studio-shell`'s `--background`/`--card`/`--primary` moved off near-black
+(was L0.12/0.16/0.19, chroma 0.025-0.03, hue 260 — read as functionally
+black) to `oklch(0.145 0.035 258)` / `oklch(0.19 0.035 258)` /
+`oklch(0.225 0.04 258)` — hue now exactly matches `--accent`/`--gradient-blue`,
+chroma raised modestly so the surface reads as a deliberate ink-navy rather
+than desaturated charcoal, and the deltas between the three tiers widened
+(not just uniformly shifted) per the flatness note above.
+
+`.aurora-bg` (a 3-blob radial-gradient mesh off the brand gradient tokens,
+previously defined in `globals.css` but applied nowhere in the live
+codebase) is now activated on the `.studio-shell` root div
+(`src/app/studio/(authed)/layout.tsx`), dark-tuned via a higher-specificity
+`.studio-shell.aurora-bg::before` override in `globals.css`: violet dropped
+entirely (reserved for the Facet mark, per `globals.css`'s own comment on
+`--gradient-violet`), two new low-alpha tokens
+(`--gradient-blue-soft-dark` 5%, `--gradient-cyan-soft-dark` 6%, vs. the
+16-20% `-soft` tokens tuned for opaque light cards), both blobs
+repositioned toward the outer gutters (`circle at 5% 10%` / `95% 15%`, the
+only real visible canvas given Studio's opaque `bg-card` cards), and drift
+slowed to 45s (was 20s). `bg-primary`/`text-primary-foreground`'s
+TodayStrip/`actions_required`-only reservation (above) was not touched —
+the glow sits behind the whole shell at `z-index: -1` and is naturally
+confined to gutters/margins since every card and the header are opaque.
+
+WCAG contrast re-verified with a real OKLCH→relative-luminance calculation
+(not just OKLCH-lightness-delta reasoning): foreground/card-foreground/
+primary-foreground vs. their new surfaces land 15.7-17.1:1; `--accent`,
+`--destructive`, `--success`, `--warning`, and `--muted-foreground` all
+clear 5.5:1+ against both new `--background` and `--card` — comfortably
+past AA. **Still outstanding**: a live, authenticated visual check in the
+real Browser pane (UX/UI Director) plus a real contrast-checker pass
+against actual rendered pixels — see `BACKLOG.md`'s entry, now in "Needs
+review," for the full implementation note.
 
 ## Components
 

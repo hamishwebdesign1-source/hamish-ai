@@ -32,6 +32,14 @@ _(none yet)_
 
 ## Researching
 
+_(none yet)_
+
+## Not started
+
+_(none yet)_
+
+## Needs review
+
 ### Studio's background — off flat black, toward a toned, "some imagery" identity
 
 - **Problem**: Hamish's own read on `/studio` today: the background reads as
@@ -206,11 +214,44 @@ _(none yet)_
   defer-to-Direction-3) blocks implementation; a live authenticated `/studio`
   session (Hamish handing over the Browser pane, as done previously for this
   exact kind of visual verification) is needed for final sign-off.
-- **Status**: Researching
-
-## Not started
-
-_(none yet)_
+- **Implementation note (Lead Engineer, 2026-08-31)**: Hamish picked
+  **Direction 1+2, cool-navy**. Shipped exactly as scoped:
+  `.studio-shell`'s `--background`/`--card`/`--primary` moved to the exact
+  proposed values (`oklch(0.145 0.035 258)` / `oklch(0.19 0.035 258)` /
+  `oklch(0.225 0.04 258)`); two new tokens
+  `--gradient-blue-soft-dark: oklch(0.58 0.21 258 / 5%)` and
+  `--gradient-cyan-soft-dark: oklch(0.78 0.13 200 / 6%)` added to `:root`;
+  `.aurora-bg` activated on the `.studio-shell` root div in
+  `src/app/studio/(authed)/layout.tsx`, overridden for Studio via a
+  higher-specificity `.studio-shell.aurora-bg::before` rule in
+  `globals.css` that drops the violet blob, uses the two new -dark tokens,
+  repositions both blobs to the outer edges (`5% 10%` / `95% 15%`), and
+  slows the drift to 45s (was 20s) — `.aurora-bg`'s own
+  `prefers-reduced-motion` off-switch already covers this variant with no
+  extra work. `bg-primary`/`text-primary-foreground`'s
+  TodayStrip/`actions_required`-only reservation was not touched, and the
+  glow (pseudo-element, z-index -1, behind the whole shell) is naturally
+  confined to the gutters/margins since every card is opaque `bg-card` and
+  the header is opaque `bg-background`. Ran a real WCAG contrast-ratio
+  calculation (OKLCH→OKLab→linear-sRGB→relative-luminance, not eyeballed
+  lightness deltas) for every combination the backlog flagged: foreground/
+  card-foreground/primary-foreground vs. their new surfaces land 15.7–
+  17.1:1; `--accent`, `--destructive`, `--success`, `--warning`/`--clay`,
+  and `--muted-foreground` all still clear 5.5:1+ against both the new
+  `--background` and `--card` — comfortably past AA's 4.5:1 (text) / 3:1
+  (large text/UI) thresholds in every case. Also checked the aurora glow's
+  brightest blended point stays below the new `--card` lightness (≈0.167
+  and ≈0.183 vs. `--card`'s 0.19), per the spec's own target. `npx tsc
+  --noEmit -p .`, `npx eslint` on the touched files, and the full
+  `npm run test` suite (244 tests) all pass — this is CSS/token-only, no
+  logic changed. **Not calling this Complete**: per this entry's own
+  acceptance criteria, a live authenticated visual check by UX/UI Director
+  (real Browser pane, real contrast-checker tool against actual rendered
+  pixels rather than the token math above) is still outstanding — Hamish
+  will need to sign into a real Studio session and hand over the Browser
+  pane, same as the earlier Command Centre visual fix, before this is
+  actually done.
+- **Status**: Needs review
 
 ## Complete
 

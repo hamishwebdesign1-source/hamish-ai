@@ -64,6 +64,15 @@
   --gradient-cyan-soft: oklch(0.78 0.13 200 / 20%);
   --gradient-violet-glow: oklch(0.55 0.24 295 / 30%);
   --gradient-blue-line: oklch(0.58 0.21 258 / 45%);
+  /* Much lower-alpha variants for .aurora-bg over an opaque dark shell
+     (Studio) rather than under translucent light-marketing cards — the
+     -soft tokens above (16-20%) are tuned for that lighter context and
+     would read as gaudy, over-saturated patches against a dark surface.
+     Target: the brightest blended point of the glow stays visibly below
+     .studio-shell's --card lightness, so it reads as background texture,
+     never a competing surface tier. */
+  --gradient-blue-soft-dark: oklch(0.58 0.21 258 / 5%);
+  --gradient-cyan-soft-dark: oklch(0.78 0.13 200 / 6%);
 }
 
 :root {
@@ -190,12 +199,28 @@
    the featured surface on an already-dark page instead of the one
    exception to a light one. */
 .studio-shell {
-  --background: oklch(0.12 0.025 260);
-  --card: oklch(0.16 0.025 260);
+  /* "Toned Ink" (docs/ai-team/BACKLOG.md, "Studio's background" entry,
+     Direction 1+2, cool-navy pick) — widened off near-black and hue-
+     aligned to 258 to exactly match --accent/--gradient-blue (was 260,
+     a 2° drift). Chroma raised modestly (0.025->0.035, 0.03->0.04) so
+     the surface reads as a deliberate ink-navy rather than desaturated
+     charcoal, near the practical ceiling before this starts reading as
+     a midtone blue panel instead of a serious dark app. Deltas between
+     the three tiers were widened, not just shifted uniformly, per the
+     same "reads as one flat visual tier" flatness note already fixed
+     for bg-primary in DESIGN-SYSTEM.md. Contrast re-verified by
+     computing actual WCAG ratios (not just eyeballing the OKLCH
+     deltas): foreground/card-foreground/primary-foreground all land
+     15-17:1 against their respective new surfaces, and every existing
+     accent/status colour (accent, destructive, success, warning) still
+     clears 5.5:1+ against both --background and --card — all far in
+     excess of AA's 4.5:1 text / 3:1 large-text-and-UI thresholds. */
+  --background: oklch(0.145 0.035 258);
+  --card: oklch(0.19 0.035 258);
   --card-foreground: oklch(0.95 0.008 250);
   --popover: oklch(0.18 0.025 260);
   --popover-foreground: oklch(0.95 0.008 250);
-  --primary: oklch(0.19 0.03 260);
+  --primary: oklch(0.225 0.04 258);
   --primary-foreground: oklch(0.97 0.008 250);
   --secondary: oklch(0.205 0.025 260);
   --secondary-foreground: oklch(0.95 0.008 250);
@@ -274,6 +299,28 @@
       radial-gradient(circle at 80% 10%, var(--gradient-blue-soft), transparent 50%),
       radial-gradient(circle at 60% 70%, var(--gradient-cyan-soft), transparent 55%);
     animation: aurora-drift 20s ease-in-out infinite alternate;
+  }
+
+  /* Studio's own dark-tuned .aurora-bg (docs/ai-team/BACKLOG.md, "Studio's
+     background" entry, Direction 2) — same utility, re-tuned for a
+     persistent dark work surface instead of a light marketing hero:
+     violet dropped entirely (globals.css's own :root comment reserves it
+     as the single flourish on the Facet mark, not a diffuse wash), the
+     new much-lower-alpha -soft-dark tokens instead of -soft (tuned for
+     sitting under opaque light cards, gaudy at that alpha over a dark
+     shell), blobs biased toward the outer edges — where the centred
+     mx-auto max-w-6xl content column never reaches and opaque cards
+     never overlap — instead of the marketing hero's rule-of-thirds
+     spread, and a slower 45s drift (was 20s): calm ambient life behind a
+     productivity tool, not marketing-hero energy. Higher selector
+     specificity than .aurora-bg::before above lets this override without
+     !important; prefers-reduced-motion's existing blanket
+     `.aurora-bg::before { animation: none }` rule already covers this
+     variant too, no new work needed there. */
+  .studio-shell.aurora-bg::before {
+    background-image: radial-gradient(circle at 5% 10%, var(--gradient-blue-soft-dark), transparent 45%),
+      radial-gradient(circle at 95% 15%, var(--gradient-cyan-soft-dark), transparent 50%);
+    animation-duration: 45s;
   }
 
   .card-interactive {

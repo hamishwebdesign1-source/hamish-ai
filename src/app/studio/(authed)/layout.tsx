@@ -54,8 +54,18 @@ export default async function StudioAuthedLayout({ children }: { children: React
           light-mode near-black text straight through this dark scope,
           nearly invisible against it. Re-asserting color here is what
           makes this div a real new inheritance root, the same way body
-          is for the rest of the site. */}
-      <div className="dark studio-shell min-h-screen bg-background text-foreground">
+          is for the rest of the site.
+
+          aurora-bg activates the dormant ambient-mesh utility from
+          globals.css for the first time, re-tuned for this dark shell by
+          the .studio-shell.aurora-bg::before override in globals.css
+          (see its own comment there) rather than the light-marketing-hero
+          defaults — dropped violet, much lower alpha, blobs biased to the
+          outer gutters outside the centred max-w-6xl column below, slower
+          drift. Applied here (the outer full-bleed div) rather than on
+          the inner max-w-6xl wrapper so the glow isn't clipped to that
+          column's own width. */}
+      <div className="dark studio-shell aurora-bg min-h-screen bg-background text-foreground">
         <StudioCommandPalette />
         <header className="relative border-b border-border/60 bg-background">
           <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-6 py-4">
