@@ -48,11 +48,37 @@ export default async function PortalRequestsPage({
 
   const { data: allRequests } = await supabase
     .from("requests")
-    .select("id, raw_text, status, category, missing_info, created_at")
+    .select("id, raw_text, status, category, missing_info, created_at, responded_at")
     .eq("client_id", clientId)
     .order("created_at", { ascending: false });
 
   const requests = statusFilter ? allRequests?.filter((r) => r.status === statusFilter) : allRequests;
+
+  // Studio improvement — a real, honest response-time expectation instead
+  // of a raw status. Scoped to this client's own history only (same RLS/
+  // query boundary this whole page already operates within, and the
+  // honest number to show anyway — "how fast has HamishAI/this agency
+  // replied to ME," not a pooled figure across other clients this
+  // session can't see). MIN_RESPONDED_FOR_AVERAGE=3 guards against a
+  // misleading average from one or two data points, same "don't draw a
+  // conclusion from too little signal" reasoning as studio-insights.ts's
+  // own MIN_CALLS_FOR_AI_INSIGHT.
+  const MIN_RESPONDED_FOR_AVERAGE = 3;
+  const respondedRequests = (allRequests ?? []).filter((r) => r.responded_at);
+  const averageResponseHours =
+    respondedRequests.length >= MIN_RESPONDED_FOR_AVERAGE
+      ? respondedRequests.reduce((sum, r) => sum + (new Date(r.responded_at!).getTime() - new Date(r.created_at).getTime()), 0) /
+        respondedRequests.length /
+        (1000 * 60 * 60)
+      : null;
+  const averageResponseLabel =
+    averageResponseHours === null
+      ? null
+      : averageResponseHours < 1
+        ? "under an hour"
+        : averageResponseHours < 24
+          ? `about ${Math.round(averageResponseHours)} hour${Math.round(averageResponseHours) === 1 ? "" : "s"}`
+          : `about ${Math.round(averageResponseHours / 24)} day${Math.round(averageResponseHours / 24) === 1 ? "" : "s"}`;
 
   const requestIds = (allRequests ?? []).map((r) => r.id);
   const { data: tasks } = requestIds.length
@@ -71,7 +97,10 @@ export default async function PortalRequestsPage({
           <CardTitle>Submit a new request</CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-xs text-muted-foreground">Tell us what you need — a change, a question, anything.</p>
+          <p className="text-xs text-muted-foreground">
+            Tell us what you need — a change, a question, anything.
+            {averageResponseLabel && ` We typically reply within ${averageResponseLabel}, based on your own request history with us.`}
+          </p>
           <form action={submitRequestWithId} className="mt-4 space-y-3">
             <Textarea name="raw_text" required rows={4} placeholder="What can we help with?" />
             <Button type="submit" className="w-full">
