@@ -197,7 +197,83 @@ _(none yet)_
   existing rows, additive to an existing page. Falls squarely inside
   `docs/ai-team/README.md`'s "safe autonomous actions," not its approval-
   required list.
-- **Status**: Ready
+
+Closed 2026-08-31 (Lead Engineer) — built exactly to this entry's own
+attribution rule and return shape, no re-derivation. **Problem**: Billing's
+"Usage this month" card metered AI activity with no outcome ever attached
+— no number anywhere tied a specific AI action to a specific won deal.
+**What shipped**: `src/lib/studio-ai-roi.ts` — a new pure function,
+`computeAiAssistedSignedValue(clients, prospects, now)`, matching the
+pure-function-plus-real-rows convention of `client-health.ts`/
+`studio-engagement.ts`. It filters `clients` to the given calendar month
+(own `isInCalendarMonth()` helper, same convention as `usage-limits.ts`'s
+`startOfMonth()`), then for each signed client with a `source_lead_id`,
+checks its referenced prospect's `sales_kit_generated_at` /
+`website_mockup_generated_at` against `clients.created_at` — not null and
+`<=` signing time counts as AI-assisted, `touchedVia` distinguishing
+`"sales_kit"` / `"website_mockup"` / `"both"`. `research_generated_at` is
+never checked, per this entry's own reasoning (now automatic on every
+discovered prospect, so no longer a meaningful signal).
+`aiAssistedValuePence` sums `deal_value_pence` only across AI-assisted
+clients that have a non-null recorded estimate, and is `null` (not `0`)
+when none do — the null-vs-zero distinction this entry's acceptance
+criteria require. One deliberate, justified deviation from this entry's
+literal input-column list: the `clients` row also carries `business_name`
+(not listed in the "what's computable" column list, but required by the
+entry's own specified return shape, `aiAssistedClients[].businessName`,
+which has nowhere else to come from) — the query in `billing/page.tsx`
+selects it accordingly.
+
+Wired into `src/app/studio/(authed)/billing/page.tsx`: two new
+session-scoped, org-filtered queries (`clients`
+id/business_name/created_at/source_lead_id,
+`prospects` id/deal_value_pence/sales_kit_generated_at/
+website_mockup_generated_at), same RLS-boundary pattern every other query
+on that page already uses. `is_internal` orgs are included (unlike the
+usage bars above it) — not a plan-limit concept, no reason to exclude
+Hamish's own org. New card renders directly below the existing "Usage
+this month" card, `TrendingUp` icon, headline "N of M clients signed this
+month were AI-assisted" (`CountUp` on the AI-assisted count, following
+this page's existing convention of animating only the number that
+actually changes month to month), a secondary £ line only when
+`aiAssistedValuePence !== null`, and a `HelpTip` stating the attribution
+rule and the correlation-not-causation limit in this entry's own suggested
+copy verbatim. Card is hidden entirely — not an empty/zero state — when
+`signedThisMonth === 0`; when clients did sign this month but none were
+AI-assisted, the card still renders "0 of N," which is real, non-fabricated
+data, not the empty case this entry's hide-rule is about.
+
+8 new tests (`src/lib/studio-ai-roi.test.ts`) covering all 5 cases this
+entry's acceptance criteria name (client with no `source_lead_id` excluded
+from the population; AI-touch timestamp after `clients.created_at`
+excluded; a prospect with neither `sales_kit_generated_at` nor
+`website_mockup_generated_at` set excluded; the null-vs-zero distinction
+for `aiAssistedValuePence`; a client outside the current calendar month
+excluded) plus 3 more (deal-value summing skips unpriced AI-assisted
+clients; `touchedVia` labelling across all three cases; a `source_lead_id`
+pointing at a prospect absent from the input array is treated as no
+attribution, not a crash). One real, timezone-sensitive test bug caught
+and fixed while writing these: an initial test used a client
+`created_at` of `"2026-07-31T23:59:59Z"` to represent "last month," which
+shifted into the current month under `computeAiAssistedSignedValue`'s
+local-calendar-month arithmetic on a BST-offset system clock (same
+`new Date(y, m, 1)` local-time convention `usage-limits.ts`'s own
+`startOfMonth()` already uses, kept for consistency rather than
+"fixed" here) — moved the fixture to `2026-07-15T12:00:00Z`, safely away
+from any month boundary regardless of the runner's local timezone.
+
+`npx tsc --noEmit`, `npx eslint` (all touched files), the full `vitest`
+suite (294 tests, all green), and `npm run build` (production build
+succeeds — the RSC-boundary class of bug tsc/eslint/vitest can't catch)
+all clean. **What's NOT verified**: no live-browser check was possible in
+this session — the card's real rendering against a live org's actual
+`clients`/`prospects` data (in particular, whether any org today has a
+client that actually satisfies the attribution rule, given the stated real
+current volume of 2 signed-up orgs) was not confirmed against a real
+signed-in session. UX/UI Director should confirm card placement/copy reads
+clearly next to the existing usage card, per this entry's own "Relevant
+agent" note.
+- **Status**: Complete
 
 ## Researching
 

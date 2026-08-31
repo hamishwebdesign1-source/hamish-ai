@@ -1,9 +1,10 @@
 import { redirect } from "next/navigation";
-import { Check, Clock, CreditCard, Rocket, Zap, Building2, Sparkles, Gauge, CircleAlert } from "lucide-react";
+import { Check, Clock, CreditCard, Rocket, Zap, Building2, Sparkles, Gauge, CircleAlert, TrendingUp } from "lucide-react";
 import { createServerSupabaseClient } from "@/lib/supabase-server-auth";
 import { getOrgMembership } from "@/lib/org-membership";
 import { platformPlans, formatMonthlyPrice, PROSPECT_CREDIT_PACK, type PlatformPlanSlug } from "@/lib/platform-plans";
 import { getUsageStatus, USAGE_LABELS, ALL_USAGE_EVENT_TYPES } from "@/lib/usage-limits";
+import { computeAiAssistedSignedValue } from "@/lib/studio-ai-roi";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -118,6 +119,17 @@ export default async function StudioBillingPage({
         Promise.all(SECONDARY_USAGE_TYPES.map((type) => getUsageStatus(membership.orgId, type, orgPlan))),
       ])
     : [null, []];
+
+  // BACKLOG.md "AI-assisted signed value" — is_internal orgs ARE included
+  // here (unlike showUsage above): this isn't a plan-limit concept, no
+  // reason to exclude Hamish's own org the way the usage bars do. Session-
+  // scoped, same organisations_select_own-adjacent RLS pattern every other
+  // query on this page already relies on — only ever the caller's own org.
+  const [{ data: aiRoiClients }, { data: aiRoiProspects }] = await Promise.all([
+    supabase.from("clients").select("id, business_name, created_at, source_lead_id").eq("org_id", membership.orgId),
+    supabase.from("prospects").select("id, deal_value_pence, sales_kit_generated_at, website_mockup_generated_at").eq("org_id", membership.orgId),
+  ]);
+  const aiRoi = computeAiAssistedSignedValue(aiRoiClients ?? [], aiRoiProspects ?? [], new Date());
 
   return (
     // Centered column, not left-aligned-and-capped — see prospecting-panel.tsx's
@@ -243,6 +255,43 @@ export default async function StudioBillingPage({
                   );
                 })}
               </div>
+            </CardContent>
+          </Card>
+        </Reveal>
+      )}
+
+      {/* BACKLOG.md "AI-assisted signed value" — the answer to what the
+          usage card above never says: did any of that AI activity turn
+          into a real client. Hidden entirely (not a "0 of 0" empty state)
+          when nothing signed this month at all — a bare zero on a feature
+          meant to demonstrate value would read as "nothing's working,"
+          the opposite of what it's for. When clients did sign but none
+          were AI-assisted, that's real, non-fabricated data and stays
+          visible ("0 of N"). */}
+      {aiRoi.signedThisMonth > 0 && (
+        <Reveal>
+          <Card>
+            <CardContent>
+              <p className="flex items-center gap-1.5 font-heading text-sm font-semibold">
+                <TrendingUp className="size-4 text-accent" />
+                AI-assisted signed value
+                <HelpTip explanation="Counts a client as AI-assisted if you generated a sales kit or website mockup for them before they signed. This shows the AI action happened first — not that it's the reason they signed. Deal value, if recorded, is your own estimate on the prospect, not verified invoiced revenue." />
+              </p>
+
+              <div className="mt-3 flex items-baseline gap-2">
+                <span className="font-heading text-2xl font-semibold tabular-nums">
+                  <CountUp value={aiRoi.aiAssistedCount} />
+                </span>
+                <span className="text-sm text-muted-foreground">
+                  of {aiRoi.signedThisMonth} client{aiRoi.signedThisMonth === 1 ? "" : "s"} signed this month {aiRoi.aiAssistedCount === 1 ? "was" : "were"} AI-assisted
+                </span>
+              </div>
+
+              {aiRoi.aiAssistedValuePence !== null && (
+                <p className="mt-1.5 text-sm text-accent">
+                  £{Math.round(aiRoi.aiAssistedValuePence / 100).toLocaleString("en-GB")} in recorded deal value
+                </p>
+              )}
             </CardContent>
           </Card>
         </Reveal>
