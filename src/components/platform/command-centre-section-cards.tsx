@@ -18,6 +18,9 @@ import {
   Inbox,
   PoundSterling,
   Rocket,
+  BellRing,
+  FolderClock,
+  CheckCircle2,
   type LucideIcon,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
@@ -25,6 +28,7 @@ import { Button } from "@/components/ui/button";
 import { HelpTip } from "@/components/platform/help-tip";
 import { TopOpportunityKitAction } from "@/components/platform/top-opportunity-kit-action";
 import { SendInvoiceReminderAction } from "@/components/platform/send-invoice-reminder-action";
+import { QueueItemAction } from "@/components/platform/queue-item-action";
 import { timeAgo } from "@/lib/time-ago";
 import type { SectionType } from "@/lib/command-centre-layout";
 import type { ClientHealth } from "@/lib/client-health";
@@ -34,6 +38,10 @@ import type { ClientEngagementRisk } from "@/lib/studio-engagement";
 import type { ModelPerformanceWithCost } from "@/lib/studio-model-performance";
 import type { AiAdoption } from "@/lib/studio-ai-adoption";
 import type { ClientActivityItem, ClientActivityKind } from "@/lib/studio-client-activity";
+import type { ActionQueueItem, ActionQueueKind } from "@/lib/studio-action-queue";
+import { markProspectContacted } from "@/app/studio/(authed)/prospects/actions";
+import { markRequestResponded } from "@/app/studio/(authed)/requests/actions";
+import { updateProjectStatus } from "@/app/studio/(authed)/projects/actions";
 
 // Real-improvement pass — the other half of the page.tsx extraction
 // buildStatContent() (command-centre-stat-cards.tsx) started. Each of
@@ -94,6 +102,54 @@ const ACTIVITY_ICON: Record<ClientActivityKind, LucideIcon> = {
   project_started: Rocket,
 };
 
+// Command Centre improvement #1 ("cleared queue, not a dashboard") — one
+// icon per real row kind computeActionQueue() can return, and the exact
+// one-click action (Server Action + wording) that clears each kind. The
+// wording matches each action's existing button elsewhere in Studio
+// (prospecting-panel.tsx's "Mark as contacted", requests-panel.tsx's
+// "Mark as responded", projects-panel.tsx's "Mark done") — the same
+// action reachable from a second place shouldn't read differently there.
+const QUEUE_ICON: Record<ActionQueueKind, LucideIcon> = {
+  follow_up: BellRing,
+  unanswered_request: Inbox,
+  overdue_project: FolderClock,
+};
+
+function queueItemAction(item: ActionQueueItem) {
+  switch (item.kind) {
+    case "follow_up":
+      return (
+        <QueueItemAction
+          run={() => markProspectContacted(item.id)}
+          icon={Send}
+          label="Mark as contacted"
+          pendingLabel="Marking…"
+          doneLabel="Marked as contacted"
+        />
+      );
+    case "unanswered_request":
+      return (
+        <QueueItemAction
+          run={() => markRequestResponded(item.id)}
+          icon={CheckCircle2}
+          label="Mark as responded"
+          pendingLabel="Marking…"
+          doneLabel="Marked as responded"
+        />
+      );
+    case "overdue_project":
+      return (
+        <QueueItemAction
+          run={() => updateProjectStatus(item.id, "done")}
+          icon={CheckCircle2}
+          label="Mark done"
+          pendingLabel="Marking…"
+          doneLabel="Marked done"
+        />
+      );
+  }
+}
+
 // Real-data colour tiers for the Business Health breakdown bars — same
 // 80/50 thresholds clients-panel.tsx's own healthBadgeVariant() already
 // uses for the identical per-client score, just applied per-component
@@ -104,10 +160,9 @@ function healthBarColor(value: number): string {
   return "bg-destructive";
 }
 
-export type ActionRequiredItem = { count: number; label: string; href: string; icon: LucideIcon };
-
 export function buildSectionContent(params: {
-  actionsRequired: ActionRequiredItem[];
+  actionQueue: ActionQueueItem[];
+  actionsTotal: number;
   insights: Insight[];
   hasBriefingContent: boolean;
   briefing: StudioBriefing;
@@ -122,38 +177,56 @@ export function buildSectionContent(params: {
   recentActivity: ClientActivityItem[];
   agencyHealth: ClientHealth;
 }): Partial<Record<SectionType, ReactNode>> {
-  const { actionsRequired, insights, hasBriefingContent, briefing, engagementRisks, isInternalOrg, modelPerformance, aiAdoption, recentActivity, agencyHealth } =
+  const { actionQueue, actionsTotal, insights, hasBriefingContent, briefing, engagementRisks, isInternalOrg, modelPerformance, aiAdoption, recentActivity, agencyHealth } =
     params;
+  const actionsRemaining = actionsTotal - actionQueue.length;
 
   return {
+    // Command Centre improvement #1 ("cleared queue, not a dashboard") —
+    // each row is now one real, actionable thing (one prospect due a
+    // follow-up, one unanswered request, one overdue project), not an
+    // aggregate count linking off to go handle it manually. Clicking the
+    // one-click control (queueItemAction()) clears that exact row via the
+    // same Server Action its own dedicated page already uses, no new
+    // write path. actionsTotal (the real, uncapped count) still drives
+    // the "+N more" line below when computeActionQueue()'s own 8-item cap
+    // hides some of the real total.
     actions_required:
-      actionsRequired.length > 0 ? (
+      actionQueue.length > 0 ? (
         <Card className="border-none bg-primary text-primary-foreground ring-accent/50">
           <CardContent className="p-5">
             <div className="flex items-center justify-between gap-2">
               <p className="flex items-center gap-1.5 text-xs font-semibold text-primary-foreground/70">
                 <AlertTriangle className="size-3.5 shrink-0 text-destructive" /> Your next best actions
               </p>
-              <HelpTip explanation="Real items pulled together from three places — prospects due a follow-up, projects past their target date, and client requests you haven't replied to yet. Only shown when something's actually due." />
+              <HelpTip explanation="Real items pulled together from three places — prospects due a follow-up, client requests you haven't replied to yet, and projects past their target date. Clear one right here, or click through to handle it properly. Only shown when something's actually due." />
             </div>
-            <ol className="mt-4 space-y-3">
-              {actionsRequired.map((a, i) => (
-                <li key={a.label}>
-                  <Link href={a.href} className="group flex items-center gap-3 text-sm">
-                    <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-destructive/15 font-mono text-[11px] font-semibold text-destructive">
+            <ol className="mt-4 space-y-4">
+              {actionQueue.map((item, i) => {
+                const Icon = QUEUE_ICON[item.kind];
+                return (
+                  <li key={`${item.kind}:${item.id}`} className="flex items-start gap-3">
+                    <span className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-destructive/15 font-mono text-[11px] font-semibold text-destructive">
                       {i + 1}
                     </span>
-                    <a.icon className="size-4 shrink-0 text-destructive" />
-                    <span className="text-primary-foreground/70 group-hover:text-primary-foreground">
-                      <span className="font-mono font-semibold text-primary-foreground">{a.count}</span>{" "}
-                      {a.label}
-                      {a.count === 1 ? "" : "s"}
-                    </span>
-                    <ArrowRight className="ml-auto size-3.5 shrink-0 text-primary-foreground/40 opacity-0 transition-opacity group-hover:opacity-100" />
-                  </Link>
-                </li>
-              ))}
+                    <Icon className="mt-0.5 size-4 shrink-0 text-destructive" />
+                    <div className="min-w-0 flex-1">
+                      <Link href={item.href} className="group flex items-center gap-1.5">
+                        <span className="truncate text-sm font-medium text-primary-foreground group-hover:underline">{item.businessName}</span>
+                        <ArrowRight className="size-3 shrink-0 text-primary-foreground/40 opacity-0 transition-opacity group-hover:opacity-100" />
+                      </Link>
+                      <p className="mt-0.5 truncate text-xs text-primary-foreground/60">{item.detail}</p>
+                      {queueItemAction(item)}
+                    </div>
+                  </li>
+                );
+              })}
             </ol>
+            {actionsRemaining > 0 && (
+              <p className="mt-4 text-xs text-primary-foreground/60">
+                +{actionsRemaining} more — see Prospects, Requests, and Projects for the full lists.
+              </p>
+            )}
           </CardContent>
         </Card>
       ) : undefined,

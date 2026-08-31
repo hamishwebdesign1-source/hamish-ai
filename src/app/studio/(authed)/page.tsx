@@ -29,6 +29,7 @@ import { computeClientAiAdoption } from "@/lib/studio-ai-adoption";
 import { getHealthTrend } from "@/lib/studio-health-history";
 import { getAdoptionSeries } from "@/lib/studio-adoption-history";
 import { resolveLayout, CHART_METRIC_LABELS, type Block } from "@/lib/command-centre-layout";
+import { computeActionQueue } from "@/lib/studio-action-queue";
 import {
   blockTab,
   COMMAND_CENTRE_TAB_ORDER,
@@ -44,7 +45,7 @@ import { TodayStrip, type TodayStat } from "@/components/platform/today-strip";
 import { Reveal } from "@/components/reveal";
 import { CommandCentreTabs } from "@/components/platform/command-centre-tabs";
 import { buildStatContent } from "@/components/platform/command-centre-stat-cards";
-import { buildSectionContent, type ActionRequiredItem } from "@/components/platform/command-centre-section-cards";
+import { buildSectionContent } from "@/components/platform/command-centre-section-cards";
 
 // Pulled out of the component body, same reasoning as clients/page.tsx's
 // thirtyDaysAgoIso() — react-hooks/purity flags a current-time read
@@ -238,19 +239,17 @@ export default async function StudioHomePage() {
   }
   const aiAdoption = computeClientAiAdoption(clients ?? [], embedUsageByClient);
 
-  // Actions Required (Command Centre Phase 1) — the genuinely urgent
-  // subset of what used to be scattered across the checklist, the
-  // briefing, and the Requests page's own count, gathered in one place.
-  // Only real, only shown when non-zero — no "0 actions required" noise.
-  // Computed here, ahead of the async batch below, since it needs none
-  // of what that batch fetches — just briefing/overdueProjectCount/
-  // openRequestCount, already in hand.
-  const actionsRequired: ActionRequiredItem[] = [
-    { count: briefing.followUpsDue, label: "follow-up", href: "/studio/prospects", icon: BellRing },
-    { count: overdueProjectCount, label: "overdue project", href: "/studio/projects", icon: FolderClock },
-    { count: openRequestCount, label: "request awaiting your reply", href: "/studio/requests", icon: Inbox },
-  ].filter((a) => a.count > 0);
-  const actionsTotal = actionsRequired.reduce((sum, a) => sum + a.count, 0);
+  // Actions Required (Command Centre Phase 1, turned into a real cleared
+  // queue by improvement #1) — the genuinely urgent subset of what used
+  // to be scattered across the checklist, the briefing, and the Requests
+  // page's own count, gathered in one place. Only real, only shown when
+  // non-zero — no "0 actions required" noise. actionsTotal stays the
+  // real, uncapped sum (drives the headline and the TODAY strip's `todo`
+  // stat); actionQueue is the capped, one-row-per-real-thing list
+  // computeActionQueue() builds for the card itself to render with a
+  // one-click clearing action per row (see its own comment for why).
+  const actionsTotal = briefing.followUpsDue + overdueProjectCount + openRequestCount;
+  const actionQueue = computeActionQueue(briefing.followUpsDueList, requests ?? [], projects ?? [], clients ?? [], today);
 
   // Model Performance + Business Health trend + AI adoption trend +
   // analytics (Command Centre Phase 6d / improvements #3 / #8 / Phase
@@ -390,7 +389,8 @@ export default async function StudioHomePage() {
   // the real inputs that builder needs, one per card, never the full
   // union of everything the page computes.
   const sectionContent = buildSectionContent({
-    actionsRequired,
+    actionQueue,
+    actionsTotal,
     insights,
     hasBriefingContent,
     briefing,

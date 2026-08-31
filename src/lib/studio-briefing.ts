@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { leadNeedsFollowUp } from "@/lib/lead-status";
+import { getLeadCadenceAction } from "@/lib/lead-status";
 
 // The "AI daily briefing" from the Opportunity Discovery Engine plan,
 // scoped down deliberately: an in-app summary computed from data that
@@ -16,6 +16,13 @@ import { leadNeedsFollowUp } from "@/lib/lead-status";
 
 export type TopOpportunity = { id: string; businessName: string; pursueBecause: string; overallScore: number; hasSalesKit: boolean };
 
+// Command Centre improvement #1 ("cleared queue, not a dashboard") — the
+// real prospect behind each unit of followUpsDue, not just the count.
+// nextAction mirrors getLeadCadenceAction()'s own two real outcomes, so
+// the queue row can say what's actually due ("call" vs "one more
+// follow-up") instead of a generic "follow-up due" for both.
+export type FollowUpDue = { id: string; businessName: string; nextAction: "call" | "follow_up" };
+
 export type StudioBriefing = {
   newThisWeek: number;
   needsResearch: number;
@@ -28,9 +35,16 @@ export type StudioBriefing = {
   // topOpportunities[0] ?? null, so the existing Briefing card's own
   // "best opportunity right now" reads no differently than before.
   topOpportunities: TopOpportunity[];
+  // Command Centre improvement #1 — same real rows followUpsDue was
+  // always counted from, just kept instead of discarded (identical
+  // "keep the list, not just its length" move as topOpportunities
+  // above). Capped at MAX_FOLLOW_UPS_DUE; followUpsDue itself stays the
+  // real, uncapped total.
+  followUpsDueList: FollowUpDue[];
 };
 
 const MAX_TOP_OPPORTUNITIES = 5;
+const MAX_FOLLOW_UPS_DUE = 5;
 
 export async function getStudioBriefing(supabase: SupabaseClient, orgId: string): Promise<StudioBriefing> {
   const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
@@ -46,7 +60,14 @@ export async function getStudioBriefing(supabase: SupabaseClient, orgId: string)
   const newThisWeek = rows.filter((p) => p.created_at >= sevenDaysAgo).length;
   const needsResearch = active.filter((p) => !p.research).length;
   const readyToContact = active.filter((p) => p.research && p.sales_kit).length;
-  const followUpsDue = active.filter((p) => leadNeedsFollowUp(p)).length;
+
+  const dueForFollowUp = active
+    .map((p) => ({ prospect: p, nextAction: getLeadCadenceAction(p) }))
+    .filter((x): x is { prospect: (typeof active)[number]; nextAction: "call" | "follow_up" } => x.nextAction !== null);
+  const followUpsDue = dueForFollowUp.length;
+  const followUpsDueList: FollowUpDue[] = dueForFollowUp
+    .slice(0, MAX_FOLLOW_UPS_DUE)
+    .map(({ prospect, nextAction }) => ({ id: prospect.id, businessName: prospect.business_name, nextAction }));
 
   const scored = active
     .filter((p) => p.research && p.score_breakdown)
@@ -61,5 +82,5 @@ export async function getStudioBriefing(supabase: SupabaseClient, orgId: string)
   }));
   const topOpportunity = topOpportunities[0] ?? null;
 
-  return { newThisWeek, needsResearch, readyToContact, followUpsDue, topOpportunity, topOpportunities };
+  return { newThisWeek, needsResearch, readyToContact, followUpsDue, topOpportunity, topOpportunities, followUpsDueList };
 }

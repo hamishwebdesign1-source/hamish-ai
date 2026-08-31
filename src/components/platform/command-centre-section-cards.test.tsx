@@ -2,22 +2,25 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, within, fireEvent, waitFor } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
-import { AlertTriangle } from "lucide-react";
-import { buildSectionContent, type ActionRequiredItem } from "./command-centre-section-cards";
+import { buildSectionContent } from "./command-centre-section-cards";
 import type { Insight } from "@/lib/studio-insights";
 import type { StudioBriefing } from "@/lib/studio-briefing";
 import type { ClientEngagementRisk } from "@/lib/studio-engagement";
 import type { ModelPerformanceWithCost } from "@/lib/studio-model-performance";
 import type { AiAdoption } from "@/lib/studio-ai-adoption";
 import type { ClientActivityItem } from "@/lib/studio-client-activity";
-import { generateSalesKit } from "@/app/studio/(authed)/prospects/actions";
+import type { ActionQueueItem } from "@/lib/studio-action-queue";
+import { generateSalesKit, markProspectContacted } from "@/app/studio/(authed)/prospects/actions";
 import { sendClientInvoiceReminderAction } from "@/app/studio/(authed)/clients/actions";
+import { markRequestResponded } from "@/app/studio/(authed)/requests/actions";
+import { updateProjectStatus } from "@/app/studio/(authed)/projects/actions";
 
 // TopOpportunityKitAction (mounted by both the briefing and top_prospects
 // cards below) calls useRouter() unconditionally on render, same
 // next/navigation mock top-opportunity-kit-action.test.tsx already uses
 // for this component — not exercised (no click) in most of this file's
 // tests, just needed so the app-router-less jsdom render doesn't throw.
+// QueueItemAction (mounted by actions_required rows) does the same.
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ refresh: vi.fn() }),
 }));
@@ -26,8 +29,11 @@ vi.mock("next/navigation", () => ({
 // action to Command Centre's Top Prospects list") drives real clicks, so
 // this mocks generateSalesKit itself rather than letting the real Server
 // Action run in a test environment with no real session/org.
+// markProspectContacted (actions_required's follow-up rows) is mocked for
+// the same reason.
 vi.mock("@/app/studio/(authed)/prospects/actions", () => ({
   generateSalesKit: vi.fn(),
+  markProspectContacted: vi.fn(),
 }));
 
 // Same reason as generateSalesKit above — SendInvoiceReminderAction
@@ -37,6 +43,16 @@ vi.mock("@/app/studio/(authed)/clients/actions", () => ({
   sendClientInvoiceReminderAction: vi.fn(),
 }));
 
+// actions_required's unanswered-request rows call this Server Action.
+vi.mock("@/app/studio/(authed)/requests/actions", () => ({
+  markRequestResponded: vi.fn(),
+}));
+
+// actions_required's overdue-project rows call this Server Action.
+vi.mock("@/app/studio/(authed)/projects/actions", () => ({
+  updateProjectStatus: vi.fn(),
+}));
+
 // Same regression this class of test guards against as
 // command-centre-stat-cards.test.tsx - the 2026-08 UX/UI Director audit
 // found bg-primary had drifted onto every card instead of exactly the
@@ -44,7 +60,15 @@ vi.mock("@/app/studio/(authed)/clients/actions", () => ({
 // is the automated check that drift can't happen silently again.
 
 function emptyBriefing(): StudioBriefing {
-  return { newThisWeek: 0, needsResearch: 0, readyToContact: 0, followUpsDue: 0, topOpportunity: null, topOpportunities: [] };
+  return {
+    newThisWeek: 0,
+    needsResearch: 0,
+    readyToContact: 0,
+    followUpsDue: 0,
+    topOpportunity: null,
+    topOpportunities: [],
+    followUpsDueList: [],
+  };
 }
 
 function emptyModelPerformance(): ModelPerformanceWithCost {
@@ -57,7 +81,8 @@ function emptyAiAdoption(): AiAdoption {
 
 function baseParams(overrides: Partial<Parameters<typeof buildSectionContent>[0]> = {}): Parameters<typeof buildSectionContent>[0] {
   return {
-    actionsRequired: [],
+    actionQueue: [],
+    actionsTotal: 0,
     insights: [],
     hasBriefingContent: false,
     briefing: emptyBriefing(),
@@ -77,7 +102,9 @@ function cardClass(node: React.ReactNode): string | null {
   return container.firstElementChild?.className ?? "";
 }
 
-const oneActionRequired: ActionRequiredItem[] = [{ count: 1, label: "request awaiting your reply", href: "/studio/requests", icon: AlertTriangle }];
+const oneQueueItem: ActionQueueItem[] = [
+  { id: "r1", kind: "unanswered_request", businessName: "Demo Client", detail: "Fix the contact form", href: "/studio/requests" },
+];
 const oneInsight: Insight[] = [{ id: "1", category: "opportunity", impact: "high", headline: "New prospects up 100%", evidence: "13 vs 0" }];
 const oneEngagementRisk: ClientEngagementRisk[] = [
   {
@@ -97,7 +124,7 @@ const oneActivity: ClientActivityItem[] = [
 
 describe("buildSectionContent — card tier regression guard", () => {
   it("actions_required is the one section that uses bg-primary", () => {
-    const content = buildSectionContent(baseParams({ actionsRequired: oneActionRequired }));
+    const content = buildSectionContent(baseParams({ actionQueue: oneQueueItem, actionsTotal: 1 }));
     const cls = cardClass(content.actions_required);
     expect(cls).toContain("bg-primary");
   });
@@ -140,7 +167,7 @@ describe("buildSectionContent — card tier regression guard", () => {
 
 describe("buildSectionContent — only renders with real content", () => {
   it("actions_required is undefined when there is nothing due", () => {
-    const content = buildSectionContent(baseParams({ actionsRequired: [] }));
+    const content = buildSectionContent(baseParams({ actionQueue: [] }));
     expect(content.actions_required).toBeUndefined();
   });
 
@@ -186,11 +213,22 @@ describe("buildSectionContent — only renders with real content", () => {
 });
 
 describe("buildSectionContent — real content spot checks", () => {
-  it("shows the real count and label for an action-required item", () => {
-    const content = buildSectionContent(baseParams({ actionsRequired: oneActionRequired }));
+  it("shows the real business name and detail for a queued action, plus its one-click clear control", () => {
+    const content = buildSectionContent(baseParams({ actionQueue: oneQueueItem, actionsTotal: 1 }));
     const { container } = render(content.actions_required as React.ReactElement);
-    expect(container.textContent).toContain("1");
-    expect(container.textContent).toContain("request awaiting your reply");
+    expect(container.textContent).toContain("Demo Client");
+    expect(container.textContent).toContain("Fix the contact form");
+    expect(within(container).getByRole("button", { name: /mark as responded/i })).toBeInTheDocument();
+  });
+
+  it("shows a '+N more' line only when the real total exceeds what's actually rendered", () => {
+    const content = buildSectionContent(baseParams({ actionQueue: oneQueueItem, actionsTotal: 4 }));
+    const { container } = render(content.actions_required as React.ReactElement);
+    expect(container.textContent).toContain("+3 more");
+
+    const exact = buildSectionContent(baseParams({ actionQueue: oneQueueItem, actionsTotal: 1 }));
+    const { container: exactContainer } = render(exact.actions_required as React.ReactElement);
+    expect(exactContainer.textContent).not.toContain("more");
   });
 
   it("shows a PRIORITY badge only for a high-impact insight", () => {
@@ -340,5 +378,70 @@ describe("buildSectionContent — engagement risk 'Send payment reminder' wiring
     fireEvent.click(scope.getByRole("button", { name: /send reminder/i }));
     await waitFor(() => expect(scope.getByRole("alert")).toHaveTextContent("Invoice not found."));
     expect(scope.getByRole("button", { name: /send reminder/i })).toBeEnabled();
+  });
+});
+
+// Command Centre improvement #1 ("cleared queue, not a dashboard") — each
+// of the three real row kinds gets its own one-click clearing action,
+// wired to the exact Server Action its own dedicated page already uses.
+describe("buildSectionContent — actions_required queue clearing wiring", () => {
+  it("clicking 'Mark as contacted' on a follow-up row shows pending, then done, calling markProspectContacted with the real prospect id", async () => {
+    vi.mocked(markProspectContacted).mockResolvedValue({ ok: true });
+    const queue: ActionQueueItem[] = [{ id: "p1", kind: "follow_up", businessName: "Acme", detail: "Due a call", href: "/studio/prospects" }];
+    const content = buildSectionContent(baseParams({ actionQueue: queue, actionsTotal: 1 }));
+    const { container } = render(content.actions_required as React.ReactElement);
+    const scope = within(container);
+
+    fireEvent.click(scope.getByRole("button", { name: /mark as contacted/i }));
+    await waitFor(() => expect(scope.getByText(/marked as contacted/i)).toBeInTheDocument());
+    expect(markProspectContacted).toHaveBeenCalledWith("p1");
+  });
+
+  it("clicking 'Mark as responded' on an unanswered-request row calls markRequestResponded with the real request id", async () => {
+    vi.mocked(markRequestResponded).mockResolvedValue({ ok: true });
+    const content = buildSectionContent(baseParams({ actionQueue: oneQueueItem, actionsTotal: 1 }));
+    const { container } = render(content.actions_required as React.ReactElement);
+    const scope = within(container);
+
+    fireEvent.click(scope.getByRole("button", { name: /mark as responded/i }));
+    await waitFor(() => expect(scope.getByText(/marked as responded/i)).toBeInTheDocument());
+    expect(markRequestResponded).toHaveBeenCalledWith("r1");
+  });
+
+  it("clicking 'Mark done' on an overdue-project row calls updateProjectStatus with the real project id and 'done'", async () => {
+    vi.mocked(updateProjectStatus).mockResolvedValue({ ok: true });
+    const queue: ActionQueueItem[] = [
+      { id: "proj1", kind: "overdue_project", businessName: "Acme", detail: "Website redesign — target date was 3 days ago", href: "/studio/projects" },
+    ];
+    const content = buildSectionContent(baseParams({ actionQueue: queue, actionsTotal: 1 }));
+    const { container } = render(content.actions_required as React.ReactElement);
+    const scope = within(container);
+
+    fireEvent.click(scope.getByRole("button", { name: /mark done/i }));
+    await waitFor(() => expect(scope.getByText(/marked done/i)).toBeInTheDocument());
+    expect(updateProjectStatus).toHaveBeenCalledWith("proj1", "done");
+  });
+
+  it("one row's error doesn't affect a sibling row's independent state", async () => {
+    vi.mocked(markProspectContacted).mockResolvedValue({ error: "Failed to mark as contacted." });
+    vi.mocked(markRequestResponded).mockResolvedValue({ ok: true });
+    const queue: ActionQueueItem[] = [
+      { id: "p1", kind: "follow_up", businessName: "Acme", detail: "Due a call", href: "/studio/prospects" },
+      { id: "r1", kind: "unanswered_request", businessName: "Beta Co", detail: "Fix the form", href: "/studio/requests" },
+    ];
+    const content = buildSectionContent(baseParams({ actionQueue: queue, actionsTotal: 2 }));
+    const { container } = render(content.actions_required as React.ReactElement);
+    const scope = within(container);
+
+    fireEvent.click(scope.getByRole("button", { name: /mark as contacted/i }));
+    await waitFor(() => expect(scope.getByRole("alert")).toHaveTextContent("Failed to mark as contacted."));
+
+    fireEvent.click(scope.getByRole("button", { name: /mark as responded/i }));
+    await waitFor(() => expect(scope.getByText(/marked as responded/i)).toBeInTheDocument());
+
+    // Row 1's error and its still-enabled retry button are untouched by
+    // row 2 succeeding.
+    expect(scope.getByRole("alert")).toHaveTextContent("Failed to mark as contacted.");
+    expect(scope.getByRole("button", { name: /mark as contacted/i })).toBeEnabled();
   });
 });
