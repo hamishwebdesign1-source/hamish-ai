@@ -36,7 +36,112 @@ _(none yet)_
 
 ## Not started
 
-_(none yet)_
+### Wire the same outreach-kit action to Command Centre's Top Prospects list (fast-follow to the shipped topOpportunity action)
+
+- **Problem**: the single `topOpportunity` callout in the "Your briefing"
+  card already lets an owner one-click-generate a sales kit without leaving
+  Command Centre (`src/components/platform/top-opportunity-kit-action.tsx`,
+  shipped 2026-08-31). The `top_prospects` section card renders the
+  identical data shape — `briefing.topOpportunities`, a `TopOpportunity[]`
+  with the same real `id`/`hasSalesKit` fields (`src/lib/studio-briefing.ts`)
+  — for all 5 top-ranked prospects, but only the first one (folded into
+  "Your briefing") has the action wired; the other 4 rows (and the whole
+  card, for an org that's configured `top_prospects` as its own block) still
+  only link out to `/studio/prospects`. This is exactly the "read a report
+  vs. clear a queue" gap the wider request is about, and the shipped
+  entry's own scope note names it directly as "an identical fast-follow
+  once this is observed live" — not a new idea invented here.
+- **Objective**: every row in the `top_prospects` section card gets the same
+  one-click "Generate outreach kit" / "Outreach kit ready" control the
+  `topOpportunity` callout already has, not just the card's single featured
+  row.
+- **User**: an agency owner scanning Command Centre who wants to act on any
+  of their top 5 real prospects without navigating to `/studio/prospects`
+  first.
+- **Priority**: P1 (next) — smallest possible increment on a pattern
+  already built, tested, and live; zero new pipeline, zero new usage type.
+- **Expected outcome**: an owner can generate (or see already-generated)
+  outreach kits for all 5 top prospects directly from Command Centre; they
+  only navigate to `/studio/prospects` to actually review/copy/send the
+  generated content, not to trigger generation itself.
+- **Acceptance criteria**: `TopOpportunityKitAction` (or an equivalent
+  thin wrapper) renders under each of the 5 `top_prospects` rows in
+  `command-centre-section-cards.tsx`, keyed off each row's own `id`/
+  `hasSalesKit`; `generateSalesKit()` called verbatim — no new pipeline, no
+  new usage-event type; resting/pending/success/error/usage-limit states
+  and `aria-live` region match the shipped precedent exactly; tests confirm
+  each row's pending/success/error state is independent (one row's click
+  doesn't affect its siblings); `npx tsc --noEmit`, `npx eslint`, full
+  `vitest` suite green.
+- **Relevant agent**: Lead Engineer (build); UX/UI Director should confirm
+  5 independent action controls in one card doesn't read as visually noisy
+  before this ships (a real, if minor, design question the single-row
+  precedent never had to answer).
+- **Dependencies**: none — reuses `TopOpportunityKitAction`,
+  `generateSalesKit()`, and `briefing.topOpportunities` as-is.
+- **Status**: Not started
+
+### One-click "Send payment reminder" on Command Centre's Engagement Risk card, for rows with a real overdue invoice
+
+- **Problem**: `engagement_risk` rows (`studio-engagement.ts`) already
+  carry a real, per-client `hasOverdueInvoice` boolean, computed from real
+  `invoices.status`/`due_date` — but the Command Centre card only shows a
+  badge, no id, no action. A working, already-shipped, non-AI, non-metered
+  pipeline for exactly this — `sendInvoiceReminder(invoiceId)`
+  (`src/lib/send-invoice-reminder.ts`) — already exists and is live in
+  production today via `/admin/clients/[id]`'s "Send reminder" form
+  (single-tenant, Hamish's own agency) — it has simply never been wired
+  into the multi-tenant `/studio` product, which currently has no invoice-
+  reminder entry point anywhere.
+- **Objective**: an owner viewing Command Centre's Engagement Risk card can
+  send the same real payment-reminder email to a client with a real
+  overdue invoice, in one click, without leaving Command Centre.
+- **User**: an agency owner running Command Centre who sees a client
+  flagged "Invoice overdue" and wants to nudge them immediately.
+- **Priority**: P1 (next) — real signal, a real existing entity id (once
+  threaded through), and a real existing pipeline; the net-new work is a
+  Studio-scoped Server Action wrapper and a UI leaf, not new plumbing or a
+  new AI pipeline.
+- **Expected outcome**: engagement_risk rows with `hasOverdueInvoice` show
+  a "Send reminder" / "Reminder sent" one-click control; clicking it sends
+  the exact same email `sendInvoiceReminder()` already sends via `/admin`,
+  scoped and ownership-checked for the calling org.
+- **Acceptance criteria**:
+  - `ClientEngagementRisk`/`computeClientEngagementRisk`
+    (`studio-engagement.ts`) extended to carry the specific overdue
+    invoice's `id` (and `reminder_sent_at`) alongside the existing
+    boolean — zero new query: `invoices.id` is already selected on this
+    same page load (`page.tsx`'s existing `invoices` fetch).
+  - A new Studio-scoped Server Action (e.g. `sendClientInvoiceReminderAction`
+    in `clients/actions.ts`) verifies the invoice's client belongs to the
+    caller's org (same `.eq("org_id", orgId)` ownership-check pattern
+    `createClientInvoice` already uses) before calling the existing
+    `sendInvoiceReminder()` verbatim — no new email template, no new AI
+    call, no new usage-event type.
+  - A new client leaf component matching the shipped state machine
+    (resting/pending/success/error — no usage-limit state needed, this
+    isn't AI-metered) wired under engagement_risk rows with
+    `hasOverdueInvoice`.
+  - A reminder already sent (`reminder_sent_at` not null) renders as
+    already-done, same "don't re-offer something that already happened"
+    rule as `hasKitInitially`.
+  - Tests cover the ownership check (reject an invoice belonging to
+    another org), already-sent state, pending/success/error.
+  - `npx tsc --noEmit`, `npx eslint`, full `vitest` suite green.
+- **Relevant agent**: Lead Engineer (build); Security Auditor should
+  spot-check the new ownership check specifically — this is a new write
+  path that sends a real email to a real client off a one-click UI
+  control, a materially different risk shape from the shipped precedent
+  (which only *generates content for the owner to review*, sends nothing).
+  Flag for Hamish's explicit sign-off before merging, on the same basis
+  the shipped `topOpportunity` action needed sign-off ("does a one-click
+  dashboard entry point to a real customer-facing action change the risk
+  profile") — even though this path is neither AI nor metered, it's the
+  first Command Centre one-click control that fires an email with no
+  review step in between.
+- **Dependencies**: none blocking — `sendInvoiceReminder()`, `invoices.id`/
+  `reminder_sent_at`, and the ownership-check pattern all already exist.
+- **Status**: Not started
 
 ## Needs review
 

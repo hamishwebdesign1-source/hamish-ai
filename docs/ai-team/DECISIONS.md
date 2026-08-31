@@ -8,6 +8,70 @@ just at product-decision scope instead of line scope.
 
 ---
 
+## 2026-08-31 — Scoping "clear Command Centre like an inbox": two real candidates backlogged, several ruled out, "queue" framing flagged as needing a caveat
+
+**Decision**: Scoped Hamish's brainstorm idea ("extend recommend→act to
+every signal Command Centre computes") by testing every one of the 9
+section-card signal types (`command-centre-section-cards.tsx`) against the
+same bar the shipped `topOpportunity` action was held to: does this signal
+carry a real, specific, addressable entity id, and does a real existing
+pipeline already exist to act on it. Two candidates passed and were written
+into `BACKLOG.md`: (1) extending the already-shipped `TopOpportunityKitAction`
+to all 5 rows of the `top_prospects` list — literally the "identical
+fast-follow" the shipped entry's own note already named, zero new plumbing;
+(2) a one-click "Send payment reminder" on `engagement_risk` rows with a
+real overdue invoice, wiring the already-existing, already-in-production
+(`/admin`-only) `sendInvoiceReminder()` pipeline into `/studio` for the
+first time — real id (`invoices.id`, already fetched, zero new query), real
+pipeline, no new AI, no new usage-metered action type.
+
+**Ruled out, not backlogged**: `studio-insights.ts`'s entire `Insight[]`
+feed (KPI deltas, health-component warnings, overdue-project *count*,
+`no-conversions`) is aggregate-only end to end — the same test that
+excluded `no-conversions` from v1 applies to every insight this file
+generates, not just that one; none carry a single addressable id. The
+`actions_required` card is likewise aggregate-only *as currently rendered*
+(3 rolled-up counts with a filtered-list `href` each) even though the
+underlying rows (which specific request, which specific overdue project)
+do technically exist elsewhere on the same page load — turning that into
+a real per-item queue would mean redesigning the card to expose individual
+rows, a materially bigger scope change than "add a button to an existing
+signal," and wasn't asked for here. `model_performance`, `client_ai_adoption`,
+`recent_activity`, and `health_breakdown` are genuinely informational
+aggregates with no plausible one-click action to attach. Engagement risk's
+*quiet-client* half (as opposed to its overdue-invoice half) — a one-click
+AI-drafted check-in message — was **not** backlogged: this is AI/Agent
+Architect's opportunity #2 from the 2026-08-31 mission, already deliberately
+deferred pending real usage evidence that the shipped recommend→act pattern
+actually gets used, which doesn't exist yet (the pattern shipped the same
+day this scoping happened). It would also need a genuinely new AI pipeline
+and a new metered usage-event type — a bigger call than either backlogged
+candidate, correctly left for its own future sign-off once there's real
+usage data to justify it, not decided here.
+
+**Verdict on the "clear it like an inbox" framing itself**: right for the
+two candidates backlogged, but the framing needs an explicit caveat, not
+blanket adoption. Both backlogged actions preserve this product's
+documented "propose then human applies" strength in different ways: the
+outreach-kit action generates *content for the owner to review* and send
+themselves; nothing goes to a real prospect without a human copying it out.
+The payment-reminder action does not have that buffer — it fires a real
+email to a real client on one click, with no draft/review step, the first
+Command Centre control that would do that. It's lower-risk than it might
+sound (deterministic template, not AI-generated; already ships bare, with
+no confirmation step, via `/admin` for Hamish's own real invoices today),
+but it's a materially different action shape than the shipped precedent,
+flagged for Hamish's explicit sign-off in the backlog entry itself rather
+than folded into "same as before." The honest read: "queue-clearing" is a
+good frame for *reviewable* AI outputs (kits, and — if ever built — drafted
+check-in messages), but a worse frame for *send* actions, where "clearing
+the queue fast" and "sent something to a real client you didn't mean to
+send yet" are in real tension. Any future candidate that skips the
+review-then-apply step should get the same explicit sign-off flag this one
+did, not be waved through because the UI pattern already exists.
+
+---
+
 ## 2026-08-31 — Process fix: commit shared docs between parallel agent dispatches, don't rely on recovery
 
 **Decision**: When running multiple specialist agents in parallel who each
