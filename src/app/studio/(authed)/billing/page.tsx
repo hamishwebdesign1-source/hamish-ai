@@ -267,14 +267,25 @@ export default async function StudioBillingPage({
           meant to demonstrate value would read as "nothing's working,"
           the opposite of what it's for. When clients did sign but none
           were AI-assisted, that's real, non-fabricated data and stays
-          visible ("0 of N"). */}
+          visible ("0 of N").
+          UX/UI Director pass (2026-08-31): the visible card title was
+          "AI-assisted signed value," which over-promises a £ figure even
+          though the £ line below only ever renders when at least one
+          AI-assisted client has a recorded deal_value_pence — the common
+          case at current real volume is count-only, no £ line at all.
+          Renamed the on-page heading to "AI-assisted clients" (always
+          true in every render state); the £ line itself still spells out
+          "recorded deal value" when it appears, so the "value" framing
+          isn't lost, just no longer promised by the title. The underlying
+          feature/metric name in BACKLOG.md/DECISIONS.md/studio-ai-roi.ts
+          is left as-is — this only changes the literal rendered text. */}
       {aiRoi.signedThisMonth > 0 && (
         <Reveal>
           <Card>
             <CardContent>
               <p className="flex items-center gap-1.5 font-heading text-sm font-semibold">
                 <TrendingUp className="size-4 text-accent" />
-                AI-assisted signed value
+                AI-assisted clients
                 <HelpTip explanation="Counts a client as AI-assisted if you generated a sales kit or website mockup for them before they signed. This shows the AI action happened first — not that it's the reason they signed. Deal value, if recorded, is your own estimate on the prospect, not verified invoiced revenue." />
               </p>
 
@@ -287,9 +298,35 @@ export default async function StudioBillingPage({
                 </span>
               </div>
 
+              {/* Same CountUp treatment as Command Centre's own "Pipeline
+                  value" stat card (command-centre-stat-cards.tsx) — every
+                  other £ figure in Studio animates in, this one shouldn't
+                  be the one static exception. Still visually secondary to
+                  the count above (text-sm vs text-2xl, per this entry's
+                  own acceptance criteria — count is the headline because
+                  it's real whether or not deal_value_pence adoption is
+                  high), just font-medium + tabular-nums now so it reads as
+                  a real figure next to the plan-price/stat-card numbers
+                  elsewhere on this page, not a caption. */}
               {aiRoi.aiAssistedValuePence !== null && (
-                <p className="mt-1.5 text-sm text-accent">
-                  £{Math.round(aiRoi.aiAssistedValuePence / 100).toLocaleString("en-GB")} in recorded deal value
+                <p className="mt-1.5 text-sm font-medium text-accent tabular-nums">
+                  <CountUp value={Math.round(aiRoi.aiAssistedValuePence / 100)} prefix="£" /> in recorded deal value
+                </p>
+              )}
+
+              {/* UX/UI Director pass (2026-08-31): the honest "0 of N"
+                  state (clients signed this month, none AI-assisted) is
+                  real data and deliberately not hidden — but rendering
+                  just the bare count with nothing else reads as a verdict
+                  ("AI added nothing this month") on a page an owner reads
+                  right before deciding to renew/upgrade. Adds a muted,
+                  actionable line rather than any fabricated positivity —
+                  same "no toast, inline text next to the thing" instinct
+                  as the rest of Studio's error/empty-state copy, reframing
+                  a zero from a dead end into a next action. */}
+              {aiRoi.aiAssistedCount === 0 && (
+                <p className="mt-1.5 text-xs text-muted-foreground">
+                  None of this month&apos;s signups had a sales kit or website mockup generated before they signed — do that earlier in your pipeline to start building this number.
                 </p>
               )}
             </CardContent>

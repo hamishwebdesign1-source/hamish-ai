@@ -189,6 +189,30 @@ solution.
   outright. Any new place user input becomes a rendered `<a href>` needs
   the same allowlist treatment, not a weaker one.
 
+## A real, honest "0 of N" is not the same as an empty state
+
+Studio already hides a card entirely when there's genuinely nothing to show
+(`studio-insights.ts`, Command Centre's section cards, Billing's
+"AI-assisted clients" card when `signedThisMonth === 0`) — that's the right
+call for "no data exists yet." A different case, first handled properly in
+Billing's "AI-assisted clients" card (`billing/page.tsx`,
+`src/lib/studio-ai-roi.ts`, 2026-08-31): real activity happened (clients
+signed) but the specific thing being measured came back zero (none were
+AI-assisted). Hiding that would be dishonest — it's real, current data, not
+an empty state. But rendering *only* the bare "0 of N" line, with nothing
+else, reads as a verdict ("this isn't working") on a page an agency owner
+reads right before a renew/upgrade decision — a real retention risk moment,
+not a neutral one. The fix isn't fabricating positivity (no invented
+"almost there!" framing) — it's a muted (`text-xs text-muted-foreground`),
+factual, actionable follow-up line explaining what would make the number
+move (e.g. "generate a sales kit or website mockup earlier in your
+pipeline"). Same "no toast, inline text next to the thing" instinct as the
+rest of Studio's error/empty-state copy — reframes a genuine zero from a
+dead end into a next action, without touching the honesty of the number
+itself. Apply this same shape (real zero stays visible + a muted actionable
+line, not silence) to any future outcome-tied metric that can legitimately
+land on zero while its parent population is non-empty.
+
 ## What's deliberately NOT built yet
 
 Don't propose these as "obviously missing" without checking `PRODUCT.md`'s

@@ -134,4 +134,59 @@ describe("computeAiAssistedSignedValue", () => {
     );
     expect(result.aiAssistedCount).toBe(0);
   });
+
+  // QA additions below — boundary/precision cases not in the original 8.
+
+  it("counts a sales-kit timestamp exactly equal to clients.created_at (inclusive <=, per the attribution rule)", () => {
+    const result = computeAiAssistedSignedValue(
+      [{ id: "c1", business_name: "Exact Co", created_at: "2026-08-10T12:00:00.000Z", source_lead_id: "p1" }],
+      [{ id: "p1", deal_value_pence: 1000, sales_kit_generated_at: "2026-08-10T12:00:00.000Z", website_mockup_generated_at: null }],
+      NOW
+    );
+    expect(result.aiAssistedCount).toBe(1);
+  });
+
+  it("includes a client created exactly at the local calendar month start, and excludes one 1ms before it", () => {
+    const now = new Date(2026, 7, 31, 12, 0, 0); // local August
+    const monthStartIso = new Date(2026, 7, 1, 0, 0, 0).toISOString();
+    const justBeforeIso = new Date(new Date(2026, 7, 1, 0, 0, 0).getTime() - 1).toISOString();
+
+    const atStart = computeAiAssistedSignedValue(
+      [{ id: "c1", business_name: "Boundary Co", created_at: monthStartIso, source_lead_id: null }],
+      [],
+      now
+    );
+    expect(atStart.signedThisMonth).toBe(1);
+
+    const beforeStart = computeAiAssistedSignedValue(
+      [{ id: "c1", business_name: "Too Early Co", created_at: justBeforeIso, source_lead_id: null }],
+      [],
+      now
+    );
+    expect(beforeStart.signedThisMonth).toBe(0);
+  });
+
+  it("excludes a client created exactly at the start of next local calendar month (exclusive upper bound)", () => {
+    const now = new Date(2026, 7, 15, 12, 0, 0); // local August
+    const nextMonthStartIso = new Date(2026, 8, 1, 0, 0, 0).toISOString(); // Sept 1 local
+    const result = computeAiAssistedSignedValue(
+      [{ id: "c1", business_name: "Next Month Co", created_at: nextMonthStartIso, source_lead_id: null }],
+      [],
+      now
+    );
+    expect(result.signedThisMonth).toBe(0);
+  });
+
+  it("is immune to mixed ISO timestamp formats/precision within the same second (JS toISOString-style vs Postgres/PostgREST-style)", () => {
+    // sales_kit_generated_at as written by draft-sales-kit.ts (JS Date#toISOString(): ms precision, literal "Z")
+    // clients.created_at as it can come back from Postgres/PostgREST (timestamptz, offset suffix, more fractional digits)
+    // — same real instant ordering as ".999" < ".9999" numerically, which a raw string "<=" would get backwards
+    // because "Z" (char code 90) sorts after "9" (char code 57).
+    const result = computeAiAssistedSignedValue(
+      [{ id: "c1", business_name: "Precise Co", created_at: "2026-08-10T12:00:00.9999+00:00", source_lead_id: "p1" }],
+      [{ id: "p1", deal_value_pence: 1000, sales_kit_generated_at: "2026-08-10T12:00:00.999Z", website_mockup_generated_at: null }],
+      NOW
+    );
+    expect(result.aiAssistedCount).toBe(1); // sales kit really was generated first, must count as AI-assisted
+  });
 });

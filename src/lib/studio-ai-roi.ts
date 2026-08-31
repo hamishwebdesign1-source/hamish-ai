@@ -91,8 +91,20 @@ export function computeAiAssistedSignedValue(
     const prospect = prospectsById.get(client.source_lead_id);
     if (!prospect) continue;
 
-    const salesKitBefore = prospect.sales_kit_generated_at !== null && prospect.sales_kit_generated_at <= client.created_at;
-    const mockupBefore = prospect.website_mockup_generated_at !== null && prospect.website_mockup_generated_at <= client.created_at;
+    // QA fix: compare parsed timestamps, not raw ISO strings. sales_kit_generated_at
+    // is written via JS Date#toISOString() (draft-sales-kit.ts/draft-website-mockup.ts,
+    // always millisecond precision + literal "Z"); clients.created_at comes back from
+    // Postgres/PostgREST (timestamptz default now()), which can render with a
+    // different offset suffix and/or fractional-second precision. Those two formats
+    // are lexicographically comparable everywhere EXCEPT when both timestamps fall
+    // within the same second, where a "Z" suffix (char code 90) can sort as greater
+    // than a same-second string that continues with more digits (codes 48-57) even
+    // when the digits represent a numerically later instant — inverting the real
+    // chronological order. Comparing epoch milliseconds is immune to format/precision
+    // differences and costs nothing meaningful at this data volume.
+    const clientCreatedAtMs = new Date(client.created_at).getTime();
+    const salesKitBefore = prospect.sales_kit_generated_at !== null && new Date(prospect.sales_kit_generated_at).getTime() <= clientCreatedAtMs;
+    const mockupBefore = prospect.website_mockup_generated_at !== null && new Date(prospect.website_mockup_generated_at).getTime() <= clientCreatedAtMs;
     if (!salesKitBefore && !mockupBefore) continue;
 
     const touchedVia: AiAssistedTouchVia = salesKitBefore && mockupBefore ? "both" : salesKitBefore ? "sales_kit" : "website_mockup";
