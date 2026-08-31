@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
-import { BookOpen, Plus, Pencil, Trash2, X, Sparkles } from "lucide-react";
+import { BookOpen, Plus, Pencil, Trash2, X, Sparkles, Search } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -223,6 +223,22 @@ export function KnowledgePanel({
   const [draft, setDraft] = useState<Draft | null>(null);
   const researchClients = clients.filter((c) => researchByClient[c.id]);
 
+  // Studio improvement — a plain client-side filter, same pattern
+  // prospecting-panel.tsx's own search bar already uses: no new query,
+  // no new AI call, just narrowing a list an org is already scrolling
+  // through once entry count grows past a screenful. "" (All) and the
+  // synthetic "__general__" value (entries with no client_id) are the
+  // same two special cases clientName() already treats as real states.
+  const [search, setSearch] = useState("");
+  const [clientFilter, setClientFilter] = useState("");
+  const searchLower = search.trim().toLowerCase();
+  const filteredEntries = entries.filter((e) => {
+    if (searchLower && !e.title.toLowerCase().includes(searchLower) && !e.content.toLowerCase().includes(searchLower)) return false;
+    if (clientFilter === "__general__") return e.client_id === null;
+    if (clientFilter && e.client_id !== clientFilter) return false;
+    return true;
+  });
+
   return (
     <div className="mx-auto max-w-3xl">
       <h1 className="font-heading text-2xl font-semibold md:text-3xl">Knowledge base</h1>
@@ -259,6 +275,29 @@ export function KnowledgePanel({
         )}
       </div>
 
+      {entries.length > 0 && (
+        <div className="mt-6 flex flex-col gap-2 sm:flex-row">
+          <div className="relative flex-1">
+            <Search className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search entries…"
+              className="pl-8"
+            />
+          </div>
+          <select value={clientFilter} onChange={(e) => setClientFilter(e.target.value)} className={`${selectClasses} sm:w-56`}>
+            <option value="">All entries</option>
+            <option value="__general__">General (all clients)</option>
+            {clients.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.business_name}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
       {entries.length === 0 ? (
         <div className="mt-6 rounded-xl border border-dashed border-border p-8 text-center">
           <BookOpen className="mx-auto size-6 text-muted-foreground" />
@@ -267,9 +306,13 @@ export function KnowledgePanel({
             instantly instead of every question becoming a request.
           </p>
         </div>
+      ) : filteredEntries.length === 0 ? (
+        <div className="mt-4 rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+          No entries match that search or filter.
+        </div>
       ) : (
         <div className="mt-4 space-y-2">
-          {entries.map((e) => (
+          {filteredEntries.map((e) => (
             <EntryCard key={e.id} entry={e} clients={clients} />
           ))}
         </div>
