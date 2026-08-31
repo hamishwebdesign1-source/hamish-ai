@@ -449,6 +449,17 @@ function ClientCard({
           <div className="flex shrink-0 items-center gap-3">
             <RiskBadge risk={risk} />
             <HealthBadge health={health} />
+            {/* Studio improvement — the per-client AI chatbot detail
+                (EmbedChatbotControl, below) only exists inside the
+                expanded card, so scanning "who has AI enabled" across a
+                client list meant opening every single row. This is the
+                same real client.chatbot_embed_enabled flag, just
+                surfaced one level up. */}
+            {client.chatbot_embed_enabled && (
+              <Badge variant="ai" className="hidden gap-1 sm:inline-flex">
+                <MessageCircle className="size-3" /> AI chatbot
+              </Badge>
+            )}
             {client.website_url && (
               <a
                 href={client.website_url.startsWith("http") ? client.website_url : `https://${client.website_url}`}
