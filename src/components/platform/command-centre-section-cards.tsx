@@ -23,6 +23,7 @@ import {
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { HelpTip } from "@/components/platform/help-tip";
+import { TopOpportunityKitAction } from "@/components/platform/top-opportunity-kit-action";
 import { timeAgo } from "@/lib/time-ago";
 import type { SectionType } from "@/lib/command-centre-layout";
 import type { ClientHealth } from "@/lib/client-health";
@@ -224,6 +225,7 @@ export function buildSectionContent(params: {
                 <span className="font-mono text-xs font-normal text-muted-foreground">({briefing.topOpportunity.overallScore}/5)</span>
               </p>
               <p className="mt-1 text-sm text-muted-foreground">{briefing.topOpportunity.pursueBecause}</p>
+              <TopOpportunityKitAction prospectId={briefing.topOpportunity.id} hasKitInitially={briefing.topOpportunity.hasSalesKit} />
             </div>
           )}
           <Button variant="link" size="sm" className="mt-3 h-auto px-0 text-accent" render={<Link href="/studio/prospects" />}>

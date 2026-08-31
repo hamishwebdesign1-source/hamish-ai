@@ -8,7 +8,7 @@ import { discoverLeads, searchProspectsNow } from "@/lib/discover-leads";
 import { researchLead } from "@/lib/research-lead";
 import { draftWebsiteMockup } from "@/lib/draft-website-mockup";
 import { buildIcp } from "@/lib/build-icp";
-import { draftSalesKit } from "@/lib/draft-sales-kit";
+import { draftSalesKit, type SalesKit } from "@/lib/draft-sales-kit";
 import { getUsageStatus, recordUsageEvent, type UsageEventType } from "@/lib/usage-limits";
 import { isStudioActionRateLimited } from "@/lib/chat-rate-limit";
 import type { PlatformPlanSlug } from "@/lib/platform-plans";
@@ -220,7 +220,16 @@ export async function generateWebsiteMockup(prospectId: string) {
 // resolving the caller's own org name and is_internal so the kit is
 // written on their agency's behalf, not defaulted to Hamish's identity
 // and hamishai.org proof points.
-export async function generateSalesKit(prospectId: string) {
+//
+// The error return's `reason` field (Command Centre "recommend -> act"
+// spec, 2026-08-31) is additive — sourced directly from checkUsage()'s
+// own already-discriminated result, nothing new computed. SalesKitSection
+// (prospecting-panel.tsx), the existing caller, only ever reads `.error`
+// and is unaffected; the new Command Centre call site is the only reader
+// of `.reason`.
+export async function generateSalesKit(prospectId: string): Promise<
+  { kit: SalesKit; generatedAt: string } | { error: string; reason?: "usage_limit" | "rate_limited" }
+> {
   const orgId = await requireOrgId();
   const admin = getSupabaseAdmin();
   if (!admin) return { error: "Supabase is not configured." };
@@ -235,7 +244,7 @@ export async function generateSalesKit(prospectId: string) {
 
   const usageCheck = await checkUsage(orgId, "sales_kit_generated");
   if (!usageCheck.allowed) {
-    return { error: usageCheckErrorMessage(usageCheck) };
+    return { error: usageCheckErrorMessage(usageCheck), reason: usageCheck.rateLimited ? "rate_limited" : "usage_limit" };
   }
 
   const { data: org } = await admin.from("organisations").select("name, is_internal").eq("id", orgId).single();

@@ -14,7 +14,7 @@ import { leadNeedsFollowUp } from "@/lib/lead-status";
 // sent it). This function itself is unchanged; owner-digest.ts just reads
 // followUpsDue from it the same way the in-app briefing card does.
 
-export type TopOpportunity = { id: string; businessName: string; pursueBecause: string; overallScore: number };
+export type TopOpportunity = { id: string; businessName: string; pursueBecause: string; overallScore: number; hasSalesKit: boolean };
 
 export type StudioBriefing = {
   newThisWeek: number;
@@ -57,6 +57,7 @@ export async function getStudioBriefing(supabase: SupabaseClient, orgId: string)
     businessName: p.business_name,
     pursueBecause: p.research.pursue_because,
     overallScore: p.score_breakdown.overall,
+    hasSalesKit: Boolean(p.sales_kit),
   }));
   const topOpportunity = topOpportunities[0] ?? null;
 

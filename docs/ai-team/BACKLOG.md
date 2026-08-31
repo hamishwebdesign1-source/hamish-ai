@@ -210,52 +210,67 @@ _(none yet)_
 
 ## Not started
 
-### Wire a one-click action to Command Centre's AI recommendations (recommend → act)
-
-- **Problem**: `studio-insights.ts`'s `generateInsights()` and `studio-briefing.ts`'s `topOpportunities` already compute real, reasoned recommendations (e.g. "3 new prospects this period, no conversions yet," ranked opportunities) — but every recommendation's `action` is just `{ label, href }`, a link to a list page. The user still has to manually find the specific prospect/lead and manually trigger `researchLead()`/`draftSalesKit()` themselves. AI/Agent Architect flagged this as the single highest-leverage gap in Studio's AI-nativeness: the "observe → understand" layer is already honest and fairly strong, but "recommend → act" stops at "here's where to look," not "here's what to do, want me to do it." This is exactly the "AI surfaces feeling agentic not bolted-on" falsifiable check from the mission's original framing.
-- **Objective**: at least one real recommendation type (e.g. the "no-conversions" pipeline recommendation, or a scored `topOpportunity`) gets a real one-click action that calls the existing `researchLead(leadId)` or `draftSalesKit(leadId, sender)` pipeline directly from the insight card, with a clear pending/success state — not a new AI pipeline, just wiring the existing one to the point where the recommendation already names the specific lead.
-- **User**: an agency owner scanning the Command Centre who sees "this lead is worth acting on" and currently has to context-switch to Prospects, find the specific lead, and manually trigger research/kit generation themselves.
-- **Priority**: P2 — real, well-evidenced opportunity, but not urgent; genuinely additive polish rather than fixing something broken, and touches usage-metering (see dependency below) which needs a considered decision, not a rushed one.
-- **Expected outcome**: clicking the action on a qualifying insight card runs the real pipeline against the specific lead/prospect the insight is about, with the same loading/error handling every other AI-triggered action in Studio already has (`research-lead.ts`/`draft-sales-kit.ts` callers) — no new AI call site, no new prompt.
-- **Acceptance criteria**: at least one insight/recommendation type has a working one-click action wired to an existing pipeline; the action correctly counts against the org's existing usage-limit metering for that pipeline (this is not a new free action — it's a new entry point to metered actions that already exist); test coverage for the new entry point mirrors the existing pipeline's own test conventions.
-- **Relevant agent**: AI/Agent Architect (already scoped this), Lead Engineer (implementation), UX/UI Director (the in-card action/pending-state pattern).
-- **Dependencies**: **Flag for Hamish** before build — even though this reuses existing metered actions rather than adding a new billable action type, it changes how easily a user can trigger metered AI usage (one click from the dashboard vs. a deliberate navigation), which is worth a conscious yes/no rather than assuming it's fine. Opportunities #2 (one-click AI-drafted check-in message off `engagement_risk`) and #3 (extending autonomous triage to tenant orgs) were also raised by AI/Agent Architect but are deliberately *not* backlogged as buildable items here — #2 is speculative until this first one proves the pattern works, and #3 is blocked on a real infra prerequisite (tenant-scoped outbound email) and is a bigger, cross-cutting call for a future mission, not a scoped task today.
-
-- **Design spec (UX/UI Director, 2026-08-31)** — read in full before building, this is the actual interaction contract, not a suggestion:
-
-  **Which recommendation type, and why.** Checked both real candidates against `studio-briefing.ts`/`studio-insights.ts` directly:
-  - `no-conversions` (`studio-insights.ts`) only carries `pipelineKpi.value` — a count off `AnalyticsData.kpis`, never an individual prospect id. Picking "the one to act on" would mean re-deriving the scored-prospect logic `getStudioBriefing()` already owns, inside a different function that doesn't have that data — real new plumbing, not wiring. **Ruled out for v1.**
-  - `briefing.topOpportunity` / `briefing.topOpportunities` (`studio-briefing.ts`) already carry a real `id` (`TopOpportunity.id` = `prospects.id`) for one specific, named lead — and every entry in `scored` is filtered to `p.research && p.score_breakdown`, meaning **research is always already done** for these. `researchLead()` is therefore never the right pipeline here — `draftSalesKit()` is, gated on whether that lead already has a `sales_kit` (the row is already selected in `getStudioBriefing()`'s own `.select()`, just not surfaced on the type yet — add one field, `hasSalesKit: Boolean(p.sales_kit)`, to `TopOpportunity`. Zero new queries.
-  - **v1 target: the "Your briefing" card's single `topOpportunity` callout only** (`command-centre-section-cards.tsx`, the `briefing` section, the `border-accent/25 bg-accent/10` box), not the 5-row `top_prospects` block. Same data shape, but the singular callout is always-visible (whenever `hasBriefingContent`), has real room for a button without crowding, and only ever needs one instance of the interaction rather than five at once — the tighter, lower-risk place to prove the pattern before extending it to `top_prospects` as an identical fast-follow (same client component, no new design work, just a second call site once this one's shipped and observed).
-
-  **Where it reuses existing plumbing.** `generateSalesKit(prospectId)` (`src/app/studio/(authed)/prospects/actions.ts`) already does everything this needs: re-derives `orgId` from the session, confirms the prospect belongs to that org, runs `checkUsage(orgId, "sales_kit_generated")`, resolves the tenant's own name/`isInternal` as the kit's sender, calls `draftSalesKit()`, records the usage event, and revalidates. **Call this Server Action directly — no new pipeline, no new usage type, no changes to `draft-sales-kit.ts` or `usage-limits.ts`.**
-
-  **The one real code change this design needs**: `generateSalesKit()`'s error return is currently a flat `{ error: string }`, which collapses "hit your monthly cap," "rate-limited," and "the AI/DB genuinely failed" into one opaque string. Add a machine-readable discriminator alongside the existing message, sourced directly from `checkUsage()`'s own already-discriminated result (it already knows `rateLimited` vs. the monthly-usage numbers — this is exposing that, not computing anything new): `{ error: string; reason?: "usage_limit" | "rate_limited" }`. This is additive — `SalesKitSection` on the Prospects page (the existing caller) keeps reading `.error` exactly as it does today and needs no changes; only the new Command Centre call site reads `.reason`.
-
-  **Visual placement**: inside the existing amber/accent `topOpportunity` box, directly below the `pursueBecause` paragraph (`mt-2`), as one more line in that callout — not a new card, not a new section.
-
-  **Component states** (one new client component, e.g. `top-opportunity-kit-action.tsx`, following `HelpTip`'s existing precedent of a "use client" leaf embedded in this otherwise-server-rendered card builder; props `{ prospectId, hasKitInitially }`, local `useState(hasKitInitially)` tracks "done" so an already-generated kit and a just-generated one render identically):
-
-  1. **Resting** (`!done`): `<Button size="sm" variant="outline">` — exact size/variant `SalesKitSection` already uses for this same action on Prospects, not a bigger/louder treatment that would fight `actions_required`'s `bg-primary` for attention. Label: `<ClipboardList className="size-3.5" /> Generate outreach kit` — identical copy/icon to the Prospects page, not new wording for the same action.
-  2. **Pending** (`useTransition`): button `disabled`, label swaps to `<LoaderCircle className="size-3.5 animate-spin" /> Writing…` — byte-identical to `SalesKitSection`'s own pending copy. Wrap the whole action region in `aria-live="polite"` (precedent: `signup-form.tsx`) so the pending→result transition is announced without moving focus — an improvement on `SalesKitSection`/`ResearchTrigger`, which don't have this today; worth a follow-up note to backport there, not blocking this item.
-  3. **Success**: button is replaced in place (not a toast, not a modal — matches `SalesKitSection`'s own "the real content replaces the prompt" convention) by a compact confirmation using the same inline-link style `insights` action links already use (`text-xs text-accent underline underline-offset-2`), not the bigger `Button variant="link"` used for a card's own bottom-of-card nav link: `<CheckCircle2 className="size-3.5 text-accent" /> Outreach kit ready — Open in Prospects` (linking to `/studio/prospects`, not a specific-row deep link — no per-prospect route exists anywhere in this codebase yet, confirmed against `recent_activity`'s own identical constraint; don't invent one here). Also call `router.refresh()` (precedent: `build-phase-panel.tsx`) so the Server Component tree picks up the real `hasSalesKit` on next natural re-render, even though the local `done` state is what gives the instant feedback and doesn't wait on it.
-  4. **Error, generic** (`"error" in result`, no `reason`, or the AI/DB genuinely failed): button returns to enabled resting state; `<p role="alert" className="mt-2 text-xs text-destructive">{result.error}</p>` directly below it — same placement/styling `SalesKitSection` already uses, plus the `role="alert"` it's currently missing.
-  5. **Error, rate-limited** (`reason === "rate_limited"`): identical treatment to #4 — the message itself ("You're doing that a lot right now — wait a few minutes and try again.") already tells the user what to do; no extra link needed.
-  6. **Error, usage-limit-exceeded** (`reason === "usage_limit"`): same red `role="alert"` line, message unchanged ("Monthly limit reached (X of Y) — try again next month."), plus one appended inline link in the same compact style as the success link: `View plan` → `/studio/billing`. This is the considered answer to the backlog's open question: don't invent a modal/toast/confirm-before-you-click gate (that would be a new pattern for one call site, and the pre-click pause this removes was never a deliberate safeguard, just an incidental side effect of requiring navigation first) — instead make sure that when the org **does** hit the wall from here, the very next thing they see is where to actually fix it, not a dead-end red line. HamishAI's own internal org (`is_internal`) never reaches this state at all (`checkUsage` returns `allowed: true` unconditionally for it), consistent with every other usage check in the app.
-
-  **This spec does not itself constitute Hamish's sign-off** on the dependency flagged above — that's still a real yes/no Lead Engineer needs before writing code, not something inferable from a design doc existing.
-
-  **Test-visible acceptance** (QA, once built):
-  - *Pending*: click "Generate outreach kit" on the Command Centre's "Your briefing" box → button disables immediately, label shows "Writing…" + spinning icon, no navigation occurs (`/studio` stays in the URL bar).
-  - *Success*: on completion, the button is replaced by "Outreach kit ready — Open in Prospects" with a check icon; following that link to `/studio/prospects` and expanding that same prospect shows the real generated `SalesKitPreview` (not a decorative confirmation of something that didn't actually happen); Billing's usage display (reads the same `usage_events` table) ticks `sales_kit_generated` up by 1 for the org.
-  - *Error, generic*: force via a prospect deleted/converted concurrently, or `ANTHROPIC_API_KEY` unset in a test env → button re-enables, red `role="alert"` text appears with the exact server message, retry works without a page reload.
-  - *Usage-limit-exceeded*: seed `usage_events` at/over the test org's plan limit for `sales_kit_generated`, click the button → red `role="alert"` text ("Monthly limit reached…") plus a working "View plan" link to `/studio/billing`; confirm **no** new `usage_events` row was inserted for this click (the check must fail before `draftSalesKit()` is ever called) and no new Anthropic call was made.
-  - *Accessibility*: confirm `aria-live="polite"` on the action region (screen reader announces the state change without needing focus to move); confirm the button is keyboard-reachable/operable (Tab, Enter/Space) with a visible focus ring; no `aria-label` needed since the button always has real visible text (not icon-only).
-  - *Regression*: `SalesKitSection` on `/studio/prospects` still works unchanged — `generateSalesKit()`'s success shape is untouched, only its error shape gained an additive optional field.
-
-- **Status**: Not started
+_(none yet)_
 
 ## Complete
+
+### Wire a one-click action to Command Centre's AI recommendations (recommend → act)
+
+Closed 2026-08-31 (Lead Engineer) — Hamish had already approved this ("yes
+build") so the spec's flagged dependency (whether a one-click dashboard
+entry point to metered AI usage is acceptable) was resolved before this
+build started, not decided unilaterally here. Built exactly to UX/UI
+Director's 2026-08-31 design spec, v1 scope: the "Your briefing" card's
+single `topOpportunity` callout only, not the 5-row `top_prospects` list
+(an identical fast-follow once this is observed live, per the spec).
+
+`generateSalesKit(prospectId)` (`src/app/studio/(authed)/prospects/actions.ts`)
+is called verbatim — no new pipeline, no new usage type. Its error return
+gained an additive `reason?: "usage_limit" | "rate_limited"` field, sourced
+directly from `checkUsage()`'s own already-discriminated result;
+`SalesKitSection` (the existing Prospects-page caller) is unchanged and its
+own tests still pass. `TopOpportunity` (`src/lib/studio-briefing.ts`) gained
+`hasSalesKit: Boolean(p.sales_kit)` — zero new query, the row was already
+selected.
+
+New client leaf `src/components/platform/top-opportunity-kit-action.tsx`
+(same "use client"-leaf-in-a-server-built-card precedent as `HelpTip`),
+wired into the `briefing` section card in
+`command-centre-section-cards.tsx`, directly below the `pursueBecause`
+paragraph. Button copy/icon/size is byte-identical to `SalesKitSection`'s
+own "Generate outreach kit" control. States implemented per spec: pending
+(disabled + spinner + "Writing…"), success (button replaced in place by an
+"Outreach kit ready — Open in Prospects" link to `/studio/prospects` +
+`router.refresh()`), generic/rate-limited error (`role="alert"` destructive
+text), and usage-limit error (same alert text plus a "View plan" link to
+`/studio/billing`). Whole action region wrapped in `aria-live="polite"`
+per spec, an accessibility improvement not yet backported to
+`SalesKitSection`/`ResearchTrigger` (flagged in the spec as a real,
+separate follow-up, not done here). `hasKitInitially` seeds the component's
+local "done" state directly (spec point 6): an opportunity whose prospect
+already has a kit renders the "Outreach kit ready" link immediately, with
+no click required and no re-offer of "Generate outreach kit" for something
+that already exists.
+
+7 new tests (`top-opportunity-kit-action.test.tsx`) covering resting,
+already-done, pending, success (+ router.refresh call), generic error,
+rate-limited error (no extra link), and usage-limit error (working "View
+plan" link, and confirming `router.refresh()` is *not* called on an error
+path). One real bug caught and fixed during test-writing, worth flagging:
+a test that intentionally leaves an async `startTransition` callback
+permanently unresolved (to assert the pending state) must still resolve it
+before the test ends — left dangling, it silently broke a *later*,
+unrelated test's button re-enabling in the same file when run as a full
+suite (passed in isolation, failed in sequence). Also added
+`@testing-library/jest-dom/vitest` to this test file, which turned out to
+retroactively fix a pre-existing, already-failing `toBeInTheDocument`/etc.
+matcher gap in a different, concurrently-authored test file
+(`prospecting-panel.test.tsx`) that had never actually registered jest-dom's
+matchers — not this task's scope to have introduced or been required to
+fix, but a genuine improvement landed as a side effect.
+
+`npx tsc --noEmit`, `npx eslint`, and the full `vitest` suite (244 tests)
+all green.
 
 ### Investigate `useOptimistic` for Studio's Server Actions
 

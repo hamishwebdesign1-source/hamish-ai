@@ -73,7 +73,7 @@ describe("buildSectionContent — card tier regression guard", () => {
         briefing: {
           ...emptyBriefing(),
           newThisWeek: 3,
-          topOpportunities: [{ id: "p1", businessName: "Demo Client", pursueBecause: "No website found", overallScore: 4 }],
+          topOpportunities: [{ id: "p1", businessName: "Demo Client", pursueBecause: "No website found", overallScore: 4, hasSalesKit: false }],
         },
         engagementRisks: oneEngagementRisk,
         modelPerformance: { ...emptyModelPerformance(), callCount: 5, successRatePct: 100 },
