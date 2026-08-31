@@ -47,6 +47,11 @@ export type AnalyticsData = {
   revenueSeries: ChartPoint[];
   revenueForecast: ForecastPoint[];
   prospectsSeries: ChartPoint[];
+  // Studio improvement — projectSeries() was already a generic projector
+  // over any ChartPoint[], applied only to revenue; prospects found is
+  // just as real a trend to project forward, and needed no new logic,
+  // just calling the same function on the other series.
+  prospectsForecast: ForecastPoint[];
 };
 
 // Below this many real points, a trend line is describing noise, not a
@@ -194,9 +199,11 @@ export async function getStudioAnalytics(supabase: SupabaseClient, orgId: string
   // fixed day count that would be 3 months on a 7-day chart. 7d itself is
   // excluded: a week is too short a real history to trust a trend line
   // drawn from it (see projectSeries()'s own MIN_POINTS_FOR_FORECAST).
-  const revenueForecast = projectSeries(revenueSeries, now, bucketDays, range === "7d" ? 0 : 3);
+  const forecastPeriods = range === "7d" ? 0 : 3;
+  const revenueForecast = projectSeries(revenueSeries, now, bucketDays, forecastPeriods);
+  const prospectsForecast = projectSeries(prospectsSeries, now, bucketDays, forecastPeriods);
 
-  return { range, periodStart, previousPeriodStart, kpis, revenueSeries, revenueForecast, prospectsSeries };
+  return { range, periodStart, previousPeriodStart, kpis, revenueSeries, revenueForecast, prospectsSeries, prospectsForecast };
 }
 
 export function percentChange(current: number, previous: number): { pct: number; direction: "up" | "down" | "flat" } | null {

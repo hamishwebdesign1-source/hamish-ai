@@ -19,6 +19,7 @@ function analytics(overrides: Partial<AnalyticsData> = {}): AnalyticsData {
     revenueSeries: [],
     revenueForecast: [],
     prospectsSeries: [],
+    prospectsForecast: [],
     ...overrides,
   };
 }

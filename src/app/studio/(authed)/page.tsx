@@ -448,7 +448,14 @@ export default async function StudioHomePage() {
       // fixed-30d analytics object.
       const rangeData = block.metric === "adoption" ? null : analyticsByRange[block.range];
       const series = block.metric === "revenue" ? rangeData!.revenueSeries : block.metric === "prospects" ? rangeData!.prospectsSeries : adoptionSeries;
-      const forecast = block.metric === "revenue" ? rangeData!.revenueForecast : undefined;
+      // Studio improvement — prospects gets the same real projectSeries()
+      // forecast revenue already had; AnalyticsChart itself already gates
+      // rendering it to kind==="area" (a dashed line reads naturally as a
+      // continuing trend; a projected bar doesn't), so passing it through
+      // for every metric/kind combo is exactly as safe as revenue's own
+      // wiring, not a new risk — a "New prospects" block an org configured
+      // as an area chart was silently missing this before.
+      const forecast = block.metric === "revenue" ? rangeData!.revenueForecast : block.metric === "prospects" ? rangeData!.prospectsForecast : undefined;
       const format = block.metric === "revenue" ? "money" : block.metric === "adoption" ? "percent" : "count";
       return (
         <div key={block.id} className={block.span === 2 ? "sm:col-span-2" : undefined}>
