@@ -32,8 +32,38 @@ const WIDGET_JS = `
     "background:#fff;border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,.25);display:none;" +
     "flex-direction:column;overflow:hidden;z-index:2147483000;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;";
 
+  // Studio improvement — the panel had no label at all, so a visitor
+  // dropped straight into a bare log with no context for what this is
+  // before typing anything. Same "AI Assistant" wording the marketing
+  // site's own chat-widget.tsx header already uses.
+  var header = document.createElement("div");
+  header.style.cssText =
+    "padding:10px 12px;border-bottom:1px solid #e5e5e5;font-size:13px;font-weight:600;color:#141413;";
+  header.textContent = "AI Assistant";
+
   var log = document.createElement("div");
   log.style.cssText = "flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:8px;";
+
+  // Same generic-across-every-vertical starter prompts as chat-widget.tsx's
+  // own SUGGESTED_PROMPTS, chosen to make sense for any business type
+  // this widget could be embedded on (restaurant, salon, trades,
+  // anything) rather than assuming one — this script is identical for
+  // every tenant's every client, with no per-business context baked in.
+  var STARTER_PROMPTS = ["What are your opening hours?", "What services do you offer?", "How do I get in touch?"];
+  var starters = document.createElement("div");
+  starters.style.cssText = "padding:0 12px 12px;display:flex;flex-direction:column;gap:6px;";
+  STARTER_PROMPTS.forEach(function (prompt) {
+    var btn = document.createElement("button");
+    btn.type = "button";
+    btn.textContent = prompt;
+    btn.style.cssText =
+      "text-align:left;padding:7px 10px;background:#f0f0f0;color:#141413;border:none;border-radius:8px;" +
+      "font-size:13px;cursor:pointer;";
+    btn.addEventListener("click", function () {
+      sendMessage(prompt);
+    });
+    starters.appendChild(btn);
+  });
 
   var form = document.createElement("form");
   form.style.cssText = "display:flex;gap:6px;padding:10px;border-top:1px solid #e5e5e5;";
@@ -50,7 +80,9 @@ const WIDGET_JS = `
 
   form.appendChild(input);
   form.appendChild(sendBtn);
+  panel.appendChild(header);
   panel.appendChild(log);
+  panel.appendChild(starters);
   panel.appendChild(form);
 
   function addBubbleMsg(role, text) {
@@ -73,11 +105,12 @@ const WIDGET_JS = `
     sendBtn.textContent = loading ? "…" : "Send";
   }
 
-  form.addEventListener("submit", function (e) {
-    e.preventDefault();
-    var text = input.value.trim();
+  // Extracted so both the real form submit and a starter-prompt click
+  // (which isn't a form submission at all) share one real send path,
+  // rather than the starter buttons duplicating this fetch logic.
+  function sendMessage(text) {
     if (!text) return;
-    input.value = "";
+    starters.style.display = "none";
     messages.push({ role: "user", content: text });
     addBubbleMsg("user", text);
     setLoading(true);
@@ -106,6 +139,14 @@ const WIDGET_JS = `
       .finally(function () {
         setLoading(false);
       });
+  }
+
+  form.addEventListener("submit", function (e) {
+    e.preventDefault();
+    var text = input.value.trim();
+    if (!text) return;
+    input.value = "";
+    sendMessage(text);
   });
 
   bubble.addEventListener("click", function () {
