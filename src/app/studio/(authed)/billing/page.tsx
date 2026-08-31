@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { Check, Clock, CreditCard, Rocket, Zap, Building2, Sparkles, Gauge } from "lucide-react";
+import { Check, Clock, CreditCard, Rocket, Zap, Building2, Sparkles, Gauge, CircleAlert } from "lucide-react";
 import { createServerSupabaseClient } from "@/lib/supabase-server-auth";
 import { getOrgMembership } from "@/lib/org-membership";
 import { platformPlans, formatMonthlyPrice, PROSPECT_CREDIT_PACK, type PlatformPlanSlug } from "@/lib/platform-plans";
@@ -27,6 +27,26 @@ function usageBarColor(status: { used: number; limit: number }): string {
   if (pct >= 1) return "bg-destructive";
   if (pct >= 0.8) return "bg-warning";
   return "bg-accent";
+}
+
+// Studio improvement — the bar above already escalates colour at these
+// exact thresholds, but that was passive: nothing on this page ever said
+// "approaching your limit" in words until the exact month you actually
+// hit it (found while grepping every existing usage-limit message — the
+// only text warning in the whole app lives one step later, inside
+// prospecting-panel.tsx's own DiscoveryResultMessage, which only ever
+// renders after a blocked action, not proactively here). Same threshold
+// as usageBarColor(), scoped to prospect_researched only — the one
+// marketed plan feature this page already treats as primary; the 9
+// secondary fair-use ceilings stay bars-only, same as before, since a
+// text warning on all 10 would be noise against limits nobody's expected
+// to actually approach.
+function usageWarningText(status: { used: number; limit: number }): string | null {
+  if (status.limit === 0) return null;
+  const pct = status.used / status.limit;
+  if (pct >= 1) return "Monthly limit reached — extra credits top up automatically below, or upgrade your plan.";
+  if (pct >= 0.8) return "Approaching your monthly limit.";
+  return null;
 }
 
 // Standalone helper, not inline in the component body — same pattern as
@@ -197,6 +217,11 @@ export default async function StudioBillingPage({
                     style={{ width: `${Math.min(100, (prospectUsage.used / Math.max(1, prospectUsage.limit)) * 100)}%` }}
                   />
                 </div>
+                {usageWarningText(prospectUsage) && (
+                  <p className={`mt-1.5 flex items-center gap-1 text-xs ${prospectUsage.used >= prospectUsage.limit ? "text-destructive" : "text-warning"}`}>
+                    <CircleAlert className="size-3 shrink-0" /> {usageWarningText(prospectUsage)}
+                  </p>
+                )}
               </div>
 
               <div className="mt-4 grid gap-x-6 gap-y-3 border-t border-border pt-4 sm:grid-cols-2">
