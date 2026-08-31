@@ -26,7 +26,7 @@ import { computeClientEngagementRisk } from "@/lib/studio-engagement";
 import { computeRecentClientActivity } from "@/lib/studio-client-activity";
 import { getModelPerformance } from "@/lib/studio-model-performance";
 import { computeClientAiAdoption } from "@/lib/studio-ai-adoption";
-import { getHealthTrend } from "@/lib/studio-health-history";
+import { getHealthTrend, getHealthSeries } from "@/lib/studio-health-history";
 import { getAdoptionSeries } from "@/lib/studio-adoption-history";
 import { resolveLayout, CHART_METRIC_LABELS, type Block } from "@/lib/command-centre-layout";
 import { computeActionQueue } from "@/lib/studio-action-queue";
@@ -271,11 +271,11 @@ export default async function StudioHomePage() {
   // 30-day view no matter what any chart block picked.
   const chartRanges = new Set<AnalyticsRange>(["30d"]);
   for (const block of blocks) {
-    if (block.type === "chart" && block.metric !== "adoption") chartRanges.add(block.range);
+    if (block.type === "chart" && block.metric !== "adoption" && block.metric !== "health") chartRanges.add(block.range);
   }
 
   const admin = getSupabaseAdmin();
-  const [modelPerformance, healthTrend, adoptionSeries, analyticsEntries] = await Promise.all([
+  const [modelPerformance, healthTrend, adoptionSeries, healthSeries, analyticsEntries] = await Promise.all([
     admin
       ? getModelPerformance(admin, membership.orgId)
       : Promise.resolve({
@@ -294,6 +294,11 @@ export default async function StudioHomePage() {
       ? getHealthTrend(admin, membership.orgId, agencyHealth.healthScore)
       : Promise.resolve(null),
     admin ? getAdoptionSeries(admin, membership.orgId) : Promise.resolve([]),
+    // Studio improvement — same real weekly-snapshot chart getAdoptionSeries()
+    // already provides for AI adoption, now available for Business Health
+    // too (studio_health_snapshots has always held this history; nothing
+    // before this turned it into a chart series).
+    admin ? getHealthSeries(admin, membership.orgId) : Promise.resolve([]),
     Promise.all(Array.from(chartRanges).map(async (range) => [range, await getStudioAnalytics(supabase, membership.orgId, range)] as const)),
   ]);
   const analyticsByRange = Object.fromEntries(analyticsEntries) as Record<AnalyticsRange, AnalyticsData>;
@@ -457,8 +462,18 @@ export default async function StudioHomePage() {
       // (real-improvement pass — see command-centre-layout.ts's own
       // comment on why), off analyticsByRange rather than a single
       // fixed-30d analytics object.
-      const rangeData = block.metric === "adoption" ? null : analyticsByRange[block.range];
-      const series = block.metric === "revenue" ? rangeData!.revenueSeries : block.metric === "prospects" ? rangeData!.prospectsSeries : adoptionSeries;
+      const rangeData = block.metric === "adoption" || block.metric === "health" ? null : analyticsByRange[block.range];
+      // Studio improvement — health reads healthSeries, the same real
+      // weekly-snapshotted shape adoption already reads from adoptionSeries
+      // (getHealthSeries(), studio-health-history.ts).
+      const series =
+        block.metric === "revenue"
+          ? rangeData!.revenueSeries
+          : block.metric === "prospects"
+            ? rangeData!.prospectsSeries
+            : block.metric === "health"
+              ? healthSeries
+              : adoptionSeries;
       // Studio improvement — prospects gets the same real projectSeries()
       // forecast revenue already had; AnalyticsChart itself already gates
       // rendering it to kind==="area" (a dashed line reads naturally as a
@@ -467,13 +482,14 @@ export default async function StudioHomePage() {
       // wiring, not a new risk — a "New prospects" block an org configured
       // as an area chart was silently missing this before.
       const forecast = block.metric === "revenue" ? rangeData!.revenueForecast : block.metric === "prospects" ? rangeData!.prospectsForecast : undefined;
-      const format = block.metric === "revenue" ? "money" : block.metric === "adoption" ? "percent" : "count";
+      const format = block.metric === "revenue" ? "money" : block.metric === "adoption" || block.metric === "health" ? "percent" : "count";
       return (
         <div key={block.id} className={block.span === 2 ? "sm:col-span-2" : undefined}>
           <Card className="h-full border-none bg-card text-card-foreground">
             <CardContent className="p-5">
               <p className="text-sm font-semibold">
-                {CHART_METRIC_LABELS[block.metric]} {block.metric === "adoption" ? "over time" : `— ${RANGE_LABELS[block.range]}`}
+                {CHART_METRIC_LABELS[block.metric]}{" "}
+                {block.metric === "adoption" || block.metric === "health" ? "over time" : `— ${RANGE_LABELS[block.range]}`}
               </p>
               <AnalyticsChart
                 series={series}
@@ -481,7 +497,11 @@ export default async function StudioHomePage() {
                 kind={block.kind}
                 format={format}
                 height={180}
-                emptyMessage={block.metric === "adoption" ? "No weekly snapshot yet — check back after Monday's cron run." : "No data in this period yet."}
+                emptyMessage={
+                  block.metric === "adoption" || block.metric === "health"
+                    ? "No weekly snapshot yet — check back after Monday's cron run."
+                    : "No data in this period yet."
+                }
               />
             </CardContent>
           </Card>

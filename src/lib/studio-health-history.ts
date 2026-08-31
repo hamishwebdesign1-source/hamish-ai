@@ -113,3 +113,31 @@ export async function getHealthTrend(admin: SupabaseClient, orgId: string, curre
   const daysAgo = Math.round((Date.now() - new Date(data.created_at).getTime()) / MS_PER_DAY);
   return { deltaValue: currentScore - data.health_score, daysAgo };
 }
+
+export type HealthSeriesPoint = { label: string; value: number };
+
+// Studio improvement — studio_health_snapshots has always held real weekly
+// history (getHealthTrend() above already reads one snapshot from it), but
+// nothing turned the whole series into a chart the way
+// studio-adoption-history.ts's own getAdoptionSeries() does for the
+// identical shape of data. Same limit, same real-snapshots-only, no
+// bucketing/interpolation reasoning — one snapshot a week already is a
+// real weekly point.
+const HEALTH_SERIES_LIMIT = 12; // ~3 months of weekly snapshots — a chart, not an unbounded log
+
+export async function getHealthSeries(admin: SupabaseClient, orgId: string): Promise<HealthSeriesPoint[]> {
+  const { data } = await admin
+    .from("studio_health_snapshots")
+    .select("health_score, created_at")
+    .eq("org_id", orgId)
+    .order("created_at", { ascending: false })
+    .limit(HEALTH_SERIES_LIMIT);
+
+  return (data ?? [])
+    .slice()
+    .reverse()
+    .map((row) => ({
+      label: new Date(row.created_at).toLocaleDateString("en-GB", { day: "numeric", month: "short" }),
+      value: row.health_score,
+    }));
+}

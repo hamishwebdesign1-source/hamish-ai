@@ -410,8 +410,11 @@ export function CommandCentreLayoutPanel({
                         Analytics page already lets them pick between
                         four. adoption has no other real window to pick
                         from (studio-adoption-history.ts's own comment on
-                        why), so this only shows for revenue/prospects. */}
-                    {block.metric !== "adoption" && (
+                        why), so this only shows for revenue/prospects.
+                        health (Studio improvement) is the same real
+                        weekly-snapshot shape as adoption — same reasoning,
+                        excluded here too. */}
+                    {block.metric !== "adoption" && block.metric !== "health" && (
                       <select
                         value={block.range}
                         onChange={(e) => updateBlock(id, { range: e.target.value as AnalyticsRange })}

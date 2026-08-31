@@ -24,7 +24,7 @@ export type SectionType =
   | "top_prospects"
   | "recent_activity"
   | "health_breakdown";
-export type ChartMetric = "revenue" | "prospects" | "adoption";
+export type ChartMetric = "revenue" | "prospects" | "adoption" | "health";
 export type ChartKind = "area" | "bar";
 // Real-improvement pass — chart blocks were hardcoded to the same 30-day
 // window every time, even though AnalyticsRange (imported below, the
@@ -87,7 +87,12 @@ export const SECTION_LABELS: Record<SectionType, string> = {
   recent_activity: "Recent activity",
   health_breakdown: "Business Health breakdown",
 };
-export const CHART_METRIC_LABELS: Record<ChartMetric, string> = { revenue: "Revenue", prospects: "New prospects", adoption: "AI adoption" };
+export const CHART_METRIC_LABELS: Record<ChartMetric, string> = {
+  revenue: "Revenue",
+  prospects: "New prospects",
+  adoption: "AI adoption",
+  health: "Business Health",
+};
 export const CHART_KIND_LABELS: Record<ChartKind, string> = { area: "Area", bar: "Bar" };
 
 // The default layout every org sees until it customises anything — the 5
@@ -129,7 +134,7 @@ function isSectionType(value: unknown): value is SectionType {
   return typeof value === "string" && (SECTION_TYPES as string[]).includes(value);
 }
 function isChartMetric(value: unknown): value is ChartMetric {
-  return value === "revenue" || value === "prospects" || value === "adoption";
+  return value === "revenue" || value === "prospects" || value === "adoption" || value === "health";
 }
 function isChartKind(value: unknown): value is ChartKind {
   return value === "area" || value === "bar";
