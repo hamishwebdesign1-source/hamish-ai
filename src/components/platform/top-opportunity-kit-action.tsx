@@ -18,7 +18,23 @@ import { generateSalesKit } from "@/app/studio/(authed)/prospects/actions";
 // hasKitInitially seeds local state so an already-generated kit and a
 // just-generated one render identically — the button never reappears for
 // something that already exists.
-export function TopOpportunityKitAction({ prospectId, hasKitInitially }: { prospectId: string; hasKitInitially: boolean }) {
+//
+// `compact` (backlog: "Wire the same outreach-kit action to Command
+// Centre's Top Prospects list") — the single-callout treatment above
+// stacked 5x reads as visually heavy in a list of 5 rows in one card, so
+// the top_prospects card passes compact=true for a tighter footprint
+// (xs button, tighter top margin) with every state/wording/aria-live
+// behaviour otherwise identical. Left flagged for UX/UI Director in the
+// handoff rather than treated as a settled call.
+export function TopOpportunityKitAction({
+  prospectId,
+  hasKitInitially,
+  compact = false,
+}: {
+  prospectId: string;
+  hasKitInitially: boolean;
+  compact?: boolean;
+}) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [done, setDone] = useState(hasKitInitially);
@@ -48,13 +64,13 @@ export function TopOpportunityKitAction({ prospectId, hasKitInitially }: { prosp
     // moving focus — signup-form.tsx precedent. SalesKitSection/
     // ResearchTrigger don't have this yet; a real follow-up to backport
     // there, not blocking this item.
-    <div className="mt-2" aria-live="polite">
+    <div className={compact ? "mt-1.5" : "mt-2"} aria-live="polite">
       {done ? (
         <Link href="/studio/prospects" className="inline-flex items-center gap-1.5 text-xs text-accent underline underline-offset-2">
           <CheckCircle2 className="size-3.5 text-accent" /> Outreach kit ready — Open in Prospects
         </Link>
       ) : (
-        <Button size="sm" variant="outline" disabled={pending} onClick={onGenerate}>
+        <Button size={compact ? "xs" : "sm"} variant="outline" disabled={pending} onClick={onGenerate}>
           {pending ? (
             <>
               <LoaderCircle className="size-3.5 animate-spin" /> Writing…

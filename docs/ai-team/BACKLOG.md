@@ -36,51 +36,6 @@ _(none yet)_
 
 ## Not started
 
-### Wire the same outreach-kit action to Command Centre's Top Prospects list (fast-follow to the shipped topOpportunity action)
-
-- **Problem**: the single `topOpportunity` callout in the "Your briefing"
-  card already lets an owner one-click-generate a sales kit without leaving
-  Command Centre (`src/components/platform/top-opportunity-kit-action.tsx`,
-  shipped 2026-08-31). The `top_prospects` section card renders the
-  identical data shape — `briefing.topOpportunities`, a `TopOpportunity[]`
-  with the same real `id`/`hasSalesKit` fields (`src/lib/studio-briefing.ts`)
-  — for all 5 top-ranked prospects, but only the first one (folded into
-  "Your briefing") has the action wired; the other 4 rows (and the whole
-  card, for an org that's configured `top_prospects` as its own block) still
-  only link out to `/studio/prospects`. This is exactly the "read a report
-  vs. clear a queue" gap the wider request is about, and the shipped
-  entry's own scope note names it directly as "an identical fast-follow
-  once this is observed live" — not a new idea invented here.
-- **Objective**: every row in the `top_prospects` section card gets the same
-  one-click "Generate outreach kit" / "Outreach kit ready" control the
-  `topOpportunity` callout already has, not just the card's single featured
-  row.
-- **User**: an agency owner scanning Command Centre who wants to act on any
-  of their top 5 real prospects without navigating to `/studio/prospects`
-  first.
-- **Priority**: P1 (next) — smallest possible increment on a pattern
-  already built, tested, and live; zero new pipeline, zero new usage type.
-- **Expected outcome**: an owner can generate (or see already-generated)
-  outreach kits for all 5 top prospects directly from Command Centre; they
-  only navigate to `/studio/prospects` to actually review/copy/send the
-  generated content, not to trigger generation itself.
-- **Acceptance criteria**: `TopOpportunityKitAction` (or an equivalent
-  thin wrapper) renders under each of the 5 `top_prospects` rows in
-  `command-centre-section-cards.tsx`, keyed off each row's own `id`/
-  `hasSalesKit`; `generateSalesKit()` called verbatim — no new pipeline, no
-  new usage-event type; resting/pending/success/error/usage-limit states
-  and `aria-live` region match the shipped precedent exactly; tests confirm
-  each row's pending/success/error state is independent (one row's click
-  doesn't affect its siblings); `npx tsc --noEmit`, `npx eslint`, full
-  `vitest` suite green.
-- **Relevant agent**: Lead Engineer (build); UX/UI Director should confirm
-  5 independent action controls in one card doesn't read as visually noisy
-  before this ships (a real, if minor, design question the single-row
-  precedent never had to answer).
-- **Dependencies**: none — reuses `TopOpportunityKitAction`,
-  `generateSalesKit()`, and `briefing.topOpportunities` as-is.
-- **Status**: Not started
-
 ### One-click "Send payment reminder" on Command Centre's Engagement Risk card, for rows with a real overdue invoice
 
 - **Problem**: `engagement_risk` rows (`studio-engagement.ts`) already
@@ -145,7 +100,69 @@ _(none yet)_
 
 ## Needs review
 
-_(none yet)_
+### Wire the same outreach-kit action to Command Centre's Top Prospects list (fast-follow to the shipped topOpportunity action)
+
+- **Problem**: the single `topOpportunity` callout in the "Your briefing"
+  card already lets an owner one-click-generate a sales kit without leaving
+  Command Centre (`src/components/platform/top-opportunity-kit-action.tsx`,
+  shipped 2026-08-31). The `top_prospects` section card renders the
+  identical data shape — `briefing.topOpportunities`, a `TopOpportunity[]`
+  with the same real `id`/`hasSalesKit` fields (`src/lib/studio-briefing.ts`)
+  — for all 5 top-ranked prospects, but only the first one (folded into
+  "Your briefing") had the action wired; the other 4 rows (and the whole
+  card, for an org that's configured `top_prospects` as its own block) still
+  only linked out to `/studio/prospects`.
+- **Objective**: every row in the `top_prospects` section card gets the same
+  one-click "Generate outreach kit" / "Outreach kit ready" control the
+  `topOpportunity` callout already has, not just the card's single featured
+  row.
+- **User**: an agency owner scanning Command Centre who wants to act on any
+  of their top 5 real prospects without navigating to `/studio/prospects`
+  first.
+- **Priority**: P1 (next) — smallest possible increment on a pattern
+  already built, tested, and live; zero new pipeline, zero new usage type.
+- **Expected outcome**: an owner can generate (or see already-generated)
+  outreach kits for all 5 top prospects directly from Command Centre; they
+  only navigate to `/studio/prospects` to actually review/copy/send the
+  generated content, not to trigger generation itself.
+- **Acceptance criteria**: `TopOpportunityKitAction` (or an equivalent
+  thin wrapper) renders under each of the 5 `top_prospects` rows in
+  `command-centre-section-cards.tsx`, keyed off each row's own `id`/
+  `hasSalesKit`; `generateSalesKit()` called verbatim — no new pipeline, no
+  new usage-event type; resting/pending/success/error/usage-limit states
+  and `aria-live` region match the shipped precedent exactly; tests confirm
+  each row's pending/success/error state is independent (one row's click
+  doesn't affect its siblings); `npx tsc --noEmit`, `npx eslint`, full
+  `vitest` suite green.
+- **Relevant agent**: Lead Engineer (build, done); UX/UI Director should
+  confirm 5 independent action controls in one card doesn't read as
+  visually noisy before this ships more broadly.
+- **Dependencies**: none — reuses `TopOpportunityKitAction`,
+  `generateSalesKit()`, and `briefing.topOpportunities` as-is.
+- **Closure note (Lead Engineer, 2026-08-31)**: built as scoped.
+  `TopOpportunityKitAction` gained an opt-in `compact` prop (tighter
+  `xs`-size button, `mt-1.5` instead of `mt-2`) and every `top_prospects`
+  row now mounts its own instance keyed off `opp.id`/`opp.hasSalesKit`,
+  passing `compact`. `generateSalesKit()` is called verbatim, same
+  resting/pending/success/error/usage-limit states and `aria-live="polite"`
+  region as the shipped `topOpportunity` precedent — no new pipeline, no
+  new usage-event type. Row independence (one row's pending/error state
+  never affecting a sibling) is covered in both
+  `top-opportunity-kit-action.test.tsx` (2 sibling instances) and
+  `command-centre-section-cards.test.tsx` (all 5 real rows, keyed by id,
+  through `buildSectionContent`'s actual `top_prospects` output). Full
+  suite green: `npx tsc --noEmit -p .`, `npx eslint`, `npm run test`
+  (250/250). **Left open**: the backlog's own visual-density question.
+  I made the conservative call the backlog invited ("implement the most
+  conservative/compact reasonable option... flag it for UX/UI Director's
+  visual judgment") rather than guess confidently — `compact` shrinks the
+  button and margin but doesn't otherwise redesign the row (no accordion,
+  no icon-only collapse, no hover-reveal). Whether 4 real xs-buttons plus
+  1 "ready" link, stacked in one already-dense card, reads as noisy on a
+  live authenticated screen is a real call only UX/UI Director's visual
+  judgment can close — moving to Needs review rather than Complete for
+  that reason, not because any acceptance criterion is unmet.
+- **Status**: Needs review
 
 ## Complete
 

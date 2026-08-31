@@ -124,4 +124,82 @@ describe("TopOpportunityKitAction", () => {
     expect(screen.queryByText(/outreach kit ready/i)).not.toBeInTheDocument();
     expect(refresh).not.toHaveBeenCalled();
   });
+
+  // Command Centre Top Prospects fast-follow — compact=true is what the
+  // top_prospects card passes for all 5 rows in one card; same states,
+  // just a smaller footprint (xs button, tighter top margin).
+  it("renders the tighter xs button and reduced top margin when compact", () => {
+    const { container } = render(<TopOpportunityKitAction prospectId="p1" hasKitInitially={false} compact />);
+    const button = screen.getByRole("button", { name: /generate outreach kit/i });
+    expect(button.className).toContain("h-6");
+    expect(container.firstElementChild).toHaveClass("mt-1.5");
+  });
+
+  it("defaults to the non-compact sm button and mt-2 margin when compact is omitted", () => {
+    const { container } = render(<TopOpportunityKitAction prospectId="p1" hasKitInitially={false} />);
+    const button = screen.getByRole("button", { name: /generate outreach kit/i });
+    expect(button.className).toContain("h-7");
+    expect(container.firstElementChild).toHaveClass("mt-2");
+  });
+});
+
+// Command Centre Top Prospects fast-follow (backlog: "Wire the same
+// outreach-kit action to Command Centre's Top Prospects list") — the
+// acceptance criteria explicitly calls for test coverage that one row's
+// pending/success/error state can't leak into a sibling row. Each
+// instance below is a separate component instance with its own local
+// state (exactly how command-centre-section-cards.tsx mounts one per
+// prospect id), so this exercises real row independence, not just the
+// single-instance behaviour already covered above.
+describe("TopOpportunityKitAction — row independence (Top Prospects list)", () => {
+  it("one row entering the pending state does not affect a sibling row still at rest", async () => {
+    const { promise } = deferred<{ kit: Record<string, unknown> }>();
+    vi.mocked(generateSalesKit).mockImplementation((prospectId: string) => (prospectId === "p1" ? promise : Promise.resolve({ kit: {} })) as ReturnType<
+      typeof generateSalesKit
+    >);
+
+    render(
+      <>
+        <TopOpportunityKitAction prospectId="p1" hasKitInitially={false} compact />
+        <TopOpportunityKitAction prospectId="p2" hasKitInitially={false} compact />
+      </>
+    );
+
+    const buttons = screen.getAllByRole("button", { name: /generate outreach kit/i });
+    expect(buttons).toHaveLength(2);
+    fireEvent.click(buttons[0]);
+
+    await waitFor(() => expect(screen.getByRole("button", { name: /writing…/i })).toBeInTheDocument());
+    // The p1 row is pending/disabled; the p2 row must still be an
+    // untouched, enabled, resting "Generate outreach kit" button.
+    const remaining = screen.getByRole("button", { name: /generate outreach kit/i });
+    expect(remaining).toBeEnabled();
+  });
+
+  it("one row's error does not appear on, or disable, a sibling row that succeeds", async () => {
+    vi.mocked(generateSalesKit).mockImplementation((prospectId: string) =>
+      Promise.resolve(
+        prospectId === "p1" ? { error: "AI generation failed.", reason: undefined } : { kit: {} }
+      ) as ReturnType<typeof generateSalesKit>
+    );
+
+    render(
+      <>
+        <TopOpportunityKitAction prospectId="p1" hasKitInitially={false} compact />
+        <TopOpportunityKitAction prospectId="p2" hasKitInitially={false} compact />
+      </>
+    );
+
+    const [button1, button2] = screen.getAllByRole("button", { name: /generate outreach kit/i });
+    fireEvent.click(button1);
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("AI generation failed."));
+    // p1's error rendered, but p2 is still an untouched resting button —
+    // no shared "error" state leaked across instances.
+    expect(screen.getByRole("button", { name: /generate outreach kit/i })).toBeEnabled();
+
+    fireEvent.click(button2);
+    await waitFor(() => expect(screen.getByText(/outreach kit ready — open in prospects/i)).toBeInTheDocument());
+    // p2 succeeding doesn't clear p1's still-visible error.
+    expect(screen.getByRole("alert")).toHaveTextContent("AI generation failed.");
+  });
 });

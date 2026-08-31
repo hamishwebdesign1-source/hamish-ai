@@ -396,12 +396,23 @@ export function buildSectionContent(params: {
                   <span className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-accent/15 font-mono text-[11px] font-semibold text-accent">
                     {i + 1}
                   </span>
-                  <div className="min-w-0">
+                  <div className="min-w-0 flex-1">
                     <p className="text-sm font-medium">
                       {opp.businessName}{" "}
                       <span className="font-mono text-xs font-normal text-muted-foreground">({opp.overallScore}/5)</span>
                     </p>
                     <p className="mt-0.5 text-xs text-muted-foreground">{opp.pursueBecause}</p>
+                    {/* Fast-follow to the shipped topOpportunity callout action
+                        (backlog: "Wire the same outreach-kit action to Command
+                        Centre's Top Prospects list") — same generateSalesKit()
+                        Server Action, same component, one independent instance
+                        per row keyed off that row's own real id/hasSalesKit so
+                        one row's pending/success/error state can't leak into
+                        its siblings. compact=true here: 5 of the single-callout
+                        treatment stacked in one card read as visually heavy,
+                        so this uses the tighter xs-button rendering instead —
+                        flagged for UX/UI Director rather than a settled call. */}
+                    <TopOpportunityKitAction prospectId={opp.id} hasKitInitially={opp.hasSalesKit} compact />
                   </div>
                 </li>
               ))}

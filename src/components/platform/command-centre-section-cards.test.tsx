@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
-import { describe, it, expect } from "vitest";
-import { render } from "@testing-library/react";
+import { describe, it, expect, vi } from "vitest";
+import { render, within, fireEvent, waitFor } from "@testing-library/react";
+import "@testing-library/jest-dom/vitest";
 import { AlertTriangle } from "lucide-react";
 import { buildSectionContent, type ActionRequiredItem } from "./command-centre-section-cards";
 import type { Insight } from "@/lib/studio-insights";
@@ -9,6 +10,24 @@ import type { ClientEngagementRisk } from "@/lib/studio-engagement";
 import type { ModelPerformanceWithCost } from "@/lib/studio-model-performance";
 import type { AiAdoption } from "@/lib/studio-ai-adoption";
 import type { ClientActivityItem } from "@/lib/studio-client-activity";
+import { generateSalesKit } from "@/app/studio/(authed)/prospects/actions";
+
+// TopOpportunityKitAction (mounted by both the briefing and top_prospects
+// cards below) calls useRouter() unconditionally on render, same
+// next/navigation mock top-opportunity-kit-action.test.tsx already uses
+// for this component — not exercised (no click) in most of this file's
+// tests, just needed so the app-router-less jsdom render doesn't throw.
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ refresh: vi.fn() }),
+}));
+
+// Row-independence coverage below (backlog: "Wire the same outreach-kit
+// action to Command Centre's Top Prospects list") drives real clicks, so
+// this mocks generateSalesKit itself rather than letting the real Server
+// Action run in a test environment with no real session/org.
+vi.mock("@/app/studio/(authed)/prospects/actions", () => ({
+  generateSalesKit: vi.fn(),
+}));
 
 // Same regression this class of test guards against as
 // command-centre-stat-cards.test.tsx - the 2026-08 UX/UI Director audit
@@ -177,5 +196,60 @@ describe("buildSectionContent — real content spot checks", () => {
     expect(container.textContent).toContain("88%");
     expect(container.textContent).toContain("Requests moving");
     expect(container.textContent).toContain("100%");
+  });
+});
+
+// Fast-follow to the shipped topOpportunity callout action (backlog:
+// "Wire the same outreach-kit action to Command Centre's Top Prospects
+// list") — every row in the top_prospects card gets its own
+// TopOpportunityKitAction instance, keyed off that row's own real
+// id/hasSalesKit, with independent pending/success/error state.
+describe("buildSectionContent — top_prospects outreach-kit action wiring", () => {
+  function fiveOpportunities(): StudioBriefing["topOpportunities"] {
+    return Array.from({ length: 5 }, (_, i) => ({
+      id: `p${i + 1}`,
+      businessName: `Prospect ${i + 1}`,
+      pursueBecause: "No website found",
+      overallScore: 5 - i,
+      hasSalesKit: i === 4, // last row already has a kit
+    }));
+  }
+
+  it("renders one Generate outreach kit control per row without an existing kit, and a ready link for the row that has one", () => {
+    const content = buildSectionContent(baseParams({ briefing: { ...emptyBriefing(), topOpportunities: fiveOpportunities() } }));
+    const { container } = render(content.top_prospects as React.ReactElement);
+    const scope = within(container);
+
+    expect(scope.getAllByRole("button", { name: /generate outreach kit/i })).toHaveLength(4);
+    expect(scope.getByText(/outreach kit ready — open in prospects/i)).toBeInTheDocument();
+  });
+
+  it("one row entering pending/error does not affect a sibling row's independent state", async () => {
+    vi.mocked(generateSalesKit).mockImplementation(
+      (prospectId: string) =>
+        Promise.resolve(prospectId === "p1" ? { error: "AI generation failed." } : { kit: {} }) as ReturnType<typeof generateSalesKit>
+    );
+
+    const content = buildSectionContent(baseParams({ briefing: { ...emptyBriefing(), topOpportunities: fiveOpportunities() } }));
+    const { container } = render(content.top_prospects as React.ReactElement);
+    const scope = within(container);
+
+    const buttons = scope.getAllByRole("button", { name: /generate outreach kit/i });
+    expect(buttons).toHaveLength(4); // rows 1-4; row 5 already has a kit
+
+    fireEvent.click(buttons[0]); // row 1 (p1) -> errors
+    await waitFor(() => expect(scope.getByRole("alert")).toHaveTextContent("AI generation failed."));
+
+    // Exactly one alert exists (row 1's), and the other 3 resting buttons
+    // (rows 2-4) are untouched and still enabled.
+    expect(scope.getAllByRole("alert")).toHaveLength(1);
+    expect(scope.getAllByRole("button", { name: /generate outreach kit/i })).toHaveLength(3);
+    expect(scope.getAllByRole("button", { name: /generate outreach kit/i })[0]).toBeEnabled();
+
+    fireEvent.click(scope.getAllByRole("button", { name: /generate outreach kit/i })[0]); // row 2 (p2) -> succeeds
+    await waitFor(() => expect(scope.getAllByText(/outreach kit ready — open in prospects/i)).toHaveLength(2));
+
+    // Row 1's error is still visible even after row 2 succeeded.
+    expect(scope.getByRole("alert")).toHaveTextContent("AI generation failed.");
   });
 });
