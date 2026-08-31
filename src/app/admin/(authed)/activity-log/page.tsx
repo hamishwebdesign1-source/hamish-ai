@@ -1,9 +1,11 @@
 import Link from "next/link";
-import { History, User, Server } from "lucide-react";
+import { History, User, Server, Search, X } from "lucide-react";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { timeAgo } from "@/lib/time-ago";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 
 const ACTION_LABEL: Record<string, string> = {
   "client.status_changed": "Client status changed",
@@ -39,8 +41,8 @@ function describeEntry(entry: { action: string; metadata: Record<string, unknown
   }
 }
 
-export default async function ActivityLogPage({ searchParams }: { searchParams: Promise<{ client?: string }> }) {
-  const { client: clientFilter } = await searchParams;
+export default async function ActivityLogPage({ searchParams }: { searchParams: Promise<{ client?: string; q?: string }> }) {
+  const { client: clientFilter, q: searchQuery } = await searchParams;
   const supabase = getSupabaseAdmin();
 
   let query = supabase
@@ -51,7 +53,34 @@ export default async function ActivityLogPage({ searchParams }: { searchParams: 
 
   if (clientFilter) query = query?.eq("client_id", clientFilter);
 
-  const { data: entries } = query ? await query : { data: null };
+  const { data: allEntries } = query ? await query : { data: null };
+
+  // Studio improvement — same client-side-over-already-fetched-rows
+  // search pattern as every other list page in the app. Searches the
+  // action label, actor, describeEntry()'s own detail text, and the
+  // linked client's name.
+  const trimmedQuery = searchQuery?.trim().toLowerCase();
+  const entries = trimmedQuery
+    ? (allEntries ?? []).filter((entry) => {
+        const client = entry.clients as unknown as { business_name: string } | null;
+        const fields = [
+          ACTION_LABEL[entry.action] ?? entry.action,
+          entry.actor,
+          describeEntry(entry as { action: string; metadata: Record<string, unknown> | null }),
+          client?.business_name,
+        ];
+        return fields.some((field) => field && String(field).toLowerCase().includes(trimmedQuery));
+      })
+    : allEntries;
+
+  function filterHref(overrides: { client?: string; q?: string }) {
+    const next = { client: clientFilter, q: searchQuery, ...overrides };
+    const params = new URLSearchParams();
+    if (next.client) params.set("client", next.client);
+    if (next.q) params.set("q", next.q);
+    const qs = params.toString();
+    return qs ? `/admin/activity-log?${qs}` : "/admin/activity-log";
+  }
 
   return (
     <div>
@@ -61,18 +90,38 @@ export default async function ActivityLogPage({ searchParams }: { searchParams: 
         {clientFilter && (
           <>
             {" "}
-            <Link href="/admin/activity-log" className="text-accent hover:underline">
+            <Link href={filterHref({ client: undefined })} className="text-accent hover:underline">
               Clear filter
             </Link>
           </>
         )}
       </p>
 
+      {/* GET form, not a client component — same admin/leads.tsx own
+          search precedent. */}
+      <form action="/admin/activity-log" className="mt-4 flex items-center gap-2">
+        {clientFilter && <input type="hidden" name="client" value={clientFilter} />}
+        <div className="relative flex-1">
+          <Search className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
+          <Input name="q" defaultValue={searchQuery ?? ""} placeholder="Search by action, actor, or client…" className="h-9 pl-8" />
+        </div>
+        <Button type="submit" variant="outline" size="sm">
+          Search
+        </Button>
+        {trimmedQuery && (
+          <Link href={filterHref({ q: undefined })}>
+            <Button type="button" variant="ghost" size="icon-sm" className="text-muted-foreground">
+              <X className="size-4" />
+            </Button>
+          </Link>
+        )}
+      </form>
+
       {!entries?.length && (
         <Card className="mt-6">
           <CardContent className="flex flex-col items-center gap-2 py-10 text-center text-sm text-muted-foreground">
             <History className="size-6 text-muted-foreground/60" />
-            Nothing logged yet.
+            {trimmedQuery ? "No entries match that search." : "Nothing logged yet."}
           </CardContent>
         </Card>
       )}
