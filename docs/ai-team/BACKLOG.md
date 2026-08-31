@@ -58,18 +58,6 @@ _(none yet)_
 - **Dependencies**: **Flag for Hamish** before build — even though this reuses existing metered actions rather than adding a new billable action type, it changes how easily a user can trigger metered AI usage (one click from the dashboard vs. a deliberate navigation), which is worth a conscious yes/no rather than assuming it's fine. Opportunities #2 (one-click AI-drafted check-in message off `engagement_risk`) and #3 (extending autonomous triage to tenant orgs) were also raised by AI/Agent Architect but are deliberately *not* backlogged as buildable items here — #2 is speculative until this first one proves the pattern works, and #3 is blocked on a real infra prerequisite (tenant-scoped outbound email) and is a bigger, cross-cutting call for a future mission, not a scoped task today.
 - **Status**: Not started
 
-### Route-specific loading skeletons instead of one Command-Centre-shaped skeleton for all 13 routes
-
-- **Problem**: `src/app/studio/(authed)/loading.tsx` is a single shared skeleton (verified: one file for the whole `(authed)` route group) shaped like the Command Centre's layout, shown while *any* of the 13 routes streams in — so navigating to, say, Settings or Feedback briefly shows a skeleton that looks nothing like the page that's about to render. This directly undercuts the "consistency of interaction patterns across all 13 routes" falsifiable check from the mission's original framing: it's not that the pattern is inconsistent, it's that the one pattern that exists is actively wrong for 12 of the 13 destinations.
-- **Objective**: each route (or each meaningfully-different route shape — e.g. one skeleton for list-panel pages, one for form-heavy Settings, one for the Command Centre) shows a loading state that resembles what's about to render.
-- **User**: any Studio user navigating between routes, most noticeable on a slower connection or a large org's dataset.
-- **Priority**: P2 — real, verified, and moderate effort (per UX/UI Director's audit); not urgent since a wrong-shaped skeleton is a flash, not a broken experience, but it's a genuine visible-polish gap most reviewers would notice.
-- **Expected outcome**: no route shows a loading skeleton shaped like a different page's layout.
-- **Acceptance criteria**: each route folder (or each distinct page-shape group) has its own `loading.tsx` matching its real layout; Command Centre's existing skeleton stays as-is for that route.
-- **Relevant agent**: UX/UI Director (define the groupings), Lead Engineer (implement).
-- **Dependencies**: none.
-- **Status**: Not started
-
 ### PostHog production key not set — real event taxonomy shipped but very likely capturing nothing live
 
 - **Problem**: Growth & Analytics found (evidence-backed, commit `44732b6` confirmed to have shipped the full PostHog event taxonomy and identity-merge code correctly) that `NEXT_PUBLIC_POSTHOG_KEY` is very likely not set in the production Vercel environment — verified in code that `analytics.ts`/`analytics-provider.tsx`/`identify-org.tsx` all correctly no-op when this env var is absent (by design, per this codebase's "degrade gracefully without env vars" pattern), which means the feature is silently inert rather than broken, but also means no real usage events have very likely been captured since it shipped.
@@ -95,6 +83,29 @@ _(none yet)_
 - **Status**: Blocked (on the PostHog key item above)
 
 ## Complete
+
+### Route-specific loading skeletons instead of one Command-Centre-shaped skeleton for all 13 routes
+
+Closed 2026-08-31 — read `src/app/studio/(authed)/loading.tsx` (the one
+shared skeleton, confirmed a single file for the whole route group) and
+the real page shapes of the four routes whose layout diverges most from
+Command Centre's stat-card-row-plus-chart shape: Settings (form-heavy —
+`settings/page.tsx`'s section-labelled cards), Billing (usage cards —
+plan summary, usage bars, 3-column plan grid), Prospects (filter bar +
+list — `prospecting-panel.tsx`'s usage card, niche config card, then a
+search/filter bar above a list of prospect rows), and Feedback (a single
+textarea + submit button). Added `loading.tsx` to each of those four
+route folders, matching that page's real layout, using the same plain
+pulsing `bg-secondary` block technique as the existing shared skeleton
+and `portal/(authed)/insights/loading.tsx` (no new loading-state pattern
+invented). The shared `(authed)/loading.tsx` stays as-is and remains the
+fallback for the other 9 routes (Command Centre itself, Clients,
+Requests, Projects, Campaigns, Website Builder, Knowledge, Help) — its
+own comment now explains which routes it still covers and why the
+remaining ones are close enough in shape (header + card/list content)
+not to need a bespoke skeleton of their own.
+
+tsc/eslint/vitest (229 tests) all green.
 
 ### Decide and apply a real rule for Reveal/CountUp motion beyond Command Centre
 
