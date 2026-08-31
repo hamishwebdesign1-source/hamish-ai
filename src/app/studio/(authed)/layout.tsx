@@ -57,6 +57,18 @@ export default async function StudioAuthedLayout({ children }: { children: React
   const trialDaysLeft = org?.trial_ends_at ? daysUntilTrialEnds(org.trial_ends_at) : null;
   const showTrialBanner = !org?.is_internal && org?.subscription_status === "trialing" && trialDaysLeft !== null && trialDaysLeft <= 3;
 
+  // Studio improvement — the Requests nav badge. Same embedded-resource
+  // filter (clients!inner(org_id)) requestBelongsToOrg() (requests/actions.ts)
+  // already uses to scope a requests query by org without a separate
+  // client-id-list round trip first — one query, on every Studio page
+  // load via this layout, so it stays this cheap on purpose (count-only,
+  // head: true, no rows returned).
+  const { count: requestsBadgeCount } = await supabase
+    .from("requests")
+    .select("id, clients!inner(org_id)", { count: "exact", head: true })
+    .eq("clients.org_id", membership.orgId)
+    .is("responded_at", null);
+
   return (
     <HelpModeProvider>
       <IdentifyOrg orgId={membership.orgId} />
@@ -110,7 +122,7 @@ export default async function StudioAuthedLayout({ children }: { children: React
                   Sign out
                 </Button>
               </form>
-              <StudioMobileNav />
+              <StudioMobileNav requestsBadgeCount={requestsBadgeCount ?? undefined} />
             </div>
           </div>
         </header>
@@ -125,7 +137,7 @@ export default async function StudioAuthedLayout({ children }: { children: React
           </div>
         )}
         <div className="mx-auto flex max-w-6xl gap-8 px-6">
-          <StudioSidebar />
+          <StudioSidebar requestsBadgeCount={requestsBadgeCount ?? undefined} />
           <main className="min-w-0 flex-1 py-10">{children}</main>
         </div>
       </div>

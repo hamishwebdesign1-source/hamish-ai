@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 // sections the desktop sidebar renders, one definition of the grouping,
 // not two. Below md the sidebar is hidden entirely (studio-nav.tsx), so
 // this is the only way to navigate Studio on a small screen.
-export function StudioMobileNav() {
+export function StudioMobileNav({ requestsBadgeCount }: { requestsBadgeCount?: number }) {
   const [open, setOpen] = useState(false);
   const navSections = getNavSections();
 
@@ -38,6 +38,11 @@ export function StudioMobileNav() {
                   <StudioNavLink key={item.href} href={item.href} onClick={() => setOpen(false)} className="w-full">
                     <item.icon className="size-4" />
                     {item.label}
+                    {item.href === "/studio/requests" && requestsBadgeCount !== undefined && requestsBadgeCount > 0 && (
+                      <span className="ml-auto flex size-4.5 shrink-0 items-center justify-center rounded-full bg-destructive/15 font-mono text-[10px] font-semibold text-destructive">
+                        {requestsBadgeCount > 99 ? "99+" : requestsBadgeCount}
+                      </span>
+                    )}
                   </StudioNavLink>
                 ))}
               </div>

@@ -46,7 +46,25 @@ export function getNavSections(): { label: string | null; items: { href: string;
   ];
 }
 
-export function StudioSidebar() {
+// Studio improvement — the nav had no way to see "something's waiting"
+// without clicking into a page first, the same problem the Command
+// Centre's own actions_required queue exists to solve, just at the nav
+// level. Scoped to Requests only (the one nav item that's genuinely
+// inbox-shaped — unanswered client requests) rather than a count on
+// every item, which would just be noise. requestsBadgeCount is optional
+// and defaults to undefined (no badge) so getNavSections()'s other
+// caller (studio-command-palette.tsx, which has no count to pass) is
+// completely unaffected.
+function NavBadge({ count }: { count: number }) {
+  if (count <= 0) return null;
+  return (
+    <span className="ml-auto flex size-4.5 shrink-0 items-center justify-center rounded-full bg-destructive/15 font-mono text-[10px] font-semibold text-destructive">
+      {count > 99 ? "99+" : count}
+    </span>
+  );
+}
+
+export function StudioSidebar({ requestsBadgeCount }: { requestsBadgeCount?: number }) {
   const navSections = getNavSections();
   return (
     <aside className="hidden w-52 shrink-0 flex-col gap-6 py-8 md:flex">
@@ -57,6 +75,7 @@ export function StudioSidebar() {
             <StudioNavLink key={item.href} href={item.href} className="w-full">
               <item.icon className="size-4" />
               {item.label}
+              {item.href === "/studio/requests" && requestsBadgeCount !== undefined && <NavBadge count={requestsBadgeCount} />}
             </StudioNavLink>
           ))}
         </div>
