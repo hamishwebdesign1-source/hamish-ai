@@ -5,6 +5,7 @@ import { createServerSupabaseClient, getUserWithRetry } from "@/lib/supabase-ser
 import { getOrgMembership } from "@/lib/org-membership";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { generateTroubleshootingHelp, type TroubleshootingEntry } from "@/lib/website-troubleshooting";
+import { regenerateDraftResponse } from "@/lib/triage-request";
 import type { WebsiteBrief } from "@/lib/website-brief";
 import type { BuildPhase } from "@/lib/website-build-phases";
 import type { ToolId } from "@/lib/ai-coding-tools";
@@ -79,6 +80,32 @@ export async function updateRequestDraft(requestId: string, draftResponse: strin
 
   revalidatePath("/studio/requests");
   return { ok: true as const };
+}
+
+// Studio improvement — a request's draft used to be a one-shot, generated
+// only at intake by triageRequest(); there was no way to ask for a fresh
+// attempt without editing it by hand. Reuses regenerateDraftResponse()
+// (triage-request.ts's own comment on why that's a separate, side-effect-
+// free function rather than re-running the full intake pipeline) and
+// writes the result onto this one request's draft_response only —
+// category/priority/complexity/coverage are untouched, so regenerating
+// the reply text never silently reclassifies the ticket.
+export async function regenerateRequestDraft(requestId: string): Promise<{ draftResponse: string } | { error: string }> {
+  const orgId = await requireOrgId();
+  const admin = getSupabaseAdmin();
+  if (!admin) return { error: "Supabase is not configured." };
+
+  const { data: request } = await admin.from("requests").select("id, client_id, raw_text").eq("id", requestId).maybeSingle();
+  if (!request || !(await requestBelongsToOrg(admin, requestId, orgId))) return { error: "Request not found." };
+
+  const result = await regenerateDraftResponse(request.client_id, request.raw_text);
+  if ("error" in result) return result;
+
+  const { error } = await admin.from("requests").update({ draft_response: result.draftResponse }).eq("id", requestId);
+  if (error) return { error: "Got a new draft but failed to save it." };
+
+  revalidatePath("/studio/requests");
+  return { draftResponse: result.draftResponse };
 }
 
 // Same usage/rate-limit discipline as website-builder/actions.ts's own

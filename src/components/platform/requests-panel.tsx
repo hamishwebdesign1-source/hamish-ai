@@ -13,13 +13,20 @@ import {
   Lightbulb,
   Globe,
   ArrowRight,
+  RefreshCw,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { RequestStatusBadge, TaskStatusBadge, PriorityBadge } from "@/components/status-badges";
-import { markRequestResponded, updateRequestDraft, updateTaskStatus, turnRequestIntoWebsiteTask } from "@/app/studio/(authed)/requests/actions";
+import {
+  markRequestResponded,
+  updateRequestDraft,
+  updateTaskStatus,
+  turnRequestIntoWebsiteTask,
+  regenerateRequestDraft,
+} from "@/app/studio/(authed)/requests/actions";
 import { assignTaskToProject } from "@/app/studio/(authed)/projects/actions";
 import type { TroubleshootingEntry } from "@/lib/website-troubleshooting";
 
@@ -277,6 +284,8 @@ function RequestCard({
   const [draft, setDraft] = useState(request.draft_response ?? "");
   const [draftPending, startDraftSave] = useTransition();
   const [draftSaved, setDraftSaved] = useState(false);
+  const [regenerating, startRegenerate] = useTransition();
+  const [regenerateError, setRegenerateError] = useState<string | null>(null);
   const [respondPending, startRespond] = useTransition();
   const [responded, setResponded] = useState(Boolean(request.responded_at));
   const [respondError, setRespondError] = useState<string | null>(null);
@@ -286,6 +295,23 @@ function RequestCard({
     startDraftSave(async () => {
       const r = await updateRequestDraft(request.id, draft);
       if (!("error" in r)) setDraftSaved(true);
+    });
+  }
+
+  // Overwrites the textarea with a fresh AI attempt, same "still editable,
+  // still not sent automatically" starting-point philosophy as the
+  // original draft — a tenant can undo by just typing over it again, so
+  // this doesn't need its own confirm step.
+  function regenerateDraft() {
+    setRegenerateError(null);
+    setDraftSaved(false);
+    startRegenerate(async () => {
+      const r = await regenerateRequestDraft(request.id);
+      if ("error" in r) {
+        setRegenerateError(r.error ?? "Failed to regenerate — try again.");
+        return;
+      }
+      setDraft(r.draftResponse);
     });
   }
 
@@ -388,11 +414,16 @@ function RequestCard({
                 <p className="mt-1 text-[11px] text-muted-foreground">
                   Not sent automatically — copy it into your own email or reply in whatever tool you actually use.
                 </p>
-                <div className="mt-2 flex items-center gap-2">
+                <div className="mt-2 flex flex-wrap items-center gap-2">
                   <Button size="sm" variant="outline" disabled={draftPending} onClick={saveDraft}>
                     {draftPending ? "Saving…" : "Save edits"}
                   </Button>
+                  <Button size="sm" variant="ghost" disabled={regenerating} onClick={regenerateDraft}>
+                    <RefreshCw className={`size-3.5 ${regenerating ? "animate-spin" : ""}`} />
+                    {regenerating ? "Regenerating…" : "Regenerate"}
+                  </Button>
                   {draftSaved && <span className="text-xs text-accent">Saved.</span>}
+                  {regenerateError && <span className="text-xs text-destructive">{regenerateError}</span>}
                 </div>
               </div>
             )}

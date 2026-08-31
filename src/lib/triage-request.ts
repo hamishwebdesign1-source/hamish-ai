@@ -556,3 +556,76 @@ export async function triageRequest(
 
   return { request: savedRequest };
 }
+
+// Studio improvement — "Regenerate draft" on an existing request
+// (requests/actions.ts). Deliberately NOT a call into triageRequest()
+// above: that function inserts a brand-new request row and, for an
+// eligible request, can auto-send an unsupervised client email — neither
+// of which a tenant clicking "get me a fresh draft for a request that
+// already exists" wants to risk re-triggering. This reuses only the
+// side-effect-free half of the pipeline (the same client/sender lookup,
+// the same requestTriage() call and 3-attempt well-formed retry) and
+// returns just the new draft text; the caller is the one place that
+// decides whether/how to save it (requests/actions.ts writes it onto
+// this specific request's own draft_response, nothing else on the row).
+// Same usage/rate-limit accounting as triageRequest() itself, since it's
+// the identical class of real Anthropic call.
+export async function regenerateDraftResponse(clientId: string, rawText: string): Promise<{ draftResponse: string } | { error: string }> {
+  const supabase = getSupabaseAdmin();
+  if (!supabase) return { error: "Supabase is not configured." };
+
+  const { data: client, error: clientError } = await supabase
+    .from("clients")
+    .select("id, business_name, email, package, maintenance_plan, tech_stack, brand_notes, org_id")
+    .eq("id", clientId)
+    .single();
+  if (clientError || !client) return { error: "Client not found." };
+
+  let sender: Sender;
+  if (client.org_id) {
+    const { data: org, error: orgError } = await supabase
+      .from("organisations")
+      .select("name, is_internal, plan")
+      .eq("id", client.org_id)
+      .single();
+    sender = resolveSender(client, org, orgError);
+
+    if (org && !orgError && !org.is_internal) {
+      if (await isTriageRateLimited(client.org_id)) {
+        return { error: "You're doing that a lot right now — wait a few minutes and try again." };
+      }
+      const usage = await getUsageStatus(client.org_id, "request_triaged", org.plan as PlatformPlanSlug);
+      if (!usage.allowed) {
+        return { error: `Monthly limit reached (${usage.used} of ${usage.limit}) — try again next month.` };
+      }
+    }
+  } else {
+    sender = resolveSender(client, null, null);
+  }
+
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) return { error: "ANTHROPIC_API_KEY is not configured." };
+
+  const anthropic = new Anthropic({ apiKey });
+  const model = process.env.ANTHROPIC_MODEL || "claude-haiku-4-5-20251001";
+
+  let triage: TriageResult | null = null;
+  try {
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const result = await requestTriage(anthropic, model, client, sender, rawText);
+      if (result && isWellFormed(result)) {
+        triage = result;
+        break;
+      }
+      if (result && attempt === 2) triage = result;
+    }
+    if (!triage) return { error: "The AI did not return a structured result." };
+  } catch (error) {
+    console.error("Draft regeneration failed:", error);
+    return { error: "The triage agent is temporarily unavailable." };
+  }
+
+  if (!sender.isInternal && client.org_id) await recordUsageEvent(client.org_id, "request_triaged");
+
+  return { draftResponse: triage.draft_response };
+}
