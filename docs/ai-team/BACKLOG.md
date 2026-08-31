@@ -40,6 +40,10 @@ _(none yet)_
 
 ## Needs review
 
+_(none yet)_
+
+## Complete
+
 ### Studio's background — off flat black, toward a toned, "some imagery" identity
 
 - **Problem**: Hamish's own read on `/studio` today: the background reads as
@@ -268,12 +272,12 @@ _(none yet)_
   peak lightness still lands around L10-16 (base ~L2.6, text foreground
   ~L90+) — nowhere close to threatening the 15-17:1 contrast ratios already
   verified, since the glow only ever sits in card-free gutters with no text
-  in them. `npx tsc --noEmit -p .` clean. Pending: a second live screenshot
-  after this deploys to confirm it now actually reads as intentional, not
-  just technically present.
-- **Status**: Needs review
-
-## Complete
+  in them. `npx tsc --noEmit -p .` clean. Confirmed live post-deploy: a
+  real screenshot of the signed-in Command Centre now shows a genuinely
+  visible blue wash in the top-left corner fading toward black — reads as
+  intentional, not a flat-black default. Direction 2 ("Ambient signal")
+  is done.
+- **Status**: Complete
 
 ### Wire a one-click action to Command Centre's AI recommendations (recommend → act)
 
@@ -332,6 +336,29 @@ fix, but a genuine improvement landed as a side effect.
 
 `npx tsc --noEmit`, `npx eslint`, and the full `vitest` suite (244 tests)
 all green.
+
+**Live verification (orchestrator, via Hamish's real signed-in session,
+2026-08-31)**: QA's static pass flagged two things it couldn't check without
+a live session — confirmed both, one fully, one partially. (1) The
+`hasSalesKit`-true path renders correctly with real data: Command Centre's
+"Your briefing" card showed W Fitness (a real, 5/5-scored prospect) with
+"Outreach kit ready — Open in Prospects" already displayed, correctly
+reflecting that a kit already existed for it — no click required, exactly
+per spec. Followed the link and opened the real "Outreach kit" tab on that
+prospect: a genuine, specific, non-generic generated kit (outreach email,
+follow-up email, call script, all referencing W Fitness's actual owners and
+actual site gaps), confirming the Command Centre entry point correctly
+links through to real generated content, not a stub. (2) NOT verified live:
+the fresh click → pending → success transition — this org's current top
+opportunity already had a kit, so the "Generate outreach kit" button never
+appeared in its resting state to click. Lower risk than it sounds: that
+exact click path reuses `generateSalesKit()` verbatim, the same function
+`SalesKitSection` on the Prospects page has exercised in production for a
+while — the new code is only the surrounding component's state machine,
+which the 7 unit tests already cover directly. Worth a real click-through
+whenever a fresh, kit-less top opportunity naturally comes up, not worth
+manufacturing one to force the test.
+- **Status**: Complete
 
 ### Investigate `useOptimistic` for Studio's Server Actions
 
