@@ -17,6 +17,48 @@ const STAGE_LABELS: Record<string, string> = {
   launched: "Launched",
 };
 
+// Studio improvement — the project list was flat and chronological, so
+// "what's actually stuck in Build right now" meant scrolling the whole
+// list checking every badge. Same STAGE_LABELS keys, just used as a real
+// grouping order (pipeline order, not insertion order) instead of only a
+// per-row label. "" is the fallback bucket for a stage value that's
+// since fallen out of STAGE_LABELS (a legacy row, or a future value this
+// page hasn't been taught yet) — still shown, same "don't silently drop
+// real data" rule as everywhere else in this app, just grouped last
+// under its own raw value rather than a made-up label.
+const STAGE_ORDER = [...Object.keys(STAGE_LABELS), ""];
+
+type WebsiteProjectRow = {
+  id: string;
+  stage: string;
+  created_at: string;
+  clients: { business_name: string } | null;
+};
+
+function ProjectRow({ project }: { project: WebsiteProjectRow }) {
+  return (
+    <Link href={`/studio/website-builder/${project.id}`}>
+      <Card className="transition-colors hover:border-accent/40">
+        <CardContent className="flex items-center justify-between gap-3 py-3.5">
+          <div className="flex items-center gap-3">
+            <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-accent/10 text-accent">
+              <Globe className="size-4" />
+            </span>
+            <div>
+              <p className="text-sm font-medium">{project.clients?.business_name ?? "Untitled project"}</p>
+              <p className="text-xs text-muted-foreground">Started {new Date(project.created_at).toLocaleDateString("en-GB")}</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            {!STAGE_LABELS[project.stage] && <Badge variant="secondary">{project.stage}</Badge>}
+            <ArrowRight className="size-4 shrink-0 text-muted-foreground" />
+          </div>
+        </CardContent>
+      </Card>
+    </Link>
+  );
+}
+
 // AI Website Creation Guide, WB1 — the landing page for the whole
 // capability. HamishAI does not build or host websites here (see the
 // positioning note on the wizard/brief pages) — this page explains that
@@ -61,30 +103,26 @@ export default async function WebsiteBuilderPage() {
       </div>
 
       {projects && projects.length > 0 ? (
-        <div className="mt-8 space-y-2">
-          {projects.map((p) => (
-            <Link key={p.id} href={`/studio/website-builder/${p.id}`}>
-              <Card className="transition-colors hover:border-accent/40">
-                <CardContent className="flex items-center justify-between gap-3 py-3.5">
-                  <div className="flex items-center gap-3">
-                    <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-accent/10 text-accent">
-                      <Globe className="size-4" />
-                    </span>
-                    <div>
-                      <p className="text-sm font-medium">
-                        {(p as unknown as { clients: { business_name: string } | null }).clients?.business_name ?? "Untitled project"}
-                      </p>
-                      <p className="text-xs text-muted-foreground">Started {new Date(p.created_at).toLocaleDateString("en-GB")}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Badge variant="secondary">{STAGE_LABELS[p.stage] ?? p.stage}</Badge>
-                    <ArrowRight className="size-4 shrink-0 text-muted-foreground" />
-                  </div>
-                </CardContent>
-              </Card>
-            </Link>
-          ))}
+        <div className="mt-8 space-y-6">
+          {STAGE_ORDER.map((stage) => {
+            const stageProjects = (projects as unknown as WebsiteProjectRow[]).filter((p) =>
+              stage === "" ? !STAGE_LABELS[p.stage] : p.stage === stage
+            );
+            if (stageProjects.length === 0) return null;
+            return (
+              <div key={stage || "other"}>
+                <p className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
+                  {stage === "" ? "Other" : STAGE_LABELS[stage]}
+                  <span className="font-mono text-[11px] text-muted-foreground/70">({stageProjects.length})</span>
+                </p>
+                <div className="mt-2 space-y-2">
+                  {stageProjects.map((p) => (
+                    <ProjectRow key={p.id} project={p} />
+                  ))}
+                </div>
+              </div>
+            );
+          })}
         </div>
       ) : (
         <div className="mt-8 rounded-xl border border-dashed border-border p-8 text-center">
