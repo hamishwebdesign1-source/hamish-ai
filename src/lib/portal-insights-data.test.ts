@@ -82,10 +82,18 @@ describe("buildPortalInsights", () => {
         { client_id: "client-1", checked_at: "2026-08-13T06:00:00Z", uptime_ok: true, response_ms: 190 },
         { client_id: "client-1", checked_at: "2026-08-12T06:00:00Z", uptime_ok: false, response_ms: null },
       ],
+      projects: [{ id: "p1", client_id: "client-1", name: "Website redesign", status: "active", target_date: "2026-09-01", created_at: "2026-08-01T09:00:00Z" }],
     });
 
     const result = await buildPortalInsights(supabase as never, "client-1");
     if ("error" in result) throw new Error("expected success");
+
+    // toMatchObject, not toEqual — the mock query builder doesn't project
+    // columns the way a real .select("id, name, ...") does, so the row it
+    // hands back also carries client_id/created_at; the real call site
+    // only ever reads the 4 fields asserted here.
+    expect(result.projects).toHaveLength(1);
+    expect(result.projects[0]).toMatchObject({ id: "p1", name: "Website redesign", status: "active", target_date: "2026-09-01" });
 
     // Health score components: uptime 3/4=75%, on-time 1/2=50%, tasks 3/4=75%, requests 3/4=75%
     expect(result.uptimePct).toBe(75);
@@ -137,6 +145,10 @@ describe("buildPortalInsights", () => {
         { client_id: "client-b", amount_pence: 999999, status: "paid", due_date: "2026-08-01", paid_at: "2026-07-30T10:00:00", created_at: "2026-07-29T09:00:00Z" },
       ],
       site_checks: [],
+      projects: [
+        { id: "pa", client_id: "client-a", name: "Client A's project", status: "active", target_date: null, created_at: "2026-08-01T09:00:00Z" },
+        { id: "pb", client_id: "client-b", name: "Client B's project", status: "active", target_date: null, created_at: "2026-08-01T09:00:00Z" },
+      ],
     });
 
     const resultA = await buildPortalInsights(supabase as never, "client-a");
@@ -145,11 +157,13 @@ describe("buildPortalInsights", () => {
     expect(resultA.client.business_name).toBe("Client A");
     expect(resultA.totalRequests).toBe(1);
     expect(resultA.totalPaid).toBe(10); // must not include client B's £9999.99 invoice
+    expect(resultA.projects.map((p) => p.name)).toEqual(["Client A's project"]);
 
     const resultB = await buildPortalInsights(supabase as never, "client-b");
     if ("error" in resultB) throw new Error("expected success");
 
     expect(resultB.client.business_name).toBe("Client B");
     expect(resultB.totalRequests).toBe(2);
+    expect(resultB.projects.map((p) => p.name)).toEqual(["Client B's project"]);
   });
 });

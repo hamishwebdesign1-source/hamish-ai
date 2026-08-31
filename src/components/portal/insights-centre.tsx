@@ -12,6 +12,7 @@ import {
   Wallet,
   HeartPulse,
   CheckCircle2,
+  FolderKanban,
 } from "lucide-react";
 import { HealthRing } from "@/components/analytics/health-ring";
 import { VerticalBarChart, UptimeBar } from "@/components/portal/insight-charts";
@@ -38,6 +39,16 @@ const CATEGORY_META: Record<string, { label: string; className: string }> = {
   risk: { label: "Risk", className: "border-l-amber-400" },
   trend: { label: "Trend", className: "border-l-[var(--chart-4)]" },
 };
+
+// Studio improvement — the same target_date maths projects-panel.tsx
+// (Studio's own equivalent card) already uses, kept as its own small
+// local copy rather than importing that large "use client" panel module
+// into the portal's own component tree just for one date helper.
+function daysUntil(targetDate: string): number {
+  const today = new Date(new Date().toDateString());
+  const target = new Date(targetDate);
+  return Math.round((target.getTime() - today.getTime()) / (24 * 60 * 60 * 1000));
+}
 
 function OverviewTab({ data }: { data: PortalInsights }) {
   const maxFunnel = data.funnel[0]?.value || 1;
@@ -75,6 +86,48 @@ function OverviewTab({ data }: { data: PortalInsights }) {
               <p className="text-xs font-medium text-primary-foreground/80">{c.label}</p>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Studio improvement — a client previously had zero visibility into
+          their own website/deliverable project here, even though Studio's
+          own Projects page has always tracked one for them. */}
+      {data.projects.length > 0 && (
+        <div className="mt-8 rounded-xl border border-white/10 bg-primary-foreground/5 p-5">
+          <div className="flex items-center gap-1.5">
+            <FolderKanban className="size-4 text-accent" />
+            <p className="font-mono text-xs font-medium tracking-wide text-primary-foreground/50 uppercase">
+              Your project{data.projects.length === 1 ? "" : "s"}
+            </p>
+          </div>
+          <div className="mt-4 space-y-3">
+            {data.projects.map((p) => {
+              const days = p.target_date && p.status !== "done" ? daysUntil(p.target_date) : null;
+              return (
+                <div key={p.id} className="flex items-center justify-between gap-3 text-sm">
+                  <div className="min-w-0">
+                    <p className="truncate font-medium text-primary-foreground">{p.name}</p>
+                    {days !== null && (
+                      <p className="mt-0.5 text-xs text-primary-foreground/50">
+                        {days < 0
+                          ? `${Math.abs(days)} day${Math.abs(days) === 1 ? "" : "s"} overdue`
+                          : days === 0
+                            ? "Due today"
+                            : `${days} day${days === 1 ? "" : "s"} left`}
+                      </p>
+                    )}
+                  </div>
+                  <span
+                    className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold tracking-wide uppercase ${
+                      p.status === "done" ? "bg-[var(--chart-2)]/15 text-[var(--chart-2)]" : "bg-accent/15 text-accent"
+                    }`}
+                  >
+                    {p.status === "done" ? "Done" : "In progress"}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
 

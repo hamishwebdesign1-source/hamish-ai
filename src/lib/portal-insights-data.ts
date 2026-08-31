@@ -107,6 +107,19 @@ export async function buildPortalInsights(supabase: SupabaseClient, clientId: st
     : { data: [] };
   const siteChecks: SiteCheckRow[] = siteChecksData ?? [];
 
+  // Studio improvement — a client previously had zero visibility into
+  // their own website/deliverable project, even though Studio's own
+  // Projects page has always tracked it. Needed a new RLS policy
+  // (schema-rls-projects-client-portal.sql) - projects only ever had an
+  // org-staff SELECT policy before, so a client's own portal session
+  // would silently see nothing here without it.
+  const { data: projectsData } = await supabase
+    .from("projects")
+    .select("id, name, status, target_date")
+    .eq("client_id", clientId)
+    .order("created_at", { ascending: false });
+  const projects = projectsData ?? [];
+
   const { data: monthlyReportsData } = await supabase
     .from("monthly_reports")
     .select("id, period_start, created_at")
@@ -224,6 +237,7 @@ export async function buildPortalInsights(supabase: SupabaseClient, clientId: st
   return {
     client,
     orgBranding,
+    projects,
     healthScore,
     components,
     requestsByMonth,
