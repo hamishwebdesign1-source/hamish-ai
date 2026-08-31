@@ -34,7 +34,7 @@ import type { ClientHealth } from "@/lib/client-health";
 import type { Insight, InsightCategory } from "@/lib/studio-insights";
 import type { StudioBriefing } from "@/lib/studio-briefing";
 import type { ClientEngagementRisk } from "@/lib/studio-engagement";
-import type { ModelPerformanceWithCost } from "@/lib/studio-model-performance";
+import { FEATURE_LABELS, type ModelPerformanceWithCost, type AiFeature } from "@/lib/studio-model-performance";
 import type { AiAdoption } from "@/lib/studio-ai-adoption";
 import type { ClientActivityItem, ClientActivityKind } from "@/lib/studio-client-activity";
 import type { ActionQueueItem, ActionQueueKind } from "@/lib/studio-action-queue";
@@ -387,6 +387,25 @@ export function buildSectionContent(params: {
                 </>
               )}
             </p>
+            {/* Studio improvement — only shown once both features have
+                real calls to break down; with only one feature in use,
+                the aggregate above already *is* that feature's own
+                number, so a breakdown would just repeat it. */}
+            {modelPerformance.byFeature.design_assistant.callCount > 0 && modelPerformance.byFeature.business_analyst.callCount > 0 && (
+              <div className="mt-3 space-y-1.5 border-t border-border pt-3">
+                {(Object.keys(FEATURE_LABELS) as AiFeature[]).map((feature) => {
+                  const stats = modelPerformance.byFeature[feature];
+                  return (
+                    <div key={feature} className="flex items-center justify-between gap-2 text-xs">
+                      <span className="text-muted-foreground">{FEATURE_LABELS[feature]}</span>
+                      <span className="font-mono text-muted-foreground">
+                        {stats.callCount} call{stats.callCount === 1 ? "" : "s"} · {stats.successRatePct ?? "—"}% success
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </CardContent>
         </Card>
       ) : undefined,

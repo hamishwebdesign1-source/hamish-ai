@@ -72,7 +72,12 @@ function emptyBriefing(): StudioBriefing {
 }
 
 function emptyModelPerformance(): ModelPerformanceWithCost {
-  return { callCount: 0, successRatePct: null, medianLatencyMs: null, estimatedCostUsd: null, estimatedCostGbp: null, fxRateFetchedAt: null };
+  const emptyFeature = { callCount: 0, successRatePct: null, medianLatencyMs: null, estimatedCostUsd: null, estimatedCostGbp: null };
+  return {
+    ...emptyFeature,
+    fxRateFetchedAt: null,
+    byFeature: { design_assistant: emptyFeature, business_analyst: emptyFeature },
+  };
 }
 
 function emptyAiAdoption(): AiAdoption {

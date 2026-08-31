@@ -7,8 +7,15 @@ import { getUsdGbpRate } from "@/lib/fx-rate";
 // assistant.ts and answer-clients-question.ts for exactly what counts
 // as success/failure.
 
+export type AiFeature = "design_assistant" | "business_analyst";
+
+export const FEATURE_LABELS: Record<AiFeature, string> = {
+  design_assistant: "AI Design Assistant",
+  business_analyst: "AI Business Analyst",
+};
+
 export type AiCallRow = {
-  feature: "design_assistant" | "business_analyst";
+  feature: AiFeature;
   success: boolean;
   latency_ms: number;
   input_tokens: number | null;
@@ -77,9 +84,20 @@ export function computeModelPerformance(rows: AiCallRow[]): ModelPerformance {
 // shape) rather than folded into it, so the £ conversion stays purely a
 // concern of this async wrapper, never something a unit test for the
 // pure USD maths has to account for.
-export type ModelPerformanceWithCost = ModelPerformance & {
-  estimatedCostGbp: number | null;
+type ModelPerformanceWithGbp = ModelPerformance & { estimatedCostGbp: number | null };
+
+function withGbp(performance: ModelPerformance, rate: number | null): ModelPerformanceWithGbp {
+  return { ...performance, estimatedCostGbp: performance.estimatedCostUsd !== null && rate !== null ? performance.estimatedCostUsd * rate : null };
+}
+
+export type ModelPerformanceWithCost = ModelPerformanceWithGbp & {
   fxRateFetchedAt: string | null;
+  // Studio improvement — ai_call_log.feature already distinguishes the
+  // two Claude-backed features (Design Assistant, Business Analyst), but
+  // the aggregate above always merged them into one number. Same
+  // computeModelPerformance() over each feature's own rows, not a new
+  // computation — a real breakdown, not a second engine.
+  byFeature: Record<AiFeature, ModelPerformanceWithGbp>;
 };
 
 export async function getModelPerformance(admin: SupabaseClient, orgId: string): Promise<ModelPerformanceWithCost> {
@@ -93,8 +111,14 @@ export async function getModelPerformance(admin: SupabaseClient, orgId: string):
     getUsdGbpRate(admin),
   ]);
 
-  const performance = computeModelPerformance(data ?? []);
-  const estimatedCostGbp = performance.estimatedCostUsd !== null && fx ? performance.estimatedCostUsd * fx.rate : null;
+  const rows = data ?? [];
+  const rate = fx?.rate ?? null;
+  const performance = withGbp(computeModelPerformance(rows), rate);
 
-  return { ...performance, estimatedCostGbp, fxRateFetchedAt: fx?.fetchedAt ?? null };
+  const byFeature: Record<AiFeature, ModelPerformanceWithGbp> = {
+    design_assistant: withGbp(computeModelPerformance(rows.filter((r) => r.feature === "design_assistant")), rate),
+    business_analyst: withGbp(computeModelPerformance(rows.filter((r) => r.feature === "business_analyst")), rate),
+  };
+
+  return { ...performance, fxRateFetchedAt: fx?.fetchedAt ?? null, byFeature };
 }

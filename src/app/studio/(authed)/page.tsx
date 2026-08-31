@@ -278,7 +278,18 @@ export default async function StudioHomePage() {
   const [modelPerformance, healthTrend, adoptionSeries, analyticsEntries] = await Promise.all([
     admin
       ? getModelPerformance(admin, membership.orgId)
-      : Promise.resolve({ callCount: 0, successRatePct: null, medianLatencyMs: null, estimatedCostUsd: null, estimatedCostGbp: null, fxRateFetchedAt: null }),
+      : Promise.resolve({
+          callCount: 0,
+          successRatePct: null,
+          medianLatencyMs: null,
+          estimatedCostUsd: null,
+          estimatedCostGbp: null,
+          fxRateFetchedAt: null,
+          byFeature: {
+            design_assistant: { callCount: 0, successRatePct: null, medianLatencyMs: null, estimatedCostUsd: null, estimatedCostGbp: null },
+            business_analyst: { callCount: 0, successRatePct: null, medianLatencyMs: null, estimatedCostUsd: null, estimatedCostGbp: null },
+          },
+        }),
     admin && agencyHealth.healthScore !== null
       ? getHealthTrend(admin, membership.orgId, agencyHealth.healthScore)
       : Promise.resolve(null),
@@ -293,7 +304,7 @@ export default async function StudioHomePage() {
   // the same 30-day analytics computation the Analytics page itself
   // shows, so an insight's numbers are never out of step with what a
   // tenant sees if they click through to investigate it.
-  const insights = generateInsights(analytics, agencyHealth, overdueProjectCount);
+  const insights = generateInsights(analytics, agencyHealth, overdueProjectCount, modelPerformance);
 
   // TODAY masthead (see today-strip.tsx's own comment) — every value
   // here is one already computed above for the briefing/actions-required

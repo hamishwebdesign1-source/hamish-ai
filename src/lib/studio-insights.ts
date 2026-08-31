@@ -1,6 +1,7 @@
 import type { AnalyticsData } from "@/lib/studio-analytics";
 import { percentChange } from "@/lib/studio-analytics";
 import type { ClientHealth } from "@/lib/client-health";
+import type { ModelPerformance } from "@/lib/studio-model-performance";
 
 // Command Centre Phase 3 — the "AI Insight Feed" (§13). Deliberately
 // rule-based, not LLM-generated: every insight here is a real delta or
@@ -51,6 +52,16 @@ function healthImpact(value: number): InsightImpact {
 function overdueImpact(count: number): InsightImpact {
   return count >= 3 ? "high" : "medium";
 }
+// AI tool-use calls should normally succeed close to 100% of the time —
+// a real, meaningful dip is worth a look the same way a health component
+// dropping below 60% is. Below MIN_CALLS_FOR_AI_INSIGHT, a low rate is
+// too easily one or two unlucky calls rather than a real trend, same
+// "don't draw a conclusion from too little signal" reasoning as
+// studio-analytics.ts's own MIN_POINTS_FOR_FORECAST.
+const MIN_CALLS_FOR_AI_INSIGHT = 5;
+function aiPerformanceImpact(successRatePct: number): InsightImpact {
+  return successRatePct < 75 ? "high" : "medium";
+}
 
 const KPI_LINKS: Record<string, string> = {
   Revenue: "/studio/analytics",
@@ -59,7 +70,12 @@ const KPI_LINKS: Record<string, string> = {
   "Requests handled": "/studio/requests",
 };
 
-export function generateInsights(analytics: AnalyticsData, agencyHealth: ClientHealth, overdueProjectCount: number): Insight[] {
+export function generateInsights(
+  analytics: AnalyticsData,
+  agencyHealth: ClientHealth,
+  overdueProjectCount: number,
+  modelPerformance: ModelPerformance
+): Insight[] {
   const insights: Insight[] = [];
 
   for (const kpi of analytics.kpis) {
@@ -123,6 +139,20 @@ export function generateInsights(analytics: AnalyticsData, agencyHealth: ClientH
       headline: `${pipelineKpi.value} new prospect${pipelineKpi.value === 1 ? "" : "s"} this period, no conversions yet`,
       evidence: "Worth reviewing whether any are ready to contact or convert.",
       action: { label: "View prospects", href: "/studio/prospects" },
+    });
+  }
+
+  // Studio improvement — reuses the exact same 30-day model performance
+  // numbers the Command Centre's own Model Performance card shows; this
+  // never re-derives success rate independently, so an insight's claim
+  // can't drift from what a tenant sees clicking through to that card.
+  if (modelPerformance.callCount >= MIN_CALLS_FOR_AI_INSIGHT && modelPerformance.successRatePct !== null && modelPerformance.successRatePct < 90) {
+    insights.push({
+      id: "ai-success-rate",
+      category: "warning",
+      impact: aiPerformanceImpact(modelPerformance.successRatePct),
+      headline: `AI success rate at ${modelPerformance.successRatePct}% this month`,
+      evidence: `${modelPerformance.callCount} calls in the last 30 days — see Model performance on the Command Centre for the breakdown.`,
     });
   }
 
