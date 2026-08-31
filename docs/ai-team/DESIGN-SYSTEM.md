@@ -42,6 +42,20 @@ deliberate, reviewed change (not silent drift).
   Centre card, ask whether it's genuinely more important than everything
   else on the page — if not, it's a `bg-card`.
 
+## Pending: Studio's background (proposal written, not yet decided)
+
+`.studio-shell`'s `--background`/`--card`/`--primary` (L0.12/0.16/0.19,
+chroma 0.025-0.03, hue 260) read as near-black — Hamish flagged this
+directly ("a nice slightly toned background... some imagery," 2026-08).
+`.aurora-bg` is defined in `globals.css` (a 3-blob radial-gradient mesh off
+the brand gradient tokens) but is **not applied anywhere in the live
+codebase** — confirmed by a repo-wide search, only doc/CSS references exist.
+Full proposal with exact OKLCH values for two directions (tokens-only "Toned
+Ink" vs. tokens + a dark-tuned, violet-dropped `.aurora-bg` activation) is in
+`BACKLOG.md`'s "Studio's background" entry — read that before touching these
+tokens; don't silently pick a hue/chroma target, it's called out there as
+Hamish's own aesthetic call to make.
+
 ## Components
 
 - `src/components/ui/*` — shadcn/ui built on **Base UI**, not Radix.

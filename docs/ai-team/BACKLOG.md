@@ -32,7 +32,181 @@ _(none yet)_
 
 ## Researching
 
-_(none yet)_
+### Studio's background — off flat black, toward a toned, "some imagery" identity
+
+- **Problem**: Hamish's own read on `/studio` today: the background reads as
+  flat black/near-black, not "a nice slightly toned background... a bit more
+  interesting and professional... some imagery." Verified against the actual
+  tokens (`src/app/globals.css`'s `.studio-shell`, applied on
+  `src/app/studio/(authed)/layout.tsx`'s root div): `--background: oklch(0.12
+  0.025 260)` — L 0.12 at chroma 0.025 is functionally black to the eye; a
+  human can't distinguish "very dark navy" from "very dark grey" at that
+  little colour information. This is a real visual-identity gap, not a bug.
+- **Objective**: land on one deliberate direction for Studio's background —
+  a toned (not flat-black) base colour, plus an honest answer to "some
+  imagery" — that Hamish picks from real options, not one the AI team guesses
+  at and ships silently.
+- **User**: every Studio user, every session — this is the base surface of
+  the entire authed product, the single highest-exposure visual decision in
+  the app.
+- **Priority**: P1 — visual identity work Hamish explicitly asked for, but
+  correctly gated on his own aesthetic judgment call before it's buildable.
+- **Findings** (UX/UI Director, 2026-08-31):
+  - `.studio-shell`'s three surface tokens sit within 0.03-0.04 OKLCH
+    lightness units of each other (`--background` L0.12 → `--card` L0.16 →
+    `--primary` L0.19) — already flagged elsewhere in
+    `DESIGN-SYSTEM.md`'s `bg-primary` note as "read as one flat visual
+    tier" for card-vs-primary; the same flatness is true one layer down,
+    of background-vs-card, and is very likely a real contributor to "feels
+    flat" independent of the primary-discipline fix already made.
+  - `.aurora-bg` (`globals.css`) — a 3-blob radial-gradient mesh using the
+    brand's own `--gradient-violet/-blue/-cyan-soft` tokens, with a slow
+    drift animation and a `prefers-reduced-motion` off-switch already
+    wired — is fully defined but **not applied anywhere in the live
+    codebase today** (confirmed: a repo-wide search for `aurora` only
+    hits `globals.css` itself and doc references, zero component/page
+    usage). `CLAUDE.md`'s description of it as "used for hero washes" is
+    stale/aspirational, not a description of a page you can currently
+    visit. This matters for the proposal below: adopting it in Studio
+    isn't "borrowing the marketing site's signature moment" (there isn't
+    one live to borrow) — it's activating a dormant, already-on-brand
+    utility for the first time, in the one part of the product where a
+    tasteful ambient wash fits (a persistent app shell, not a one-off
+    landing hero).
+  - `public/images/ai-solutions/*.png` (the real, established custom-
+    illustration brand language per `CLAUDE.md`'s "Brand imagery pipeline")
+    is deep-navy-background, glassy 3D icon renders with a soft blue/cyan
+    glow and a faint constellation/node line-graph motif scattered around
+    the subject. This is the actual reference point for "imagery" here —
+    not stock photography, and not literally embedding these
+    solution-specific icons (they're each about one AI capability, not a
+    generic backdrop) but their *background treatment* (deep navy + soft
+    cyan/blue glow + faint node-graph texture) is a legitimate, on-brand
+    pattern to lift for an ambient app-shell background.
+  - Structural point that changes the shape of the recommendation: Studio's
+    cards are opaque (`bg-card`, not translucent), and most real Studio
+    screens are card-dense (Command Centre alone has 7-8 stacked blocks).
+    Any background treatment is only ever visible in the gaps *between*
+    cards — margins, the header band, and, concretely, **the open gutters
+    outside the centred `mx-auto max-w-6xl` content column on any viewport
+    wider than ~1152px+padding**, which today are permanently flat
+    `bg-background` with nothing in them. That's the highest-payoff, lowest-
+    risk canvas for "some imagery": always visible, never overlaps a real
+    card, and scales with viewport width rather than fighting content
+    density. A treatment aimed at "make the whole page feel textured" would
+    mostly get hidden behind opaque cards anyway on the busiest pages.
+- **Recommendation — three concrete directions, cheapest to most involved**:
+
+  **1. "Toned Ink" (tokens only — do this regardless of what else is picked).**
+  Move `.studio-shell`'s three surface tokens off near-black, keeping their
+  existing tier order and (per the flatness note above) slightly widening
+  the deltas between them rather than just shifting all three by the same
+  amount:
+  ```
+  --background: oklch(0.145 0.035 258)   /* was 0.12  0.025 260 */
+  --card:       oklch(0.19  0.035 258)   /* was 0.16  0.025 260 */
+  --primary:    oklch(0.225 0.04  258)   /* was 0.19  0.03  260 */
+  ```
+  Hue nudged from 260→258 to exactly match `--accent`/`--gradient-blue`'s
+  own hue (was 2° off — imperceptible alone, but free to align while
+  touching these tokens anyway). Chroma raised modestly (0.025→0.035,
+  0.03→0.04) so the surface reads as a deliberate ink-navy rather than
+  desaturated charcoal — at these lightness levels OKLCH's chroma ceiling
+  is naturally tight, so this is close to the practical maximum before it
+  stops looking like "a serious dark app" and starts looking like a
+  midtone blue panel. `--foreground`/`--card-foreground` stay at L~0.95 —
+  contrast against the new L0.145-0.225 range is still far in excess of
+  WCAG AA (the delta is nearly as large as the current 0.12-0.19 range;
+  OKLCH lightness doesn't map 1:1 to WCAG relative luminance, so this
+  needs a real contrast-checker pass as part of the live visual check
+  below, but there is no scenario at these deltas where AA fails). This
+  alone answers "toned" and "more professional" — it does not answer
+  "some imagery."
+
+  **2. "Ambient signal" (Toned Ink + a tuned-down `.aurora-bg`) — recommended.**
+  Activate `.aurora-bg` for the first time, on the `.studio-shell` root div
+  in `layout.tsx`, but re-tuned for a dark, work-surface context rather than
+  a light marketing hero:
+  - **Drop violet entirely.** `globals.css`'s own comment on
+    `--gradient-violet` states it's "reserved as the single flourish on the
+    Facet mark itself" — using it as a diffuse background wash directly
+    contradicts that already-documented rule. Use blue+cyan only, which is
+    also Studio's own existing accent family (`--accent` already reuses
+    `--gradient-blue`'s hue).
+  - **New, much lower alpha tokens** rather than reusing `-soft` (16-20%,
+    tuned for sitting *under opaque white cards* per `:root`'s comment —
+    at that alpha over a dark shell the blobs would be gaudy and, per the
+    structural point above, would mostly show up in gutters where they'd
+    read as much brighter, more saturated patches than intended):
+    `--gradient-blue-soft-dark: oklch(0.58 0.21 258 / 5%)`,
+    `--gradient-cyan-soft-dark: oklch(0.78 0.13 200 / 6%)`. Target: the
+    brightest point of the glow should stay visibly below `--card`'s new
+    L0.19, so it never reads as a competing surface tier — it's
+    background texture, not a fourth card tier.
+  - **Reposition the blobs toward the edges**, not the current 20/20,
+    80/10, 60/70 percent spread (tuned for a hero image's rule-of-thirds
+    composition) — e.g. `circle at 5% 10%` and `circle at 95% 15%`, biased
+    toward the outer gutters identified above rather than the centre where
+    the `max-w-6xl` content column always sits.
+  - **Slow the drift** from 20s to ~45s — calm ambient life behind a
+    productivity tool, not marketing-hero energy — `prefers-reduced-motion`
+    already turns it off entirely via the existing `.aurora-bg::before`
+    rule, no new work needed there.
+  - This is CSS/token-only, reuses infrastructure that already exists and
+    is already on-brand, ships in the same pass as Toned Ink, and directly
+    answers "some imagery" without any new asset production.
+
+  **3. "Signal constellation watermark" (most bespoke, defer for now).**
+  A real, custom SVG echoing the ai-solutions illustrations' node-graph
+  motif (faint dots + thin connecting lines), placed as a subtle watermark
+  — scoped to the Command Centre header band only, not tiled across all 13
+  Studio route folders (that would read as wallpaper fatigue on the pages
+  that don't need it). This is the most genuinely "premium/bespoke" option
+  and the closest literal match to "some imagery," but per `CLAUDE.md`'s
+  brand imagery pipeline, the existing illustrations were produced through
+  a real Canva/Figma process, not hand-coded — an AI-agent-coded SVG
+  standing in for that pipeline's actual output would be a worse
+  substitute, not a faithful extension of the established visual language.
+  Recommend deferring this until/unless Hamish decides directions 1+2 don't
+  go far enough, and if so, producing it through the real pipeline rather
+  than approximating it in code.
+
+  **My recommendation: ship 1+2 together.** It's the cheapest real answer
+  to both "toned" and "some imagery," reuses a dormant but already-on-brand
+  utility instead of inventing a new visual device, respects the
+  violet-reserved-for-the-Facet-mark rule, and is structurally aimed at the
+  part of the page (the outer gutters) where it'll actually be seen instead
+  of hidden behind opaque cards. Direction 3 is a legitimate future option,
+  not a "no."
+- **What needs Hamish's own call, not the AI team's**: the exact chroma/hue
+  target in Direction 1 is a real aesthetic choice with more than one valid
+  answer — the recommendation above is a **cool navy** ink (hue 258, matches
+  the brand's Signal Blue), staying inside the established "Edinburgh-ink
+  navy + Signal Blue" identity from `globals.css`'s own `:root` comment. An
+  equally valid but different-feeling alternative is a **warm neutral ink**
+  (hue ~50-55, matching `--clay`'s warmth instead — e.g. `oklch(0.145 0.014
+  50)`/`oklch(0.19 0.016 50)`/`oklch(0.225 0.018 50)`), which would feel more
+  "boutique studio," less "generic SaaS dark mode," but drifts away from the
+  navy identity the rest of the site is built around. Neither is more
+  "correct" — this is the one part of this proposal that's a taste call, not
+  an engineering one, and shouldn't be picked silently on Hamish's behalf.
+- **Acceptance criteria**: Hamish picks a direction (1+2 cool-navy, 1+2
+  warm-ink, or defers to scope Direction 3 first); Lead Engineer implements
+  the chosen token changes plus (if 2 is included) the new `-soft-dark`
+  tokens and the `.aurora-bg` activation on the shell; UX/UI Director does a
+  **live, authenticated visual check** in the real Browser pane before
+  calling this done — no live session was available for this research pass,
+  so nothing here has been seen rendered, only reasoned from tokens/CSS.
+  Contrast should be re-verified with a real contrast checker at that point,
+  not just the OKLCH-lightness-delta reasoning above.
+- **Relevant agent**: UX/UI Director (this proposal; live visual sign-off
+  once built), Lead Engineer (token + CSS implementation once a direction is
+  picked).
+- **Dependencies**: Hamish's direction pick (cool-navy vs warm-ink vs
+  defer-to-Direction-3) blocks implementation; a live authenticated `/studio`
+  session (Hamish handing over the Browser pane, as done previously for this
+  exact kind of visual verification) is needed for final sign-off.
+- **Status**: Researching
 
 ## Not started
 
