@@ -5,6 +5,9 @@ import { ClientsPanel } from "@/components/platform/clients-panel";
 import { computeClientHealth, type ClientHealth } from "@/lib/client-health";
 import { computeClientEngagementRisk, type ClientEngagementRisk } from "@/lib/studio-engagement";
 
+// reminder_sent_at added for Engagement Risk's "Send payment reminder"
+// action (studio-engagement.ts) — every other column here was already
+// fetched for computeClientHealth().
 type InvoiceRow = {
   id: string;
   client_id: string;
@@ -15,6 +18,7 @@ type InvoiceRow = {
   paid_at: string | null;
   stripe_hosted_invoice_url: string | null;
   created_at: string;
+  reminder_sent_at: string | null;
 };
 
 // created_at added for Engagement Risk (studio-engagement.ts) — every
@@ -70,9 +74,13 @@ export default async function StudioClientsPage() {
   const clientIds = (clients ?? []).map((c) => c.id);
   const [{ data: invoices }, { data: requests }, { data: siteChecks }, { data: embedChatEvents }] = clientIds.length
     ? await Promise.all([
+        // reminder_sent_at added alongside the Command Centre's own
+        // invoices query (Engagement Risk's "Send payment reminder" —
+        // studio-engagement.ts) — computeClientEngagementRisk() is shared
+        // between both pages and now needs it on every invoice row.
         supabase
           .from("invoices")
-          .select("id, client_id, amount_pence, description, status, due_date, paid_at, stripe_hosted_invoice_url, created_at")
+          .select("id, client_id, amount_pence, description, status, due_date, paid_at, stripe_hosted_invoice_url, created_at, reminder_sent_at")
           .in("client_id", clientIds)
           .order("created_at", { ascending: false }),
         supabase.from("requests").select("id, client_id, status, created_at").in("client_id", clientIds),

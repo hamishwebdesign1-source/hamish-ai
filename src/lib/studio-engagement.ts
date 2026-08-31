@@ -20,12 +20,25 @@ export type ClientEngagementRisk = {
   tier: EngagementTier;
   quietWeeks: number;
   hasOverdueInvoice: boolean;
+  // The specific overdue invoice to act on — null whenever
+  // hasOverdueInvoice is false. A client can in principle have more than
+  // one open, overdue invoice; the earliest due_date is surfaced (the one
+  // that's been outstanding longest), same "pick the most-established
+  // signal" instinct as tierFor()'s own escalation rule below.
+  overdueInvoiceId: string | null;
+  reminderSentAt: string | null;
   weeks: WeekCell[]; // oldest to newest, WEEKS_BACK long
 };
 
 export type EngagementClientRow = { id: string; business_name: string };
 export type EngagementRequestRow = { client_id: string; created_at: string };
-export type EngagementInvoiceRow = { client_id: string; status: string; due_date: string | null };
+export type EngagementInvoiceRow = {
+  id: string;
+  client_id: string;
+  status: string;
+  due_date: string | null;
+  reminder_sent_at: string | null;
+};
 
 const WEEKS_BACK = 6;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
@@ -63,6 +76,24 @@ function tierFor(quietWeeks: number, hasOverdueInvoice: boolean): EngagementTier
   return null;
 }
 
+// Among a client's own overdue invoices, picks the one that's been
+// outstanding longest (earliest due_date) — the tie-break this card's
+// "Send reminder" action needs a single real invoice id for, since a
+// client can in principle have more than one open overdue invoice at
+// once. Deterministic on a due_date tie via id, so this never flip-flops
+// between renders of the same underlying data.
+function pickOverdueInvoice(invoices: EngagementInvoiceRow[], clientId: string, todayIso: string): EngagementInvoiceRow | null {
+  const overdue = invoices.filter(
+    (i) => i.client_id === clientId && i.status === "open" && i.due_date !== null && i.due_date < todayIso
+  );
+  if (overdue.length === 0) return null;
+  return overdue.reduce((earliest, current) => {
+    if (current.due_date! < earliest.due_date!) return current;
+    if (current.due_date! > earliest.due_date!) return earliest;
+    return current.id < earliest.id ? current : earliest;
+  });
+}
+
 export function computeClientEngagementRisk(
   clients: EngagementClientRow[],
   requests: EngagementRequestRow[],
@@ -86,14 +117,22 @@ export function computeClientEngagementRisk(
       quietWeeks++;
     }
 
-    const hasOverdueInvoice = invoices.some(
-      (i) => i.client_id === client.id && i.status === "open" && i.due_date !== null && i.due_date < todayIso
-    );
+    const overdueInvoice = pickOverdueInvoice(invoices, client.id, todayIso);
+    const hasOverdueInvoice = overdueInvoice !== null;
 
     const tier = tierFor(quietWeeks, hasOverdueInvoice);
     if (!tier) continue;
 
-    risks.push({ clientId: client.id, businessName: client.business_name, tier, quietWeeks, hasOverdueInvoice, weeks });
+    risks.push({
+      clientId: client.id,
+      businessName: client.business_name,
+      tier,
+      quietWeeks,
+      hasOverdueInvoice,
+      overdueInvoiceId: overdueInvoice?.id ?? null,
+      reminderSentAt: overdueInvoice?.reminder_sent_at ?? null,
+      weeks,
+    });
   }
 
   const TIER_WEIGHT: Record<EngagementTier, number> = { critical: 2, warning: 1 };

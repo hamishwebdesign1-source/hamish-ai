@@ -80,7 +80,12 @@ async function buildOwnerDigestSummary(admin: SupabaseClient, orgId: string): Pr
   const [{ data: requests }, { data: invoices }, { data: projects }] = clientIds.length
     ? await Promise.all([
         admin.from("requests").select("id, client_id, status, responded_at, created_at").in("client_id", clientIds),
-        admin.from("invoices").select("client_id, status, due_date").in("client_id", clientIds),
+        // id/reminder_sent_at added alongside the Command Centre's own
+        // invoices query (Engagement Risk's "Send payment reminder" —
+        // studio-engagement.ts) — computeClientEngagementRisk() is shared
+        // across every one of its callers and now needs both on every row,
+        // even though this digest's own summary text never surfaces them.
+        admin.from("invoices").select("id, client_id, status, due_date, reminder_sent_at").in("client_id", clientIds),
         admin.from("projects").select("status, target_date").in("client_id", clientIds),
       ])
     : [{ data: [] }, { data: [] }, { data: [] }];

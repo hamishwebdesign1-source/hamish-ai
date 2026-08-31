@@ -11,6 +11,7 @@ import type { ModelPerformanceWithCost } from "@/lib/studio-model-performance";
 import type { AiAdoption } from "@/lib/studio-ai-adoption";
 import type { ClientActivityItem } from "@/lib/studio-client-activity";
 import { generateSalesKit } from "@/app/studio/(authed)/prospects/actions";
+import { sendClientInvoiceReminderAction } from "@/app/studio/(authed)/clients/actions";
 
 // TopOpportunityKitAction (mounted by both the briefing and top_prospects
 // cards below) calls useRouter() unconditionally on render, same
@@ -27,6 +28,13 @@ vi.mock("next/navigation", () => ({
 // Action run in a test environment with no real session/org.
 vi.mock("@/app/studio/(authed)/prospects/actions", () => ({
   generateSalesKit: vi.fn(),
+}));
+
+// Same reason as generateSalesKit above — SendInvoiceReminderAction
+// (mounted under engagement_risk rows below) calls the real Server Action
+// otherwise, with no real session/org in this test environment.
+vi.mock("@/app/studio/(authed)/clients/actions", () => ({
+  sendClientInvoiceReminderAction: vi.fn(),
 }));
 
 // Same regression this class of test guards against as
@@ -54,6 +62,7 @@ function baseParams(overrides: Partial<Parameters<typeof buildSectionContent>[0]
     hasBriefingContent: false,
     briefing: emptyBriefing(),
     engagementRisks: [],
+    isInternalOrg: false,
     modelPerformance: emptyModelPerformance(),
     aiAdoption: emptyAiAdoption(),
     recentActivity: [],
@@ -71,7 +80,16 @@ function cardClass(node: React.ReactNode): string | null {
 const oneActionRequired: ActionRequiredItem[] = [{ count: 1, label: "request awaiting your reply", href: "/studio/requests", icon: AlertTriangle }];
 const oneInsight: Insight[] = [{ id: "1", category: "opportunity", impact: "high", headline: "New prospects up 100%", evidence: "13 vs 0" }];
 const oneEngagementRisk: ClientEngagementRisk[] = [
-  { clientId: "c1", businessName: "Demo Client", tier: "warning", quietWeeks: 3, hasOverdueInvoice: false, weeks: [] },
+  {
+    clientId: "c1",
+    businessName: "Demo Client",
+    tier: "warning",
+    quietWeeks: 3,
+    hasOverdueInvoice: false,
+    overdueInvoiceId: null,
+    reminderSentAt: null,
+    weeks: [],
+  },
 ];
 const oneActivity: ClientActivityItem[] = [
   { id: "a1", kind: "client_joined", clientId: "c1", businessName: "Demo Client", detail: "joined", occurredAt: new Date().toISOString() },
@@ -251,5 +269,76 @@ describe("buildSectionContent — top_prospects outreach-kit action wiring", () 
 
     // Row 1's error is still visible even after row 2 succeeded.
     expect(scope.getByRole("alert")).toHaveTextContent("AI generation failed.");
+  });
+});
+
+// Backlog: "One-click 'Send payment reminder' on Command Centre's
+// Engagement Risk card, for rows with a real overdue invoice."
+describe("buildSectionContent — engagement risk 'Send payment reminder' wiring", () => {
+  function riskWithOverdueInvoice(overrides: Partial<ClientEngagementRisk> = {}): ClientEngagementRisk[] {
+    return [
+      {
+        clientId: "c1",
+        businessName: "Demo Client",
+        tier: "warning",
+        quietWeeks: 0,
+        hasOverdueInvoice: true,
+        overdueInvoiceId: "inv-1",
+        reminderSentAt: null,
+        weeks: [],
+        ...overrides,
+      },
+    ];
+  }
+
+  it("never renders the Send reminder control for a non-internal org, even with a real overdue invoice", () => {
+    const content = buildSectionContent(baseParams({ engagementRisks: riskWithOverdueInvoice(), isInternalOrg: false }));
+    const { container } = render(content.engagement_risk as React.ReactElement);
+    expect(within(container).queryByRole("button", { name: /send reminder/i })).not.toBeInTheDocument();
+    expect(container.textContent).toContain("Invoice overdue");
+  });
+
+  it("renders the Send reminder control for HamishAI's own internal org when a real overdue invoice exists", () => {
+    const content = buildSectionContent(baseParams({ engagementRisks: riskWithOverdueInvoice(), isInternalOrg: true }));
+    const { container } = render(content.engagement_risk as React.ReactElement);
+    expect(within(container).getByRole("button", { name: /send reminder/i })).toBeInTheDocument();
+  });
+
+  it("renders as already-done, with no button, when a reminder has already been sent", () => {
+    const content = buildSectionContent(
+      baseParams({ engagementRisks: riskWithOverdueInvoice({ reminderSentAt: "2026-08-20T09:00:00Z" }), isInternalOrg: true })
+    );
+    const { container } = render(content.engagement_risk as React.ReactElement);
+    const scope = within(container);
+    expect(scope.getByText(/reminder sent/i)).toBeInTheDocument();
+    expect(scope.queryByRole("button", { name: /send reminder/i })).not.toBeInTheDocument();
+  });
+
+  it("does not render the control at all for a row with no overdue invoice, even for the internal org", () => {
+    const content = buildSectionContent(baseParams({ engagementRisks: oneEngagementRisk, isInternalOrg: true }));
+    const { container } = render(content.engagement_risk as React.ReactElement);
+    expect(within(container).queryByRole("button", { name: /send reminder/i })).not.toBeInTheDocument();
+  });
+
+  it("clicking Send reminder shows pending, then success", async () => {
+    vi.mocked(sendClientInvoiceReminderAction).mockResolvedValue({ ok: true });
+    const content = buildSectionContent(baseParams({ engagementRisks: riskWithOverdueInvoice(), isInternalOrg: true }));
+    const { container } = render(content.engagement_risk as React.ReactElement);
+    const scope = within(container);
+
+    fireEvent.click(scope.getByRole("button", { name: /send reminder/i }));
+    await waitFor(() => expect(scope.getByText(/reminder sent/i)).toBeInTheDocument());
+    expect(sendClientInvoiceReminderAction).toHaveBeenCalledWith("inv-1");
+  });
+
+  it("shows an inline error and keeps the button if sending fails", async () => {
+    vi.mocked(sendClientInvoiceReminderAction).mockResolvedValue({ error: "Invoice not found." });
+    const content = buildSectionContent(baseParams({ engagementRisks: riskWithOverdueInvoice(), isInternalOrg: true }));
+    const { container } = render(content.engagement_risk as React.ReactElement);
+    const scope = within(container);
+
+    fireEvent.click(scope.getByRole("button", { name: /send reminder/i }));
+    await waitFor(() => expect(scope.getByRole("alert")).toHaveTextContent("Invoice not found."));
+    expect(scope.getByRole("button", { name: /send reminder/i })).toBeEnabled();
   });
 });

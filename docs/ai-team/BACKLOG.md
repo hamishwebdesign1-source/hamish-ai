@@ -36,6 +36,10 @@ _(none yet)_
 
 ## Not started
 
+_(none yet)_
+
+## Needs review
+
 ### One-click "Send payment reminder" on Command Centre's Engagement Risk card, for rows with a real overdue invoice
 
 - **Problem**: `engagement_risk` rows (`studio-engagement.ts`) already
@@ -83,7 +87,7 @@ _(none yet)_
   - Tests cover the ownership check (reject an invoice belonging to
     another org), already-sent state, pending/success/error.
   - `npx tsc --noEmit`, `npx eslint`, full `vitest` suite green.
-- **Relevant agent**: Lead Engineer (build); Security Auditor should
+- **Relevant agent**: Lead Engineer (build, done); Security Auditor should
   spot-check the new ownership check specifically — this is a new write
   path that sends a real email to a real client off a one-click UI
   control, a materially different risk shape from the shipped precedent
@@ -96,9 +100,98 @@ _(none yet)_
   review step in between.
 - **Dependencies**: none blocking — `sendInvoiceReminder()`, `invoices.id`/
   `reminder_sent_at`, and the ownership-check pattern all already exist.
-- **Status**: Not started
+- **Closure note (Lead Engineer, 2026-08-31)**: built as scoped, plus one
+  real bug found and fixed before wiring anything up, per this item's own
+  instruction to check the email's identity first.
 
-## Needs review
+  **The identity bug, confirmed real**: `sendInvoiceReminder()`
+  (`src/lib/send-invoice-reminder.ts`) had zero sender-identity handling —
+  it always called `sendClientEmail()` (hardcoded
+  `"Hamish AI <hello@hamishai.org>"`, `send-client-email.ts`) and always
+  signed the body "— Hamish AI", regardless of whose client the invoice
+  actually belonged to. Harmless while the only caller was `/admin`
+  (always genuinely Hamish's own clients), but this is the *exact* risk
+  category `create-invoice.ts`'s and `triage-request.ts`'s own
+  `sender.isInternal` gates already exist in this codebase to close for
+  every other client-facing send — confirmed by reading those two files'
+  own comments directly, not inferred. Sending a tenant's own client a
+  payment reminder signed "Hamish AI" would have been a real, visible,
+  first-of-its-kind identity leak the moment any non-internal org used
+  this feature.
+
+  **Fix, same precedent, not reinvented**: `sendInvoiceReminder()` now
+  resolves the invoice's client's org (same shape as `create-invoice.ts`'s
+  own sender resolution — a client with no `org_id` is treated as a
+  legacy internal client, matching `resolveSender()`'s own rule) and
+  refuses to send at all — returning `{ error, reason:
+  "tenant_email_unsupported" }` — for any client whose org isn't a
+  *confirmed* internal org. This fixes the gap at the shared function, so
+  it also protects the existing `/admin` call site going forward, not just
+  this new one (no behaviour change there today — Hamish's own clients are
+  always internal-org or legacy `org_id: null`).
+
+  **Real per-tenant email sending doesn't exist yet, so this narrows the
+  feature's scope — flagged, not silently shipped**: Studio's Command
+  Centre UI (`command-centre-section-cards.tsx`, gated via a new
+  `isInternalOrg` prop threaded from `page.tsx`'s own already-fetched
+  `org.is_internal`) now renders the "Send reminder" control *only* for
+  HamishAI's own internal org — the same "isInternal check happens one
+  level up, in the page" precedent `branding-panel.tsx` already
+  established (there, the inverse: hidden *for* the internal org). This
+  means, as shipped, only Hamish's own agency can actually use this
+  one-click control today — every other real tenant org still sees the
+  existing "Invoice overdue" badge with no action, i.e. no regression, but
+  also not the broad multi-tenant capability the objective above
+  describes. Building real per-tenant email identity (a verified sending
+  domain or reply-to per org) is a separate, materially larger piece of
+  infrastructure, out of scope here. **This is exactly the kind of design
+  call this task's own brief said not to resolve unilaterally** — moving
+  to Needs review rather than Complete for that reason, and because the
+  item's own "Relevant agent" note already calls for Security Auditor
+  spot-check + Hamish's explicit sign-off before this is genuinely done.
+  If Hamish wants the multi-tenant capability sooner, the real per-tenant
+  email-identity work is the actual next dependency, not more wiring here.
+
+  **Separate, pre-existing data-integrity gap found and flagged, not
+  fixed** (out of scope for this item): the Stripe subscription webhook's
+  own `invoices` insert (`src/app/api/webhooks/stripe/route.ts`) doesn't
+  set `org_id` explicitly, unlike `create-invoice.ts` (fixed earlier this
+  session) — so a recurring-subscription invoice's `org_id` column
+  silently defaults to HamishAI's own org id regardless of whose client
+  it's actually for (same bug class `knowledge/actions.ts`'s own comment
+  already names as "found and fixed on requests.org_id and
+  invoices.org_id," except this one insert site was missed). Not a
+  cross-tenant security hole on its own (worst case is a false-negative
+  ownership check for the true tenant, not a leak to a different tenant),
+  but real and worth a follow-up. Working around it rather than relying on
+  it: the new ownership check in `sendClientInvoiceReminderAction`
+  (`clients/actions.ts`) verifies via the invoice's `clients!inner(org_id)`
+  relationship (same join `requestBelongsToOrg` already uses), not
+  `invoices.org_id` directly, so this feature's own correctness doesn't
+  depend on that column being reliable.
+
+  Implementation: `ClientEngagementRisk` gained `overdueInvoiceId`/
+  `reminderSentAt`; `computeClientEngagementRisk` picks the
+  earliest-due-date overdue invoice when a client has more than one
+  (deterministic tie-break on `id` if due dates match exactly).
+  `sendClientInvoiceReminderAction` (`clients/actions.ts`) verifies
+  ownership then calls `sendInvoiceReminder()` verbatim. New client leaf
+  `SendInvoiceReminderAction` (`send-invoice-reminder-action.tsx`) matches
+  `TopOpportunityKitAction`'s exact resting/pending/success/error shape,
+  minus the usage-limit state (not AI-metered). 3 new/updated test files:
+  `studio-engagement.test.ts` (tie-break + id/reminder_sent_at surfacing),
+  `send-invoice-reminder.test.ts` (the new sender gate — internal org,
+  legacy no-org_id client, non-internal org refused, fail-closed on an
+  errored org lookup), `clients/actions.test.ts` (the ownership check —
+  this codebase's first Server-Action-level test, rejecting an invoice
+  belonging to another org, verbatim delegation, error passthrough) and
+  `command-centre-section-cards.test.tsx` (the `isInternalOrg` gate itself,
+  already-sent state, pending/success/error). All 3 real call sites of
+  `computeClientEngagementRisk` (`page.tsx`, `clients/page.tsx`,
+  `owner-digest.ts`) updated to select the one new `reminder_sent_at`
+  column. `npx tsc --noEmit -p .` clean, `npx eslint` clean on every
+  touched file, full `vitest` suite green (266 tests, up from 244).
+- **Status**: Needs review
 
 ### Wire the same outreach-kit action to Command Centre's Top Prospects list (fast-follow to the shipped topOpportunity action)
 

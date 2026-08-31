@@ -177,7 +177,15 @@ export default async function StudioHomePage() {
   const [{ data: requests }, { data: invoices }, { data: siteChecks }, { data: projects }, { data: embedChatEvents }] = clientIds.length
     ? await Promise.all([
         supabase.from("requests").select("id, client_id, status, responded_at, created_at, raw_text").in("client_id", clientIds),
-        supabase.from("invoices").select("id, client_id, status, due_date, paid_at, amount_pence, description").in("client_id", clientIds),
+        // reminder_sent_at added for Engagement Risk's "Send payment
+        // reminder" action (studio-engagement.ts) — id was already
+        // selected, this is the one extra column needed to know whether a
+        // reminder has already gone out for the overdue invoice being
+        // surfaced, zero new query.
+        supabase
+          .from("invoices")
+          .select("id, client_id, status, due_date, paid_at, amount_pence, description, reminder_sent_at")
+          .in("client_id", clientIds),
         supabase.from("site_checks").select("uptime_ok").in("client_id", clientIds),
         supabase.from("projects").select("id, client_id, name, status, target_date, created_at").in("client_id", clientIds),
         supabase
@@ -387,6 +395,16 @@ export default async function StudioHomePage() {
     hasBriefingContent,
     briefing,
     engagementRisks,
+    // "Send payment reminder" (Engagement Risk card) is only ever rendered
+    // for HamishAI's own internal org — see send-invoice-reminder.ts's own
+    // comment on why: sendClientEmail() has no per-tenant identity yet, so
+    // a tenant's client can't safely be sent a reminder that would go out
+    // signed "— Hamish AI". Same isInternal-gated-one-level-up precedent
+    // as branding-panel.tsx (settings/page.tsx doesn't render it at all
+    // for HamishAI's own org); this is the mirror image, gating a
+    // client-facing send to *only* HamishAI's own org until real
+    // per-tenant email sending exists.
+    isInternalOrg: Boolean(org?.is_internal),
     modelPerformance,
     aiAdoption,
     recentActivity,

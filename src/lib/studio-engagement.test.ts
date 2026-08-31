@@ -51,7 +51,7 @@ describe("computeClientEngagementRisk", () => {
     const risks = computeClientEngagementRisk(
       [{ id: "c1", business_name: "Acme" }],
       [{ client_id: "c1", created_at: daysAgo(16) }], // ~2 quiet weeks
-      [{ client_id: "c1", status: "open", due_date: "2026-08-01" }], // well past due
+      [{ id: "inv-1", client_id: "c1", status: "open", due_date: "2026-08-01", reminder_sent_at: null }], // well past due
       NOW
     );
     expect(risks[0].tier).toBe("critical");
@@ -62,7 +62,7 @@ describe("computeClientEngagementRisk", () => {
     const risks = computeClientEngagementRisk(
       [{ id: "c1", business_name: "Acme" }],
       [{ client_id: "c1", created_at: daysAgo(1) }],
-      [{ client_id: "c1", status: "open", due_date: "2026-08-01" }],
+      [{ id: "inv-1", client_id: "c1", status: "open", due_date: "2026-08-01", reminder_sent_at: null }],
       NOW
     );
     expect(risks[0].tier).toBe("warning");
@@ -73,13 +73,39 @@ describe("computeClientEngagementRisk", () => {
       [{ id: "c1", business_name: "Acme" }],
       [{ client_id: "c1", created_at: daysAgo(20) }],
       [
-        { client_id: "c1", status: "paid", due_date: "2026-08-01" },
-        { client_id: "c1", status: "open", due_date: "2026-09-30" },
+        { id: "inv-paid", client_id: "c1", status: "paid", due_date: "2026-08-01", reminder_sent_at: null },
+        { id: "inv-future", client_id: "c1", status: "open", due_date: "2026-09-30", reminder_sent_at: null },
       ],
       NOW
     );
     expect(risks[0].hasOverdueInvoice).toBe(false);
     expect(risks[0].tier).toBe("warning"); // from quiet weeks alone
+    expect(risks[0].overdueInvoiceId).toBeNull();
+  });
+
+  it("surfaces the specific overdue invoice's id and reminder_sent_at", () => {
+    const risks = computeClientEngagementRisk(
+      [{ id: "c1", business_name: "Acme" }],
+      [{ client_id: "c1", created_at: daysAgo(1) }],
+      [{ id: "inv-1", client_id: "c1", status: "open", due_date: "2026-08-01", reminder_sent_at: "2026-08-20T09:00:00Z" }],
+      NOW
+    );
+    expect(risks[0].overdueInvoiceId).toBe("inv-1");
+    expect(risks[0].reminderSentAt).toBe("2026-08-20T09:00:00Z");
+  });
+
+  it("picks the earliest-due overdue invoice when a client has more than one", () => {
+    const risks = computeClientEngagementRisk(
+      [{ id: "c1", business_name: "Acme" }],
+      [{ client_id: "c1", created_at: daysAgo(1) }],
+      [
+        { id: "inv-later", client_id: "c1", status: "open", due_date: "2026-08-10", reminder_sent_at: null },
+        { id: "inv-earliest", client_id: "c1", status: "open", due_date: "2026-07-01", reminder_sent_at: null },
+        { id: "inv-mid", client_id: "c1", status: "open", due_date: "2026-07-20", reminder_sent_at: null },
+      ],
+      NOW
+    );
+    expect(risks[0].overdueInvoiceId).toBe("inv-earliest");
   });
 
   it("never lets one client's requests or invoices count toward another client's risk", () => {

@@ -24,6 +24,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { HelpTip } from "@/components/platform/help-tip";
 import { TopOpportunityKitAction } from "@/components/platform/top-opportunity-kit-action";
+import { SendInvoiceReminderAction } from "@/components/platform/send-invoice-reminder-action";
 import { timeAgo } from "@/lib/time-ago";
 import type { SectionType } from "@/lib/command-centre-layout";
 import type { ClientHealth } from "@/lib/client-health";
@@ -111,12 +112,18 @@ export function buildSectionContent(params: {
   hasBriefingContent: boolean;
   briefing: StudioBriefing;
   engagementRisks: ClientEngagementRisk[];
+  // Gates the "Send payment reminder" action — see send-invoice-reminder.ts's
+  // own comment on why: HamishAI's own org only, until real per-tenant
+  // email sending exists. Same isInternal-check-one-level-up shape as
+  // settings/page.tsx not rendering BrandingPanel for HamishAI's own org.
+  isInternalOrg: boolean;
   modelPerformance: ModelPerformanceWithCost;
   aiAdoption: AiAdoption;
   recentActivity: ClientActivityItem[];
   agencyHealth: ClientHealth;
 }): Partial<Record<SectionType, ReactNode>> {
-  const { actionsRequired, insights, hasBriefingContent, briefing, engagementRisks, modelPerformance, aiAdoption, recentActivity, agencyHealth } = params;
+  const { actionsRequired, insights, hasBriefingContent, briefing, engagementRisks, isInternalOrg, modelPerformance, aiAdoption, recentActivity, agencyHealth } =
+    params;
 
   return {
     actions_required:
@@ -260,6 +267,9 @@ export function buildSectionContent(params: {
                       {risk.quietWeeks > 0 && risk.hasOverdueInvoice && " · "}
                       {risk.hasOverdueInvoice && "Invoice overdue"}
                     </p>
+                    {isInternalOrg && risk.hasOverdueInvoice && risk.overdueInvoiceId && (
+                      <SendInvoiceReminderAction invoiceId={risk.overdueInvoiceId} alreadySentInitially={Boolean(risk.reminderSentAt)} />
+                    )}
                   </div>
                   <div className="flex shrink-0 gap-1">
                     {risk.weeks.map((week, i) => (

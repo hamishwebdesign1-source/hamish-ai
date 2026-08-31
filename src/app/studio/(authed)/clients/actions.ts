@@ -5,6 +5,7 @@ import { createServerSupabaseClient, getUserWithRetry } from "@/lib/supabase-ser
 import { getOrgMembership } from "@/lib/org-membership";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { createInvoice } from "@/lib/create-invoice";
+import { sendInvoiceReminder } from "@/lib/send-invoice-reminder";
 import { logAuditEvent } from "@/lib/audit-log";
 import { trackServerEvent } from "@/lib/analytics";
 import { generateMonthlyReport } from "@/lib/monthly-report";
@@ -54,6 +55,52 @@ export async function createClientInvoice(clientId: string, amountPounds: number
 
   revalidatePath("/studio/clients");
   return { ok: true as const, invoiceUrl: result.invoiceUrl };
+}
+
+// Command Centre Engagement Risk's "Send payment reminder" (backlog:
+// "One-click 'Send payment reminder'…") — calls the exact same, already-
+// shipped sendInvoiceReminder() /admin's own "Send reminder" form already
+// uses for Hamish's own clients (admin/actions.ts's
+// sendInvoiceReminderAction), verbatim: no new email template, no new AI
+// call, no new usage-event type.
+//
+// Ownership check via the invoice's own client relationship (clients!inner),
+// not invoices.org_id directly — that column depends on org_id being set
+// explicitly at insert time, which isn't true for every insert path today
+// (the Stripe subscription webhook's own invoice insert doesn't set it,
+// a real, separate, pre-existing gap flagged in the handoff for this item
+// but out of scope to fix here). clients.org_id is the one column that's
+// always the real tenant boundary (docs/ARCHITECTURE.md), so this checks
+// that instead, same relationship requestBelongsToOrg() (requests/actions.ts)
+// already uses for the same reason.
+//
+// sendInvoiceReminder() itself now refuses to actually send (see its own
+// comment) for any client whose org isn't confirmed internal — a real,
+// separate identity-leak bug this backlog item found and fixed at the
+// shared function, not worked around here. The Command Centre UI itself
+// only ever renders this action's entry point for HamishAI's own org
+// (page.tsx's isInternalOrg prop into buildSectionContent) until real
+// per-tenant email sending exists, but this Server Action's own ownership
+// check is real, independent protection regardless of what the UI does or
+// doesn't render.
+export async function sendClientInvoiceReminderAction(invoiceId: string) {
+  const orgId = await requireOrgId();
+  const admin = getSupabaseAdmin();
+  if (!admin) return { error: "Supabase is not configured." };
+
+  const { data: invoice } = await admin
+    .from("invoices")
+    .select("id, clients!inner(org_id)")
+    .eq("id", invoiceId)
+    .eq("clients.org_id", orgId)
+    .maybeSingle();
+  if (!invoice) return { error: "Invoice not found." };
+
+  const result = await sendInvoiceReminder(invoiceId);
+  if ("error" in result) return { error: result.error };
+
+  revalidatePath("/studio");
+  return { ok: true as const };
 }
 
 // GDPR minimum-viable compliance, part 2 — real, immediate erasure of one
