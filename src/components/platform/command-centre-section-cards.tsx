@@ -20,7 +20,6 @@ import {
   Rocket,
   BellRing,
   FolderClock,
-  CheckCircle2,
   type LucideIcon,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
@@ -39,9 +38,6 @@ import type { ModelPerformanceWithCost } from "@/lib/studio-model-performance";
 import type { AiAdoption } from "@/lib/studio-ai-adoption";
 import type { ClientActivityItem, ClientActivityKind } from "@/lib/studio-client-activity";
 import type { ActionQueueItem, ActionQueueKind } from "@/lib/studio-action-queue";
-import { markProspectContacted } from "@/app/studio/(authed)/prospects/actions";
-import { markRequestResponded } from "@/app/studio/(authed)/requests/actions";
-import { updateProjectStatus } from "@/app/studio/(authed)/projects/actions";
 
 // Real-improvement pass — the other half of the page.tsx extraction
 // buildStatContent() (command-centre-stat-cards.tsx) started. Each of
@@ -103,52 +99,18 @@ const ACTIVITY_ICON: Record<ClientActivityKind, LucideIcon> = {
 };
 
 // Command Centre improvement #1 ("cleared queue, not a dashboard") — one
-// icon per real row kind computeActionQueue() can return, and the exact
-// one-click action (Server Action + wording) that clears each kind. The
-// wording matches each action's existing button elsewhere in Studio
-// (prospecting-panel.tsx's "Mark as contacted", requests-panel.tsx's
-// "Mark as responded", projects-panel.tsx's "Mark done") — the same
-// action reachable from a second place shouldn't read differently there.
+// icon per real row kind computeActionQueue() can return, rendered
+// directly in this Server Component's own JSX (safe — unlike handing a
+// component reference to QueueItemAction as a prop, which is what
+// actually crashed production; see that file's own comment). The
+// one-click clearing action itself lives entirely inside QueueItemAction
+// now, keyed off item.kind — nothing here needs to know which Server
+// Action each kind calls.
 const QUEUE_ICON: Record<ActionQueueKind, LucideIcon> = {
   follow_up: BellRing,
   unanswered_request: Inbox,
   overdue_project: FolderClock,
 };
-
-function queueItemAction(item: ActionQueueItem) {
-  switch (item.kind) {
-    case "follow_up":
-      return (
-        <QueueItemAction
-          run={() => markProspectContacted(item.id)}
-          icon={Send}
-          label="Mark as contacted"
-          pendingLabel="Marking…"
-          doneLabel="Marked as contacted"
-        />
-      );
-    case "unanswered_request":
-      return (
-        <QueueItemAction
-          run={() => markRequestResponded(item.id)}
-          icon={CheckCircle2}
-          label="Mark as responded"
-          pendingLabel="Marking…"
-          doneLabel="Marked as responded"
-        />
-      );
-    case "overdue_project":
-      return (
-        <QueueItemAction
-          run={() => updateProjectStatus(item.id, "done")}
-          icon={CheckCircle2}
-          label="Mark done"
-          pendingLabel="Marking…"
-          doneLabel="Marked done"
-        />
-      );
-  }
-}
 
 // Real-data colour tiers for the Business Health breakdown bars — same
 // 80/50 thresholds clients-panel.tsx's own healthBadgeVariant() already
@@ -216,7 +178,7 @@ export function buildSectionContent(params: {
                         <ArrowRight className="size-3 shrink-0 text-primary-foreground/40 opacity-0 transition-opacity group-hover:opacity-100" />
                       </Link>
                       <p className="mt-0.5 truncate text-xs text-primary-foreground/60">{item.detail}</p>
-                      {queueItemAction(item)}
+                      <QueueItemAction item={item} />
                     </div>
                   </li>
                 );
