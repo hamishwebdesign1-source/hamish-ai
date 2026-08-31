@@ -77,7 +77,25 @@ deliberate, reviewed change (not silent drift).
   status): update local state immediately, call the Server Action inside
   `useTransition`, roll back local state if it returns an error. Used
   consistently for anything that's a simple flip rather than a multi-field
-  form.
+  form. Verified live in 4 places (`CampaignCard.toggleStatus`,
+  `ProjectCard.toggleDone`, `TaskRow.setTaskStatus`,
+  `TaskRow.setTaskProject`) — **all 4 roll back completely silently today**,
+  with no message or highlight when the revert happens. That's a real,
+  already-shipped instance of "an optimistic update that fails silently is
+  worse than the round trip it replaced" — flagged in
+  `BACKLOG.md`'s `useOptimistic` scoping note (2026-08-31) as something any
+  future touch of these controls should fix, not just preserve. The
+  Prospects page (`prospecting-panel.tsx`) has the opposite gap — several
+  status actions (`ContactTrackingControl`, `PipelineStageControl`) have no
+  local optimism at all, not even the hand-rolled version; see that same
+  scoping note before building `useOptimistic` anywhere in Studio.
+- **No toast/notification primitive exists in this codebase** — confirmed
+  via `src/components/ui/*` (no toast/sonner file) and `package.json` (no
+  toast library installed). The real, established error-surfacing
+  convention is an inline `text-destructive` line rendered next to the
+  control that failed (`InvoiceForm`, `ContactTrackingControl`,
+  `PipelineStageControl`, `CampaignCard`'s delete-confirm state, etc.) — use
+  that, not a new toast system, for any new error/rollback state.
 - **Home-page tabs vs. a long scroll**: `command-centre-tab-grouping.ts`'s
   `blockTab()` is a pure classifier deciding which of 4 tabs
   (Overview/Prospects/Clients/Performance) a block renders under — a
