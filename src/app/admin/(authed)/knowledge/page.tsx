@@ -1,6 +1,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { BookOpen, X, TriangleAlert, CircleCheck, Sparkles } from "lucide-react";
+import Link from "next/link";
+import { BookOpen, X, TriangleAlert, CircleCheck, Sparkles, Search } from "lucide-react";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { deleteKnowledgeEntry } from "@/app/admin/actions";
 import { extractTextFromFile } from "@/lib/document-text";
@@ -74,22 +75,30 @@ async function importKnowledgeFromDocument(formData: FormData) {
 export default async function KnowledgePage({
   searchParams,
 }: {
-  searchParams: Promise<{ imported?: string; importError?: string }>;
+  searchParams: Promise<{ imported?: string; importError?: string; q?: string }>;
 }) {
-  const { imported, importError } = await searchParams;
+  const { imported, importError, q: searchQuery } = await searchParams;
   const supabase = getSupabaseAdmin();
 
   const { data: clients } = supabase
     ? await supabase.from("clients").select("id, business_name").order("business_name")
     : { data: [] };
 
-  const { data: entries, error } = supabase
+  const { data: allEntries, error } = supabase
     ? await supabase
         .from("knowledge_base")
         .select("id, title, content, client_id, clients(business_name)")
         .order("created_at", { ascending: false })
     : { data: [], error: null };
   if (error) console.error("Failed to fetch knowledge base:", error);
+
+  // Studio improvement — the same search Studio's own knowledge-panel.tsx
+  // already has (title/content), ported here now that this admin page has
+  // no way to filter as entries grow.
+  const trimmedQuery = searchQuery?.trim().toLowerCase();
+  const entries = trimmedQuery
+    ? (allEntries ?? []).filter((e) => e.title.toLowerCase().includes(trimmedQuery) || e.content.toLowerCase().includes(trimmedQuery))
+    : allEntries;
 
   return (
     <div>
@@ -182,14 +191,30 @@ export default async function KnowledgePage({
 
         <div>
           <h2 className="text-section-title">All entries</h2>
-          {!entries?.length && (
+          {(allEntries?.length ?? 0) > 4 && (
+            <form action="/admin/knowledge" className="relative mt-3">
+              <Search className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
+              <Input name="q" defaultValue={searchQuery ?? ""} placeholder="Search entries…" className="pl-8" />
+            </form>
+          )}
+          {!allEntries?.length ? (
             <Card className="mt-3">
               <CardContent className="flex flex-col items-center gap-2 py-8 text-center text-sm text-muted-foreground">
                 <BookOpen className="size-6 text-muted-foreground/60" />
                 No entries yet — add your first one.
               </CardContent>
             </Card>
-          )}
+          ) : !entries?.length ? (
+            <Card className="mt-3">
+              <CardContent className="flex flex-col items-center gap-2 py-8 text-center text-sm text-muted-foreground">
+                <Search className="size-6 text-muted-foreground/60" />
+                No entries match that search.{" "}
+                <Link href="/admin/knowledge" className="text-accent hover:underline">
+                  Clear search
+                </Link>
+              </CardContent>
+            </Card>
+          ) : null}
           <ul className="mt-4 space-y-2">
             {entries?.map((e) => (
               <li key={e.id} className="rounded-lg border border-border bg-card px-4 py-3">
