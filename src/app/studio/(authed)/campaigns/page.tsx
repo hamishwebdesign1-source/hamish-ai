@@ -29,9 +29,13 @@ export default async function StudioCampaignsPage() {
     // tenant-entered field prospecting-panel.tsx already surfaces per
     // prospect, never AI-estimated (updateProspectDealValue()'s own
     // comment on why).
+    // contacted_at added (Studio improvement) so a campaign that's been
+    // "active" a long time with genuinely zero real contact activity can
+    // be flagged — a different angle from studio-engagement.ts's own
+    // per-client engagement risk, which never looks at campaigns at all.
     supabase
       .from("prospects")
-      .select("id, business_name, campaign_id, status, deal_value_pence")
+      .select("id, business_name, campaign_id, status, deal_value_pence, contacted_at")
       .eq("org_id", membership.orgId)
       .order("business_name"),
   ]);

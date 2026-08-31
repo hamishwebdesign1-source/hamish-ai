@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
-import { Megaphone, Plus, Target, X, Trash2 } from "lucide-react";
+import { Megaphone, Plus, Target, X, Trash2, CircleAlert, Search } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -12,10 +12,30 @@ import { Textarea } from "@/components/ui/textarea";
 import { createCampaign, updateCampaignStatus, assignProspectToCampaign, deleteCampaign } from "@/app/studio/(authed)/campaigns/actions";
 
 type Campaign = { id: string; name: string; objective: string | null; status: string; created_at: string };
-type Prospect = { id: string; business_name: string; campaign_id: string | null; status: string; deal_value_pence: number | null };
+type Prospect = {
+  id: string;
+  business_name: string;
+  campaign_id: string | null;
+  status: string;
+  deal_value_pence: number | null;
+  contacted_at: string | null;
+};
 
 const selectClasses =
   "h-8 rounded-lg border border-input bg-transparent px-2 text-xs outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50";
+
+// Studio improvement — campaign staleness. STALE_DAYS gives a new
+// campaign a real grace period before it can be flagged, same "give it
+// real time before judging it" instinct as projects-panel.tsx's own
+// DUE_SOON_DAYS. daysSince kept as a plain module-scope function, not
+// inline in CampaignCard's own render body — same react-hooks/purity
+// reasoning documented at billing/page.tsx's own daysUntil(): Date.now()
+// called directly during a component's render is flagged, a plain
+// function the component merely invokes isn't.
+const STALE_DAYS = 14;
+function daysSince(iso: string): number {
+  return (Date.now() - new Date(iso).getTime()) / (1000 * 60 * 60 * 24);
+}
 
 function NewCampaignForm() {
   const [open, setOpen] = useState(false);
@@ -183,6 +203,23 @@ function CampaignCard({ campaign, prospects, unassigned }: { campaign: Campaign;
     .filter((p) => p.status !== "converted" && p.status !== "lost")
     .reduce((sum, p) => sum + (p.deal_value_pence ?? 0), 0);
 
+  // Studio improvement — a different angle from studio-engagement.ts's
+  // own per-client engagement risk (which never looks at campaigns at
+  // all): a campaign left "active" for a while with genuinely zero real
+  // contact activity across its prospects. STALE_DAYS gives a new
+  // campaign a real grace period before it can be flagged — matches the
+  // same "give it real time before judging it" instinct as
+  // projects-panel.tsx's own DUE_SOON_DAYS.
+  const mostRecentContact = prospects.reduce<string | null>((latest, p) => {
+    if (!p.contacted_at) return latest;
+    return !latest || p.contacted_at > latest ? p.contacted_at : latest;
+  }, null);
+  const isStale =
+    status === "active" &&
+    prospects.length > 0 &&
+    daysSince(campaign.created_at) >= STALE_DAYS &&
+    (!mostRecentContact || daysSince(mostRecentContact) >= STALE_DAYS);
+
   function toggleStatus() {
     const next = status === "completed" ? "active" : "completed";
     setStatus(next);
@@ -216,6 +253,12 @@ function CampaignCard({ campaign, prospects, unassigned }: { campaign: Campaign;
           <div className="min-w-0">
             <p className="text-sm font-medium">{campaign.name}</p>
             {campaign.objective && <p className="mt-0.5 text-xs text-muted-foreground">{campaign.objective}</p>}
+            {isStale && (
+              <p className="mt-1 flex items-center gap-1 text-xs text-warning">
+                <CircleAlert className="size-3 shrink-0" />
+                Active {Math.floor(daysSince(campaign.created_at))} days with no real contact activity
+              </p>
+            )}
           </div>
           <div className="flex shrink-0 items-center gap-2">
             <Badge variant={status === "completed" ? "secondary" : "accent"}>{status === "completed" ? "Completed" : "Active"}</Badge>
@@ -267,6 +310,16 @@ export function CampaignsPanel({ campaigns, prospects }: { campaigns: Campaign[]
   }
   const unassigned = prospects.filter((p) => !p.campaign_id);
 
+  // Studio improvement — same client-side search pattern as every other
+  // panel this session (clients/requests/projects/knowledge). Campaigns
+  // are typically fewer than those lists, so this only shows once there
+  // are enough to actually need narrowing.
+  const [search, setSearch] = useState("");
+  const searchLower = search.trim().toLowerCase();
+  const visibleCampaigns = searchLower
+    ? campaigns.filter((c) => c.name.toLowerCase().includes(searchLower) || (c.objective ?? "").toLowerCase().includes(searchLower))
+    : campaigns;
+
   return (
     <div className="mx-auto max-w-3xl">
       <h1 className="font-heading text-2xl font-semibold md:text-3xl">Campaigns</h1>
@@ -283,6 +336,13 @@ export function CampaignsPanel({ campaigns, prospects }: { campaigns: Campaign[]
         <NewCampaignForm />
       </div>
 
+      {campaigns.length > 4 && (
+        <div className="relative mt-4">
+          <Search className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
+          <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search campaigns…" className="pl-8" />
+        </div>
+      )}
+
       {campaigns.length === 0 ? (
         <div className="mt-6 rounded-xl border border-dashed border-border p-8 text-center">
           <Megaphone className="mx-auto size-6 text-muted-foreground" />
@@ -290,9 +350,13 @@ export function CampaignsPanel({ campaigns, prospects }: { campaigns: Campaign[]
             No campaigns yet — create one, then assign prospects to it as you find them.
           </p>
         </div>
+      ) : visibleCampaigns.length === 0 ? (
+        <div className="mt-4 rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+          No campaigns match that search.
+        </div>
       ) : (
         <div className="mt-4 space-y-2">
-          {campaigns.map((c) => (
+          {visibleCampaigns.map((c) => (
             <CampaignCard key={c.id} campaign={c} prospects={prospectsByCampaign.get(c.id) ?? []} unassigned={unassigned} />
           ))}
         </div>
