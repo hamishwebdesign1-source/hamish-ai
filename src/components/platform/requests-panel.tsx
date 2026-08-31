@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   Inbox,
@@ -287,11 +288,15 @@ function RequestCard({
   tasks,
   projects,
   websiteProjects,
+  selected,
+  onToggleSelect,
 }: {
   request: Request;
   tasks: Task[];
   projects: Project[];
   websiteProjects: WebsiteProject[];
+  selected?: boolean;
+  onToggleSelect?: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState(request.draft_response ?? "");
@@ -343,27 +348,52 @@ function RequestCard({
   return (
     <Card>
       <CardContent className="py-3">
-        <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open} className="flex w-full items-center justify-between gap-3 text-left">
-          <div className="min-w-0">
-            <p className="truncate text-sm font-medium">{clientName(request)}</p>
-            <p className="mt-0.5 truncate text-xs text-muted-foreground">{request.raw_text}</p>
-          </div>
-          <div className="flex shrink-0 items-center gap-2">
-            {!responded &&
-              (() => {
-                const age = requestAgeDays(request.created_at);
-                if (age < REQUEST_AGE_WARNING_DAYS) return null;
-                return (
-                  <span className={`text-[11px] font-medium ${age >= REQUEST_AGE_CRITICAL_DAYS ? "text-destructive" : "text-warning"}`}>
-                    {age}d old
-                  </span>
-                );
-              })()}
-            {request.priority && <PriorityBadge priority={request.priority} />}
-            {responded ? <Badge variant="success">Responded</Badge> : <RequestStatusBadge status={request.status} />}
-            {open ? <ChevronUp className="size-4 text-muted-foreground" /> : <ChevronDown className="size-4 text-muted-foreground" />}
-          </div>
-        </button>
+        <div className="flex items-center gap-3">
+          {/* Studio improvement — bulk actions. Sibling to the toggle
+              button, not nested inside it, same reasoning as
+              prospecting-panel.tsx's own ProspectCard fix — a checkbox
+              inside a clickable row would fire both the toggle and the
+              expand/collapse on one click. Only rendered for an
+              unresponded request, matching exactly when the per-row
+              "Mark as responded" button below is itself shown — a
+              checkbox with nothing for the bulk bar to do on this row
+              would just be confusing. */}
+          {!responded && onToggleSelect && (
+            <input
+              type="checkbox"
+              checked={selected ?? false}
+              onChange={onToggleSelect}
+              aria-label={`Select request from ${clientName(request)}`}
+              className="size-4 shrink-0 rounded border-border accent-accent"
+            />
+          )}
+          <button
+            type="button"
+            onClick={() => setOpen((o) => !o)}
+            aria-expanded={open}
+            className="flex min-w-0 flex-1 items-center justify-between gap-3 text-left"
+          >
+            <div className="min-w-0">
+              <p className="truncate text-sm font-medium">{clientName(request)}</p>
+              <p className="mt-0.5 truncate text-xs text-muted-foreground">{request.raw_text}</p>
+            </div>
+            <div className="flex shrink-0 items-center gap-2">
+              {!responded &&
+                (() => {
+                  const age = requestAgeDays(request.created_at);
+                  if (age < REQUEST_AGE_WARNING_DAYS) return null;
+                  return (
+                    <span className={`text-[11px] font-medium ${age >= REQUEST_AGE_CRITICAL_DAYS ? "text-destructive" : "text-warning"}`}>
+                      {age}d old
+                    </span>
+                  );
+                })()}
+              {request.priority && <PriorityBadge priority={request.priority} />}
+              {responded ? <Badge variant="success">Responded</Badge> : <RequestStatusBadge status={request.status} />}
+              {open ? <ChevronUp className="size-4 text-muted-foreground" /> : <ChevronDown className="size-4 text-muted-foreground" />}
+            </div>
+          </button>
+        </div>
 
         {open && (
           <div className="mt-4 space-y-4 border-t border-border pt-4">
@@ -483,6 +513,7 @@ export function RequestsPanel({
   projects: Project[];
   websiteProjects: WebsiteProject[];
 }) {
+  const router = useRouter();
   const [filter, setFilter] = useState<"all" | "open" | "responded">("open");
   // Studio improvement — same client-side search pattern as
   // prospecting-panel.tsx/knowledge-panel.tsx, filtering the request text
@@ -529,6 +560,55 @@ export function RequestsPanel({
     return list;
   }, [requests, filter, search]);
 
+  // Studio improvement — bulk actions, same pattern as prospecting-panel.tsx's
+  // own bulk "mark as contacted". Selection only ever holds unresponded
+  // request ids (RequestCard itself only renders a checkbox for one) so
+  // there's nothing to filter out at execution time.
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkPending, startBulk] = useTransition();
+  const [bulkError, setBulkError] = useState<string | null>(null);
+  const [bulkDone, setBulkDone] = useState<number | null>(null);
+
+  const selectableVisible = visible.filter((r) => !r.responded_at);
+  const visibleSelectedCount = selectableVisible.filter((r) => selected.has(r.id)).length;
+  const allVisibleSelected = selectableVisible.length > 0 && visibleSelectedCount === selectableVisible.length;
+
+  function toggleSelected(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleSelectAllVisible() {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (allVisibleSelected) {
+        for (const r of selectableVisible) next.delete(r.id);
+      } else {
+        for (const r of selectableVisible) next.add(r.id);
+      }
+      return next;
+    });
+  }
+
+  function bulkMarkResponded() {
+    const ids = Array.from(selected);
+    if (ids.length === 0 || bulkPending) return;
+    setBulkError(null);
+    setBulkDone(null);
+    startBulk(async () => {
+      const results = await Promise.all(ids.map((id) => markRequestResponded(id)));
+      const failed = results.filter((r) => r && "error" in r).length;
+      setSelected(new Set());
+      if (failed > 0) setBulkError(`${failed} of ${ids.length} failed to update — try again for those.`);
+      setBulkDone(ids.length - failed);
+      router.refresh();
+    });
+  }
+
   return (
     <div className="mx-auto max-w-4xl space-y-6">
       <div>
@@ -567,17 +647,47 @@ export function RequestsPanel({
               {search.trim() ? "No requests match that search." : "Nothing in this view."}
             </div>
           ) : (
-            <div className="space-y-2">
-              {visible.map((r) => (
-                <RequestCard
-                  key={r.id}
-                  request={r}
-                  tasks={tasksByRequest.get(r.id) ?? []}
-                  projects={projectsByClient.get(r.client_id) ?? []}
-                  websiteProjects={websiteProjectsByClient.get(r.client_id) ?? []}
-                />
-              ))}
-            </div>
+            <>
+              {selectableVisible.length > 0 && (
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <input
+                    type="checkbox"
+                    checked={allVisibleSelected}
+                    onChange={toggleSelectAllVisible}
+                    aria-label="Select all unanswered visible requests"
+                    className="size-4 shrink-0 rounded border-border accent-accent"
+                  />
+                  <span>Select all {selectableVisible.length} unanswered</span>
+                  {selected.size > 0 && (
+                    <span className="ml-auto flex items-center gap-2">
+                      <span>{selected.size} selected</span>
+                      <Button size="xs" variant="outline" disabled={bulkPending} onClick={bulkMarkResponded}>
+                        {bulkPending ? "Updating…" : `Mark ${selected.size} as responded`}
+                      </Button>
+                    </span>
+                  )}
+                </div>
+              )}
+              {bulkDone !== null && !bulkPending && (
+                <p className="text-xs text-accent">
+                  {bulkDone} request{bulkDone === 1 ? "" : "s"} marked as responded.
+                </p>
+              )}
+              {bulkError && <p className="text-xs text-destructive">{bulkError}</p>}
+              <div className="space-y-2">
+                {visible.map((r) => (
+                  <RequestCard
+                    key={r.id}
+                    request={r}
+                    tasks={tasksByRequest.get(r.id) ?? []}
+                    projects={projectsByClient.get(r.client_id) ?? []}
+                    websiteProjects={websiteProjectsByClient.get(r.client_id) ?? []}
+                    selected={selected.has(r.id)}
+                    onToggleSelect={() => toggleSelected(r.id)}
+                  />
+                ))}
+              </div>
+            </>
           )}
         </>
       )}
