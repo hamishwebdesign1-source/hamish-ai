@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { after } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase";
+import { regenerateDraftResponse } from "@/lib/triage-request";
 import { createResearchJob, runResearchJob } from "@/lib/deep-research-pipeline";
 import { researchContentIdea, type ContentIdeaResearch } from "@/lib/research-content-idea";
 import { generateContentScripts, reallocateScenesForEditedNarration, type ScriptVariant, type SceneBeat } from "@/lib/generate-content-scripts";
@@ -75,6 +76,35 @@ export async function updateDraftResponse(requestId: string, formData: FormData)
     .eq("id", requestId);
 
   if (error) console.error("Failed to update draft response:", error);
+
+  revalidatePath(`/admin/requests/${requestId}`);
+}
+
+// Studio improvement — Studio's own requests-panel.tsx got a "Regenerate"
+// button for its AI draft reply (regenerateRequestDraft, requests/actions.ts);
+// admin's own request detail page had the same manual-only draft form
+// with no equivalent. Reuses regenerateDraftResponse() directly —
+// client-scoped, not org-scoped, so it's exactly as safe to call from
+// here as from Studio's own tenant-facing action (see that function's
+// own comment in triage-request.ts for why it's deliberately NOT a call
+// into the full triageRequest() pipeline). Plain form action, no client
+// component, same simplicity as updateDraftResponse() above and every
+// other action this page already uses.
+export async function regenerateAdminDraft(requestId: string) {
+  const supabase = getSupabaseAdmin();
+  if (!supabase) return;
+
+  const { data: request } = await supabase.from("requests").select("client_id, raw_text").eq("id", requestId).single();
+  if (!request) return;
+
+  const result = await regenerateDraftResponse(request.client_id, request.raw_text);
+  if ("error" in result) {
+    console.error("Failed to regenerate admin draft:", result.error);
+    return;
+  }
+
+  const { error } = await supabase.from("requests").update({ draft_response: result.draftResponse }).eq("id", requestId);
+  if (error) console.error("Failed to save regenerated draft:", error);
 
   revalidatePath(`/admin/requests/${requestId}`);
 }

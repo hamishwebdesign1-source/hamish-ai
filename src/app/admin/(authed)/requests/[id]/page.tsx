@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, CalendarCheck, CircleHelp, Sparkles, Zap } from "lucide-react";
+import { ArrowLeft, CalendarCheck, CircleHelp, Sparkles, Zap, RefreshCw } from "lucide-react";
 import { getSupabaseAdmin } from "@/lib/supabase";
-import { updateTaskStatus, updateDraftResponse } from "@/app/admin/actions";
+import { updateTaskStatus, updateDraftResponse, regenerateAdminDraft } from "@/app/admin/actions";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,18 @@ import { Badge } from "@/components/ui/badge";
 import { PriorityBadge } from "@/components/status-badges";
 
 const TASK_STATUSES = ["todo", "in_progress", "done"] as const;
+
+// Studio improvement — same age-of-request signal requests-panel.tsx's
+// own requestAgeDays()/thresholds already give Studio tenants, ported
+// here for HamishAI's own internal requests. Kept as its own local copy
+// rather than a shared import — same "own local copy of small date
+// maths" convention this session has used consistently (billing/page.tsx's
+// daysUntil, campaigns-panel.tsx's daysSince, etc.).
+const REQUEST_AGE_WARNING_DAYS = 2;
+const REQUEST_AGE_CRITICAL_DAYS = 5;
+function requestAgeDays(createdAt: string): number {
+  return Math.floor((Date.now() - new Date(createdAt).getTime()) / (24 * 60 * 60 * 1000));
+}
 
 export default async function RequestDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -47,6 +59,14 @@ export default async function RequestDetailPage({ params }: { params: Promise<{ 
         {req.category && <Badge variant="outline">{req.category}</Badge>}
         {req.complexity && <Badge variant="outline">{req.complexity}</Badge>}
         <Badge variant="outline">{req.status}</Badge>
+        {!req.responded_at &&
+          (() => {
+            const age = requestAgeDays(req.created_at);
+            if (age < REQUEST_AGE_WARNING_DAYS) return null;
+            return (
+              <span className={`text-xs font-medium ${age >= REQUEST_AGE_CRITICAL_DAYS ? "text-destructive" : "text-warning"}`}>{age}d old</span>
+            );
+          })()}
       </div>
 
       <Card className="mt-5 bg-secondary/40">
@@ -108,8 +128,20 @@ export default async function RequestDetailPage({ params }: { params: Promise<{ 
         <p className="font-mono text-xs font-medium tracking-wide text-accent uppercase">Draft response to send</p>
         <form action={updateDraftResponse.bind(null, req.id)} className="mt-2 space-y-2">
           <Textarea name="draft_response" defaultValue={req.draft_response} rows={6} />
-          <Button type="submit" variant="outline" size="sm">
-            Save draft
+          <div className="flex items-center gap-2">
+            <Button type="submit" variant="outline" size="sm">
+              Save draft
+            </Button>
+          </div>
+        </form>
+        {/* Separate form, not a second submit button in the one above —
+            "Regenerate" replaces draft_response with a fresh AI attempt
+            and shouldn't also submit whatever's currently typed in the
+            textarea as if it were the intended save. */}
+        <form action={regenerateAdminDraft.bind(null, req.id)} className="mt-2">
+          <Button type="submit" variant="ghost" size="sm">
+            <RefreshCw className="size-3.5" />
+            Regenerate
           </Button>
         </form>
       </div>
