@@ -17,6 +17,7 @@ import {
   MessageCircle,
   Copy,
   Check,
+  Search,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -600,6 +601,15 @@ export function ClientsPanel({
     (a, b) => (RISK_TIER_WEIGHT[riskByClient[b.id]?.tier ?? ""] ?? 0) - (RISK_TIER_WEIGHT[riskByClient[a.id]?.tier ?? ""] ?? 0)
   );
 
+  // Studio improvement — client-side, same pattern prospecting-panel.tsx's
+  // own search already uses. Filters, doesn't replace, the risk-tier
+  // sort above — a search result still surfaces an at-risk match first.
+  const [search, setSearch] = useState("");
+  const searchLower = search.trim().toLowerCase();
+  const visibleClients = searchLower
+    ? sortedClients.filter((c) => c.business_name.toLowerCase().includes(searchLower) || (c.email ?? "").toLowerCase().includes(searchLower))
+    : sortedClients;
+
   return (
     <div className="mx-auto max-w-4xl">
       <h1 className="font-heading text-2xl font-semibold md:text-3xl">Clients</h1>
@@ -635,19 +645,31 @@ export function ClientsPanel({
           <div className="mt-3">
             <ClientsCopilot />
           </div>
-          <div className="mt-3 space-y-2">
-            {sortedClients.map((c) => (
-              <ClientCard
-                key={c.id}
-                client={c}
-                invoices={invoicesByClient[c.id] ?? []}
-                health={healthByClient[c.id]}
-                risk={riskByClient[c.id]}
-                embedUsage={embedUsageByClient[c.id] ?? 0}
-                stripeReady={stripeReady}
-              />
-            ))}
-          </div>
+          {clients.length > 4 && (
+            <div className="relative mt-3">
+              <Search className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
+              <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search clients…" className="pl-8" />
+            </div>
+          )}
+          {visibleClients.length === 0 ? (
+            <div className="mt-3 rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+              No clients match that search.
+            </div>
+          ) : (
+            <div className="mt-3 space-y-2">
+              {visibleClients.map((c) => (
+                <ClientCard
+                  key={c.id}
+                  client={c}
+                  invoices={invoicesByClient[c.id] ?? []}
+                  health={healthByClient[c.id]}
+                  risk={riskByClient[c.id]}
+                  embedUsage={embedUsageByClient[c.id] ?? 0}
+                  stripeReady={stripeReady}
+                />
+              ))}
+            </div>
+          )}
         </>
       )}
     </div>
