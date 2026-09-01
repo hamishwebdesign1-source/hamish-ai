@@ -18,11 +18,12 @@ import { sendClientInvoiceReminderAction } from "@/app/studio/(authed)/clients/a
 // renders as already-done immediately, no re-offer of "Send reminder" for
 // something that already happened.
 //
-// Only ever rendered by the caller for HamishAI's own internal org — see
-// page.tsx's isInternalOrg prop into buildSectionContent and
-// send-invoice-reminder.ts's own comment for why: sendClientEmail() has no
-// per-tenant identity yet, so this can't safely go out under a tenant's
-// own client's expectations until real per-tenant email sending exists.
+// Only ever rendered by the caller when canSendClientEmail is true — see
+// page.tsx's own comment: HamishAI's own org always qualifies, a tenant
+// org qualifies once it's set a reply-to email in Settings (roadmap item
+// #1, send-org-email.ts). Either way sendInvoiceReminder() resolves the
+// real sending identity itself; this component doesn't need to know which
+// case it is.
 export function SendInvoiceReminderAction({ invoiceId, alreadySentInitially }: { invoiceId: string; alreadySentInitially: boolean }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();

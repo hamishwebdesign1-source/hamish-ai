@@ -306,6 +306,49 @@ export async function resetBrandAccent() {
   return { ok: true as const };
 }
 
+// Roadmap item #1 — the reply-to email an org sets here is what
+// send-org-email.ts uses to send client-facing emails (payment
+// reminders today) under the org's own name instead of refusing to send
+// at all. Same organisations.brand jsonb column and merge-not-overwrite
+// shape as updateBrandAccent() above. Revalidates /studio too, not just
+// /studio/settings — setting this is what turns on the "Send payment
+// reminder" control on the Command Centre's Engagement Risk card.
+export async function updateReplyToEmail(email: string) {
+  const orgId = await requireOrgId();
+  const admin = getSupabaseAdmin();
+  if (!admin) return { error: "Supabase is not configured." };
+
+  const trimmed = email.trim();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) return { error: "Enter a valid email address." };
+
+  const { data: org } = await admin.from("organisations").select("brand").eq("id", orgId).single();
+  const merged = { ...(org?.brand ?? {}), replyToEmail: trimmed };
+
+  const { error } = await admin.from("organisations").update({ brand: merged }).eq("id", orgId);
+  if (error) return { error: "Failed to save your reply-to email." };
+
+  revalidatePath("/studio/settings");
+  revalidatePath("/studio");
+  return { ok: true as const };
+}
+
+export async function clearReplyToEmail() {
+  const orgId = await requireOrgId();
+  const admin = getSupabaseAdmin();
+  if (!admin) return { error: "Supabase is not configured." };
+
+  const { data: org } = await admin.from("organisations").select("brand").eq("id", orgId).single();
+  const merged = { ...(org?.brand ?? {}) } as Record<string, unknown>;
+  delete merged.replyToEmail;
+
+  const { error } = await admin.from("organisations").update({ brand: merged }).eq("id", orgId);
+  if (error) return { error: "Failed to clear your reply-to email." };
+
+  revalidatePath("/studio/settings");
+  revalidatePath("/studio");
+  return { ok: true as const };
+}
+
 // GDPR minimum-viable compliance, part 3 — see schema-account-deletion-
 // request.sql's own comment for why this is a request, not an instant
 // hard delete: destroying an entire org (prospects, clients, invoices, a

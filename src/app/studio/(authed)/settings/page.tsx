@@ -7,6 +7,7 @@ import { timeAgo } from "@/lib/time-ago";
 import { hasPlatformMsConfig } from "@/lib/tenant-graph-auth";
 import { SettingsPanel } from "@/components/platform/settings-panel";
 import { BrandingPanel } from "@/components/platform/branding-panel";
+import { EmailSenderPanel } from "@/components/platform/email-sender-panel";
 import { DataPrivacyPanel } from "@/components/platform/data-privacy-panel";
 import { CommandCentreLayoutPanel } from "@/components/platform/command-centre-layout-panel";
 import { NotificationsPanel } from "@/components/platform/notifications-panel";
@@ -59,7 +60,7 @@ export default async function StudioSettingsPage({
     )
     .eq("id", membership.orgId)
     .single();
-  const brand = (org?.brand ?? {}) as { accentColor?: string };
+  const brand = (org?.brand ?? {}) as { accentColor?: string; replyToEmail?: string };
   const commandCentreBlocks = resolveLayout(org?.command_centre_layout);
 
   // Command Centre Phase 5e — command_centre_layout_history_select_own_org
@@ -217,6 +218,18 @@ export default async function StudioSettingsPage({
           <h2 className="font-heading text-xs font-semibold tracking-wide text-muted-foreground uppercase">Branding</h2>
           <div className="mt-3">
             <BrandingPanel accentColor={brand.accentColor ?? null} />
+          </div>
+        </div>
+      )}
+
+      {/* Roadmap item #1 — same isInternal gate as Branding above:
+          HamishAI's own org already has a real sending identity via
+          sendClientEmail(), it has nothing to configure here. */}
+      {!org?.is_internal && (
+        <div>
+          <h2 className="font-heading text-xs font-semibold tracking-wide text-muted-foreground uppercase">Email</h2>
+          <div className="mt-3">
+            <EmailSenderPanel replyToEmail={brand.replyToEmail ?? null} />
           </div>
         </div>
       )}

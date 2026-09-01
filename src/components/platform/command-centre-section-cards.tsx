@@ -129,17 +129,17 @@ export function buildSectionContent(params: {
   hasBriefingContent: boolean;
   briefing: StudioBriefing;
   engagementRisks: ClientEngagementRisk[];
-  // Gates the "Send payment reminder" action — see send-invoice-reminder.ts's
-  // own comment on why: HamishAI's own org only, until real per-tenant
-  // email sending exists. Same isInternal-check-one-level-up shape as
-  // settings/page.tsx not rendering BrandingPanel for HamishAI's own org.
-  isInternalOrg: boolean;
+  // Gates the "Send payment reminder" action — true for HamishAI's own
+  // org, or any tenant org that's configured a reply-to email in Settings
+  // (roadmap item #1, send-org-email.ts). See page.tsx's own comment on
+  // why both cases qualify.
+  canSendClientEmail: boolean;
   modelPerformance: ModelPerformanceWithCost;
   aiAdoption: AiAdoption;
   recentActivity: ClientActivityItem[];
   agencyHealth: ClientHealth;
 }): Partial<Record<SectionType, ReactNode>> {
-  const { actionQueue, actionsTotal, insights, hasBriefingContent, briefing, engagementRisks, isInternalOrg, modelPerformance, aiAdoption, recentActivity, agencyHealth } =
+  const { actionQueue, actionsTotal, insights, hasBriefingContent, briefing, engagementRisks, canSendClientEmail, modelPerformance, aiAdoption, recentActivity, agencyHealth } =
     params;
   const actionsRemaining = actionsTotal - actionQueue.length;
 
@@ -302,7 +302,7 @@ export function buildSectionContent(params: {
                       {risk.quietWeeks > 0 && risk.hasOverdueInvoice && " · "}
                       {risk.hasOverdueInvoice && "Invoice overdue"}
                     </p>
-                    {isInternalOrg && risk.hasOverdueInvoice && risk.overdueInvoiceId && (
+                    {canSendClientEmail && risk.hasOverdueInvoice && risk.overdueInvoiceId && (
                       <SendInvoiceReminderAction invoiceId={risk.overdueInvoiceId} alreadySentInitially={Boolean(risk.reminderSentAt)} />
                     )}
                   </div>

@@ -122,7 +122,7 @@ export default async function StudioHomePage() {
 
   const { data: org } = await supabase
     .from("organisations")
-    .select("name, plan, prospecting_config, is_internal, stripe_connect_charges_enabled, command_centre_layout, today_strip_stats")
+    .select("name, plan, prospecting_config, is_internal, brand, stripe_connect_charges_enabled, command_centre_layout, today_strip_stats")
     .eq("id", membership.orgId)
     .single();
   const blocks = resolveLayout(org?.command_centre_layout);
@@ -411,16 +411,13 @@ export default async function StudioHomePage() {
     hasBriefingContent,
     briefing,
     engagementRisks,
-    // "Send payment reminder" (Engagement Risk card) is only ever rendered
-    // for HamishAI's own internal org — see send-invoice-reminder.ts's own
-    // comment on why: sendClientEmail() has no per-tenant identity yet, so
-    // a tenant's client can't safely be sent a reminder that would go out
-    // signed "— Hamish AI". Same isInternal-gated-one-level-up precedent
-    // as branding-panel.tsx (settings/page.tsx doesn't render it at all
-    // for HamishAI's own org); this is the mirror image, gating a
-    // client-facing send to *only* HamishAI's own org until real
-    // per-tenant email sending exists.
-    isInternalOrg: Boolean(org?.is_internal),
+    // "Send payment reminder" (Engagement Risk card) — HamishAI's own org
+    // always qualifies (sendClientEmail's real identity); a tenant org
+    // qualifies too once it's set a reply-to email in Settings (roadmap
+    // item #1, send-org-email.ts). Neither one true means the send would
+    // go out under nobody's real name, so the control stays hidden — same
+    // "only show what's real" rule as everywhere else in Studio.
+    canSendClientEmail: Boolean(org?.is_internal) || Boolean((org?.brand as { replyToEmail?: string } | null)?.replyToEmail),
     modelPerformance,
     aiAdoption,
     recentActivity,

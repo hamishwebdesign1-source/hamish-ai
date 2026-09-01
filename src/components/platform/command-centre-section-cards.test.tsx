@@ -92,7 +92,7 @@ function baseParams(overrides: Partial<Parameters<typeof buildSectionContent>[0]
     hasBriefingContent: false,
     briefing: emptyBriefing(),
     engagementRisks: [],
-    isInternalOrg: false,
+    canSendClientEmail: false,
     modelPerformance: emptyModelPerformance(),
     aiAdoption: emptyAiAdoption(),
     recentActivity: [],
@@ -335,21 +335,21 @@ describe("buildSectionContent — engagement risk 'Send payment reminder' wiring
   }
 
   it("never renders the Send reminder control for a non-internal org, even with a real overdue invoice", () => {
-    const content = buildSectionContent(baseParams({ engagementRisks: riskWithOverdueInvoice(), isInternalOrg: false }));
+    const content = buildSectionContent(baseParams({ engagementRisks: riskWithOverdueInvoice(), canSendClientEmail: false }));
     const { container } = render(content.engagement_risk as React.ReactElement);
     expect(within(container).queryByRole("button", { name: /send reminder/i })).not.toBeInTheDocument();
     expect(container.textContent).toContain("Invoice overdue");
   });
 
   it("renders the Send reminder control for HamishAI's own internal org when a real overdue invoice exists", () => {
-    const content = buildSectionContent(baseParams({ engagementRisks: riskWithOverdueInvoice(), isInternalOrg: true }));
+    const content = buildSectionContent(baseParams({ engagementRisks: riskWithOverdueInvoice(), canSendClientEmail: true }));
     const { container } = render(content.engagement_risk as React.ReactElement);
     expect(within(container).getByRole("button", { name: /send reminder/i })).toBeInTheDocument();
   });
 
   it("renders as already-done, with no button, when a reminder has already been sent", () => {
     const content = buildSectionContent(
-      baseParams({ engagementRisks: riskWithOverdueInvoice({ reminderSentAt: "2026-08-20T09:00:00Z" }), isInternalOrg: true })
+      baseParams({ engagementRisks: riskWithOverdueInvoice({ reminderSentAt: "2026-08-20T09:00:00Z" }), canSendClientEmail: true })
     );
     const { container } = render(content.engagement_risk as React.ReactElement);
     const scope = within(container);
@@ -358,14 +358,14 @@ describe("buildSectionContent — engagement risk 'Send payment reminder' wiring
   });
 
   it("does not render the control at all for a row with no overdue invoice, even for the internal org", () => {
-    const content = buildSectionContent(baseParams({ engagementRisks: oneEngagementRisk, isInternalOrg: true }));
+    const content = buildSectionContent(baseParams({ engagementRisks: oneEngagementRisk, canSendClientEmail: true }));
     const { container } = render(content.engagement_risk as React.ReactElement);
     expect(within(container).queryByRole("button", { name: /send reminder/i })).not.toBeInTheDocument();
   });
 
   it("clicking Send reminder shows pending, then success", async () => {
     vi.mocked(sendClientInvoiceReminderAction).mockResolvedValue({ ok: true });
-    const content = buildSectionContent(baseParams({ engagementRisks: riskWithOverdueInvoice(), isInternalOrg: true }));
+    const content = buildSectionContent(baseParams({ engagementRisks: riskWithOverdueInvoice(), canSendClientEmail: true }));
     const { container } = render(content.engagement_risk as React.ReactElement);
     const scope = within(container);
 
@@ -376,7 +376,7 @@ describe("buildSectionContent — engagement risk 'Send payment reminder' wiring
 
   it("shows an inline error and keeps the button if sending fails", async () => {
     vi.mocked(sendClientInvoiceReminderAction).mockResolvedValue({ error: "Invoice not found." });
-    const content = buildSectionContent(baseParams({ engagementRisks: riskWithOverdueInvoice(), isInternalOrg: true }));
+    const content = buildSectionContent(baseParams({ engagementRisks: riskWithOverdueInvoice(), canSendClientEmail: true }));
     const { container } = render(content.engagement_risk as React.ReactElement);
     const scope = within(container);
 
