@@ -145,6 +145,29 @@ export default async function StudioClientsPage() {
     riskByClient[risk.clientId] = risk;
   }
 
+  // Roadmap item #7 — client_competitor_intel_select_own_org RLS
+  // (schema-client-competitor-intel.sql) enforces the same org boundary
+  // independently of this .eq() getting it right. Capped to the 3 most
+  // recent per client client-side (a plain filter, not a real per-group
+  // limit — Postgres doesn't have one without a window function, and this
+  // is a small enough table per org that fetching all of an org's own
+  // rows and slicing here is simpler than one).
+  const { data: competitorIntel } = clientIds.length
+    ? await supabase
+        .from("client_competitor_intel")
+        .select("client_id, headline, detail, source_url, created_at")
+        .in("client_id", clientIds)
+        .order("created_at", { ascending: false })
+    : { data: [] as { client_id: string; headline: string; detail: string; source_url: string | null; created_at: string }[] };
+
+  const MAX_INTEL_PER_CLIENT = 3;
+  const competitorIntelByClient: Record<string, { headline: string; detail: string; sourceUrl: string | null; createdAt: string }[]> = {};
+  for (const row of competitorIntel ?? []) {
+    const existing = (competitorIntelByClient[row.client_id] ??= []);
+    if (existing.length >= MAX_INTEL_PER_CLIENT) continue;
+    existing.push({ headline: row.headline, detail: row.detail, sourceUrl: row.source_url, createdAt: row.created_at });
+  }
+
   return (
     <ClientsPanel
       clients={clients ?? []}
@@ -152,6 +175,7 @@ export default async function StudioClientsPage() {
       embedUsageByClient={embedUsageByClient}
       healthByClient={healthByClient}
       riskByClient={riskByClient}
+      competitorIntelByClient={competitorIntelByClient}
       stripeReady={stripeReady}
     />
   );

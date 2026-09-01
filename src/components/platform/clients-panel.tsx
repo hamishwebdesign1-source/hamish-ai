@@ -18,6 +18,7 @@ import {
   Copy,
   Check,
   Search,
+  Radar,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -424,6 +425,8 @@ function EmbedChatbotControl({ client, usageCount }: { client: Client; usageCoun
   );
 }
 
+type CompetitorIntel = { headline: string; detail: string; sourceUrl: string | null; createdAt: string };
+
 function ClientCard({
   client,
   invoices,
@@ -431,6 +434,7 @@ function ClientCard({
   risk,
   embedUsage,
   stripeReady,
+  competitorIntel,
 }: {
   client: Client;
   invoices: Invoice[];
@@ -438,6 +442,7 @@ function ClientCard({
   risk: ClientEngagementRisk | undefined;
   embedUsage: number;
   stripeReady: boolean;
+  competitorIntel: CompetitorIntel[];
 }) {
   const [open, setOpen] = useState(false);
 
@@ -522,6 +527,32 @@ function ClientCard({
               </div>
             )}
 
+            {/* Roadmap item #7 — only ever real findings a monthly
+                background pass actually confirmed (competitor-intel.ts);
+                nothing renders here for a client with none yet, same
+                "only show it when it's real" rule as every other section
+                on this card. */}
+            {competitorIntel.length > 0 && (
+              <div>
+                <p className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
+                  <Radar className="size-3.5 shrink-0" /> Competitive intel
+                </p>
+                <div className="mt-1.5 space-y-1.5">
+                  {competitorIntel.map((intel, i) => (
+                    <div key={i} className="rounded-lg border border-border px-3 py-2 text-xs">
+                      <p className="font-medium">{intel.headline}</p>
+                      <p className="mt-0.5 text-muted-foreground">{intel.detail}</p>
+                      {intel.sourceUrl && (
+                        <a href={intel.sourceUrl} target="_blank" rel="noreferrer" className="mt-1 inline-flex items-center gap-1 text-accent hover:underline">
+                          <ExternalLink className="size-3" /> Source
+                        </a>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <GenerateReportControl clientId={client.id} />
 
             <EmbedChatbotControl client={client} usageCount={embedUsage} />
@@ -594,6 +625,7 @@ export function ClientsPanel({
   healthByClient,
   riskByClient,
   embedUsageByClient,
+  competitorIntelByClient,
   stripeReady,
 }: {
   clients: Client[];
@@ -601,6 +633,7 @@ export function ClientsPanel({
   healthByClient: Record<string, ClientHealth>;
   riskByClient: Record<string, ClientEngagementRisk>;
   embedUsageByClient: Record<string, number>;
+  competitorIntelByClient: Record<string, CompetitorIntel[]>;
   stripeReady: boolean;
 }) {
   const riskCount = Object.keys(riskByClient).length;
@@ -672,6 +705,7 @@ export function ClientsPanel({
                   health={healthByClient[c.id]}
                   risk={riskByClient[c.id]}
                   embedUsage={embedUsageByClient[c.id] ?? 0}
+                  competitorIntel={competitorIntelByClient[c.id] ?? []}
                   stripeReady={stripeReady}
                 />
               ))}

@@ -9,6 +9,7 @@ import { SettingsPanel } from "@/components/platform/settings-panel";
 import { BrandingPanel } from "@/components/platform/branding-panel";
 import { EmailSenderPanel } from "@/components/platform/email-sender-panel";
 import { BookingLinkPanel } from "@/components/platform/booking-link-panel";
+import { CompetitiveIntelPanel } from "@/components/platform/competitive-intel-panel";
 import { DataPrivacyPanel } from "@/components/platform/data-privacy-panel";
 import { CommandCentreLayoutPanel } from "@/components/platform/command-centre-layout-panel";
 import { NotificationsPanel } from "@/components/platform/notifications-panel";
@@ -69,6 +70,7 @@ export default async function StudioSettingsPage({
     replyToEmail?: string;
     autonomousOutreachEnabled?: boolean;
     bookingLink?: string;
+    competitiveIntelEnabled?: boolean;
   };
   const commandCentreBlocks = resolveLayout(org?.command_centre_layout);
   const plan = (org?.plan ?? "starter") as PlatformPlanSlug;
@@ -262,6 +264,18 @@ export default async function StudioSettingsPage({
           <h2 className="font-heading text-xs font-semibold tracking-wide text-muted-foreground uppercase">Booking</h2>
           <div className="mt-3">
             <BookingLinkPanel bookingLink={brand.bookingLink ?? null} />
+          </div>
+        </div>
+      )}
+
+      {/* Roadmap item #7 — same isInternal gate as everything else in
+          this section; HamishAI's own client base isn't what this
+          feature protects. */}
+      {!org?.is_internal && (
+        <div>
+          <h2 className="font-heading text-xs font-semibold tracking-wide text-muted-foreground uppercase">Competitive intelligence</h2>
+          <div className="mt-3">
+            <CompetitiveIntelPanel enabled={Boolean(brand.competitiveIntelEnabled)} />
           </div>
         </div>
       )}

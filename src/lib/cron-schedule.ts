@@ -109,7 +109,8 @@ export const CRON_SPECS: CronSpec[] = [
   {
     name: "monthly-reports",
     label: "Monthly reports",
-    description: "Generates and sends this month's dated health-and-activity report snapshot for every client.",
+    description:
+      "Generates and sends this month's dated health-and-activity report snapshot for every client, and researches real competitor intelligence for a handful of clients per opted-in org.",
     schedule: "30 9 1 * *",
     nextRun: () => nextMonthly(1, 9, 30),
   },

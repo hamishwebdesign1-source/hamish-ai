@@ -504,3 +504,22 @@ export async function clearBookingLink() {
   revalidatePath("/studio/prospects");
   return { ok: true as const };
 }
+
+// Roadmap item #7 — the opt-in for competitor-intel.ts's monthly research
+// pass. No dependency on a reply-to email or anything else configured —
+// this never sends anything to anyone, it only ever reads real web
+// research into a Studio-internal table a tenant's own staff see.
+export async function updateCompetitiveIntel(enabled: boolean) {
+  const orgId = await requireOrgId();
+  const admin = getSupabaseAdmin();
+  if (!admin) return { error: "Supabase is not configured." };
+
+  const { data: org } = await admin.from("organisations").select("brand").eq("id", orgId).single();
+  const merged = { ...(org?.brand ?? {}), competitiveIntelEnabled: enabled };
+
+  const { error } = await admin.from("organisations").update({ brand: merged }).eq("id", orgId);
+  if (error) return { error: "Failed to save." };
+
+  revalidatePath("/studio/settings");
+  return { ok: true as const };
+}
