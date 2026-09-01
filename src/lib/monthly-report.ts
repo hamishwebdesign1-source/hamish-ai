@@ -1,6 +1,8 @@
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { computeClientHealth } from "@/lib/client-health";
 import { sendClientEmail } from "@/lib/send-client-email";
+import { sendOrgEmail } from "@/lib/send-org-email";
+import { renderMonthlyReportPdf } from "@/lib/monthly-report-pdf";
 
 // P1 platform readiness item — "reuse portal-insights-data.ts's real
 // numbers, format as a dated report artifact, notify the client when a
@@ -108,7 +110,7 @@ export async function generateMonthlyReport(clientId: string, now = new Date()) 
   const { data: client } = await admin.from("clients").select("id, org_id, business_name, email").eq("id", clientId).single();
   if (!client) return { error: "Client not found." as const };
 
-  const { data: org } = await admin.from("organisations").select("is_internal").eq("id", client.org_id).single();
+  const { data: org } = await admin.from("organisations").select("name, is_internal, brand").eq("id", client.org_id).single();
 
   const { periodStart, periodEnd } = lastCalendarMonth(now);
   const periodStartStr = toDateStr(periodStart);
@@ -131,22 +133,50 @@ export async function generateMonthlyReport(clientId: string, now = new Date()) 
     .single();
   if (error || !report) return { error: "Failed to save the report." as const };
 
-  // Email notification is gated to HamishAI's own internal org for the
-  // same reason weekly-digest.ts's send is: sendClientEmail()'s
-  // from-address is hardcoded to hello@hamishai.org, so an automatic email
-  // to a real tenant's client would be signed with the wrong identity.
-  // Tenant clients still get the report — it's in their portal the moment
-  // it's generated, surfaced via the same notification-bell event feed
-  // (portal-events.ts) every other real portal event already uses, no
-  // email required to "notify" them within their own authenticated
-  // session.
-  if (org?.is_internal && client.email) {
+  // Studio big-ticket ("branded, delivered monthly client reports") —
+  // email used to be gated to HamishAI's own internal org, for the same
+  // reason weekly-digest.ts's send was: sendClientEmail()'s from-address
+  // is hardcoded to hello@hamishai.org, so an automatic email to a real
+  // tenant's client would be signed with the wrong identity. Now branches
+  // the same way sendInvoiceReminder() does: HamishAI's own org keeps
+  // sendClientEmail() unchanged; a tenant org sends via sendOrgEmail()
+  // once it's configured a reply-to email (Settings > Email, roadmap item
+  // #1), still failing closed (no email, portal-only) otherwise — never
+  // guessing at an identity to send under. Either way the email now
+  // carries the branded PDF (monthly-report-pdf.tsx) as a real
+  // attachment, not just a plain-text summary; the portal event feed
+  // (portal-events.ts) still notifies within the session regardless of
+  // whether an email went out.
+  if (client.email && org) {
     const monthLabel = periodStart.toLocaleDateString("en-GB", { month: "long", year: "numeric" });
-    await sendClientEmail(
-      client.email,
-      `Your ${monthLabel} report — ${client.business_name}`,
-      `Hi,\n\nYour report for ${monthLabel} is ready — ${snapshot.requestsTotal} request${snapshot.requestsTotal === 1 ? "" : "s"}, ${snapshot.tasksCompleted}/${snapshot.tasksTotal} tasks completed${snapshot.uptimePct !== null ? `, ${snapshot.uptimePct}% uptime` : ""}.\n\nLog into your portal to see the full breakdown.\n\n— Hamish AI`
-    );
+    const orgName = org.is_internal ? "Hamish AI" : org.name;
+    const pdf = await renderMonthlyReportPdf({
+      orgName,
+      accentColor: (org.brand as { accentColor?: string } | null)?.accentColor ?? null,
+      clientBusinessName: client.business_name,
+      periodLabel: monthLabel,
+      snapshot,
+    });
+    const attachments = [{ filename: `${monthLabel.replace(/\s+/g, "-").toLowerCase()}-report.pdf`, content: pdf }];
+    const subject = `Your ${monthLabel} report — ${client.business_name}`;
+    const bodyCore = `Your report for ${monthLabel} is ready — ${snapshot.requestsTotal} request${snapshot.requestsTotal === 1 ? "" : "s"}, ${snapshot.tasksCompleted}/${snapshot.tasksTotal} tasks completed${snapshot.uptimePct !== null ? `, ${snapshot.uptimePct}% uptime` : ""}. The full report is attached as a PDF.\n\nLog into your portal to see the full breakdown.`;
+
+    if (org.is_internal) {
+      await sendClientEmail(client.email, subject, `Hi,\n\n${bodyCore}\n\n— Hamish AI`, attachments);
+    } else {
+      const replyToEmail = (org.brand as { replyToEmail?: string } | null)?.replyToEmail;
+      if (replyToEmail) {
+        await sendOrgEmail({
+          orgId: client.org_id,
+          orgName,
+          replyToEmail,
+          to: client.email,
+          subject,
+          text: `Hi,\n\n${bodyCore}\n\n— ${orgName}`,
+          attachments,
+        });
+      }
+    }
   }
 
   return { ok: true as const, reportId: report.id };

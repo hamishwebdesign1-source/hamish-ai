@@ -1,6 +1,7 @@
 import { Resend } from "resend";
 import { isRateLimited } from "@/lib/chat-rate-limit";
 import { logAuditEvent } from "@/lib/audit-log";
+import type { EmailAttachment } from "@/lib/send-client-email";
 
 // Roadmap item #1 ("tenant-scoped outbound email") — the piece
 // send-invoice-reminder.ts's and clients/actions.ts's own comments flag
@@ -31,8 +32,9 @@ export async function sendOrgEmail(params: {
   to: string;
   subject: string;
   text: string;
+  attachments?: EmailAttachment[];
 }): Promise<{ sent: true } | { error: string }> {
-  const { orgId, orgName, replyToEmail, to, subject, text } = params;
+  const { orgId, orgName, replyToEmail, to, subject, text, attachments } = params;
 
   // Per-org bucket, separate from isStudioActionRateLimited's AI-call
   // budget — this is guarding real email deliverability/spend, not
@@ -54,6 +56,7 @@ export async function sendOrgEmail(params: {
       replyTo: replyToEmail,
       subject,
       text,
+      ...(attachments?.length ? { attachments } : {}),
     });
     if (error) {
       console.error(`Resend org email (org ${orgId}) to ${to} failed:`, error);

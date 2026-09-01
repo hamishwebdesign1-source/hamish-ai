@@ -1,4 +1,4 @@
-import { FileText } from "lucide-react";
+import { FileText, Download } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { monthLabelFromDateStr } from "@/lib/portal-events";
@@ -54,11 +54,22 @@ export function MonthlyReportsList({ reports }: { reports: MonthlyReportRow[] })
                 {r.snapshot.healthScore === null ? "No data" : `${r.snapshot.healthScore}% health`}
               </Badge>
             </div>
-            <div className="flex flex-wrap gap-x-4 gap-y-1 font-mono text-[11px] text-muted-foreground">
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 font-mono text-[11px] text-muted-foreground">
               <span>{r.snapshot.requestsCompleted}/{r.snapshot.requestsTotal} requests handled</span>
               <span>{r.snapshot.tasksCompleted}/{r.snapshot.tasksTotal} tasks done</span>
               {r.snapshot.uptimePct !== null && <span>{r.snapshot.uptimePct}% uptime</span>}
               {r.snapshot.spendPence > 0 && <span>£{(r.snapshot.spendPence / 100).toFixed(2)} spent</span>}
+              {/* Studio big-ticket — the same branded PDF already emailed
+                  at generation time (monthly-report.ts), available to
+                  re-download any time via the session-gated route below. */}
+              <a
+                href={`/api/portal/reports/${r.id}/pdf`}
+                target="_blank"
+                rel="noreferrer"
+                className="flex items-center gap-1 font-sans text-accent normal-case hover:underline"
+              >
+                <Download className="size-3" /> PDF
+              </a>
             </div>
           </CardContent>
         </Card>
