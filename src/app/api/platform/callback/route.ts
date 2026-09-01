@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase-server-auth";
-import { getOrgMembership } from "@/lib/org-membership";
+import { getSupabaseAdmin } from "@/lib/supabase";
+import { getOrgMembership, markOrgMembershipAccepted } from "@/lib/org-membership";
 import { logInfo, logWarn } from "@/lib/structured-log";
 
 // Same two-format handling as /api/portal/callback (PKCE code vs.
@@ -53,6 +54,21 @@ export async function GET(request: Request) {
   }
 
   const membership = await getOrgMembership(supabase, email);
+
+  // Team seats gap fix — markOrgMembershipAccepted() (org-membership.ts)
+  // existed since Week 1 but was never actually called anywhere: an
+  // invited teammate's row (team-members.ts's inviteTeamMember()) would
+  // stay accepted_at: null forever, showing as permanently "Invited" in
+  // Settings even after they'd genuinely signed in and were using
+  // /studio fine. Idempotent (.is("accepted_at", null) guard), so calling
+  // it on every sign-in — not just a detected first one — is harmless for
+  // both an owner (already accepted at org-creation time) and a member
+  // who accepted on a previous visit.
+  if (membership) {
+    const admin = getSupabaseAdmin();
+    if (admin) await markOrgMembershipAccepted(admin, membership.orgId, email);
+  }
+
   const onboardingUrl = plan ? `/platform/onboarding?plan=${encodeURIComponent(plan)}` : "/platform/onboarding";
   return NextResponse.redirect(`${origin}${membership ? "/studio" : onboardingUrl}`);
 }

@@ -13,6 +13,7 @@ import { proposeCommandCentreLayout } from "@/lib/command-centre-design-assistan
 import { getUsageStatus, recordUsageEvent } from "@/lib/usage-limits";
 import { isStudioActionRateLimited } from "@/lib/chat-rate-limit";
 import type { PlatformPlanSlug } from "@/lib/platform-plans";
+import { inviteTeamMember, removeTeamMember } from "@/lib/team-members";
 
 // Same session-derivation as prospects/actions.ts's requireOrgId() — kept
 // as its own local copy, same convention billing/actions.ts documents.
@@ -26,6 +27,21 @@ async function requireOrgId(): Promise<string> {
   const membership = await getOrgMembership(supabase, user.email);
   if (!membership) throw new Error("No organisation found for this session.");
   return membership.orgId;
+}
+
+// Same shape as requireOrgId() above, plus the two extra fields
+// inviteTeamMemberAction/removeTeamMemberAction need: the caller's own
+// email (who's doing the inviting) and role (only an owner may).
+async function requireOrgMembership(): Promise<{ orgId: string; role: "owner" | "member"; email: string }> {
+  const supabase = await createServerSupabaseClient();
+  const {
+    data: { user },
+  } = await getUserWithRetry(supabase);
+  if (!user?.email) throw new Error("Not signed in.");
+
+  const membership = await getOrgMembership(supabase, user.email);
+  if (!membership) throw new Error("No organisation found for this session.");
+  return { orgId: membership.orgId, role: membership.role, email: user.email };
 }
 
 export async function disconnectInbox() {
@@ -369,6 +385,39 @@ export async function updateAutonomousOutreach(enabled: boolean) {
   const merged = { ...(org?.brand ?? {}), autonomousOutreachEnabled: enabled };
   const { error } = await admin.from("organisations").update({ brand: merged }).eq("id", orgId);
   if (error) return { error: "Failed to save." };
+
+  revalidatePath("/studio/settings");
+  return { ok: true as const };
+}
+
+// Team seats gap — see team-members.ts's own comment for the full
+// context. Owner-only: requireOrgMembership() gives us the real role from
+// this session's own membership row, not something the caller could ever
+// spoof from a form field.
+export async function inviteTeamMemberAction(email: string) {
+  const { orgId, role, email: inviterEmail } = await requireOrgMembership();
+  if (role !== "owner") return { error: "Only the workspace owner can invite team members." };
+  const admin = getSupabaseAdmin();
+  if (!admin) return { error: "Supabase is not configured." };
+
+  const { data: org } = await admin.from("organisations").select("plan").eq("id", orgId).single();
+  const plan = (org?.plan ?? "starter") as PlatformPlanSlug;
+
+  const result = await inviteTeamMember(admin, { orgId, plan, inviterEmail, inviteeEmail: email });
+  if ("error" in result) return result;
+
+  revalidatePath("/studio/settings");
+  return { ok: true as const };
+}
+
+export async function removeTeamMemberAction(email: string) {
+  const { orgId, role } = await requireOrgMembership();
+  if (role !== "owner") return { error: "Only the workspace owner can remove team members." };
+  const admin = getSupabaseAdmin();
+  if (!admin) return { error: "Supabase is not configured." };
+
+  const result = await removeTeamMember(admin, orgId, email);
+  if ("error" in result) return result;
 
   revalidatePath("/studio/settings");
   return { ok: true as const };

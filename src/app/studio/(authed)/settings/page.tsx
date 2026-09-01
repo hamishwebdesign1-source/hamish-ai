@@ -12,8 +12,11 @@ import { DataPrivacyPanel } from "@/components/platform/data-privacy-panel";
 import { CommandCentreLayoutPanel } from "@/components/platform/command-centre-layout-panel";
 import { NotificationsPanel } from "@/components/platform/notifications-panel";
 import { TodayStripPanel } from "@/components/platform/today-strip-panel";
+import { TeamPanel } from "@/components/platform/team-panel";
 import { resolveLayout } from "@/lib/command-centre-layout";
 import { resolveTodayStrip } from "@/lib/today-strip-config";
+import { listTeamMembers, seatLimitForPlan } from "@/lib/team-members";
+import type { PlatformPlanSlug } from "@/lib/platform-plans";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -56,12 +59,14 @@ export default async function StudioSettingsPage({
   const { data: org } = await supabase
     .from("organisations")
     .select(
-      "name, brand, is_internal, stripe_connect_account_id, stripe_connect_charges_enabled, deletion_requested_at, command_centre_layout, owner_digest_enabled, today_strip_stats"
+      "name, brand, is_internal, plan, stripe_connect_account_id, stripe_connect_charges_enabled, deletion_requested_at, command_centre_layout, owner_digest_enabled, today_strip_stats"
     )
     .eq("id", membership.orgId)
     .single();
   const brand = (org?.brand ?? {}) as { accentColor?: string; replyToEmail?: string; autonomousOutreachEnabled?: boolean };
   const commandCentreBlocks = resolveLayout(org?.command_centre_layout);
+  const plan = (org?.plan ?? "starter") as PlatformPlanSlug;
+  const seatLimit = seatLimitForPlan(plan);
 
   // Command Centre Phase 5e — command_centre_layout_history_select_own_org
   // RLS (schema-rls-command-centre-layout-history.sql) enforces the same
@@ -86,8 +91,13 @@ export default async function StudioSettingsPage({
   // has. studio_health_snapshots/studio_adoption_snapshots are service-
   // role-only (same convention as ai_call_log), read through the admin
   // client.
+  // Team seats gap — teamMembers reuses this same admin client
+  // (memberships is SELECT-only for a session client scoped to the
+  // caller's own row via organisations_select_own's RLS shape, not every
+  // member of the org — same reasoning this snapshot read already
+  // documents for going through `admin` instead of `supabase`).
   const admin = getSupabaseAdmin();
-  const [{ data: lastHealthSnapshot }, { data: lastAdoptionSnapshot }] = admin
+  const [{ data: lastHealthSnapshot }, { data: lastAdoptionSnapshot }, teamMembers] = admin
     ? await Promise.all([
         admin
           .from("studio_health_snapshots")
@@ -103,9 +113,11 @@ export default async function StudioSettingsPage({
           .order("created_at", { ascending: false })
           .limit(1)
           .maybeSingle(),
+        listTeamMembers(admin, membership.orgId),
       ])
-    : [{ data: null }, { data: null }];
+    : [{ data: null }, { data: null }, []];
 
+  const canInviteMore = !org?.is_internal && teamMembers.length < seatLimit;
   const params = await searchParams;
 
   return (
@@ -230,6 +242,31 @@ export default async function StudioSettingsPage({
           <h2 className="font-heading text-xs font-semibold tracking-wide text-muted-foreground uppercase">Email</h2>
           <div className="mt-3">
             <EmailSenderPanel replyToEmail={brand.replyToEmail ?? null} autonomousOutreachEnabled={Boolean(brand.autonomousOutreachEnabled)} />
+          </div>
+        </div>
+      )}
+
+      {/* Team seats gap — same isInternal gate as Branding/Email above:
+          HamishAI's own login is /admin's separate password+magic-link
+          path (org-membership.ts's own comment on why no membership row
+          is backfilled for the internal org), not this memberships-based
+          team model. */}
+      {!org?.is_internal && (
+        <div>
+          <h2 className="font-heading text-xs font-semibold tracking-wide text-muted-foreground uppercase">Team</h2>
+          <div className="mt-3">
+            <TeamPanel
+              members={teamMembers}
+              isOwner={membership.role === "owner"}
+              seatsUsed={teamMembers.length}
+              seatLimit={seatLimit}
+              canInvite={canInviteMore}
+              upgradeReason={
+                plan === "agency"
+                  ? `You've reached this workspace's team limit (${seatLimit} seats).`
+                  : "Your plan includes 1 seat. Upgrade to the Agency plan to add team members."
+              }
+            />
           </div>
         </div>
       )}
