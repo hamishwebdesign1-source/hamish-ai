@@ -6,7 +6,7 @@ import { createServerSupabaseClient, getUserWithRetry } from "@/lib/supabase-ser
 import { getOrgMembership } from "@/lib/org-membership";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { getStripe } from "@/lib/stripe";
-import { createPlatformCheckoutSession, createCreditPackCheckoutSession } from "@/lib/platform-checkout";
+import { createPlatformCheckoutSession, createCreditPackCheckoutSession, changePlatformSubscriptionPlan } from "@/lib/platform-checkout";
 import type { PlatformPlanSlug } from "@/lib/platform-plans";
 
 // Same session-derivation as prospects/actions.ts's requireOrgId() — kept
@@ -42,10 +42,43 @@ async function getOrigin(): Promise<string> {
 // /admin/(authed)/clients/page.tsx, which redirects with an error query
 // param on failure rather than returning a value the form couldn't use
 // anyway.
+//
+// Billing-bug fix (2026-09-01) — this used to unconditionally create a
+// fresh Checkout Session for any plan click, including while the org
+// already had a different active subscription running, which orphaned
+// the old one in Stripe rather than replacing it (see
+// changePlatformSubscriptionPlan()'s own comment in platform-checkout.ts
+// for the full story). Now branches first: an org with a real, active
+// subscription already gets that subscription's price changed in place
+// (no Checkout redirect, no new subscription); Checkout is reserved for
+// what it was always actually meant for — a genuinely first subscription
+// (trialing, inactive, or never subscribed).
 export async function startCheckout(planSlug: PlatformPlanSlug) {
   const { orgId, email } = await requireOrgAndEmail();
-  const origin = await getOrigin();
 
+  const admin = getSupabaseAdmin();
+  const { data: org } = admin
+    ? await admin.from("organisations").select("plan, subscription_status, stripe_subscription_id").eq("id", orgId).single()
+    : { data: null };
+
+  if (org?.subscription_status === "active" && org.stripe_subscription_id) {
+    if (org.plan === planSlug) redirect("/studio/billing"); // already on this plan — no-op, shouldn't normally be reachable (the button is disabled)
+
+    const result = await changePlatformSubscriptionPlan(orgId, planSlug, org.stripe_subscription_id);
+    if ("error" in result) redirect(`/studio/billing?error=${encodeURIComponent(result.error)}`);
+
+    // Immediate UI feedback — the real source of truth going forward is
+    // the Stripe webhook's own customer.subscription.updated handler
+    // (now syncing `plan` via planSlugForPriceId(), not just
+    // subscription_status), which will confirm this again moments later
+    // once Stripe delivers the event; this write just avoids the page
+    // showing the old plan for however long that round-trip takes.
+    if (admin) await admin.from("organisations").update({ plan: planSlug }).eq("id", orgId);
+
+    redirect("/studio/billing?checkout=success");
+  }
+
+  const origin = await getOrigin();
   const result = await createPlatformCheckoutSession(
     planSlug,
     email,

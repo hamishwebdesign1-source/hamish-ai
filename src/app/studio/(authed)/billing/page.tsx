@@ -361,6 +361,22 @@ export default async function StudioBillingPage({
         {platformPlans.map((plan) => {
           const isCurrent = org?.plan === plan.slug && isActive;
           const PlanIcon = planIcons[plan.slug];
+          // Billing-bug fix (2026-09-01) — startCheckout() (actions.ts)
+          // now changes an existing active subscription's price in place
+          // rather than creating a second one, so this button's own label
+          // needed to stop unconditionally promising "Subscribe" (which
+          // reads as "start a new subscription") for a click that's
+          // actually a plan change. Compared on price, not plan order in
+          // platformPlans — that array's own order already happens to be
+          // ascending by price, but comparing the real monthlyPence here
+          // is what actually makes that promise true rather than assumed.
+          const currentPlan = platformPlans.find((p) => p.slug === org?.plan);
+          const switchLabel =
+            isActive && currentPlan && plan.monthlyPence > currentPlan.monthlyPence
+              ? "Upgrade"
+              : isActive && currentPlan && plan.monthlyPence < currentPlan.monthlyPence
+                ? "Downgrade"
+                : "Subscribe";
           return (
             <div
               key={plan.slug}
@@ -388,7 +404,7 @@ export default async function StudioBillingPage({
               </ul>
               <form action={startCheckout.bind(null, plan.slug)} className="mt-4">
                 <Button type="submit" variant={isCurrent ? "outline" : "default"} disabled={isCurrent} className="w-full" size="sm">
-                  {isCurrent ? "Current plan" : "Subscribe"}
+                  {isCurrent ? "Current plan" : switchLabel}
                 </Button>
               </form>
             </div>

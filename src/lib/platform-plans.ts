@@ -88,6 +88,22 @@ export function getPlatformPlan(slug: PlatformPlanSlug): PlatformPlan {
   return plan;
 }
 
+// Billing-bug fix (2026-09-01) — the reverse of getPlatformPlan(): given a
+// real Stripe Price id (read off a live Subscription object), which plan
+// does it actually correspond to. Needed so the Stripe webhook's own
+// customer.subscription.updated handler can keep organisations.plan
+// truthful after ANY subscription change — a direct in-place plan swap
+// (platform-checkout.ts's changePlatformSubscriptionPlan), a change made
+// through Stripe's own hosted Billing Portal, or a manual fix in the
+// Stripe Dashboard — not just the one path (checkout.session.completed)
+// that used to be the only place this column was ever written.
+export function planSlugForPriceId(priceId: string): PlatformPlanSlug | null {
+  for (const plan of platformPlans) {
+    if (process.env[plan.stripePriceEnvVar] === priceId) return plan.slug;
+  }
+  return null;
+}
+
 export function formatMonthlyPrice(pence: number): string {
   return `£${(pence / 100).toFixed(0)}`;
 }

@@ -6,6 +6,7 @@ import { sendErrorAlert } from "@/lib/send-error-alert";
 import { logInfo, logWarn, logError } from "@/lib/structured-log";
 import { trackServerEvent } from "@/lib/analytics";
 import { sendPaymentFailedEmail } from "@/lib/payment-failed-email";
+import { planSlugForPriceId } from "@/lib/platform-plans";
 
 // Stripe's own callback when an invoice's status changes — verified via
 // its signature header rather than the admin cookie (Stripe has no way
@@ -128,9 +129,23 @@ export async function POST(request: Request) {
       .eq("stripe_subscription_id", subscription.id)
       .maybeSingle();
 
+    // Billing-bug fix (2026-09-01) — organisations.plan used to only ever
+    // get written by checkout.session.completed, i.e. a org's very first
+    // subscribe. changePlatformSubscriptionPlan() (platform-checkout.ts)
+    // now writes it directly too, but this is the real backstop: whatever
+    // Stripe actually has this subscription's current price set to is the
+    // one truth this column should reflect, regardless of which path
+    // changed it (the direct API call above, Stripe's own hosted Billing
+    // Portal if a tenant ever uses it, or a manual fix in the Stripe
+    // Dashboard). planSlugForPriceId() returning null (a price id that
+    // doesn't match any current plan — a stale/removed Price) is left
+    // alone rather than guessed at.
+    const currentPriceId = subscription.items.data[0]?.price?.id;
+    const planSlug = currentPriceId ? planSlugForPriceId(currentPriceId) : null;
+
     const { error: orgError } = await supabase
       .from("organisations")
-      .update({ subscription_status: subscription.status })
+      .update({ subscription_status: subscription.status, ...(planSlug ? { plan: planSlug } : {}) })
       .eq("stripe_subscription_id", subscription.id);
 
     if (orgError) {
