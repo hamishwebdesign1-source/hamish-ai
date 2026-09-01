@@ -191,10 +191,15 @@ async function buildOwnerDigestSummary(admin: SupabaseClient, orgId: string): Pr
 
   if (usageLine) actionLines.push(usageLine);
 
+  // Roadmap item #3 — early_warning gets its own label rather than
+  // folding into the generic "worth a check-in" every other non-critical
+  // row gets: it's the one case with neither quietWeeks nor an overdue
+  // invoice to explain itself, so without this a row could otherwise read
+  // as "worth a check-in" with no visible reason why.
   const riskLines = engagementRisks
     .slice(0, 5)
     .map((r) => {
-      const bits = [r.tier === "critical" ? "critical" : "worth a check-in"];
+      const bits = [r.tier === "critical" ? "critical" : r.tier === "early_warning" ? "contact frequency dropping" : "worth a check-in"];
       if (r.quietWeeks > 0) bits.push(`quiet ${r.quietWeeks}w`);
       if (r.hasOverdueInvoice) bits.push("invoice overdue");
       return `- ${r.businessName}: ${bits.join(", ")}`;

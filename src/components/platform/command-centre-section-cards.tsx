@@ -33,7 +33,7 @@ import type { SectionType } from "@/lib/command-centre-layout";
 import type { ClientHealth } from "@/lib/client-health";
 import type { Insight, InsightCategory } from "@/lib/studio-insights";
 import type { StudioBriefing } from "@/lib/studio-briefing";
-import type { ClientEngagementRisk } from "@/lib/studio-engagement";
+import type { ClientEngagementRisk, EngagementTier } from "@/lib/studio-engagement";
 import { FEATURE_LABELS, type ModelPerformanceWithCost, type AiFeature } from "@/lib/studio-model-performance";
 import type { AiAdoption } from "@/lib/studio-ai-adoption";
 import type { ClientActivityItem, ClientActivityKind } from "@/lib/studio-client-activity";
@@ -68,6 +68,23 @@ import type { ActionQueueItem, ActionQueueKind } from "@/lib/studio-action-queue
 // adds an accent ring here rather than widening --primary itself
 // (shared with Button's default variant — would ripple into every
 // primary button across Studio).
+
+// Roadmap item #3 ("predictive churn detection") — early_warning gets its
+// own, deliberately quieter treatment (secondary/muted, not
+// destructive/warning) rather than reusing "warning"'s orange: it's a
+// real signal, but a lower-confidence, earlier one than either threshold
+// tier, and styling it the same as an active overdue-invoice/quiet-weeks
+// case would be alarm fatigue for something that's still just a trend.
+const TIER_LABEL: Record<EngagementTier, string> = {
+  critical: "critical",
+  warning: "warning",
+  early_warning: "trending down",
+};
+const TIER_BADGE_CLASS: Record<EngagementTier, string> = {
+  critical: "bg-destructive/15 text-destructive",
+  warning: "bg-warning/15 text-warning",
+  early_warning: "bg-secondary text-muted-foreground",
+};
 
 const INSIGHT_ICON: Record<InsightCategory, LucideIcon> = {
   opportunity: Sparkles,
@@ -290,36 +307,41 @@ export function buildSectionContent(params: {
               <p className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
                 <ShieldAlert className="size-3.5 shrink-0 text-destructive" /> Engagement risk
               </p>
-              <HelpTip explanation="Clients who've gone 2+ weeks without a request, or who have an invoice past its due date — real dates, never a prediction. A client with neither signal simply isn't listed here." />
+              <HelpTip explanation="Clients who've gone 2+ weeks without a request, have an invoice past its due date, or whose contact frequency has genuinely dropped versus the 3 weeks before (early warning) — real dates and counts, never a prediction. A client with none of these simply isn't listed here." />
             </div>
             <ul className="mt-4 space-y-3">
-              {engagementRisks.slice(0, 5).map((risk) => (
-                <li key={risk.clientId} className="flex items-center gap-3">
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium">{risk.businessName}</p>
-                    <p className="mt-0.5 text-xs text-muted-foreground">
-                      {risk.quietWeeks > 0 && `Quiet ${risk.quietWeeks} week${risk.quietWeeks === 1 ? "" : "s"}`}
-                      {risk.quietWeeks > 0 && risk.hasOverdueInvoice && " · "}
-                      {risk.hasOverdueInvoice && "Invoice overdue"}
-                    </p>
-                    {canSendClientEmail && risk.hasOverdueInvoice && risk.overdueInvoiceId && (
-                      <SendInvoiceReminderAction invoiceId={risk.overdueInvoiceId} alreadySentInitially={Boolean(risk.reminderSentAt)} />
-                    )}
-                  </div>
-                  <div className="flex shrink-0 gap-1">
-                    {risk.weeks.map((week, i) => (
-                      <span key={i} title={week.label} className={`size-2.5 rounded-sm ${week.active ? "bg-accent/70" : "bg-secondary"}`} />
-                    ))}
-                  </div>
-                  <span
-                    className={`shrink-0 rounded-full px-1.5 py-0.5 font-mono text-[10px] font-semibold tracking-wide uppercase ${
-                      risk.tier === "critical" ? "bg-destructive/15 text-destructive" : "bg-warning/15 text-warning"
-                    }`}
-                  >
-                    {risk.tier}
-                  </span>
-                </li>
-              ))}
+              {engagementRisks.slice(0, 5).map((risk) => {
+                const detailParts = [
+                  risk.quietWeeks > 0 && `Quiet ${risk.quietWeeks} week${risk.quietWeeks === 1 ? "" : "s"}`,
+                  risk.hasOverdueInvoice && "Invoice overdue",
+                  // Only shown when it's the *only* real signal (the
+                  // quietWeeks>=2/overdue-invoice cases already say
+                  // something more specific) — early_warning is the one
+                  // tier this can be true for with neither of those set.
+                  risk.quietWeeks === 0 && !risk.hasOverdueInvoice && risk.trend === "declining" && "Contact frequency dropping",
+                ].filter(Boolean);
+                return (
+                  <li key={risk.clientId} className="flex items-center gap-3">
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium">{risk.businessName}</p>
+                      <p className="mt-0.5 text-xs text-muted-foreground">{detailParts.join(" · ")}</p>
+                      {canSendClientEmail && risk.hasOverdueInvoice && risk.overdueInvoiceId && (
+                        <SendInvoiceReminderAction invoiceId={risk.overdueInvoiceId} alreadySentInitially={Boolean(risk.reminderSentAt)} />
+                      )}
+                    </div>
+                    <div className="flex shrink-0 gap-1">
+                      {risk.weeks.map((week, i) => (
+                        <span key={i} title={week.label} className={`size-2.5 rounded-sm ${week.active ? "bg-accent/70" : "bg-secondary"}`} />
+                      ))}
+                    </div>
+                    <span
+                      className={`shrink-0 rounded-full px-1.5 py-0.5 font-mono text-[10px] font-semibold tracking-wide uppercase ${TIER_BADGE_CLASS[risk.tier]}`}
+                    >
+                      {TIER_LABEL[risk.tier]}
+                    </span>
+                  </li>
+                );
+              })}
             </ul>
             {engagementRisks.length > 5 && (
               <p className="mt-3 text-xs text-muted-foreground">

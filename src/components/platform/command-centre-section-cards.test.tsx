@@ -120,6 +120,7 @@ const oneEngagementRisk: ClientEngagementRisk[] = [
     hasOverdueInvoice: false,
     overdueInvoiceId: null,
     reminderSentAt: null,
+    trend: null,
     weeks: [],
   },
 ];
@@ -328,6 +329,7 @@ describe("buildSectionContent — engagement risk 'Send payment reminder' wiring
         hasOverdueInvoice: true,
         overdueInvoiceId: "inv-1",
         reminderSentAt: null,
+        trend: null,
         weeks: [],
         ...overrides,
       },

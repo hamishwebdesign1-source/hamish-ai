@@ -13,7 +13,18 @@
 // else in this app.
 
 export type WeekCell = { label: string; active: boolean };
-export type EngagementTier = "critical" | "warning";
+// Roadmap item #3 ("predictive churn detection") — early_warning is a
+// genuinely new category, not a renamed "warning": it's the one case
+// tierFor() below still returns null for (recent contact, no overdue
+// invoice — today's "not at risk" case) but whose contact frequency has
+// meaningfully dropped, computed by trendFor(). Sorted and styled below
+// its two threshold-based siblings — it's a real signal, but a lower-
+// confidence, earlier one than either.
+export type EngagementTier = "critical" | "warning" | "early_warning";
+// null: not enough contact history in the prior window to call a trend
+// either way (trendFor()'s own MIN_PRIOR_ACTIVITY floor) — genuinely
+// unknown, not "steady" by default.
+export type EngagementTrend = "declining" | "steady" | null;
 export type ClientEngagementRisk = {
   clientId: string;
   businessName: string;
@@ -27,6 +38,7 @@ export type ClientEngagementRisk = {
   // signal" instinct as tierFor()'s own escalation rule below.
   overdueInvoiceId: string | null;
   reminderSentAt: string | null;
+  trend: EngagementTrend;
   weeks: WeekCell[]; // oldest to newest, WEEKS_BACK long
 };
 
@@ -76,6 +88,25 @@ function tierFor(quietWeeks: number, hasOverdueInvoice: boolean): EngagementTier
   return null;
 }
 
+// Roadmap item #3 — compares the most recent RECENT_WEEKS of the same
+// 6-week window against the ones before it. Deliberately a coarse
+// half-vs-half comparison, not a real regression line: with only 6 weekly
+// buckets of a single count per client, a fitted slope would read as more
+// precise than the underlying data actually supports. MIN_PRIOR_ACTIVITY
+// is the floor that keeps this from firing on noise — a client who's only
+// ever sent 1-2 requests total hasn't "declined," they just don't have
+// enough history to say anything about yet.
+const RECENT_WEEKS = 3;
+const MIN_PRIOR_ACTIVITY = 3;
+const DECLINE_RATIO = 0.5;
+
+function trendFor(weekCounts: number[]): EngagementTrend {
+  const priorCount = weekCounts.slice(0, weekCounts.length - RECENT_WEEKS).reduce((a, b) => a + b, 0);
+  const recentCount = weekCounts.slice(weekCounts.length - RECENT_WEEKS).reduce((a, b) => a + b, 0);
+  if (priorCount < MIN_PRIOR_ACTIVITY) return null;
+  return recentCount <= priorCount * DECLINE_RATIO ? "declining" : "steady";
+}
+
 // Among a client's own overdue invoices, picks the one that's been
 // outstanding longest (earliest due_date) — the tie-break this card's
 // "Send reminder" action needs a single real invoice id for, since a
@@ -106,10 +137,15 @@ export function computeClientEngagementRisk(
   const risks: ClientEngagementRisk[] = [];
   for (const client of clients) {
     const clientRequests = requests.filter((r) => r.client_id === client.id);
-    const weeks: WeekCell[] = buckets.map(({ start, end }) => ({
-      label: weekLabel(end),
-      active: clientRequests.some((r) => r.created_at >= start.toISOString() && r.created_at < end.toISOString()),
-    }));
+    // Real request counts per bucket, not just a boolean — weeks (the
+    // existing 6-cell activity grid) only ever needed "did anything
+    // happen," but trendFor() needs how much, so this is computed once
+    // and both are derived from it rather than filtering clientRequests
+    // twice over the same buckets.
+    const weekCounts = buckets.map(
+      ({ start, end }) => clientRequests.filter((r) => r.created_at >= start.toISOString() && r.created_at < end.toISOString()).length
+    );
+    const weeks: WeekCell[] = buckets.map(({ end }, i) => ({ label: weekLabel(end), active: weekCounts[i] > 0 }));
 
     let quietWeeks = 0;
     for (let i = weeks.length - 1; i >= 0; i--) {
@@ -119,8 +155,12 @@ export function computeClientEngagementRisk(
 
     const overdueInvoice = pickOverdueInvoice(invoices, client.id, todayIso);
     const hasOverdueInvoice = overdueInvoice !== null;
+    const trend = trendFor(weekCounts);
 
-    const tier = tierFor(quietWeeks, hasOverdueInvoice);
+    // A declining trend earns its own "early_warning" tier only when
+    // nothing stronger already applies — it's a lower-confidence, earlier
+    // signal than either threshold, never an escalation past them.
+    const tier = tierFor(quietWeeks, hasOverdueInvoice) ?? (trend === "declining" ? "early_warning" : null);
     if (!tier) continue;
 
     risks.push({
@@ -129,13 +169,14 @@ export function computeClientEngagementRisk(
       tier,
       quietWeeks,
       hasOverdueInvoice,
+      trend,
       overdueInvoiceId: overdueInvoice?.id ?? null,
       reminderSentAt: overdueInvoice?.reminder_sent_at ?? null,
       weeks,
     });
   }
 
-  const TIER_WEIGHT: Record<EngagementTier, number> = { critical: 2, warning: 1 };
+  const TIER_WEIGHT: Record<EngagementTier, number> = { critical: 3, warning: 2, early_warning: 1 };
   risks.sort((a, b) => TIER_WEIGHT[b.tier] - TIER_WEIGHT[a.tier] || b.quietWeeks - a.quietWeeks);
   return risks;
 }

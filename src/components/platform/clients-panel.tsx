@@ -97,12 +97,19 @@ function HealthBadge({ health }: { health: ClientHealth | undefined }) {
 // (the common case) gets no badge at all, not a green "all clear" one —
 // same "only show it when it's real" rule the health badge already
 // follows with its "No data yet" state.
+// Roadmap item #3 — early_warning (a genuine leading indicator: contact
+// frequency dropping, before either threshold trips) gets its own
+// deliberately quieter badge, same reasoning as command-centre-section-
+// cards.tsx's TIER_BADGE_CLASS: styling it identically to an active
+// warning would be alarm fatigue for something that's still just a trend.
 function RiskBadge({ risk }: { risk: ClientEngagementRisk | undefined }) {
   if (!risk) return null;
+  const variant = risk.tier === "critical" ? "destructive" : risk.tier === "warning" ? "warning" : "secondary";
+  const label = risk.tier === "critical" ? "At risk" : risk.tier === "warning" ? "Worth a check-in" : "Trending down";
   return (
-    <Badge variant={risk.tier === "critical" ? "destructive" : "warning"} className="gap-1">
+    <Badge variant={variant} className="gap-1">
       <ShieldAlert className="size-3" />
-      {risk.tier === "critical" ? "At risk" : "Worth a check-in"}
+      {label}
     </Badge>
   );
 }
@@ -579,7 +586,7 @@ function ClientCard({
 // the same tier (including "no risk at all") keep the created_at-desc
 // order the page query already sorted them in — this only ever reorders
 // across tiers, never within one.
-const RISK_TIER_WEIGHT: Record<string, number> = { critical: 2, warning: 1 };
+const RISK_TIER_WEIGHT: Record<string, number> = { critical: 3, warning: 2, early_warning: 1 };
 
 export function ClientsPanel({
   clients,

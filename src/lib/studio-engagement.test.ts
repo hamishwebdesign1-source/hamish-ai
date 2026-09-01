@@ -156,4 +156,103 @@ describe("computeClientEngagementRisk", () => {
     expect(risks[0].weeks).toHaveLength(6);
     expect(risks[0].weeks.every((w) => w.active === false)).toBe(true);
   });
+
+  // Roadmap item #3 ("predictive churn detection") — early_warning is the
+  // new case: recent contact (0-1 quiet weeks, no overdue invoice — the
+  // existing rules alone say "not at risk"), but a real, meaningful drop
+  // in contact frequency versus the 3 weeks before.
+  describe("declining-trend early warning", () => {
+    it("flags a client whose contact frequency has genuinely dropped, even with recent contact", () => {
+      const risks = computeClientEngagementRisk(
+        [{ id: "c1", business_name: "Acme" }],
+        [
+          // Prior 3 weeks: steady weekly contact (well above the activity
+          // floor). Recent 3 weeks: one single request days ago — a real
+          // slowdown, not silence (quietWeeks stays 0).
+          { client_id: "c1", created_at: daysAgo(38) },
+          { client_id: "c1", created_at: daysAgo(31) },
+          { client_id: "c1", created_at: daysAgo(24) },
+          { client_id: "c1", created_at: daysAgo(2) },
+        ],
+        [],
+        NOW
+      );
+      expect(risks).toHaveLength(1);
+      expect(risks[0].tier).toBe("early_warning");
+      expect(risks[0].trend).toBe("declining");
+      expect(risks[0].quietWeeks).toBe(0);
+    });
+
+    it("never flags a client with too little history to call a real trend", () => {
+      // Only 1 request in the prior window (under MIN_PRIOR_ACTIVITY) plus
+      // one recent enough to keep quietWeeks at 0 — neither threshold nor
+      // trend has enough to say anything real, so this client shouldn't
+      // appear at all, not read as "declining" from a single data point.
+      const risks = computeClientEngagementRisk(
+        [{ id: "c1", business_name: "Acme" }],
+        [{ client_id: "c1", created_at: daysAgo(24) }, { client_id: "c1", created_at: daysAgo(2) }],
+        [],
+        NOW
+      );
+      expect(risks).toEqual([]);
+    });
+
+    it("does not flag a client whose contact frequency is steady, not declining", () => {
+      const risks = computeClientEngagementRisk(
+        [{ id: "c1", business_name: "Acme" }],
+        [
+          { client_id: "c1", created_at: daysAgo(38) },
+          { client_id: "c1", created_at: daysAgo(31) },
+          { client_id: "c1", created_at: daysAgo(24) },
+          { client_id: "c1", created_at: daysAgo(17) },
+          { client_id: "c1", created_at: daysAgo(10) },
+          { client_id: "c1", created_at: daysAgo(3) },
+        ],
+        [],
+        NOW
+      );
+      expect(risks).toEqual([]);
+    });
+
+    it("never lets a declining trend downgrade an already-critical or -warning tier", () => {
+      const risks = computeClientEngagementRisk(
+        [{ id: "c1", business_name: "Acme" }],
+        [
+          // All 3 in the prior window (weeks 0-2), none in weeks 3-5 ->
+          // quietWeeks=4 on its own already means "critical"; the same
+          // silence also reads as a declining trend (recentCount 0 <=
+          // half of priorCount 3). Tier must stay critical either way.
+          { client_id: "c1", created_at: daysAgo(40) },
+          { client_id: "c1", created_at: daysAgo(38) },
+          { client_id: "c1", created_at: daysAgo(31) },
+        ],
+        [],
+        NOW
+      );
+      expect(risks[0].tier).toBe("critical");
+      expect(risks[0].quietWeeks).toBe(4);
+      expect(risks[0].trend).toBe("declining");
+    });
+
+    it("sorts early_warning after both critical and warning", () => {
+      const risks = computeClientEngagementRisk(
+        [
+          { id: "c-early", business_name: "Early Co" },
+          { id: "c-warn", business_name: "Warn Co" },
+          { id: "c-crit", business_name: "Crit Co" },
+        ],
+        [
+          { client_id: "c-early", created_at: daysAgo(38) },
+          { client_id: "c-early", created_at: daysAgo(31) },
+          { client_id: "c-early", created_at: daysAgo(24) },
+          { client_id: "c-early", created_at: daysAgo(2) },
+          { client_id: "c-warn", created_at: daysAgo(16) }, // ~2 quiet weeks -> warning
+          { client_id: "c-crit", created_at: daysAgo(90) }, // fully silent -> critical
+        ],
+        [],
+        NOW
+      );
+      expect(risks.map((r) => r.clientId)).toEqual(["c-crit", "c-warn", "c-early"]);
+    });
+  });
 });
