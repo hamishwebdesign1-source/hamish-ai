@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getPlatformPlan, type PlatformPlanSlug } from "@/lib/platform-plans";
+import { sendClientEmail } from "@/lib/send-client-email";
 
 // Closes a real, live gap: platform-plans.ts's Agency tier literally
 // advertises "Multiple team seats" in its own feature list, and the
@@ -99,4 +100,34 @@ export async function removeTeamMember(admin: SupabaseClient, orgId: string, ema
   if (error) return { error: "Failed to remove that person." };
 
   return { ok: true };
+}
+
+// Big-ticket #4 ("invites and assignments are silent") — assignRequest()/
+// assignProspect()/assignProject() (requests/prospects/projects
+// actions.ts) all write assigned_to and log an audit event, but none of
+// them told the assignee anything ever reached them except opening
+// Studio and happening to notice. One shared fire-and-forget helper
+// rather than three copies of the same lookup+send.
+//
+// sendClientEmail(), not sendOrgEmail() — same reasoning inviteTeamMemberAction()
+// (settings/actions.ts) and owner-digest.ts's own comment both already
+// document: this is HamishAI genuinely emailing a person about their own
+// Studio workspace, not the tenant's own outbound identity, so
+// sendOrgEmail()'s tenant-facing "from" would misrepresent who's
+// actually sending it.
+export async function notifyAssignee(
+  admin: SupabaseClient,
+  params: { orgId: string; assigneeEmail: string; assignedByEmail: string; itemLabel: string; path: "/studio/requests" | "/studio/prospects" | "/studio/projects" }
+): Promise<void> {
+  // No point emailing someone about assigning something to themselves.
+  if (params.assigneeEmail === params.assignedByEmail) return;
+
+  const { data: org } = await admin.from("organisations").select("name").eq("id", params.orgId).maybeSingle();
+  const orgName = org?.name ?? "your workspace";
+
+  await sendClientEmail(
+    params.assigneeEmail,
+    `${params.assignedByEmail} assigned you something in ${orgName}`,
+    `Hi,\n\n${params.assignedByEmail} assigned you ${params.itemLabel} in ${orgName} on Hamish AI's Agency Platform.\n\nView it here:\nhttps://hamishai.org${params.path}\n\n— Hamish AI`
+  );
 }

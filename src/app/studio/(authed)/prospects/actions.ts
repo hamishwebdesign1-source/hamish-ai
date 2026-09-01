@@ -20,6 +20,7 @@ import { createProposalToken } from "@/lib/proposal-tokens";
 import { renderProposalPdf } from "@/lib/proposal-pdf";
 import type { RateCardItem } from "@/lib/rate-card";
 import { logAuditEvent } from "@/lib/audit-log";
+import { notifyAssignee } from "@/lib/team-members";
 
 // Every action here re-derives the caller's org from their own session
 // rather than trusting an orgId argument from the client — Server Actions
@@ -497,7 +498,7 @@ export async function assignProspect(prospectId: string, assigneeEmail: string |
   const admin = getSupabaseAdmin();
   if (!admin) return { error: "Supabase is not configured." };
 
-  const { data: prospect } = await admin.from("prospects").select("id").eq("id", prospectId).eq("org_id", orgId).maybeSingle();
+  const { data: prospect } = await admin.from("prospects").select("id, business_name").eq("id", prospectId).eq("org_id", orgId).maybeSingle();
   if (!prospect) return { error: "Prospect not found." };
 
   const normalised = assigneeEmail?.trim().toLowerCase() || null;
@@ -518,6 +519,18 @@ export async function assignProspect(prospectId: string, assigneeEmail: string |
     orgId,
     metadata: normalised ? { assignedTo: normalised } : undefined,
   });
+
+  // Big-ticket #4 ("invites and assignments are silent") — same
+  // fire-and-forget shape as assignRequest()'s own notification.
+  if (normalised) {
+    notifyAssignee(admin, {
+      orgId,
+      assigneeEmail: normalised,
+      assignedByEmail: actorEmail,
+      itemLabel: `the prospect ${prospect.business_name}`,
+      path: "/studio/prospects",
+    });
+  }
 
   revalidatePath("/studio/prospects");
   return { ok: true as const };

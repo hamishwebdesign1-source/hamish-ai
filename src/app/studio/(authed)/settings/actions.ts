@@ -14,6 +14,7 @@ import { getUsageStatus, recordUsageEvent } from "@/lib/usage-limits";
 import { isStudioActionRateLimited } from "@/lib/chat-rate-limit";
 import type { PlatformPlanSlug } from "@/lib/platform-plans";
 import { inviteTeamMember, removeTeamMember } from "@/lib/team-members";
+import { sendClientEmail } from "@/lib/send-client-email";
 import { isSafeBookingLink } from "@/lib/booking-link";
 import { sanitizeRateCardForWrite, type RateCardItem } from "@/lib/rate-card";
 
@@ -402,11 +403,26 @@ export async function inviteTeamMemberAction(email: string) {
   const admin = getSupabaseAdmin();
   if (!admin) return { error: "Supabase is not configured." };
 
-  const { data: org } = await admin.from("organisations").select("plan").eq("id", orgId).single();
+  const { data: org } = await admin.from("organisations").select("plan, name").eq("id", orgId).single();
   const plan = (org?.plan ?? "starter") as PlatformPlanSlug;
 
   const result = await inviteTeamMember(admin, { orgId, plan, inviterEmail, inviteeEmail: email });
   if ("error" in result) return result;
+
+  // Big-ticket #4 ("invites and assignments are silent") — inviteTeamMember()
+  // only ever wrote a memberships row; the invitee had no way to know
+  // they'd been added except the owner telling them out-of-band.
+  // sendClientEmail(), not sendOrgEmail() -- this is HamishAI genuinely
+  // emailing a person about their own Studio workspace, same direction
+  // (and same reasoning) as owner-digest.ts's own comment on why it
+  // isn't gated to is_internal: sendOrgEmail()'s tenant-facing identity
+  // would be wrong here, since the *platform* is what's sending this,
+  // not the inviting tenant's own outbound identity.
+  await sendClientEmail(
+    email.trim().toLowerCase(),
+    `You've been added to ${org?.name ?? "a Studio workspace"}`,
+    `Hi,\n\n${inviterEmail} has added you to ${org?.name ?? "their"} workspace on Hamish AI's Agency Platform.\n\nSign in here to get started:\nhttps://hamishai.org/platform/signup\n\n— Hamish AI`
+  );
 
   revalidatePath("/studio/settings");
   return { ok: true as const };

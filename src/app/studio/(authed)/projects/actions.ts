@@ -5,6 +5,7 @@ import { createServerSupabaseClient, getUserWithRetry } from "@/lib/supabase-ser
 import { getOrgMembership } from "@/lib/org-membership";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { logAuditEvent } from "@/lib/audit-log";
+import { notifyAssignee } from "@/lib/team-members";
 
 // Same session-derivation as every other /studio actions file — kept as
 // its own local copy, same convention documented in billing/actions.ts.
@@ -69,7 +70,7 @@ export async function assignProject(projectId: string, assigneeEmail: string | n
   const admin = getSupabaseAdmin();
   if (!admin) return { error: "Supabase is not configured." };
 
-  const { data: project } = await admin.from("projects").select("id").eq("id", projectId).eq("org_id", orgId).maybeSingle();
+  const { data: project } = await admin.from("projects").select("id, name").eq("id", projectId).eq("org_id", orgId).maybeSingle();
   if (!project) return { error: "Project not found." };
 
   const normalised = assigneeEmail?.trim().toLowerCase() || null;
@@ -90,6 +91,18 @@ export async function assignProject(projectId: string, assigneeEmail: string | n
     orgId,
     metadata: normalised ? { assignedTo: normalised } : undefined,
   });
+
+  // Big-ticket #4 ("invites and assignments are silent") — same
+  // fire-and-forget shape as assignRequest()/assignProspect()'s own.
+  if (normalised) {
+    notifyAssignee(admin, {
+      orgId,
+      assigneeEmail: normalised,
+      assignedByEmail: actorEmail,
+      itemLabel: `the project "${project.name}"`,
+      path: "/studio/projects",
+    });
+  }
 
   revalidatePath("/studio/projects");
   return { ok: true as const };

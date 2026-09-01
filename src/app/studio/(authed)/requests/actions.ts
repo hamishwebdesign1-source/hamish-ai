@@ -14,6 +14,7 @@ import { isStudioActionRateLimited } from "@/lib/chat-rate-limit";
 import type { PlatformPlanSlug } from "@/lib/platform-plans";
 import { sendOrgEmail } from "@/lib/send-org-email";
 import { logAuditEvent } from "@/lib/audit-log";
+import { notifyAssignee } from "@/lib/team-members";
 
 // Same session-derivation as prospects/actions.ts's requireOrgId() — kept
 // as its own local copy, same convention billing/actions.ts documents.
@@ -102,6 +103,23 @@ export async function assignRequest(requestId: string, assigneeEmail: string | n
     orgId,
     metadata: normalised ? { assignedTo: normalised } : undefined,
   });
+
+  // Big-ticket #4 ("invites and assignments are silent") — fire-and-forget,
+  // same convention every other notification send in this app follows
+  // (audit-log.ts's own comment: never let a notification failure look
+  // like the underlying write failed).
+  if (normalised) {
+    const { data: request } = await admin.from("requests").select("clients(business_name)").eq("id", requestId).maybeSingle();
+    const clients = request?.clients as { business_name: string } | { business_name: string }[] | null;
+    const businessName = (Array.isArray(clients) ? clients[0] : clients)?.business_name;
+    notifyAssignee(admin, {
+      orgId,
+      assigneeEmail: normalised,
+      assignedByEmail: actorEmail,
+      itemLabel: businessName ? `a request from ${businessName}` : "a client request",
+      path: "/studio/requests",
+    });
+  }
 
   revalidatePath("/studio/requests");
   return { ok: true as const };
