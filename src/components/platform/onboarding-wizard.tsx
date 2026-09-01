@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { platformPlans, formatMonthlyPrice, type PlatformPlanSlug } from "@/lib/platform-plans";
+import { AGENCY_TYPES } from "@/lib/agency-types";
 import { submitOnboarding } from "@/app/platform/onboarding/actions";
 
 // Steps 2–6 of the Agency Platform onboarding flow (step 1, sign up, is
@@ -22,26 +23,11 @@ import { submitOnboarding } from "@/app/platform/onboarding/actions";
 // one piece of branding worth asking for in a wizard this early; a real
 // logo upload is worth building once /studio actually renders it
 // somewhere, not before.
-const AGENCY_TYPES = [
-  {
-    slug: "analytics",
-    name: "AI Analytics",
-    description: "Monthly performance reports, sold as a retainer.",
-    services: ["Monthly performance reports", "Custom KPI dashboards", "One-off data audits"],
-  },
-  {
-    slug: "automation",
-    name: "AI Automation",
-    description: "Booking, receptionist and workflow builds, sold as projects.",
-    services: ["AI receptionist setup", "Booking automation", "Workflow automation"],
-  },
-  {
-    slug: "lead-generation",
-    name: "AI Lead Generation",
-    description: "Qualified local prospects, sold directly to clients.",
-    services: ["Qualified prospect lists", "Outreach campaigns", "Lead qualification"],
-  },
-] as const;
+//
+// AGENCY_TYPES itself now lives in agency-types.ts (Studio big-ticket,
+// "agency-type templates correctness gap") — the exact same three
+// options, just importable server-side too, so draft-sales-kit.ts can
+// shape a tenant's own outreach voice around whichever one they picked.
 
 type Step = "start" | "name" | "type" | "services" | "branding" | "review";
 const STEPS: Step[] = ["start", "name", "type", "services", "branding", "review"];

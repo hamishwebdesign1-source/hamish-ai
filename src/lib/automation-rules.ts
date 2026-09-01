@@ -3,6 +3,7 @@ import { draftSalesKit } from "@/lib/draft-sales-kit";
 import { getUsageStatus, recordUsageEvent } from "@/lib/usage-limits";
 import { isStudioActionRateLimited } from "@/lib/chat-rate-limit";
 import { logAuditEvent } from "@/lib/audit-log";
+import { findAgencyType } from "@/lib/agency-types";
 import type { PlatformPlanSlug } from "@/lib/platform-plans";
 
 // Roadmap item #10 ("no-code automation rules engine") — re-grounded
@@ -45,7 +46,10 @@ export async function runAutoDraftHighScoreProspectsRule() {
   // pipeline by design (draft-sales-kit.ts feeds a human-reviewed Gmail
   // draft, not an automated trigger), same boundary autonomous-outreach.ts
   // and competitor-intel.ts both already draw for the same reason.
-  const { data: orgs, error } = await admin.from("organisations").select("id, name, plan, brand").eq("is_internal", false);
+  const { data: orgs, error } = await admin
+    .from("organisations")
+    .select("id, name, plan, brand, prospecting_config")
+    .eq("is_internal", false);
   if (error) return { error: "Failed to fetch organisations." as const };
 
   const cutoffDate = new Date(Date.now() - MIN_AGE_DAYS * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
@@ -85,7 +89,8 @@ export async function runAutoDraftHighScoreProspectsRule() {
       const usage = await getUsageStatus(org.id, "sales_kit_generated", (org.plan ?? "starter") as PlatformPlanSlug);
       if (!usage.allowed) break;
 
-      const result = await draftSalesKit(p.id, { name: org.name, isInternal: false });
+      const agencyType = findAgencyType((org.prospecting_config as { agencyType?: string } | null)?.agencyType);
+      const result = await draftSalesKit(p.id, { name: org.name, isInternal: false, agencyType });
       if (!("kit" in result)) continue;
 
       await recordUsageEvent(org.id, "sales_kit_generated");

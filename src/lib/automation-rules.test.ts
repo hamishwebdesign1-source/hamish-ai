@@ -45,7 +45,10 @@ function chain<T>(data: T) {
   return self;
 }
 
-function buildAdmin(orgs: { id: string; name: string; plan: string; brand: Record<string, unknown> }[], prospectsByOrg: Record<string, { id: string; score: number }[]>) {
+function buildAdmin(
+  orgs: { id: string; name: string; plan: string; brand: Record<string, unknown>; prospecting_config?: Record<string, unknown> }[],
+  prospectsByOrg: Record<string, { id: string; score: number }[]>
+) {
   return {
     from(table: string) {
       if (table === "organisations") return { select: () => chain(orgs) };
@@ -98,10 +101,35 @@ describe("runAutoDraftHighScoreProspectsRule", () => {
     const result = await runAutoDraftHighScoreProspectsRule();
 
     expect(result).toEqual({ drafted: 1, byOrg: { "org-1": 1 } });
-    expect(draftSalesKitMock).toHaveBeenCalledWith("p1", { name: "Their Agency", isInternal: false });
+    expect(draftSalesKitMock).toHaveBeenCalledWith("p1", { name: "Their Agency", isInternal: false, agencyType: null });
     expect(recordUsageEventMock).toHaveBeenCalledWith("org-1", "sales_kit_generated");
     expect(logAuditEventMock).toHaveBeenCalledTimes(1);
     expect(logAuditEventMock.mock.calls[0][0]).toMatchObject({ action: "prospect.auto_drafted_sales_kit", targetId: "p1" });
+  });
+
+  it("passes the org's real agency type through to draftSalesKit when one was picked at onboarding", async () => {
+    getSupabaseAdminMock.mockReturnValue(
+      buildAdmin(
+        [
+          {
+            id: "org-1",
+            name: "Their Agency",
+            plan: "professional",
+            brand: { autoDraftHighScoreProspectsEnabled: true },
+            prospecting_config: { agencyType: "AI Automation" },
+          },
+        ],
+        { "org-1": [{ id: "p1", score: 5 }] }
+      )
+    );
+    const { runAutoDraftHighScoreProspectsRule } = await import("./automation-rules");
+
+    await runAutoDraftHighScoreProspectsRule();
+
+    expect(draftSalesKitMock).toHaveBeenCalledWith(
+      "p1",
+      expect.objectContaining({ agencyType: expect.objectContaining({ slug: "automation", name: "AI Automation" }) })
+    );
   });
 
   it("stops for an org once its shared AI-action rate limit is hit, without erroring the run", async () => {

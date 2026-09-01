@@ -5,6 +5,7 @@ import { siteConfig } from "@/lib/site-config";
 import { matchCaseStudy } from "@/lib/match-case-study";
 import { logAuditEvent } from "@/lib/audit-log";
 import type { LeadResearch } from "@/lib/research-lead";
+import type { AgencyType } from "@/lib/agency-types";
 
 // High Impact #8 from docs/leads-automation-plan.md — one Claude call
 // instead of six. Replaces the old draft-lead-email.ts (2 calls: initial +
@@ -56,7 +57,15 @@ type LeadRow = {
 // byte-for-byte identical to before this change; a real Agency Platform
 // tenant gets a genuinely different, honest voice instead of Hamish's own
 // name and hamishai.org URLs leaking into their outreach.
-export type SalesKitSender = { name: string; isInternal: boolean };
+// agencyType is additive (Studio big-ticket, "agency-type templates
+// correctness gap") — the real, previously-unused-after-signup context
+// behind platform-plans.ts's marketed "agency type templates": which of
+// the three real business models (agency-types.ts) a tenant picked at
+// onboarding, so their own outreach voice actually reflects what kind of
+// AI agency they run instead of identical generic boilerplate regardless
+// of type. Optional and internal-org-irrelevant — HamishAI's own kits
+// stay byte-for-byte unchanged either way.
+export type SalesKitSender = { name: string; isInternal: boolean; agencyType?: AgencyType | null };
 
 // A real sign-off reads as a genuine person reaching out, not an anonymous
 // mailer — same instruction draft-lead-email.ts used to, kept identical
@@ -108,9 +117,17 @@ function proofPointInstruction(lead: LeadRow, sender: SalesKitSender, matchedCas
 
 function buildSystemPrompt(lead: LeadRow, sender: SalesKitSender, matchedCaseStudy?: { name: string; industry: string; demoUrl: string }): string {
   const signOff = signOffInstruction(sender);
+  // agencyType, when known, replaces the generic tenant fallback with the
+  // real business model this agency actually chose at signup — so the
+  // pitch favours what they actually sell (e.g. an "AI Automation" agency
+  // pitching a receptionist/booking build reads very differently from an
+  // "AI Analytics" agency pitching a monthly reporting retainer) instead
+  // of identical boilerplate regardless of type.
   const identity = sender.isInternal
     ? "as Hamish, who runs Hamish AI — a small Edinburgh-based AI/web consultancy that fixes concrete website/automation problems for small businesses"
-    : `on behalf of ${sender.name}, an AI/web consultancy that fixes concrete website/automation problems for small businesses`;
+    : sender.agencyType
+      ? `on behalf of ${sender.name}, a ${sender.agencyType.name} agency — ${sender.agencyType.description} Their typical services: ${sender.agencyType.services.join(", ")}. Frame the pitch and any services mentioned around what this agency actually sells, not generic web/automation work.`
+      : `on behalf of ${sender.name}, an AI/web consultancy that fixes concrete website/automation problems for small businesses`;
 
   return `You are ghostwriting a full outreach kit ${identity}. You will produce SIX distinct pieces for the same prospect in one pass, so keep them consistent with each other (same specific findings, same tone) but don't repeat yourself word-for-word between them — each has a different job.
 

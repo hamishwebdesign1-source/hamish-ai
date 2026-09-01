@@ -9,6 +9,7 @@ import { researchLead } from "@/lib/research-lead";
 import { draftWebsiteMockup } from "@/lib/draft-website-mockup";
 import { buildIcp } from "@/lib/build-icp";
 import { draftSalesKit, type SalesKit } from "@/lib/draft-sales-kit";
+import { findAgencyType } from "@/lib/agency-types";
 import { getUsageStatus, recordUsageEvent, type UsageEventType } from "@/lib/usage-limits";
 import { isStudioActionRateLimited } from "@/lib/chat-rate-limit";
 import type { PlatformPlanSlug } from "@/lib/platform-plans";
@@ -248,8 +249,15 @@ export async function generateSalesKit(prospectId: string): Promise<
     return { error: usageCheckErrorMessage(usageCheck), reason: usageCheck.rateLimited ? "rate_limited" : "usage_limit" };
   }
 
-  const { data: org } = await admin.from("organisations").select("name, is_internal").eq("id", orgId).single();
-  const sender = org && !org.is_internal ? { name: org.name, isInternal: false } : { name: "Hamish AI", isInternal: true };
+  const { data: org } = await admin.from("organisations").select("name, is_internal, prospecting_config").eq("id", orgId).single();
+  const sender =
+    org && !org.is_internal
+      ? {
+          name: org.name,
+          isInternal: false,
+          agencyType: findAgencyType((org.prospecting_config as { agencyType?: string } | null)?.agencyType),
+        }
+      : { name: "Hamish AI", isInternal: true };
 
   const result = await draftSalesKit(prospectId, sender);
   if (!usageCheck.isInternal && "kit" in result) await recordUsageEvent(orgId, "sales_kit_generated");
