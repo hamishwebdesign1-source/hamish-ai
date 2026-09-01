@@ -13,6 +13,7 @@ import { getUsageStatus, recordUsageEvent, type UsageEventType } from "@/lib/usa
 import { isStudioActionRateLimited } from "@/lib/chat-rate-limit";
 import type { PlatformPlanSlug } from "@/lib/platform-plans";
 import { trackServerEvent } from "@/lib/analytics";
+import { sendOrgEmail } from "@/lib/send-org-email";
 
 // Every action here re-derives the caller's org from their own session
 // rather than trusting an orgId argument from the client — Server Actions
@@ -317,10 +318,52 @@ export async function convertProspectToClient(prospectId: string, email: string)
 
   await admin.from("prospects").update({ status: "converted" }).eq("id", prospectId);
 
+  // Studio big-ticket ("client onboarding/kickoff workflow") — converting
+  // a prospect used to do nothing but insert these two rows: no welcome
+  // email (despite send-org-email.ts existing since item #1), no kickoff
+  // prompt (despite booking-link.ts existing since item #9), no initial
+  // project to start from. A brand-new client got silent portal access
+  // and nothing else. Both additions below are deliberately just glue
+  // across already-shipped primitives, not new infrastructure — an
+  // intake questionnaire (a real new data model/review flow) is a
+  // separate, bigger feature this doesn't attempt.
+  //
+  // Same "one real Onboarding project per new client, not one per
+  // request" shape as everywhere else projects get created in this
+  // app — a real row in the exact same table/shape createProject()
+  // (projects/actions.ts) inserts, so it shows up identically in
+  // Projects. 14 days out is a starting-point target, not a promise —
+  // same "a reminder, not a commitment" framing calendar-sync.ts's own
+  // DUE_OFFSET_DAYS uses for task due dates.
+  const kickoffTargetDate = new Date();
+  kickoffTargetDate.setDate(kickoffTargetDate.getDate() + 14);
+  const { error: projectError } = await admin.from("projects").insert({
+    org_id: orgId,
+    client_id: client.id,
+    name: "Onboarding",
+    target_date: kickoffTargetDate.toISOString().slice(0, 10),
+  });
+  if (projectError) console.error("Failed to seed the onboarding project on client creation:", projectError);
+
+  const { data: org } = await admin.from("organisations").select("name, is_internal, brand").eq("id", orgId).single();
+  const brand = (org?.brand ?? {}) as { replyToEmail?: string; bookingLink?: string };
+  if (org && !org.is_internal && brand.replyToEmail) {
+    const bookingLine = brand.bookingLink ? `\n\nLet's get started — book a quick kickoff call here:\n${brand.bookingLink}` : "";
+    await sendOrgEmail({
+      orgId,
+      orgName: org.name,
+      replyToEmail: brand.replyToEmail,
+      to: normalisedEmail,
+      subject: `Welcome to ${org.name}`,
+      text: `Hi,\n\nWelcome — ${prospect.business_name} now has its own client portal at hamishai.org/portal, where you can see project updates, submit requests, and check invoices any time.${bookingLine}\n\nLooking forward to working with you.\n\n— ${org.name}`,
+    });
+  }
+
   await trackServerEvent(orgId, "prospect_converted", { client_id: client.id });
 
   revalidatePath("/studio/prospects");
   revalidatePath("/studio/clients");
+  revalidatePath("/studio/projects");
   return { ok: true as const, clientId: client.id };
 }
 
