@@ -16,6 +16,7 @@ import {
   ArrowRight,
   RefreshCw,
   Search,
+  Send,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -29,6 +30,7 @@ import {
   updateTaskStatus,
   turnRequestIntoWebsiteTask,
   regenerateRequestDraft,
+  sendRequestReply,
 } from "@/app/studio/(authed)/requests/actions";
 import { assignTaskToProject } from "@/app/studio/(authed)/projects/actions";
 import type { TroubleshootingEntry } from "@/lib/website-troubleshooting";
@@ -290,6 +292,7 @@ function RequestCard({
   websiteProjects,
   selected,
   onToggleSelect,
+  canSendReply,
 }: {
   request: Request;
   tasks: Task[];
@@ -297,6 +300,7 @@ function RequestCard({
   websiteProjects: WebsiteProject[];
   selected?: boolean;
   onToggleSelect?: () => void;
+  canSendReply: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState(request.draft_response ?? "");
@@ -307,6 +311,9 @@ function RequestCard({
   const [respondPending, startRespond] = useTransition();
   const [responded, setResponded] = useState(Boolean(request.responded_at));
   const [respondError, setRespondError] = useState<string | null>(null);
+  const [sendPending, startSend] = useTransition();
+  const [sendError, setSendError] = useState<string | null>(null);
+  const [sent, setSent] = useState(false);
 
   function saveDraft() {
     setDraftSaved(false);
@@ -341,6 +348,31 @@ function RequestCard({
         setRespondError(r.error ?? "Failed to update — try again.");
         return;
       }
+      setResponded(true);
+    });
+  }
+
+  // Studio big-ticket — saves the textarea's current content first
+  // (sendRequestReply() itself sends whatever's already in draft_response
+  // in the database, so an unsaved edit would otherwise be silently
+  // skipped over and the *previous* version sent instead), then sends it.
+  // Same content a "Save edits" click alone would persist — this is that
+  // plus actually sending it.
+  function sendReply() {
+    setSendError(null);
+    startSend(async () => {
+      const saveResult = await updateRequestDraft(request.id, draft);
+      if ("error" in saveResult) {
+        setSendError(saveResult.error ?? "Failed to save your edits — try again.");
+        return;
+      }
+      const r = await sendRequestReply(request.id);
+      if ("error" in r) {
+        setSendError(r.error ?? "Failed to send — try again.");
+        return;
+      }
+      setDraftSaved(true);
+      setSent(true);
       setResponded(true);
     });
   }
@@ -463,20 +495,36 @@ function RequestCard({
                   }}
                   rows={4}
                   className="text-sm"
+                  disabled={sent}
                 />
                 <p className="mt-1 text-[11px] text-muted-foreground">
-                  Not sent automatically — copy it into your own email or reply in whatever tool you actually use.
+                  {canSendReply
+                    ? "Send it from here, or copy it into your own email if you'd rather reply that way."
+                    : "Not sent automatically — copy it into your own email or reply in whatever tool you actually use."}
                 </p>
                 <div className="mt-2 flex flex-wrap items-center gap-2">
-                  <Button size="sm" variant="outline" disabled={draftPending} onClick={saveDraft}>
+                  {/* Studio big-ticket — the actual send. Only offered
+                      once the org's configured a reply-to email
+                      (Settings > Email, roadmap item #1) and only until
+                      this specific request has actually been sent —
+                      sendRequestReply() itself re-checks both server-side
+                      too. */}
+                  {canSendReply && !sent && (
+                    <Button size="sm" disabled={sendPending || !draft.trim()} onClick={sendReply}>
+                      <Send className="size-3.5" /> {sendPending ? "Sending…" : "Send reply"}
+                    </Button>
+                  )}
+                  <Button size="sm" variant="outline" disabled={draftPending || sent} onClick={saveDraft}>
                     {draftPending ? "Saving…" : "Save edits"}
                   </Button>
-                  <Button size="sm" variant="ghost" disabled={regenerating} onClick={regenerateDraft}>
+                  <Button size="sm" variant="ghost" disabled={regenerating || sent} onClick={regenerateDraft}>
                     <RefreshCw className={`size-3.5 ${regenerating ? "animate-spin" : ""}`} />
                     {regenerating ? "Regenerating…" : "Regenerate"}
                   </Button>
-                  {draftSaved && <span className="text-xs text-accent">Saved.</span>}
+                  {draftSaved && !sent && <span className="text-xs text-accent">Saved.</span>}
+                  {sent && <span className="text-xs text-accent">Sent.</span>}
                   {regenerateError && <span className="text-xs text-destructive">{regenerateError}</span>}
+                  {sendError && <span className="text-xs text-destructive">{sendError}</span>}
                 </div>
               </div>
             )}
@@ -507,11 +555,13 @@ export function RequestsPanel({
   tasks,
   projects,
   websiteProjects,
+  canSendReply,
 }: {
   requests: Request[];
   tasks: Task[];
   projects: Project[];
   websiteProjects: WebsiteProject[];
+  canSendReply: boolean;
 }) {
   const router = useRouter();
   const [filter, setFilter] = useState<"all" | "open" | "responded">("open");
@@ -684,6 +734,7 @@ export function RequestsPanel({
                     websiteProjects={websiteProjectsByClient.get(r.client_id) ?? []}
                     selected={selected.has(r.id)}
                     onToggleSelect={() => toggleSelected(r.id)}
+                    canSendReply={canSendReply}
                   />
                 ))}
               </div>

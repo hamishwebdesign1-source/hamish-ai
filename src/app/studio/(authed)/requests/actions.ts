@@ -12,6 +12,7 @@ import type { ToolId } from "@/lib/ai-coding-tools";
 import { getUsageStatus, recordUsageEvent } from "@/lib/usage-limits";
 import { isStudioActionRateLimited } from "@/lib/chat-rate-limit";
 import type { PlatformPlanSlug } from "@/lib/platform-plans";
+import { sendOrgEmail } from "@/lib/send-org-email";
 
 // Same session-derivation as prospects/actions.ts's requireOrgId() — kept
 // as its own local copy, same convention billing/actions.ts documents.
@@ -43,12 +44,11 @@ async function requestBelongsToOrg(admin: ReturnType<typeof getSupabaseAdmin>, r
   return Boolean(data);
 }
 
-// Deliberately no client-facing email here, unlike /admin's own
-// updateTaskStatus() — sendClientEmail has no per-tenant identity (fixed
-// separately in triage-request.ts), so a tenant marking a request
-// responded doesn't trigger anything automatic. They've already sent
-// their own reply themselves (using the draft below as a starting point,
-// or their own words) before clicking this — it's a record, not a trigger.
+// A pure record, deliberately still not a trigger — for a tenant who
+// replied to their client some other way (their own inbox, a call) and
+// just wants Studio's own status to reflect it. sendRequestReply() below
+// is the actual trigger, added once tenant-scoped email (roadmap item
+// #1) made it safe to build — this one stays as it always was.
 export async function markRequestResponded(requestId: string) {
   const orgId = await requireOrgId();
   const admin = getSupabaseAdmin();
@@ -77,6 +77,59 @@ export async function updateRequestDraft(requestId: string, draftResponse: strin
 
   const { error } = await admin.from("requests").update({ draft_response: draftResponse }).eq("id", requestId);
   if (error) return { error: "Failed to save." };
+
+  revalidatePath("/studio/requests");
+  return { ok: true as const };
+}
+
+// Studio big-ticket ("two-way client request threads") — the "send" half
+// of turning "responding" from a record into a real trigger, now that
+// roadmap item #1 (send-org-email.ts) gives a tenant a real identity to
+// send under. Deliberately still not the full ambition a real two-way
+// thread implies (storing and displaying incoming replies as a visible
+// conversation) — detect-replies.ts's own comment is explicit that it
+// only ever checks *whether* a reply exists, never reads or stores a
+// message's subject or body, a real, deliberate privacy-minimisation
+// choice that shouldn't get quietly widened as a side effect of this.
+// This closes the other, safer half: whatever's in draft_response — the
+// AI's own first attempt, or a tenant's own edited version — actually
+// goes out as a real email instead of only ever being copied out by
+// hand, and marks the request responded in the same step, since sending
+// it *is* responding.
+export async function sendRequestReply(requestId: string) {
+  const orgId = await requireOrgId();
+  const admin = getSupabaseAdmin();
+  if (!admin) return { error: "Supabase is not configured." };
+
+  const { data: request } = await admin
+    .from("requests")
+    .select("id, client_id, draft_response")
+    .eq("id", requestId)
+    .maybeSingle();
+  if (!request || !(await requestBelongsToOrg(admin, requestId, orgId))) return { error: "Request not found." };
+  if (!request.draft_response?.trim()) return { error: "Write a reply before sending." };
+
+  const { data: client } = await admin.from("clients").select("email").eq("id", request.client_id).single();
+  if (!client?.email) return { error: "This client has no email on file." };
+
+  const { data: org } = await admin.from("organisations").select("name, brand").eq("id", orgId).single();
+  const replyToEmail = (org?.brand as { replyToEmail?: string } | null)?.replyToEmail;
+  if (!org || !replyToEmail) {
+    return { error: "Set a reply-to email in Studio Settings first — that's what lets you send replies from here." };
+  }
+
+  const result = await sendOrgEmail({
+    orgId,
+    orgName: org.name,
+    replyToEmail,
+    to: client.email,
+    subject: `A reply from ${org.name}`,
+    text: request.draft_response,
+  });
+  if ("error" in result) return { error: result.error };
+
+  const { error } = await admin.from("requests").update({ responded_at: new Date().toISOString() }).eq("id", requestId);
+  if (error) return { error: "Sent, but failed to mark this request as responded — refresh to check." };
 
   revalidatePath("/studio/requests");
   return { ok: true as const };

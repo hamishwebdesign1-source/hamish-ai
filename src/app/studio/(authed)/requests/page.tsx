@@ -20,7 +20,7 @@ export default async function StudioRequestsPage() {
   const membership = await getOrgMembership(supabase, user.email);
   if (!membership) redirect("/platform/onboarding");
 
-  const [{ data: requests }, { data: projects }, { data: websiteProjects }] = await Promise.all([
+  const [{ data: requests }, { data: projects }, { data: websiteProjects }, { data: org }] = await Promise.all([
     supabase
       .from("requests")
       .select(
@@ -34,7 +34,14 @@ export default async function StudioRequestsPage() {
     // request; turnRequestIntoWebsiteTask() itself re-verifies the
     // client match and brief/tool readiness server-side.
     supabase.from("website_projects").select("id, client_id, stage").eq("org_id", membership.orgId),
+    // Studio big-ticket ("two-way client request threads") — gates the
+    // new "Send reply" button: sendRequestReply() (actions.ts) itself
+    // re-checks this server-side too, this is just so the button doesn't
+    // render promising something that would immediately fail.
+    supabase.from("organisations").select("brand").eq("id", membership.orgId).single(),
   ]);
+
+  const canSendReply = Boolean((org?.brand as { replyToEmail?: string } | null)?.replyToEmail);
 
   const requestIds = (requests ?? []).map((r) => r.id);
   const { data: tasks } =
@@ -45,5 +52,5 @@ export default async function StudioRequestsPage() {
           .in("request_id", requestIds)
       : { data: [] };
 
-  return <RequestsPanel requests={requests ?? []} tasks={tasks ?? []} projects={projects ?? []} websiteProjects={websiteProjects ?? []} />;
+  return <RequestsPanel requests={requests ?? []} tasks={tasks ?? []} projects={projects ?? []} websiteProjects={websiteProjects ?? []} canSendReply={canSendReply} />;
 }
