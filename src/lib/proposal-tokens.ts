@@ -1,6 +1,7 @@
 import { randomBytes } from "crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getSupabaseAdmin } from "@/lib/supabase";
+import { sendClientEmail } from "@/lib/send-client-email";
 import type { SalesKit } from "@/lib/draft-sales-kit";
 import type { RateCardItem } from "@/lib/rate-card";
 
@@ -117,7 +118,7 @@ export async function acceptProposalToken(token: string): Promise<AcceptResult> 
   const admin = getSupabaseAdmin();
   if (!admin) return { error: "Supabase is not configured." };
 
-  const { data: row } = await admin.from("proposal_tokens").select("accepted_at, expires_at").eq("token", token).maybeSingle();
+  const { data: row } = await admin.from("proposal_tokens").select("org_id, prospect_id, accepted_at, expires_at").eq("token", token).maybeSingle();
   if (!row) return { error: "This link isn't valid." };
   if (new Date(row.expires_at) < new Date()) return { error: "This link has expired." };
   if (row.accepted_at) return { ok: true };
@@ -129,5 +130,46 @@ export async function acceptProposalToken(token: string): Promise<AcceptResult> 
     .is("accepted_at", null);
   if (error) return { error: "Failed to record your acceptance — try again." };
 
+  // Big-ticket #5 ("acceptance never notifies the agency") — sent/
+  // viewed/accepted only ever showed up as a passive badge on the
+  // Prospects page (prospects/page.tsx's own proposal_tokens read); the
+  // single hottest signal this whole pipeline produces could sit
+  // unnoticed for days. Deliberately NOT a notification on `viewed_at`
+  // too — the badge already covers that softer, noisier signal well
+  // enough (readProposalToken()'s own comment on why a bot pre-fetch
+  // marking it viewed early is low-stakes); acceptance is the one worth
+  // an active push. Fire-and-forget, same convention as every other
+  // notification send in this app.
+  notifyProposalAccepted(admin, row.org_id, row.prospect_id);
+
   return { ok: true };
+}
+
+async function notifyProposalAccepted(admin: SupabaseClient, orgId: string, prospectId: string): Promise<void> {
+  const [{ data: prospect }, { data: org }] = await Promise.all([
+    admin.from("prospects").select("business_name, assigned_to").eq("id", prospectId).maybeSingle(),
+    admin.from("organisations").select("name").eq("id", orgId).maybeSingle(),
+  ]);
+  if (!prospect) return;
+  const orgName = org?.name ?? "your workspace";
+
+  // Whoever's actually chasing this lead (prospects.assigned_to, this
+  // session's own team-collaboration work) hears about it first, same
+  // "the assignee is the most relevant person" reasoning
+  // notifyAssignee() (team-members.ts) already applies. Falls back to
+  // the org's own owners (same recipient set owner-digest.ts already
+  // uses) when nobody's specifically on it yet.
+  let recipients: string[];
+  if (prospect.assigned_to) {
+    recipients = [prospect.assigned_to];
+  } else {
+    const { data: owners } = await admin.from("memberships").select("email").eq("org_id", orgId).eq("role", "owner").not("accepted_at", "is", null);
+    recipients = (owners ?? []).map((o) => o.email).filter((e): e is string => Boolean(e));
+  }
+
+  const subject = `${prospect.business_name} accepted your proposal`;
+  const text = `Hi,\n\n${prospect.business_name} just accepted the proposal you sent them via ${orgName} on Hamish AI's Agency Platform.\n\nFollow up here:\nhttps://hamishai.org/studio/prospects\n\n— Hamish AI`;
+  for (const email of recipients) {
+    await sendClientEmail(email, subject, text);
+  }
 }
