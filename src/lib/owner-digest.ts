@@ -5,6 +5,7 @@ import { getStudioBriefing } from "@/lib/studio-briefing";
 import { computeClientEngagementRisk } from "@/lib/studio-engagement";
 import { getUsageStatus } from "@/lib/usage-limits";
 import { platformPlans, type PlatformPlanSlug } from "@/lib/platform-plans";
+import { createDigestActionToken } from "@/lib/digest-action-tokens";
 
 // Owner-facing digest — Command Centre improvement #2 from this session's
 // studio review. Every real "you should look at this" signal on /studio
@@ -65,6 +66,8 @@ export async function sendOwnerDigests() {
   return { sent };
 }
 
+const MAX_DIGEST_ACTIONS_PER_CATEGORY = 5;
+
 // Reuses the exact same computations the dashboard itself renders with
 // (getStudioBriefing, computeClientEngagementRisk) — an emailed number
 // can never drift from what /studio shows if a tenant clicks through.
@@ -112,26 +115,80 @@ async function buildOwnerDigestSummary(admin: SupabaseClient, orgId: string): Pr
         // across every one of its callers and now needs both on every row,
         // even though this digest's own summary text never surfaces them.
         admin.from("invoices").select("id, client_id, status, due_date, reminder_sent_at").in("client_id", clientIds),
-        admin.from("projects").select("status, target_date").in("client_id", clientIds),
+        // id/client_id/name added for roadmap item #4 — turning "N overdue
+        // projects" into per-item one-click links needs enough to build a
+        // digest-action token (id) and a real label (client_id -> business
+        // name, name).
+        admin.from("projects").select("id, client_id, name, status, target_date").in("client_id", clientIds),
       ])
     : [{ data: [] }, { data: [] }, { data: [] }];
 
   const today = new Date().toISOString().slice(0, 10);
-  const openRequestCount = (requests ?? []).filter((r) => !r.responded_at).length;
-  const overdueProjectCount = (projects ?? []).filter((p) => p.status === "active" && p.target_date && p.target_date < today).length;
+  const businessNameByClientId = new Map((clients ?? []).map((c) => [c.id, c.business_name]));
+  const unansweredRequests = (requests ?? []).filter((r) => !r.responded_at);
+  const overdueProjects = (projects ?? []).filter((p) => p.status === "active" && p.target_date && p.target_date < today);
 
   const engagementRisks = computeClientEngagementRisk(clients ?? [], requests ?? [], invoices ?? [], new Date());
 
+  // Roadmap item #4 ("actionable weekly digest") — each of these three
+  // used to be a single aggregate count line ("3 follow-ups due") with
+  // nothing to click. Now each real item gets its own bullet and a
+  // digest-action-tokens.ts link that clears that exact one, same "one
+  // real row per real fact, wired to a real one-click action" discipline
+  // the Command Centre's own action queue established. Capped per
+  // category — same MAX_QUEUE_ITEMS-style reasoning as
+  // studio-action-queue.ts, with a plain "+N more" line for the rest
+  // rather than an unbounded email or a silently dropped count.
   const actionLines: string[] = [];
-  if (briefing.followUpsDue > 0) {
-    actionLines.push(`- ${briefing.followUpsDue} prospect follow-up${briefing.followUpsDue === 1 ? "" : "s"} due`);
+
+  for (const f of briefing.followUpsDueList.slice(0, MAX_DIGEST_ACTIONS_PER_CATEGORY)) {
+    const detail = f.nextAction === "call" ? "due a call" : "due one more follow-up";
+    const token = await createDigestActionToken(admin, {
+      orgId,
+      action: "mark_prospect_contacted",
+      targetId: f.id,
+      label: `${f.businessName} — follow-up handled`,
+    });
+    actionLines.push(token ? `- ${f.businessName}: ${detail} → https://hamishai.org/studio-action/${token}` : `- ${f.businessName}: ${detail}`);
   }
-  if (overdueProjectCount > 0) {
-    actionLines.push(`- ${overdueProjectCount} overdue project${overdueProjectCount === 1 ? "" : "s"}`);
+  if (briefing.followUpsDue > MAX_DIGEST_ACTIONS_PER_CATEGORY) {
+    actionLines.push(`- +${briefing.followUpsDue - MAX_DIGEST_ACTIONS_PER_CATEGORY} more follow-up(s) due — see Prospects.`);
   }
-  if (openRequestCount > 0) {
-    actionLines.push(`- ${openRequestCount} client request${openRequestCount === 1 ? "" : "s"} awaiting your reply`);
+
+  for (const r of unansweredRequests.slice(0, MAX_DIGEST_ACTIONS_PER_CATEGORY)) {
+    const businessName = businessNameByClientId.get(r.client_id);
+    if (!businessName) continue;
+    const token = await createDigestActionToken(admin, {
+      orgId,
+      action: "mark_request_responded",
+      targetId: r.id,
+      label: `${businessName}'s request marked responded`,
+    });
+    actionLines.push(
+      token ? `- ${businessName}: request awaiting your reply → https://hamishai.org/studio-action/${token}` : `- ${businessName}: request awaiting your reply`
+    );
   }
+  if (unansweredRequests.length > MAX_DIGEST_ACTIONS_PER_CATEGORY) {
+    actionLines.push(`- +${unansweredRequests.length - MAX_DIGEST_ACTIONS_PER_CATEGORY} more request(s) awaiting your reply — see Requests.`);
+  }
+
+  for (const p of overdueProjects.slice(0, MAX_DIGEST_ACTIONS_PER_CATEGORY)) {
+    const businessName = businessNameByClientId.get(p.client_id);
+    if (!businessName) continue;
+    const token = await createDigestActionToken(admin, {
+      orgId,
+      action: "mark_project_done",
+      targetId: p.id,
+      label: `${businessName}: "${p.name}" marked done`,
+    });
+    actionLines.push(
+      token ? `- ${businessName}: "${p.name}" is overdue → https://hamishai.org/studio-action/${token}` : `- ${businessName}: "${p.name}" is overdue`
+    );
+  }
+  if (overdueProjects.length > MAX_DIGEST_ACTIONS_PER_CATEGORY) {
+    actionLines.push(`- +${overdueProjects.length - MAX_DIGEST_ACTIONS_PER_CATEGORY} more overdue project(s) — see Projects.`);
+  }
+
   if (usageLine) actionLines.push(usageLine);
 
   const riskLines = engagementRisks
