@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { sendTrialReminders } from "@/lib/trial-reminders";
 import { sendUsageWarnings, pruneOldUsageWarnings } from "@/lib/usage-warnings";
+import { sendAutonomousFollowUps } from "@/lib/autonomous-outreach";
 import { sendErrorAlert } from "@/lib/send-error-alert";
 import { recordCronRun } from "@/lib/record-cron-run";
 
@@ -8,14 +9,14 @@ import { recordCronRun } from "@/lib/record-cron-run";
 // shared-secret bearer-token pattern as every other cron route.
 //
 // Also runs the proactive usage-limit warning (usage-warnings.ts, a
-// real-improvement pass) — deliberately folded into this same cron
-// rather than given its own vercel.json entry, same reasoning as
+// real-improvement pass) and the autonomous outreach cadence (roadmap
+// item #2, autonomous-outreach.ts) — deliberately folded into this same
+// cron rather than given its own vercel.json entry, same reasoning as
 // adoption-snapshot folding into health-snapshot: architecturally the
-// same shape (a daily check against a real threshold, one warning
-// email when crossed), and this session flagged the cron count as
-// worth a Vercel plan check more than once already. The two stay
-// separate functions/tables/failure modes below, just one shared
-// trigger.
+// same shape (a daily check against a real threshold, one email when
+// crossed), and this session flagged the cron count as worth a Vercel
+// plan check more than once already. All three stay separate
+// functions/tables/failure modes below, just one shared trigger.
 export async function GET(request: Request) {
   const authHeader = request.headers.get("authorization");
   const expected = `Bearer ${process.env.CRON_SECRET}`;
@@ -47,17 +48,29 @@ export async function GET(request: Request) {
     await sendErrorAlert("Usage warnings prune", usagePruneResult.error ?? "Unknown error.");
   }
 
+  // Same "don't let a secondary failure erase an already-completed run"
+  // rule as the two steps above — a failure here is real prospect email
+  // that didn't go out, worth alerting on, but not a reason to mark this
+  // whole cron run as failed when trial reminders already sent fine.
+  const autonomousResult = await sendAutonomousFollowUps();
+  if ("error" in autonomousResult) {
+    await sendErrorAlert("Autonomous outreach cadence", autonomousResult.error ?? "Unknown error.");
+  }
+
   await recordCronRun("trial-reminders", "success", {
     summary: {
       sent: result.sent.length,
       usageWarningsSent: "error" in usageResult ? null : usageResult.sent.length,
       usageWarningsError: "error" in usageResult ? usageResult.error : null,
       usageWarningsPruned: "error" in usagePruneResult ? null : usagePruneResult.pruned,
+      autonomousFollowUpsSent: "error" in autonomousResult ? null : autonomousResult.sent,
+      autonomousFollowUpsError: "error" in autonomousResult ? autonomousResult.error : null,
     },
   });
 
   return NextResponse.json({
     sent: result.sent.length,
     usageWarningsSent: "error" in usageResult ? null : usageResult.sent.length,
+    autonomousFollowUpsSent: "error" in autonomousResult ? null : autonomousResult.sent,
   });
 }

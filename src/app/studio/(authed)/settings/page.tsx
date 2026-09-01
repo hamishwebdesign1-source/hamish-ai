@@ -60,7 +60,7 @@ export default async function StudioSettingsPage({
     )
     .eq("id", membership.orgId)
     .single();
-  const brand = (org?.brand ?? {}) as { accentColor?: string; replyToEmail?: string };
+  const brand = (org?.brand ?? {}) as { accentColor?: string; replyToEmail?: string; autonomousOutreachEnabled?: boolean };
   const commandCentreBlocks = resolveLayout(org?.command_centre_layout);
 
   // Command Centre Phase 5e — command_centre_layout_history_select_own_org
@@ -229,7 +229,7 @@ export default async function StudioSettingsPage({
         <div>
           <h2 className="font-heading text-xs font-semibold tracking-wide text-muted-foreground uppercase">Email</h2>
           <div className="mt-3">
-            <EmailSenderPanel replyToEmail={brand.replyToEmail ?? null} />
+            <EmailSenderPanel replyToEmail={brand.replyToEmail ?? null} autonomousOutreachEnabled={Boolean(brand.autonomousOutreachEnabled)} />
           </div>
         </div>
       )}

@@ -340,12 +340,37 @@ export async function clearReplyToEmail() {
   const { data: org } = await admin.from("organisations").select("brand").eq("id", orgId).single();
   const merged = { ...(org?.brand ?? {}) } as Record<string, unknown>;
   delete merged.replyToEmail;
+  // Autonomous outreach can't function without a reply-to (send-org-email.ts
+  // requires one) — clearing the email out from under it rather than
+  // leaving a stale "enabled" flag that silently does nothing next cron run.
+  delete merged.autonomousOutreachEnabled;
 
   const { error } = await admin.from("organisations").update({ brand: merged }).eq("id", orgId);
   if (error) return { error: "Failed to clear your reply-to email." };
 
   revalidatePath("/studio/settings");
   revalidatePath("/studio");
+  return { ok: true as const };
+}
+
+// Roadmap item #2 — the opt-in for autonomous-outreach.ts's daily cadence
+// sweep. Refuses to enable without a reply-to already configured (the
+// cron's own check would just silently skip the org otherwise, which is a
+// worse failure mode than telling the person why right here).
+export async function updateAutonomousOutreach(enabled: boolean) {
+  const orgId = await requireOrgId();
+  const admin = getSupabaseAdmin();
+  if (!admin) return { error: "Supabase is not configured." };
+
+  const { data: org } = await admin.from("organisations").select("brand").eq("id", orgId).single();
+  const brand = (org?.brand ?? {}) as { replyToEmail?: string };
+  if (enabled && !brand.replyToEmail) return { error: "Set a reply-to email above first." };
+
+  const merged = { ...(org?.brand ?? {}), autonomousOutreachEnabled: enabled };
+  const { error } = await admin.from("organisations").update({ brand: merged }).eq("id", orgId);
+  if (error) return { error: "Failed to save." };
+
+  revalidatePath("/studio/settings");
   return { ok: true as const };
 }
 
