@@ -13,7 +13,15 @@ import type { PlatformPlanSlug } from "@/lib/platform-plans";
 // as its own copy here rather than a shared import, since this one also
 // needs the caller's email (for Checkout's customer_email) and that's a
 // genuine second return value, not just a refactor for its own sake.
-async function requireOrgAndEmail(): Promise<{ orgId: string; email: string }> {
+//
+// Big-ticket #1 ("member has full owner-level power") — role is now part
+// of this too: every function below spends the org's own money (a plan
+// change, a credit pack purchase, or the Stripe billing portal, which
+// can itself change or cancel the subscription). A hired "member" seat
+// having the same reach here as the owner was a real gap, same
+// settings/actions.ts's own requireOrgMembership()/role checks on team
+// management and account deletion.
+async function requireOrgAndEmail(): Promise<{ orgId: string; email: string; role: "owner" | "member" }> {
   const supabase = await createServerSupabaseClient();
   const {
     data: { user },
@@ -22,7 +30,7 @@ async function requireOrgAndEmail(): Promise<{ orgId: string; email: string }> {
 
   const membership = await getOrgMembership(supabase, user.email);
   if (!membership) throw new Error("No organisation found for this session.");
-  return { orgId: membership.orgId, email: user.email };
+  return { orgId: membership.orgId, email: user.email, role: membership.role };
 }
 
 // Server Actions don't receive a Request the way a route handler does, so
@@ -54,7 +62,8 @@ async function getOrigin(): Promise<string> {
 // what it was always actually meant for — a genuinely first subscription
 // (trialing, inactive, or never subscribed).
 export async function startCheckout(planSlug: PlatformPlanSlug) {
-  const { orgId, email } = await requireOrgAndEmail();
+  const { orgId, email, role } = await requireOrgAndEmail();
+  if (role !== "owner") redirect(`/studio/billing?error=${encodeURIComponent("Only the workspace owner can change the subscription plan.")}`);
 
   const admin = getSupabaseAdmin();
   const { data: org } = admin
@@ -97,7 +106,8 @@ export async function startCheckout(planSlug: PlatformPlanSlug) {
 // checkout.session.completed handler branches on session.mode to tell
 // them apart (see that route's own comment).
 export async function buyCreditPack() {
-  const { orgId, email } = await requireOrgAndEmail();
+  const { orgId, email, role } = await requireOrgAndEmail();
+  if (role !== "owner") redirect(`/studio/billing?error=${encodeURIComponent("Only the workspace owner can make purchases.")}`);
   const origin = await getOrigin();
 
   const result = await createCreditPackCheckoutSession(email, `${origin}/studio/billing?credits=success`, `${origin}/studio/billing?credits=cancelled`, orgId);
@@ -110,7 +120,8 @@ export async function buyCreditPack() {
 // Opens Stripe's own hosted Customer Portal, same pattern as
 // /api/portal/stripe-portal-session — one thing we don't build ourselves.
 export async function openBillingPortal() {
-  const { orgId } = await requireOrgAndEmail();
+  const { orgId, role } = await requireOrgAndEmail();
+  if (role !== "owner") redirect(`/studio/billing?error=${encodeURIComponent("Only the workspace owner can access the billing portal.")}`);
   const admin = getSupabaseAdmin();
   if (!admin) redirect(`/studio/billing?error=${encodeURIComponent("Supabase is not configured.")}`);
 

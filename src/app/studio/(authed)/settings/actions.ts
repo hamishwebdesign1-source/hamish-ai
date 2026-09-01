@@ -435,8 +435,14 @@ export async function removeTeamMemberAction(email: string) {
 // generic enough for "something urgent needs a human," despite the
 // name), and the UI refuses to submit a second request once one is
 // already pending.
+// Big-ticket #1 ("member has full owner-level power") — the whole
+// point of `role` (memberships.role, owner/member): a hired teammate's
+// account existing shouldn't mean they can destroy the org that hired
+// them. requireOrgMembership() gives the real role from this session's
+// own membership row, same as inviteTeamMemberAction()'s own gate above.
 export async function requestAccountDeletion() {
-  const orgId = await requireOrgId();
+  const { orgId, role } = await requireOrgMembership();
+  if (role !== "owner") return { error: "Only the workspace owner can request account deletion." };
   const admin = getSupabaseAdmin();
   if (!admin) return { error: "Supabase is not configured." };
 

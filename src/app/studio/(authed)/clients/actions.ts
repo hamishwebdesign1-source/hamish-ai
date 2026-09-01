@@ -180,8 +180,23 @@ export async function sendClientInvoiceReminderAction(invoiceId: string) {
 // action in this file. A converted prospect's own row is untouched —
 // clients.source_lead_id points at it, not the other way round, so
 // nothing else breaks when a client is removed.
+// Big-ticket #1 ("member has full owner-level power") — same
+// requireOrgMembership()-style role check settings/actions.ts already
+// uses for team management/account deletion, added here as GDPR erasure
+// of a paying org's own client is exactly the kind of one-click,
+// unconfirmed, irreversible action a hired "member" seat shouldn't have
+// the same reach to trigger as the owner.
 export async function deleteClientData(clientId: string) {
-  const orgId = await requireOrgId();
+  const supabase = await createServerSupabaseClient();
+  const {
+    data: { user },
+  } = await getUserWithRetry(supabase);
+  if (!user?.email) throw new Error("Not signed in.");
+  const membership = await getOrgMembership(supabase, user.email);
+  if (!membership) throw new Error("No organisation found for this session.");
+  if (membership.role !== "owner") return { error: "Only the workspace owner can delete a client's data." };
+  const orgId = membership.orgId;
+
   const admin = getSupabaseAdmin();
   if (!admin) return { error: "Supabase is not configured." };
 
