@@ -74,11 +74,19 @@ export async function POST(request: Request) {
 
     if (!existing && invoice.customer) {
       const customerId = typeof invoice.customer === "string" ? invoice.customer : invoice.customer.id;
-      const { data: client } = await supabase.from("clients").select("id").eq("stripe_customer_id", customerId).single();
+      // Big-ticket #3 -- org_id also selected here (it wasn't) so the
+      // insert below can set it directly, same real column create-
+      // invoice.ts's own comment already documents fixing for one-off
+      // invoices. Without this every subscription invoice's org_id kept
+      // defaulting to HamishAI's own literal org id
+      // (schema-backfill-internal-org.sql), silently misattributing
+      // every paying tenant's real subscription revenue on this column.
+      const { data: client } = await supabase.from("clients").select("id, org_id").eq("stripe_customer_id", customerId).single();
 
       if (client) {
         const { error } = await supabase.from("invoices").insert({
           client_id: client.id,
+          org_id: client.org_id,
           stripe_invoice_id: invoice.id,
           stripe_hosted_invoice_url: invoice.hosted_invoice_url,
           amount_pence: invoice.amount_due,
