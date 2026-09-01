@@ -5,7 +5,7 @@ import { createServerSupabaseClient, getUserWithRetry } from "@/lib/supabase-ser
 import { getOrgMembership } from "@/lib/org-membership";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { createInvoice } from "@/lib/create-invoice";
-import { startSubscription, cancelSubscription } from "@/lib/subscription";
+import { startSubscription, cancelSubscription, changeSubscriptionPrice } from "@/lib/subscription";
 import { sendInvoiceReminder } from "@/lib/send-invoice-reminder";
 import { logAuditEvent } from "@/lib/audit-log";
 import { trackServerEvent } from "@/lib/analytics";
@@ -66,6 +66,13 @@ export async function createClientInvoice(clientId: string, amountPounds: number
 // resolves the Connect-account routing (see its own comment), this
 // action's job is only the same org-ownership check every other /studio
 // Server Action here already makes.
+// Big-ticket #2 ("editing a client's rate after go-live doesn't change
+// what they're billed") — a live subscription now has its Stripe price
+// changed in place (changeSubscriptionPrice(), subscription.ts) before
+// the new rate is ever saved here. Deliberately in that order: if the
+// Stripe update fails, this returns its error and never writes the DB
+// field, so Studio can't show a rate as "saved" that isn't actually
+// what the client is being billed — the exact bug this closes.
 export async function updateClientMaintenanceRate(clientId: string, amountPounds: number) {
   const orgId = await requireOrgId();
   const admin = getSupabaseAdmin();
@@ -74,8 +81,13 @@ export async function updateClientMaintenanceRate(clientId: string, amountPounds
   const pence = Number.isFinite(amountPounds) && amountPounds > 0 ? Math.round(amountPounds * 100) : null;
   if (!pence) return { error: "Enter a monthly rate greater than £0." };
 
-  const { data: client } = await admin.from("clients").select("id").eq("id", clientId).eq("org_id", orgId).maybeSingle();
+  const { data: client } = await admin.from("clients").select("id, stripe_subscription_id").eq("id", clientId).eq("org_id", orgId).maybeSingle();
   if (!client) return { error: "Client not found." };
+
+  if (client.stripe_subscription_id) {
+    const result = await changeSubscriptionPrice(clientId, pence);
+    if ("error" in result) return result;
+  }
 
   const { error } = await admin.from("clients").update({ maintenance_monthly_pence: pence }).eq("id", clientId);
   if (error) return { error: "Failed to save the rate." };

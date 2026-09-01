@@ -66,6 +66,8 @@ function buildStripe() {
     subscriptions: {
       create: vi.fn().mockResolvedValue({ id: "sub_new", status: "active" }),
       cancel: vi.fn().mockResolvedValue({}),
+      retrieve: vi.fn().mockResolvedValue({ items: { data: [{ id: "si_existing" }] } }),
+      update: vi.fn().mockResolvedValue({}),
     },
   };
 }
@@ -212,5 +214,91 @@ describe("cancelSubscription", () => {
     const result = await cancelSubscription("client-1");
 
     expect(result).toEqual({ error: "No subscription to cancel." });
+  });
+});
+
+// Big-ticket #2 ("editing a client's rate after go-live doesn't change
+// what they're billed") — proves the actual fix: a live subscription's
+// item gets its price_data updated in place, not just the DB field.
+describe("changeSubscriptionPrice", () => {
+  it("updates the existing subscription item's price_data, not a new item", async () => {
+    const stripe = buildStripe();
+    getStripeMock.mockReturnValue(stripe);
+    getSupabaseAdminMock.mockReturnValue(
+      buildAdmin(
+        { ...baseClient, stripe_subscription_id: "sub_existing" },
+        { is_internal: true, stripe_connect_account_id: null, stripe_connect_charges_enabled: false }
+      )
+    );
+
+    const { changeSubscriptionPrice } = await import("./subscription");
+    const result = await changeSubscriptionPrice("client-1", 20000);
+
+    expect(result).toEqual({ ok: true });
+    expect(stripe.subscriptions.update).toHaveBeenCalledWith(
+      "sub_existing",
+      expect.objectContaining({
+        items: [expect.objectContaining({ id: "si_existing", price_data: expect.objectContaining({ unit_amount: 20000 }) })],
+        proration_behavior: "create_prorations",
+      }),
+      undefined
+    );
+  });
+
+  it("routes the update through the tenant's own connected account when Connect is set up", async () => {
+    const stripe = buildStripe();
+    getStripeMock.mockReturnValue(stripe);
+    getSupabaseAdminMock.mockReturnValue(
+      buildAdmin(
+        { ...baseClient, stripe_subscription_id: "sub_existing" },
+        { is_internal: false, stripe_connect_account_id: "acct_tenant", stripe_connect_charges_enabled: true }
+      )
+    );
+
+    const { changeSubscriptionPrice } = await import("./subscription");
+    await changeSubscriptionPrice("client-1", 20000);
+
+    expect(stripe.subscriptions.retrieve).toHaveBeenCalledWith("sub_existing", {}, { stripeAccount: "acct_tenant" });
+    expect(stripe.subscriptions.update.mock.calls[0][2]).toEqual({ stripeAccount: "acct_tenant" });
+  });
+
+  it("still updates using the account id on file even when Connect charges have since been disabled, same leniency as cancelling", async () => {
+    const stripe = buildStripe();
+    getStripeMock.mockReturnValue(stripe);
+    getSupabaseAdminMock.mockReturnValue(
+      buildAdmin(
+        { ...baseClient, stripe_subscription_id: "sub_existing" },
+        { is_internal: false, stripe_connect_account_id: "acct_tenant", stripe_connect_charges_enabled: false }
+      )
+    );
+
+    const { changeSubscriptionPrice } = await import("./subscription");
+    const result = await changeSubscriptionPrice("client-1", 20000);
+
+    expect(result).toEqual({ ok: true });
+  });
+
+  it("refuses when the client has no active subscription", async () => {
+    getStripeMock.mockReturnValue(buildStripe());
+    getSupabaseAdminMock.mockReturnValue(buildAdmin(baseClient, null));
+
+    const { changeSubscriptionPrice } = await import("./subscription");
+    const result = await changeSubscriptionPrice("client-1", 20000);
+
+    expect(result).toEqual({ error: "No active subscription to update." });
+  });
+
+  it("refuses a zero or negative amount before touching Stripe", async () => {
+    const stripe = buildStripe();
+    getStripeMock.mockReturnValue(stripe);
+    getSupabaseAdminMock.mockReturnValue(
+      buildAdmin({ ...baseClient, stripe_subscription_id: "sub_existing" }, { is_internal: true, stripe_connect_account_id: null, stripe_connect_charges_enabled: false })
+    );
+
+    const { changeSubscriptionPrice } = await import("./subscription");
+    const result = await changeSubscriptionPrice("client-1", 0);
+
+    expect(result).toEqual({ error: "The monthly rate must be greater than zero." });
+    expect(stripe.subscriptions.update).not.toHaveBeenCalled();
   });
 });

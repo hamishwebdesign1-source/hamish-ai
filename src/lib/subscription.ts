@@ -163,6 +163,84 @@ export async function startSubscription(clientId: string) {
   }
 }
 
+// Big-ticket #2 ("editing a client's rate after go-live doesn't change
+// what they're billed") — the exact bug class already found and fixed
+// this session for platform-level billing (changePlatformSubscriptionPlan(),
+// platform-checkout.ts), just on the other billing layer: a tenant
+// billing *their own* client. updateClientMaintenanceRate()
+// (clients/actions.ts) only ever wrote maintenance_monthly_pence on the
+// clients row; a live Stripe subscription's price never followed it, so
+// the client kept being billed the original rate forever while Studio's
+// own UI showed the new number as if it had taken effect.
+//
+// Same inline price_data shape as startSubscription() (no shared
+// catalog Price for a per-client custom rate to point at instead) —
+// updated on the subscription's existing item rather than creating a
+// new one, same "id: item.id" pattern changePlatformSubscriptionPlan()
+// already established for updating an item in place.
+export async function changeSubscriptionPrice(clientId: string, newMonthlyPence: number) {
+  const stripe = getStripe();
+  if (!stripe) return { error: "Stripe is not configured." as const };
+  if (newMonthlyPence <= 0) return { error: "The monthly rate must be greater than zero." as const };
+
+  const supabase = getSupabaseAdmin();
+  if (!supabase) return { error: "Supabase is not configured." as const };
+
+  const { data: client } = await supabase
+    .from("clients")
+    .select("business_name, stripe_subscription_id, org_id")
+    .eq("id", clientId)
+    .single();
+  if (!client?.stripe_subscription_id) return { error: "No active subscription to update." as const };
+
+  const accountResolution = await resolveStripeAccountOptions(supabase, client.org_id, false);
+  if (accountResolution.error) return { error: accountResolution.error };
+  const stripeOptions: Stripe.RequestOptions | undefined = accountResolution.stripeAccountId
+    ? { stripeAccount: accountResolution.stripeAccountId }
+    : undefined;
+
+  try {
+    const subscription = await stripe.subscriptions.retrieve(client.stripe_subscription_id, {}, stripeOptions);
+    const item = subscription.items.data[0];
+    if (!item) return { error: "This subscription has no billable item to update — contact support." as const };
+
+    const product = await ensureMaintenanceProduct(stripe, stripeOptions);
+
+    await stripe.subscriptions.update(
+      client.stripe_subscription_id,
+      {
+        items: [
+          {
+            id: item.id,
+            price_data: {
+              currency: "gbp",
+              product: product.id,
+              unit_amount: newMonthlyPence,
+              recurring: { interval: "month" },
+            },
+          },
+        ],
+        // create_prorations, same as changePlatformSubscriptionPlan()'s
+        // own reasoning — the client is billed correctly for what they
+        // actually used on each rate, never silently over/undercharged
+        // for the gap between "edited in Studio" and "next invoice."
+        proration_behavior: "create_prorations",
+      },
+      stripeOptions
+    );
+
+    logInfo("subscription.price_changed", { client_id: clientId, stripe_subscription_id: client.stripe_subscription_id, new_amount_pence: newMonthlyPence });
+    return { ok: true as const };
+  } catch (error) {
+    logError("subscription.price_change_failed", {
+      client_id: clientId,
+      stripe_subscription_id: client.stripe_subscription_id,
+      message: error instanceof Error ? error.message : String(error),
+    });
+    return { error: "Failed to update the subscription price via Stripe — no changes were made." as const };
+  }
+}
+
 export async function cancelSubscription(clientId: string) {
   const stripe = getStripe();
   if (!stripe) return { error: "Stripe is not configured." as const };
