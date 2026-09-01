@@ -21,11 +21,13 @@ export default async function StudioProspectsPage() {
 
   const { data: org } = await supabase
     .from("organisations")
-    .select("prospecting_config, is_internal, plan, purchased_prospect_credits")
+    .select("prospecting_config, is_internal, plan, purchased_prospect_credits, brand")
     .eq("id", membership.orgId)
     .single();
 
   const config = (org?.prospecting_config ?? {}) as { categories?: string[]; areas?: string[] };
+  // Roadmap item #9 — see booking-link.ts's own comment.
+  const bookingLink = (org?.brand as { bookingLink?: string } | null)?.bookingLink ?? null;
 
   const usage = org?.is_internal
     ? null
@@ -48,6 +50,7 @@ export default async function StudioProspectsPage() {
       usage={usage}
       purchasedCredits={org?.purchased_prospect_credits ?? 0}
       prospects={prospects ?? []}
+      bookingLink={bookingLink}
     />
   );
 }

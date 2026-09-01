@@ -65,6 +65,7 @@ import type { LeadResearch, ScoreBreakdown } from "@/lib/research-lead";
 import type { WebsiteMockup } from "@/lib/draft-website-mockup";
 import type { SalesKit } from "@/lib/draft-sales-kit";
 import { getLeadCadenceAction, leadNeedsFollowUp } from "@/lib/lead-status";
+import { appendBookingLink } from "@/lib/booking-link";
 
 type Prospect = {
   id: string;
@@ -694,25 +695,33 @@ function CopyButton({ text }: { text: string }) {
   );
 }
 
-function SalesKitPreview({ kit }: { kit: SalesKit }) {
+function SalesKitPreview({ kit, bookingLink }: { kit: SalesKit; bookingLink: string | null }) {
+  // Roadmap item #9 — same deterministic append sendForOrg() (autonomous-
+  // outreach.ts) applies before an automated send, applied here so a
+  // human copying either draft out to send themselves sees (and sends)
+  // the exact same booking link, not a shorter version that quietly
+  // diverges from what an automated follow-up would have included.
+  const outreachBody = appendBookingLink(kit.outreach_email.body, bookingLink);
+  const followUpBody = appendBookingLink(kit.follow_up_email.body, bookingLink);
+
   return (
     <div className="space-y-3">
       <div className="rounded-lg border border-border p-3">
         <div className="flex items-center justify-between">
           <p className="flex items-center gap-1.5 text-xs font-semibold"><Mail className="size-3.5 shrink-0 text-muted-foreground" /> Outreach email</p>
-          <CopyButton text={`${kit.outreach_email.subject}\n\n${kit.outreach_email.body}`} />
+          <CopyButton text={`${kit.outreach_email.subject}\n\n${outreachBody}`} />
         </div>
         <p className="mt-2 text-xs font-medium">{kit.outreach_email.subject}</p>
-        <p className="mt-1 text-sm whitespace-pre-line text-muted-foreground">{kit.outreach_email.body}</p>
+        <p className="mt-1 text-sm whitespace-pre-line text-muted-foreground">{outreachBody}</p>
       </div>
 
       <div className="rounded-lg border border-border p-3">
         <div className="flex items-center justify-between">
           <p className="flex items-center gap-1.5 text-xs font-semibold"><Mail className="size-3.5 shrink-0 text-muted-foreground" /> Follow-up email</p>
-          <CopyButton text={`${kit.follow_up_email.subject}\n\n${kit.follow_up_email.body}`} />
+          <CopyButton text={`${kit.follow_up_email.subject}\n\n${followUpBody}`} />
         </div>
         <p className="mt-2 text-xs font-medium">{kit.follow_up_email.subject}</p>
-        <p className="mt-1 text-sm whitespace-pre-line text-muted-foreground">{kit.follow_up_email.body}</p>
+        <p className="mt-1 text-sm whitespace-pre-line text-muted-foreground">{followUpBody}</p>
       </div>
 
       <div className="rounded-lg border border-border p-3">
@@ -761,14 +770,14 @@ function SalesKitPreview({ kit }: { kit: SalesKit }) {
   );
 }
 
-function SalesKitSection({ prospect }: { prospect: Prospect }) {
+function SalesKitSection({ prospect, bookingLink }: { prospect: Prospect; bookingLink: string | null }) {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
   return (
     <div>
       {prospect.sales_kit ? (
-        <SalesKitPreview kit={prospect.sales_kit} />
+        <SalesKitPreview kit={prospect.sales_kit} bookingLink={bookingLink} />
       ) : (
         <div className="rounded-lg border border-dashed border-border p-4 text-center">
           <p className="text-sm text-muted-foreground">Not generated yet — email, follow-up, call script, LinkedIn message, meeting agenda and proposal outline, in one go.</p>
@@ -806,10 +815,12 @@ function ProspectCard({
   prospect,
   selected,
   onToggleSelect,
+  bookingLink,
 }: {
   prospect: Prospect;
   selected: boolean;
   onToggleSelect: () => void;
+  bookingLink: string | null;
 }) {
   const [open, setOpen] = useState(false);
   const hasContact = prospect.phone || prospect.email;
@@ -933,7 +944,7 @@ function ProspectCard({
                   <WebsiteMockupSection prospect={prospect} />
                 </TabsPanel>
                 <TabsPanel value="kit">
-                  <SalesKitSection prospect={prospect} />
+                  <SalesKitSection prospect={prospect} bookingLink={bookingLink} />
                 </TabsPanel>
               </Tabs>
             ) : (
@@ -975,12 +986,14 @@ export function ProspectingPanel({
   usage,
   purchasedCredits,
   prospects,
+  bookingLink,
 }: {
   initialCategories: string[];
   initialAreas: string[];
   usage: UsageStatus | null;
   purchasedCredits: number;
   prospects: Prospect[];
+  bookingLink: string | null;
 }) {
   const router = useRouter();
   const [categories, setCategories] = useState(initialCategories.join(", "));
@@ -1547,7 +1560,7 @@ export function ProspectingPanel({
             {kitsError && <p className="mt-1.5 text-xs text-destructive">{kitsError}</p>}
             <div className="mt-2 space-y-2">
               {visibleProspects.map((p) => (
-                <ProspectCard key={p.id} prospect={p} selected={selected.has(p.id)} onToggleSelect={() => toggleSelected(p.id)} />
+                <ProspectCard key={p.id} prospect={p} selected={selected.has(p.id)} onToggleSelect={() => toggleSelected(p.id)} bookingLink={bookingLink} />
               ))}
             </div>
           </>

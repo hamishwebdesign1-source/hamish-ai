@@ -14,6 +14,7 @@ import { getUsageStatus, recordUsageEvent } from "@/lib/usage-limits";
 import { isStudioActionRateLimited } from "@/lib/chat-rate-limit";
 import type { PlatformPlanSlug } from "@/lib/platform-plans";
 import { inviteTeamMember, removeTeamMember } from "@/lib/team-members";
+import { isSafeBookingLink } from "@/lib/booking-link";
 
 // Same session-derivation as prospects/actions.ts's requireOrgId() — kept
 // as its own local copy, same convention billing/actions.ts documents.
@@ -459,4 +460,47 @@ export async function requestAccountDeletion() {
 
   revalidatePath("/studio/settings");
   return { ok: true as const, requestedAt };
+}
+
+// Roadmap item #9 ("close draft-email -> booked-call loop") — see
+// booking-link.ts's own comment for why this is "paste your own external
+// scheduler link" rather than real calendar integration. Same
+// organisations.brand jsonb merge pattern as updateReplyToEmail() etc.
+// Revalidates /studio/prospects too, not just /studio/settings — this is
+// what unlocks the booking link actually appearing in the sales kit
+// preview there.
+export async function updateBookingLink(url: string) {
+  const orgId = await requireOrgId();
+  const admin = getSupabaseAdmin();
+  if (!admin) return { error: "Supabase is not configured." };
+
+  const trimmed = url.trim();
+  if (!isSafeBookingLink(trimmed)) return { error: "Enter a real https:// booking link." };
+
+  const { data: org } = await admin.from("organisations").select("brand").eq("id", orgId).single();
+  const merged = { ...(org?.brand ?? {}), bookingLink: trimmed };
+
+  const { error } = await admin.from("organisations").update({ brand: merged }).eq("id", orgId);
+  if (error) return { error: "Failed to save your booking link." };
+
+  revalidatePath("/studio/settings");
+  revalidatePath("/studio/prospects");
+  return { ok: true as const };
+}
+
+export async function clearBookingLink() {
+  const orgId = await requireOrgId();
+  const admin = getSupabaseAdmin();
+  if (!admin) return { error: "Supabase is not configured." };
+
+  const { data: org } = await admin.from("organisations").select("brand").eq("id", orgId).single();
+  const merged = { ...(org?.brand ?? {}) } as Record<string, unknown>;
+  delete merged.bookingLink;
+
+  const { error } = await admin.from("organisations").update({ brand: merged }).eq("id", orgId);
+  if (error) return { error: "Failed to clear your booking link." };
+
+  revalidatePath("/studio/settings");
+  revalidatePath("/studio/prospects");
+  return { ok: true as const };
 }

@@ -3,6 +3,7 @@ import { getSupabaseAdmin } from "@/lib/supabase";
 import { getLeadCadenceAction } from "@/lib/lead-status";
 import { sendOrgEmail } from "@/lib/send-org-email";
 import { logAuditEvent } from "@/lib/audit-log";
+import { appendBookingLink } from "@/lib/booking-link";
 import type { SalesKit } from "@/lib/draft-sales-kit";
 
 // Roadmap item #2 ("autonomous outreach cadence") — the piece the
@@ -43,7 +44,7 @@ type CadenceProspectRow = {
 
 async function sendForOrg(
   admin: SupabaseClient,
-  org: { id: string; name: string; replyToEmail: string },
+  org: { id: string; name: string; replyToEmail: string; bookingLink: string | null },
   now: Date
 ): Promise<{ sent: number; skippedNoSalesKit: number }> {
   const { data: prospects } = await admin
@@ -77,7 +78,11 @@ async function sendForOrg(
       replyToEmail: org.replyToEmail,
       to: p.email,
       subject: followUp.subject,
-      text: followUp.body,
+      // Roadmap item #9 — a no-op when the org hasn't set one
+      // (appendBookingLink() returns the body unchanged), so this stays
+      // byte-for-byte identical to before for every org that hasn't
+      // opted into that either.
+      text: appendBookingLink(followUp.body, org.bookingLink),
     });
     if ("error" in result) {
       console.error(`Autonomous follow-up failed for prospect ${p.id} (org ${org.id}):`, result.error);
@@ -125,10 +130,14 @@ export async function sendAutonomousFollowUps(now = new Date()) {
   const byOrg: Record<string, number> = {};
 
   for (const org of orgs ?? []) {
-    const brand = (org.brand ?? {}) as { autonomousOutreachEnabled?: boolean; replyToEmail?: string };
+    const brand = (org.brand ?? {}) as { autonomousOutreachEnabled?: boolean; replyToEmail?: string; bookingLink?: string };
     if (!brand.autonomousOutreachEnabled || !brand.replyToEmail) continue;
 
-    const { sent } = await sendForOrg(admin, { id: org.id, name: org.name, replyToEmail: brand.replyToEmail }, now);
+    const { sent } = await sendForOrg(
+      admin,
+      { id: org.id, name: org.name, replyToEmail: brand.replyToEmail, bookingLink: brand.bookingLink ?? null },
+      now
+    );
     if (sent > 0) {
       byOrg[org.id] = sent;
       totalSent += sent;

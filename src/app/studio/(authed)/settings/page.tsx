@@ -8,6 +8,7 @@ import { hasPlatformMsConfig } from "@/lib/tenant-graph-auth";
 import { SettingsPanel } from "@/components/platform/settings-panel";
 import { BrandingPanel } from "@/components/platform/branding-panel";
 import { EmailSenderPanel } from "@/components/platform/email-sender-panel";
+import { BookingLinkPanel } from "@/components/platform/booking-link-panel";
 import { DataPrivacyPanel } from "@/components/platform/data-privacy-panel";
 import { CommandCentreLayoutPanel } from "@/components/platform/command-centre-layout-panel";
 import { NotificationsPanel } from "@/components/platform/notifications-panel";
@@ -63,7 +64,12 @@ export default async function StudioSettingsPage({
     )
     .eq("id", membership.orgId)
     .single();
-  const brand = (org?.brand ?? {}) as { accentColor?: string; replyToEmail?: string; autonomousOutreachEnabled?: boolean };
+  const brand = (org?.brand ?? {}) as {
+    accentColor?: string;
+    replyToEmail?: string;
+    autonomousOutreachEnabled?: boolean;
+    bookingLink?: string;
+  };
   const commandCentreBlocks = resolveLayout(org?.command_centre_layout);
   const plan = (org?.plan ?? "starter") as PlatformPlanSlug;
   const seatLimit = seatLimitForPlan(plan);
@@ -242,6 +248,20 @@ export default async function StudioSettingsPage({
           <h2 className="font-heading text-xs font-semibold tracking-wide text-muted-foreground uppercase">Email</h2>
           <div className="mt-3">
             <EmailSenderPanel replyToEmail={brand.replyToEmail ?? null} autonomousOutreachEnabled={Boolean(brand.autonomousOutreachEnabled)} />
+          </div>
+        </div>
+      )}
+
+      {/* Roadmap item #9 — no dependency on Email above (a booking link
+          works whether or not tenant-scoped sending is set up yet: it
+          also appears in the sales-kit preview a human copies out
+          manually), so its own gate is just isInternal, same as
+          Branding. */}
+      {!org?.is_internal && (
+        <div>
+          <h2 className="font-heading text-xs font-semibold tracking-wide text-muted-foreground uppercase">Booking</h2>
+          <div className="mt-3">
+            <BookingLinkPanel bookingLink={brand.bookingLink ?? null} />
           </div>
         </div>
       )}
