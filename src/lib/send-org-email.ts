@@ -73,6 +73,7 @@ export async function sendOrgEmail(params: {
     actorType: "system",
     action: "org_email_sent",
     targetType: "email",
+    orgId,
     metadata: { orgId, to, subject },
   });
 

@@ -12,6 +12,16 @@ export async function logAuditEvent(params: {
   targetType?: string;
   targetId?: string;
   clientId?: string;
+  // Studio big-ticket ("team collaboration") — audit_log has carried an
+  // org_id column since schema-backfill-internal-org.sql, but nothing
+  // ever actually wrote to it; every existing Studio call site stuffed
+  // orgId into `metadata` instead (never indexed, never queryable as a
+  // real column). Optional and additive: omitting it just leaves the
+  // column null, exactly as it's always been. Several call sites still
+  // duplicate their orgId into metadata too rather than being rewritten
+  // here — left alone rather than risking a metadata-shape change no
+  // caller asked for.
+  orgId?: string;
   metadata?: Record<string, unknown>;
 }) {
   const supabase = getSupabaseAdmin();
@@ -24,6 +34,7 @@ export async function logAuditEvent(params: {
     target_type: params.targetType ?? null,
     target_id: params.targetId ?? null,
     client_id: params.clientId ?? null,
+    org_id: params.orgId ?? null,
     metadata: params.metadata ?? null,
   });
 

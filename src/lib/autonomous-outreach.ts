@@ -106,6 +106,7 @@ async function sendForOrg(
       action: "prospect.autonomous_follow_up_sent",
       targetType: "prospect",
       targetId: p.id,
+      orgId: org.id,
       metadata: { orgId: org.id },
     });
 

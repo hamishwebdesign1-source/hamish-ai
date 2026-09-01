@@ -100,6 +100,7 @@ export async function runAutoDraftHighScoreProspectsRule() {
         action: "prospect.auto_drafted_sales_kit",
         targetType: "prospect",
         targetId: p.id,
+        orgId: org.id,
         metadata: { orgId: org.id, score: p.score },
       });
       draftedThisOrg++;

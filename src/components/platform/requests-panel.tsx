@@ -31,6 +31,7 @@ import {
   turnRequestIntoWebsiteTask,
   regenerateRequestDraft,
   sendRequestReply,
+  assignRequest,
 } from "@/app/studio/(authed)/requests/actions";
 import { assignTaskToProject } from "@/app/studio/(authed)/projects/actions";
 import type { TroubleshootingEntry } from "@/lib/website-troubleshooting";
@@ -51,8 +52,11 @@ type Request = {
   missing_info: string[] | null;
   responded_at: string | null;
   website_project_id: string | null;
+  assigned_to: string | null;
   clients: { business_name: string } | { business_name: string }[] | null;
 };
+
+type TeamMember = { email: string; role: "owner" | "member" };
 
 type WebsiteProject = { id: string; client_id: string; stage: string };
 
@@ -293,6 +297,7 @@ function RequestCard({
   selected,
   onToggleSelect,
   canSendReply,
+  teamMembers,
 }: {
   request: Request;
   tasks: Task[];
@@ -301,8 +306,20 @@ function RequestCard({
   selected?: boolean;
   onToggleSelect?: () => void;
   canSendReply: boolean;
+  teamMembers: TeamMember[];
 }) {
   const [open, setOpen] = useState(false);
+  const [assignee, setAssignee] = useState(request.assigned_to ?? "");
+  const [assignPending, startAssign] = useTransition();
+
+  function setRequestAssignee(next: string) {
+    const prev = assignee;
+    setAssignee(next);
+    startAssign(async () => {
+      const r = await assignRequest(request.id, next || null);
+      if (r && "error" in r) setAssignee(prev);
+    });
+  }
   const [draft, setDraft] = useState(request.draft_response ?? "");
   const [draftPending, startDraftSave] = useTransition();
   const [draftSaved, setDraftSaved] = useState(false);
@@ -398,6 +415,28 @@ function RequestCard({
               aria-label={`Select request from ${clientName(request)}`}
               className="size-4 shrink-0 rounded border-border accent-accent"
             />
+          )}
+          {/* Studio big-ticket ("team collaboration") — sibling of the
+              toggle button below, same reasoning as the checkbox above: a
+              <select> nested inside a <button> would be invalid HTML and
+              would fire the open/close toggle on every interaction. Only
+              rendered once there's actually more than one person to
+              assign to — a solo owner has no one else to hand this to. */}
+          {teamMembers.length > 1 && (
+            <select
+              value={assignee}
+              onChange={(e) => setRequestAssignee(e.target.value)}
+              disabled={assignPending}
+              aria-label={`Assign request from ${clientName(request)}`}
+              className={`${selectClasses} shrink-0`}
+            >
+              <option value="">Unassigned</option>
+              {teamMembers.map((m) => (
+                <option key={m.email} value={m.email}>
+                  {m.email}
+                </option>
+              ))}
+            </select>
           )}
           <button
             type="button"
@@ -556,15 +595,23 @@ export function RequestsPanel({
   projects,
   websiteProjects,
   canSendReply,
+  teamMembers,
+  currentUserEmail,
 }: {
   requests: Request[];
   tasks: Task[];
   projects: Project[];
   websiteProjects: WebsiteProject[];
   canSendReply: boolean;
+  teamMembers: TeamMember[];
+  currentUserEmail: string;
 }) {
   const router = useRouter();
   const [filter, setFilter] = useState<"all" | "open" | "responded">("open");
+  // Studio big-ticket ("team collaboration") — only meaningful once
+  // there's more than one person on the org, same gate as the assignee
+  // select itself.
+  const [mineOnly, setMineOnly] = useState(false);
   // Studio improvement — same client-side search pattern as
   // prospecting-panel.tsx/knowledge-panel.tsx, filtering the request text
   // and its own client name, on top of (not instead of) the existing
@@ -603,12 +650,13 @@ export function RequestsPanel({
 
   const visible = useMemo(() => {
     let list = filter === "all" ? requests : filter === "responded" ? requests.filter((r) => r.responded_at) : requests.filter((r) => !r.responded_at);
+    if (mineOnly) list = list.filter((r) => r.assigned_to === currentUserEmail);
     const searchLower = search.trim().toLowerCase();
     if (searchLower) {
       list = list.filter((r) => r.raw_text.toLowerCase().includes(searchLower) || clientName(r).toLowerCase().includes(searchLower));
     }
     return list;
-  }, [requests, filter, search]);
+  }, [requests, filter, mineOnly, currentUserEmail, search]);
 
   // Studio improvement — bulk actions, same pattern as prospecting-panel.tsx's
   // own bulk "mark as contacted". Selection only ever holds unresponded
@@ -684,6 +732,11 @@ export function RequestsPanel({
                 {f === "open" ? "Needs a reply" : f === "responded" ? "Responded" : "All"}
               </Button>
             ))}
+            {teamMembers.length > 1 && (
+              <Button size="sm" variant={mineOnly ? "secondary" : "ghost"} onClick={() => setMineOnly((v) => !v)}>
+                Assigned to me
+              </Button>
+            )}
             {requests.length > 4 && (
               <div className="relative ml-auto w-full max-w-56">
                 <Search className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
@@ -735,6 +788,7 @@ export function RequestsPanel({
                     selected={selected.has(r.id)}
                     onToggleSelect={() => toggleSelected(r.id)}
                     canSendReply={canSendReply}
+                    teamMembers={teamMembers}
                   />
                 ))}
               </div>

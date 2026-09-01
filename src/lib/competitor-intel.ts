@@ -219,6 +219,7 @@ export async function researchCompetitorIntelForAllOrgs() {
         action: "client.competitor_intel_found",
         targetType: "client",
         targetId: client.id,
+        orgId: org.id,
         metadata: { orgId: org.id },
       });
       foundThisOrg++;

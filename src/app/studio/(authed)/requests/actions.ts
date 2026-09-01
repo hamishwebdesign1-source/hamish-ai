@@ -13,6 +13,7 @@ import { getUsageStatus, recordUsageEvent } from "@/lib/usage-limits";
 import { isStudioActionRateLimited } from "@/lib/chat-rate-limit";
 import type { PlatformPlanSlug } from "@/lib/platform-plans";
 import { sendOrgEmail } from "@/lib/send-org-email";
+import { logAuditEvent } from "@/lib/audit-log";
 
 // Same session-derivation as prospects/actions.ts's requireOrgId() — kept
 // as its own local copy, same convention billing/actions.ts documents.
@@ -49,6 +50,63 @@ async function requestBelongsToOrg(admin: ReturnType<typeof getSupabaseAdmin>, r
 // just wants Studio's own status to reflect it. sendRequestReply() below
 // is the actual trigger, added once tenant-scoped email (roadmap item
 // #1) made it safe to build — this one stays as it always was.
+// Same session-derivation as requireOrgId() above, plus the signed-in
+// person's own email -- needed here (and not by requireOrgId's other
+// callers in this file) so assignRequest() can log a real actor and
+// verify the assignee is actually a teammate, not just any string a
+// tampered client request could send.
+async function requireOrgIdAndEmail(): Promise<{ orgId: string; email: string }> {
+  const supabase = await createServerSupabaseClient();
+  const {
+    data: { user },
+  } = await getUserWithRetry(supabase);
+  if (!user?.email) throw new Error("Not signed in.");
+
+  const membership = await getOrgMembership(supabase, user.email);
+  if (!membership) throw new Error("No organisation found for this session.");
+  return { orgId: membership.orgId, email: user.email };
+}
+
+// Studio big-ticket ("team collaboration") — memberships (invite/remove)
+// has existed since team-members.ts shipped, but nothing let anyone
+// actually claim a piece of work. `assigneeEmail: null` clears the
+// assignment back to "unassigned" -- the same request card can be
+// reassigned or unclaimed at any time, there's no "locked once claimed"
+// rule here.
+export async function assignRequest(requestId: string, assigneeEmail: string | null) {
+  const { orgId, email: actorEmail } = await requireOrgIdAndEmail();
+  const admin = getSupabaseAdmin();
+  if (!admin) return { error: "Supabase is not configured." };
+  if (!(await requestBelongsToOrg(admin, requestId, orgId))) return { error: "Request not found." };
+
+  const normalised = assigneeEmail?.trim().toLowerCase() || null;
+  if (normalised) {
+    const { data: member } = await admin
+      .from("memberships")
+      .select("email")
+      .eq("org_id", orgId)
+      .eq("email", normalised)
+      .maybeSingle();
+    if (!member) return { error: "That person isn't on your team." };
+  }
+
+  const { error } = await admin.from("requests").update({ assigned_to: normalised }).eq("id", requestId);
+  if (error) return { error: "Failed to update." };
+
+  logAuditEvent({
+    actor: actorEmail,
+    actorType: "admin",
+    action: normalised ? "request.assigned" : "request.unassigned",
+    targetType: "request",
+    targetId: requestId,
+    orgId,
+    metadata: normalised ? { assignedTo: normalised } : undefined,
+  });
+
+  revalidatePath("/studio/requests");
+  return { ok: true as const };
+}
+
 export async function markRequestResponded(requestId: string) {
   const orgId = await requireOrgId();
   const admin = getSupabaseAdmin();

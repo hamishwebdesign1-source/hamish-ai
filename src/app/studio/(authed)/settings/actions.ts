@@ -453,6 +453,7 @@ export async function requestAccountDeletion() {
     action: "organisation.deletion_requested",
     targetType: "organisation",
     targetId: orgId,
+    orgId,
   });
   await sendErrorAlert(
     "Account deletion requested",

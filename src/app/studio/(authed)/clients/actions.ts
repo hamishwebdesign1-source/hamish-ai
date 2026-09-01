@@ -95,7 +95,7 @@ export async function startClientSubscription(clientId: string) {
   const result = await startSubscription(clientId);
   if ("error" in result) return { error: result.error };
 
-  await logAuditEvent({ actor: orgId, actorType: "admin", action: "subscription.started", targetType: "client", targetId: clientId, clientId, metadata: { stripe_subscription_id: result.subscriptionId } });
+  await logAuditEvent({ actor: orgId, actorType: "admin", action: "subscription.started", targetType: "client", targetId: clientId, clientId, orgId, metadata: { stripe_subscription_id: result.subscriptionId } });
   await trackServerEvent(orgId, "client_subscription_started", { client_id: clientId });
 
   revalidatePath("/studio/clients");
@@ -113,7 +113,7 @@ export async function cancelClientSubscription(clientId: string) {
   const result = await cancelSubscription(clientId);
   if ("error" in result) return { error: result.error };
 
-  await logAuditEvent({ actor: orgId, actorType: "admin", action: "subscription.cancelled", targetType: "client", targetId: clientId, clientId });
+  await logAuditEvent({ actor: orgId, actorType: "admin", action: "subscription.cancelled", targetType: "client", targetId: clientId, clientId, orgId });
 
   revalidatePath("/studio/clients");
   return { ok: true as const };
@@ -239,6 +239,7 @@ export async function deleteClientData(clientId: string) {
     action: "client.data_deleted",
     targetType: "client",
     targetId: clientId,
+    orgId,
     metadata: { business_name: client.business_name, email: client.email },
   });
 

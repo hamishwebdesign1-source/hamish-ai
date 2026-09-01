@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { createServerSupabaseClient, getUserWithRetry } from "@/lib/supabase-server-auth";
 import { getOrgMembership } from "@/lib/org-membership";
+import { listTeamMembers } from "@/lib/team-members";
 import { RequestsPanel } from "@/components/platform/requests-panel";
 
 // Server-side data assembly only, same split as every other /studio page —
@@ -20,11 +21,11 @@ export default async function StudioRequestsPage() {
   const membership = await getOrgMembership(supabase, user.email);
   if (!membership) redirect("/platform/onboarding");
 
-  const [{ data: requests }, { data: projects }, { data: websiteProjects }, { data: org }] = await Promise.all([
+  const [{ data: requests }, { data: projects }, { data: websiteProjects }, { data: org }, teamMembers] = await Promise.all([
     supabase
       .from("requests")
       .select(
-        "id, created_at, client_id, raw_text, status, category, complexity, suggested_approach, covered_by_maintenance, coverage_reasoning, draft_response, priority, missing_info, responded_at, website_project_id, clients!inner(business_name, org_id)"
+        "id, created_at, client_id, raw_text, status, category, complexity, suggested_approach, covered_by_maintenance, coverage_reasoning, draft_response, priority, missing_info, responded_at, website_project_id, assigned_to, clients!inner(business_name, org_id)"
       )
       .eq("clients.org_id", membership.orgId)
       .order("created_at", { ascending: false }),
@@ -39,6 +40,11 @@ export default async function StudioRequestsPage() {
     // re-checks this server-side too, this is just so the button doesn't
     // render promising something that would immediately fail.
     supabase.from("organisations").select("brand").eq("id", membership.orgId).single(),
+    // Studio big-ticket ("team collaboration") — memberships' own SELECT
+    // RLS policy (schema-organisations.sql) already lets a session-scoped
+    // client read its own org's rows, same as everything else on this
+    // page; no admin client needed just to list who's on the team.
+    listTeamMembers(supabase, membership.orgId),
   ]);
 
   const canSendReply = Boolean((org?.brand as { replyToEmail?: string } | null)?.replyToEmail);
@@ -52,5 +58,15 @@ export default async function StudioRequestsPage() {
           .in("request_id", requestIds)
       : { data: [] };
 
-  return <RequestsPanel requests={requests ?? []} tasks={tasks ?? []} projects={projects ?? []} websiteProjects={websiteProjects ?? []} canSendReply={canSendReply} />;
+  return (
+    <RequestsPanel
+      requests={requests ?? []}
+      tasks={tasks ?? []}
+      projects={projects ?? []}
+      websiteProjects={websiteProjects ?? []}
+      canSendReply={canSendReply}
+      teamMembers={teamMembers}
+      currentUserEmail={user.email}
+    />
+  );
 }
