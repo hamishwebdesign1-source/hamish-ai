@@ -19,6 +19,7 @@ import {
   Check,
   Search,
   Radar,
+  Repeat,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -30,6 +31,9 @@ import {
   deleteClientData,
   generateClientReportNow,
   updateChatbotEmbedConfig,
+  updateClientMaintenanceRate,
+  startClientSubscription,
+  cancelClientSubscription,
 } from "@/app/studio/(authed)/clients/actions";
 import type { ClientHealth } from "@/lib/client-health";
 import type { ClientEngagementRisk } from "@/lib/studio-engagement";
@@ -44,6 +48,9 @@ type Client = {
   created_at: string;
   chatbot_embed_enabled: boolean;
   chatbot_embed_allowed_origin: string | null;
+  maintenance_monthly_pence: number | null;
+  stripe_subscription_id: string | null;
+  subscription_status: string | null;
 };
 
 type Invoice = {
@@ -194,6 +201,102 @@ function InvoiceForm({ clientId }: { clientId: string }) {
             view it
           </a>
           .
+        </p>
+      )}
+    </div>
+  );
+}
+
+const subscriptionStatusVariant: Record<string, "secondary" | "warning" | "success" | "destructive"> = {
+  active: "success",
+  past_due: "warning",
+  canceled: "secondary",
+  incomplete: "warning",
+  incomplete_expired: "destructive",
+  unpaid: "destructive",
+};
+
+// Studio big-ticket ("recurring client billing for tenants") — the same
+// startSubscription()/cancelSubscription() (subscription.ts) /admin's own
+// clients already use, now reachable from a tenant's own Clients page.
+// Three small pieces of state to show: the rate itself (editable any
+// time — Stripe only reads it the moment a subscription starts, same as
+// admin's own updateMaintenanceRate()), whether a subscription is
+// running, and its real status once it is. A rate can be set with no
+// subscription running yet (same as admin) — the two are deliberately
+// decoupled, since deciding the price and deciding to actually start
+// billing are two different moments.
+function MaintenanceSubscriptionControl({ client }: { client: Client }) {
+  const [rateInput, setRateInput] = useState(client.maintenance_monthly_pence ? (client.maintenance_monthly_pence / 100).toFixed(2) : "");
+  const [pending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+
+  function saveRate() {
+    setError(null);
+    startTransition(async () => {
+      const r = await updateClientMaintenanceRate(client.id, parseFloat(rateInput));
+      if (r && "error" in r) setError(r.error ?? "Failed to save.");
+    });
+  }
+
+  function start() {
+    setError(null);
+    startTransition(async () => {
+      const r = await startClientSubscription(client.id);
+      if (r && "error" in r) setError(r.error ?? "Failed to start the subscription.");
+    });
+  }
+
+  function cancel() {
+    setError(null);
+    startTransition(async () => {
+      const r = await cancelClientSubscription(client.id);
+      if (r && "error" in r) setError(r.error ?? "Failed to cancel the subscription.");
+    });
+  }
+
+  return (
+    <div className="rounded-lg border border-dashed border-border p-3">
+      <div className="flex items-center justify-between gap-2">
+        <p className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
+          <Repeat className="size-3.5 shrink-0" /> Recurring maintenance
+        </p>
+        {client.stripe_subscription_id && client.subscription_status && (
+          <Badge variant={subscriptionStatusVariant[client.subscription_status] ?? "secondary"} className="capitalize">
+            {client.subscription_status.replace("_", " ")}
+          </Badge>
+        )}
+      </div>
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        <Label htmlFor={`rate-${client.id}`} className="text-xs whitespace-nowrap">
+          £/month
+        </Label>
+        <Input
+          id={`rate-${client.id}`}
+          type="number"
+          min="0"
+          step="0.01"
+          value={rateInput}
+          onChange={(e) => setRateInput(e.target.value)}
+          className="h-8 w-28 text-sm"
+          placeholder="150.00"
+        />
+        <Button size="sm" variant="outline" disabled={pending || !rateInput} onClick={saveRate}>
+          Save rate
+        </Button>
+        {client.stripe_subscription_id ? (
+          <Button size="sm" variant="ghost" disabled={pending} onClick={cancel} className="text-destructive">
+            Cancel subscription
+          </Button>
+        ) : (
+          <Button size="sm" disabled={pending || !client.maintenance_monthly_pence} onClick={start}>
+            Start subscription
+          </Button>
+        )}
+      </div>
+      {error && (
+        <p className="mt-2 flex items-center gap-1.5 text-xs text-destructive">
+          <CircleAlert className="size-3.5 shrink-0" /> {error}
         </p>
       )}
     </div>
@@ -589,7 +692,10 @@ function ClientCard({
             )}
 
             {stripeReady ? (
-              <InvoiceForm clientId={client.id} />
+              <>
+                <InvoiceForm clientId={client.id} />
+                <MaintenanceSubscriptionControl client={client} />
+              </>
             ) : (
               <p className="rounded-lg border border-dashed border-border p-3 text-xs text-muted-foreground">
                 Connect Stripe in{" "}

@@ -1,6 +1,7 @@
 import { getStripe } from "@/lib/stripe";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { sendClientEmail } from "@/lib/send-client-email";
+import { sendOrgEmail } from "@/lib/send-org-email";
 import { sendErrorAlert } from "@/lib/send-error-alert";
 import { logInfo, logError } from "@/lib/structured-log";
 
@@ -54,16 +55,22 @@ export async function createInvoice(params: {
   // the platform account, which would recreate exactly the
   // money-goes-to-the-wrong-place problem this whole change exists to
   // avoid.
-  let sender: { name: string; isInternal: boolean } = { name: "Hamish AI", isInternal: true };
+  let sender: { name: string; isInternal: boolean; replyToEmail: string | null } = { name: "Hamish AI", isInternal: true, replyToEmail: null };
   let stripeAccountId: string | undefined;
   if (client.org_id) {
     const { data: org } = await supabase
       .from("organisations")
-      .select("name, is_internal, stripe_connect_account_id, stripe_connect_charges_enabled")
+      .select("name, is_internal, brand, stripe_connect_account_id, stripe_connect_charges_enabled")
       .eq("id", client.org_id)
       .single();
     if (org && !org.is_internal) {
-      sender = { name: org.name, isInternal: false };
+      // Roadmap item #1 (send-org-email.ts) closed the gap this
+      // function's own comment used to flag below ("sendClientEmail has
+      // no per-tenant identity") — a tenant with a configured reply-to
+      // email now gets a real invoice email under their own name too,
+      // not just their client's clean Stripe hosted-invoice link.
+      const replyToEmail = (org.brand as { replyToEmail?: string } | null)?.replyToEmail ?? null;
+      sender = { name: org.name, isInternal: false, replyToEmail };
       if (!org.stripe_connect_account_id || !org.stripe_connect_charges_enabled) {
         return { error: "Connect your Stripe account in Settings before invoicing clients." as const };
       }
@@ -130,19 +137,35 @@ export async function createInvoice(params: {
       logInfo("invoice.created", { client_id: params.clientId, stripe_invoice_id: finalized.id, amount_pence: params.amountPence });
     }
 
-    // Gated to isInternal for the same reason as triage-request.ts:
-    // sendClientEmail has no per-tenant identity, so this can't correctly
-    // send "from" a tenant yet regardless of the Stripe/Connect question
-    // above — moot in practice today since this function isn't reachable
-    // for a tenant's client at all, but correct in case that changes
-    // before Connect does.
-    if (sender.isInternal && finalized.hosted_invoice_url) {
+    // Was gated to isInternal only, with a comment claiming that was
+    // "moot in practice since this function isn't reachable for a
+    // tenant's client at all" — found stale while working nearby: it *is*
+    // reachable, via createClientInvoice() (studio/clients/actions.ts),
+    // wired to the InvoiceForm every tenant's own Clients page shows.
+    // Roadmap item #1 (send-org-email.ts) is what actually closes the gap
+    // the old comment was really describing — a tenant with a configured
+    // reply-to email now gets a real invoice email under their own name;
+    // one without still just gets the clean Stripe hosted-invoice link
+    // and no separate email, same fail-closed-not-guessed rule as
+    // sendInvoiceReminder()/monthly-report.ts.
+    if (finalized.hosted_invoice_url) {
       const amountPounds = (params.amountPence / 100).toFixed(2);
-      await sendClientEmail(
-        client.email,
-        `Invoice from Hamish AI — £${amountPounds}`,
-        `Hi,\n\nHere's an invoice for £${amountPounds}: ${params.description}\n\nYou can view and pay it securely here:\n${finalized.hosted_invoice_url}\n\nDue within 14 days. Let me know if you have any questions.\n\n— Hamish AI`
-      );
+      if (sender.isInternal) {
+        await sendClientEmail(
+          client.email,
+          `Invoice from Hamish AI — £${amountPounds}`,
+          `Hi,\n\nHere's an invoice for £${amountPounds}: ${params.description}\n\nYou can view and pay it securely here:\n${finalized.hosted_invoice_url}\n\nDue within 14 days. Let me know if you have any questions.\n\n— Hamish AI`
+        );
+      } else if (sender.replyToEmail) {
+        await sendOrgEmail({
+          orgId: client.org_id ?? "",
+          orgName: sender.name,
+          replyToEmail: sender.replyToEmail,
+          to: client.email,
+          subject: `Invoice from ${sender.name} — £${amountPounds}`,
+          text: `Hi,\n\nHere's an invoice for £${amountPounds}: ${params.description}\n\nYou can view and pay it securely here:\n${finalized.hosted_invoice_url}\n\nDue within 14 days. Let me know if you have any questions.\n\n— ${sender.name}`,
+        });
+      }
     }
 
     return { invoiceUrl: finalized.hosted_invoice_url as string | null };

@@ -5,6 +5,7 @@ import { createServerSupabaseClient, getUserWithRetry } from "@/lib/supabase-ser
 import { getOrgMembership } from "@/lib/org-membership";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { createInvoice } from "@/lib/create-invoice";
+import { startSubscription, cancelSubscription } from "@/lib/subscription";
 import { sendInvoiceReminder } from "@/lib/send-invoice-reminder";
 import { logAuditEvent } from "@/lib/audit-log";
 import { trackServerEvent } from "@/lib/analytics";
@@ -55,6 +56,67 @@ export async function createClientInvoice(clientId: string, amountPounds: number
 
   revalidatePath("/studio/clients");
   return { ok: true as const, invoiceUrl: result.invoiceUrl };
+}
+
+// Studio big-ticket ("recurring client billing for tenants") — the
+// admin-only half of subscription.ts (startSubscription/cancelSubscription,
+// already used from /admin/actions.ts for HamishAI's own clients) is now
+// reachable from a tenant's own Clients page too. Same three-action shape
+// as admin's own (rate, start, cancel) — subscription.ts itself now
+// resolves the Connect-account routing (see its own comment), this
+// action's job is only the same org-ownership check every other /studio
+// Server Action here already makes.
+export async function updateClientMaintenanceRate(clientId: string, amountPounds: number) {
+  const orgId = await requireOrgId();
+  const admin = getSupabaseAdmin();
+  if (!admin) return { error: "Supabase is not configured." };
+
+  const pence = Number.isFinite(amountPounds) && amountPounds > 0 ? Math.round(amountPounds * 100) : null;
+  if (!pence) return { error: "Enter a monthly rate greater than £0." };
+
+  const { data: client } = await admin.from("clients").select("id").eq("id", clientId).eq("org_id", orgId).maybeSingle();
+  if (!client) return { error: "Client not found." };
+
+  const { error } = await admin.from("clients").update({ maintenance_monthly_pence: pence }).eq("id", clientId);
+  if (error) return { error: "Failed to save the rate." };
+
+  revalidatePath("/studio/clients");
+  return { ok: true as const };
+}
+
+export async function startClientSubscription(clientId: string) {
+  const orgId = await requireOrgId();
+  const admin = getSupabaseAdmin();
+  if (!admin) return { error: "Supabase is not configured." };
+
+  const { data: client } = await admin.from("clients").select("id").eq("id", clientId).eq("org_id", orgId).maybeSingle();
+  if (!client) return { error: "Client not found." };
+
+  const result = await startSubscription(clientId);
+  if ("error" in result) return { error: result.error };
+
+  await logAuditEvent({ actor: orgId, actorType: "admin", action: "subscription.started", targetType: "client", targetId: clientId, clientId, metadata: { stripe_subscription_id: result.subscriptionId } });
+  await trackServerEvent(orgId, "client_subscription_started", { client_id: clientId });
+
+  revalidatePath("/studio/clients");
+  return { ok: true as const };
+}
+
+export async function cancelClientSubscription(clientId: string) {
+  const orgId = await requireOrgId();
+  const admin = getSupabaseAdmin();
+  if (!admin) return { error: "Supabase is not configured." };
+
+  const { data: client } = await admin.from("clients").select("id").eq("id", clientId).eq("org_id", orgId).maybeSingle();
+  if (!client) return { error: "Client not found." };
+
+  const result = await cancelSubscription(clientId);
+  if ("error" in result) return { error: result.error };
+
+  await logAuditEvent({ actor: orgId, actorType: "admin", action: "subscription.cancelled", targetType: "client", targetId: clientId, clientId });
+
+  revalidatePath("/studio/clients");
+  return { ok: true as const };
 }
 
 // Command Centre Engagement Risk's "Send payment reminder" (backlog:

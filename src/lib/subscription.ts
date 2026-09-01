@@ -13,12 +13,59 @@ import { logInfo, logError } from "@/lib/structured-log";
 // real Product id, not an inline product_data shorthand.
 const MAINTENANCE_PRODUCT_ID = "hamishai-monthly-maintenance";
 
-async function ensureMaintenanceProduct(stripe: Stripe) {
+// Studio big-ticket ("recurring client billing for tenants") — a Product
+// id is scoped per Stripe account the same way a Customer is (retrieving
+// MAINTENANCE_PRODUCT_ID under a tenant's stripeAccount option queries
+// that connected account's own catalog, entirely separate from the
+// platform account's), so this needs the exact same options pass-through
+// createInvoice() (create-invoice.ts) already established for every
+// other Stripe call in this codebase — one Product per account, created
+// once, retrieved from then on.
+async function ensureMaintenanceProduct(stripe: Stripe, options?: Stripe.RequestOptions) {
   try {
-    return await stripe.products.retrieve(MAINTENANCE_PRODUCT_ID);
+    return await stripe.products.retrieve(MAINTENANCE_PRODUCT_ID, {}, options);
   } catch {
-    return await stripe.products.create({ id: MAINTENANCE_PRODUCT_ID, name: "Monthly maintenance" });
+    return await stripe.products.create({ id: MAINTENANCE_PRODUCT_ID, name: "Monthly maintenance" }, options);
   }
+}
+
+// Studio big-ticket — same Connect-account resolution as createInvoice()
+// (create-invoice.ts's own comment explains the full reasoning: a direct
+// charge under the tenant's own connected account is what actually routes
+// the money to their bank account, not just a database attribution fix).
+// Kept as its own function rather than inlined twice (startSubscription
+// and cancelSubscription both need it) — same client row, same org
+// lookup.
+//
+// requireChargesEnabled defaults true (startSubscription's own need — no
+// point creating a new subscription under an account that can't yet take
+// a payment) but cancelSubscription calls this with it false: an org
+// whose Connect account got disconnected/disabled after a subscription
+// was already running should still be able to cancel it using whatever
+// account id is on file, even though charges_enabled is now false —
+// blocking that would trap them with a live subscription they can't
+// stop. Creating is the direction that needs a fully working connected
+// account; cancelling only needs to know which account the subscription
+// actually lives under.
+async function resolveStripeAccountOptions(
+  supabase: NonNullable<ReturnType<typeof getSupabaseAdmin>>,
+  orgId: string | null,
+  requireChargesEnabled = true
+): Promise<{ stripeAccountId?: string; error?: string }> {
+  if (!orgId) return {};
+  const { data: org } = await supabase
+    .from("organisations")
+    .select("is_internal, stripe_connect_account_id, stripe_connect_charges_enabled")
+    .eq("id", orgId)
+    .single();
+  if (!org || org.is_internal) return {};
+  if (!org.stripe_connect_account_id) {
+    return requireChargesEnabled ? { error: "Connect your Stripe account in Settings before starting a client subscription." } : {};
+  }
+  if (requireChargesEnabled && !org.stripe_connect_charges_enabled) {
+    return { error: "Finish your Stripe Connect setup in Settings before starting a client subscription." };
+  }
+  return { stripeAccountId: org.stripe_connect_account_id };
 }
 
 // Turns a client's custom monthly rate into a real Stripe subscription —
@@ -48,7 +95,7 @@ export async function startSubscription(clientId: string) {
 
   const { data: client, error: clientError } = await supabase
     .from("clients")
-    .select("id, business_name, email, stripe_customer_id, stripe_subscription_id, maintenance_monthly_pence")
+    .select("id, business_name, email, stripe_customer_id, stripe_subscription_id, maintenance_monthly_pence, org_id")
     .eq("id", clientId)
     .single();
 
@@ -61,31 +108,45 @@ export async function startSubscription(clientId: string) {
     return { error: "This client already has a subscription." as const };
   }
 
+  // Studio big-ticket — resolved *before* any customer/subscription is
+  // created: a customer created under the platform account can't be
+  // subscribed under a tenant's connected account (they're separate
+  // Stripe data namespaces), so this has to happen first, not patched in
+  // afterwards the way it would be tempting to bolt on.
+  const accountResolution = await resolveStripeAccountOptions(supabase, client.org_id);
+  if (accountResolution.error) return { error: accountResolution.error };
+  const stripeOptions: Stripe.RequestOptions | undefined = accountResolution.stripeAccountId
+    ? { stripeAccount: accountResolution.stripeAccountId }
+    : undefined;
+
   let stripeCustomerId = client.stripe_customer_id as string | null;
   if (!stripeCustomerId) {
-    const customer = await stripe.customers.create({ email: client.email, name: client.business_name });
+    const customer = await stripe.customers.create({ email: client.email, name: client.business_name }, stripeOptions);
     stripeCustomerId = customer.id;
     await supabase.from("clients").update({ stripe_customer_id: stripeCustomerId }).eq("id", client.id);
   }
 
   try {
-    const product = await ensureMaintenanceProduct(stripe);
+    const product = await ensureMaintenanceProduct(stripe, stripeOptions);
 
-    const subscription = await stripe.subscriptions.create({
-      customer: stripeCustomerId,
-      collection_method: "send_invoice",
-      days_until_due: 14,
-      items: [
-        {
-          price_data: {
-            currency: "gbp",
-            product: product.id,
-            unit_amount: client.maintenance_monthly_pence,
-            recurring: { interval: "month" },
+    const subscription = await stripe.subscriptions.create(
+      {
+        customer: stripeCustomerId,
+        collection_method: "send_invoice",
+        days_until_due: 14,
+        items: [
+          {
+            price_data: {
+              currency: "gbp",
+              product: product.id,
+              unit_amount: client.maintenance_monthly_pence,
+              recurring: { interval: "month" },
+            },
           },
-        },
-      ],
-    });
+        ],
+      },
+      stripeOptions
+    );
 
     const { error: updateError } = await supabase
       .from("clients")
@@ -109,11 +170,22 @@ export async function cancelSubscription(clientId: string) {
   const supabase = getSupabaseAdmin();
   if (!supabase) return { error: "Supabase is not configured." as const };
 
-  const { data: client } = await supabase.from("clients").select("business_name, stripe_subscription_id").eq("id", clientId).single();
+  const { data: client } = await supabase.from("clients").select("business_name, stripe_subscription_id, org_id").eq("id", clientId).single();
   if (!client?.stripe_subscription_id) return { error: "No subscription to cancel." as const };
 
+  // Studio big-ticket — cancelling under the wrong account context (the
+  // platform's own, for a subscription that actually lives under a
+  // tenant's connected account) would just 404 against Stripe; resolved
+  // the same way startSubscription() resolves it when creating one,
+  // requireChargesEnabled: false (see resolveStripeAccountOptions's own
+  // comment on why cancel is more lenient than create).
+  const accountResolution = await resolveStripeAccountOptions(supabase, client.org_id, false);
+  const stripeOptions: Stripe.RequestOptions | undefined = accountResolution.stripeAccountId
+    ? { stripeAccount: accountResolution.stripeAccountId }
+    : undefined;
+
   try {
-    await stripe.subscriptions.cancel(client.stripe_subscription_id);
+    await stripe.subscriptions.cancel(client.stripe_subscription_id, {}, stripeOptions);
     const { error } = await supabase
       .from("clients")
       .update({ stripe_subscription_id: null, subscription_status: "canceled" })
