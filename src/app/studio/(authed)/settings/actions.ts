@@ -523,3 +523,22 @@ export async function updateCompetitiveIntel(enabled: boolean) {
   revalidatePath("/studio/settings");
   return { ok: true as const };
 }
+
+// Roadmap item #10 — the opt-in for automation-rules.ts's one shipped
+// rule. Same shape as updateCompetitiveIntel(): no dependency on
+// anything else configured, since this only ever drafts content into the
+// existing sales-kit review flow, never sends anything.
+export async function updateAutoDraftRule(enabled: boolean) {
+  const orgId = await requireOrgId();
+  const admin = getSupabaseAdmin();
+  if (!admin) return { error: "Supabase is not configured." };
+
+  const { data: org } = await admin.from("organisations").select("brand").eq("id", orgId).single();
+  const merged = { ...(org?.brand ?? {}), autoDraftHighScoreProspectsEnabled: enabled };
+
+  const { error } = await admin.from("organisations").update({ brand: merged }).eq("id", orgId);
+  if (error) return { error: "Failed to save." };
+
+  revalidatePath("/studio/settings");
+  return { ok: true as const };
+}

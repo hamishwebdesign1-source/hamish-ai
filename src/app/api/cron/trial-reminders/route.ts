@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { sendTrialReminders } from "@/lib/trial-reminders";
 import { sendUsageWarnings, pruneOldUsageWarnings } from "@/lib/usage-warnings";
 import { sendAutonomousFollowUps } from "@/lib/autonomous-outreach";
+import { runAutoDraftHighScoreProspectsRule } from "@/lib/automation-rules";
 import { sendErrorAlert } from "@/lib/send-error-alert";
 import { recordCronRun } from "@/lib/record-cron-run";
 
@@ -9,13 +10,14 @@ import { recordCronRun } from "@/lib/record-cron-run";
 // shared-secret bearer-token pattern as every other cron route.
 //
 // Also runs the proactive usage-limit warning (usage-warnings.ts, a
-// real-improvement pass) and the autonomous outreach cadence (roadmap
-// item #2, autonomous-outreach.ts) — deliberately folded into this same
+// real-improvement pass), the autonomous outreach cadence (roadmap item
+// #2, autonomous-outreach.ts), and the first automation rule (roadmap
+// item #10, automation-rules.ts) — deliberately folded into this same
 // cron rather than given its own vercel.json entry, same reasoning as
 // adoption-snapshot folding into health-snapshot: architecturally the
-// same shape (a daily check against a real threshold, one email when
+// same shape (a daily check against a real threshold, one action when
 // crossed), and this session flagged the cron count as worth a Vercel
-// plan check more than once already. All three stay separate
+// plan check more than once already. All four stay separate
 // functions/tables/failure modes below, just one shared trigger.
 export async function GET(request: Request) {
   const authHeader = request.headers.get("authorization");
@@ -57,6 +59,13 @@ export async function GET(request: Request) {
     await sendErrorAlert("Autonomous outreach cadence", autonomousResult.error ?? "Unknown error.");
   }
 
+  // Same "don't let a secondary failure erase an already-completed run"
+  // rule as every step above.
+  const autoDraftResult = await runAutoDraftHighScoreProspectsRule();
+  if ("error" in autoDraftResult) {
+    await sendErrorAlert("Auto-draft high-score prospects rule", autoDraftResult.error ?? "Unknown error.");
+  }
+
   await recordCronRun("trial-reminders", "success", {
     summary: {
       sent: result.sent.length,
@@ -65,6 +74,8 @@ export async function GET(request: Request) {
       usageWarningsPruned: "error" in usagePruneResult ? null : usagePruneResult.pruned,
       autonomousFollowUpsSent: "error" in autonomousResult ? null : autonomousResult.sent,
       autonomousFollowUpsError: "error" in autonomousResult ? autonomousResult.error : null,
+      autoDraftedSalesKits: "error" in autoDraftResult ? null : autoDraftResult.drafted,
+      autoDraftError: "error" in autoDraftResult ? autoDraftResult.error : null,
     },
   });
 
@@ -72,5 +83,6 @@ export async function GET(request: Request) {
     sent: result.sent.length,
     usageWarningsSent: "error" in usageResult ? null : usageResult.sent.length,
     autonomousFollowUpsSent: "error" in autonomousResult ? null : autonomousResult.sent,
+    autoDraftedSalesKits: "error" in autoDraftResult ? null : autoDraftResult.drafted,
   });
 }

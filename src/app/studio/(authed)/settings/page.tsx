@@ -10,6 +10,7 @@ import { BrandingPanel } from "@/components/platform/branding-panel";
 import { EmailSenderPanel } from "@/components/platform/email-sender-panel";
 import { BookingLinkPanel } from "@/components/platform/booking-link-panel";
 import { CompetitiveIntelPanel } from "@/components/platform/competitive-intel-panel";
+import { AutomationRulesPanel } from "@/components/platform/automation-rules-panel";
 import { DataPrivacyPanel } from "@/components/platform/data-privacy-panel";
 import { CommandCentreLayoutPanel } from "@/components/platform/command-centre-layout-panel";
 import { NotificationsPanel } from "@/components/platform/notifications-panel";
@@ -71,6 +72,7 @@ export default async function StudioSettingsPage({
     autonomousOutreachEnabled?: boolean;
     bookingLink?: string;
     competitiveIntelEnabled?: boolean;
+    autoDraftHighScoreProspectsEnabled?: boolean;
   };
   const commandCentreBlocks = resolveLayout(org?.command_centre_layout);
   const plan = (org?.plan ?? "starter") as PlatformPlanSlug;
@@ -276,6 +278,18 @@ export default async function StudioSettingsPage({
           <h2 className="font-heading text-xs font-semibold tracking-wide text-muted-foreground uppercase">Competitive intelligence</h2>
           <div className="mt-3">
             <CompetitiveIntelPanel enabled={Boolean(brand.competitiveIntelEnabled)} />
+          </div>
+        </div>
+      )}
+
+      {/* Roadmap item #10 — same isInternal gate; HamishAI's own
+          prospecting stays the hands-on Gmail-draft pipeline this
+          automation deliberately doesn't touch. */}
+      {!org?.is_internal && (
+        <div>
+          <h2 className="font-heading text-xs font-semibold tracking-wide text-muted-foreground uppercase">Automation</h2>
+          <div className="mt-3">
+            <AutomationRulesPanel enabled={Boolean(brand.autoDraftHighScoreProspectsEnabled)} />
           </div>
         </div>
       )}
