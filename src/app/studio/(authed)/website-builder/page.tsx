@@ -1,12 +1,13 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Globe, Plus, ArrowRight, BookOpen, Sparkles } from "lucide-react";
+import { Globe, Plus, ArrowRight, BookOpen, Sparkles, Clock } from "lucide-react";
 import { createServerSupabaseClient, getUserWithRetry } from "@/lib/supabase-server-auth";
 import { getOrgMembership } from "@/lib/org-membership";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Eyebrow } from "@/components/eyebrow";
 import { AI_CODING_TOOLS } from "@/lib/ai-coding-tools";
+import { daysSince } from "@/lib/lead-meta";
 
 const STAGE_LABELS: Record<string, string> = {
   discovery: "Discovery",
@@ -28,6 +29,16 @@ const STAGE_LABELS: Record<string, string> = {
 // under its own raw value rather than a made-up label.
 const STAGE_ORDER = [...Object.keys(STAGE_LABELS), ""];
 
+// Studio improvement — leads, campaigns, and regular projects (due-soon/
+// overdue) all already flag something that's sat too long with no forward
+// progress; website builder projects were the one project-like list left
+// without it. 14 days, not the 30 lead-staleness uses (isStaleLead,
+// lead-meta.ts) — a lead is pre-contact discovery, less time-sensitive
+// than an active build; 14 matches campaigns-panel.tsx's own staleness
+// threshold instead, the closer precedent for "active work, should be
+// moving."
+const STALE_PROJECT_DAYS = 14;
+
 type WebsiteProjectRow = {
   id: string;
   stage: string;
@@ -36,6 +47,9 @@ type WebsiteProjectRow = {
 };
 
 function ProjectRow({ project }: { project: WebsiteProjectRow }) {
+  const daysOld = Math.floor(daysSince(project.created_at));
+  const isStale = project.stage !== "launched" && daysOld >= STALE_PROJECT_DAYS;
+
   return (
     <Link href={`/studio/website-builder/${project.id}`}>
       <Card className="transition-colors hover:border-accent/40">
@@ -50,6 +64,11 @@ function ProjectRow({ project }: { project: WebsiteProjectRow }) {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            {isStale && (
+              <Badge variant="warning" className="gap-1">
+                <Clock className="size-3" /> {daysOld}d
+              </Badge>
+            )}
             {!STAGE_LABELS[project.stage] && <Badge variant="secondary">{project.stage}</Badge>}
             <ArrowRight className="size-4 shrink-0 text-muted-foreground" />
           </div>

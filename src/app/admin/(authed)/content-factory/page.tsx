@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Sparkles, Film, AlertTriangle, Coins } from "lucide-react";
+import { Sparkles, Film, AlertTriangle, Coins, Search, X } from "lucide-react";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { addContentIdea } from "@/app/admin/actions";
 import { CONTENT_IDEA_STATUSES, contentIdeaStatusMeta } from "@/lib/content-idea-meta";
@@ -27,9 +27,9 @@ const selectClasses =
 export default async function ContentFactoryPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string }>;
+  searchParams: Promise<{ status?: string; q?: string }>;
 }) {
-  const { status: statusFilter } = await searchParams;
+  const { status: statusFilter, q: searchQuery } = await searchParams;
   const supabase = getSupabaseAdmin();
 
   const [{ data: allIdeas, error }, viewMaxStatus] = await Promise.all([
@@ -45,10 +45,24 @@ export default async function ContentFactoryPage({
     {} as Record<string, number>
   );
 
-  const ideas = statusFilter ? allIdeas?.filter((i) => i.status === statusFilter) : allIdeas;
+  const statusFiltered = statusFilter ? allIdeas?.filter((i) => i.status === statusFilter) : allIdeas;
 
-  function filterHref(status: string | undefined) {
-    return status ? `/admin/content-factory?status=${status}` : "/admin/content-factory";
+  // Studio improvement — same client-side-over-already-fetched-rows
+  // search pattern as every other list page in the app. Searches title,
+  // concept, and topic — the three free-text fields a person actually
+  // typed when adding the idea.
+  const trimmedQuery = searchQuery?.trim().toLowerCase();
+  const ideas = trimmedQuery
+    ? statusFiltered?.filter((i) => [i.title, i.concept, i.topic].some((field) => field && String(field).toLowerCase().includes(trimmedQuery)))
+    : statusFiltered;
+
+  function filterHref(overrides: { status?: string; q?: string }) {
+    const next = { status: statusFilter, q: searchQuery, ...overrides };
+    const params = new URLSearchParams();
+    if (next.status) params.set("status", next.status);
+    if (next.q) params.set("q", next.q);
+    const qs = params.toString();
+    return qs ? `/admin/content-factory?${qs}` : "/admin/content-factory";
   }
 
   const awaitingReview = (allIdeas ?? []).filter((i) => ["script_review", "video_review"].includes(i.status)).length;
@@ -107,16 +121,35 @@ export default async function ContentFactoryPage({
         <FilterTabs
           activeKey={statusFilter}
           options={[
-            { key: undefined, label: "All", href: filterHref(undefined) },
+            { key: undefined, label: "All", href: filterHref({ status: undefined }) },
             ...CONTENT_IDEA_STATUSES.map((s) => ({
               key: s,
               label: contentIdeaStatusMeta[s].label,
               count: counts[s],
-              href: filterHref(s),
+              href: filterHref({ status: s }),
             })),
           ]}
         />
       </div>
+
+      {/* GET form, not a client component — same /admin/audit precedent. */}
+      <form action="/admin/content-factory" className="mt-3 flex items-center gap-2">
+        {statusFilter && <input type="hidden" name="status" value={statusFilter} />}
+        <div className="relative flex-1">
+          <Search className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
+          <Input name="q" defaultValue={searchQuery ?? ""} placeholder="Search by title, concept, or topic…" className="h-9 pl-8" />
+        </div>
+        <Button type="submit" variant="outline" size="sm">
+          Search
+        </Button>
+        {trimmedQuery && (
+          <Link href={filterHref({ q: undefined })}>
+            <Button type="button" variant="ghost" size="icon-sm" className="text-muted-foreground">
+              <X className="size-4" />
+            </Button>
+          </Link>
+        )}
+      </form>
 
       <div className="mt-8 grid gap-6 md:grid-cols-[1fr_1.4fr]">
         <Card className="h-fit">
@@ -179,7 +212,7 @@ export default async function ContentFactoryPage({
             <Card>
               <CardContent className="flex flex-col items-center gap-2 py-8 text-center text-sm text-muted-foreground">
                 <Film className="size-6 text-muted-foreground/60" />
-                No ideas in this view yet.
+                {trimmedQuery ? "No ideas match that search." : "No ideas in this view yet."}
               </CardContent>
             </Card>
           )}

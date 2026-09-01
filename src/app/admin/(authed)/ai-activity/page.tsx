@@ -1,10 +1,12 @@
 import Link from "next/link";
-import { Sparkles } from "lucide-react";
+import { Sparkles, Search, X } from "lucide-react";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { AI_ACTIVITY_ACTIONS, AI_ACTIVITY_GROUPS, describeAiActivity, aiActivityHref } from "@/lib/ai-activity";
 import { timeAgo } from "@/lib/time-ago";
 import { Card, CardContent } from "@/components/ui/card";
 import { FilterTabs } from "@/components/ui/filter-tabs";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 
 type ClientRef = { business_name: string } | null;
 
@@ -15,8 +17,8 @@ type ClientRef = { business_name: string } | null;
 // audit_log entries those flows already write (see ai-activity.ts for the
 // shared action list — request.triaged/auto_sent/progress_report_generated
 // are new writes added in this stage; everything else already existed).
-export default async function AiActivityPage({ searchParams }: { searchParams: Promise<{ group?: string }> }) {
-  const { group: groupFilter } = await searchParams;
+export default async function AiActivityPage({ searchParams }: { searchParams: Promise<{ group?: string; q?: string }> }) {
+  const { group: groupFilter, q: searchQuery } = await searchParams;
   const supabase = getSupabaseAdmin();
 
   const actions =
@@ -50,6 +52,29 @@ export default async function AiActivityPage({ searchParams }: { searchParams: P
     return client?.business_name ?? null;
   }
 
+  // Studio improvement — same client-side-over-already-fetched-rows
+  // search pattern as /admin/audit and /admin/knowledge, ported here as
+  // this feed grows past a quick scan. Searches the subject's name and
+  // the rendered description text (not the raw action key or metadata —
+  // the description is what a person actually reads).
+  const trimmedQuery = searchQuery?.trim().toLowerCase();
+  const filteredEntries = trimmedQuery
+    ? (entries ?? []).filter((entry) => {
+        const name = subjectName(entry);
+        const description = describeAiActivity(entry.action, entry.metadata ?? {});
+        return [name, description].some((field) => field && field.toLowerCase().includes(trimmedQuery));
+      })
+    : (entries ?? []);
+
+  function filterHref(overrides: { group?: string; q?: string }) {
+    const next = { group: groupFilter, q: searchQuery, ...overrides };
+    const params = new URLSearchParams();
+    if (next.group) params.set("group", next.group);
+    if (next.q) params.set("q", next.q);
+    const qs = params.toString();
+    return qs ? `/admin/ai-activity?${qs}` : "/admin/ai-activity";
+  }
+
   return (
     <div>
       <h1 className="text-page-title">AI Activity</h1>
@@ -62,27 +87,46 @@ export default async function AiActivityPage({ searchParams }: { searchParams: P
         <FilterTabs
           activeKey={groupFilter}
           options={[
-            { key: undefined, label: "All", href: "/admin/ai-activity" },
+            { key: undefined, label: "All", href: filterHref({ group: undefined }) },
             ...Object.entries(AI_ACTIVITY_GROUPS).map(([key, group]) => ({
               key,
               label: group.label,
-              href: `/admin/ai-activity?group=${key}`,
+              href: filterHref({ group: key }),
             })),
           ]}
         />
       </div>
 
+      {/* GET form, not a client component — same /admin/audit precedent. */}
+      <form action="/admin/ai-activity" className="mt-3 flex items-center gap-2">
+        {groupFilter && <input type="hidden" name="group" value={groupFilter} />}
+        <div className="relative flex-1">
+          <Search className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
+          <Input name="q" defaultValue={searchQuery ?? ""} placeholder="Search by client or action…" className="h-9 pl-8" />
+        </div>
+        <Button type="submit" variant="outline" size="sm">
+          Search
+        </Button>
+        {trimmedQuery && (
+          <Link href={filterHref({ q: undefined })}>
+            <Button type="button" variant="ghost" size="icon-sm" className="text-muted-foreground">
+              <X className="size-4" />
+            </Button>
+          </Link>
+        )}
+      </form>
+
       <div className="mt-6">
-        {!entries?.length ? (
+        {!filteredEntries.length ? (
           <Card>
             <CardContent className="flex flex-col items-center gap-2 py-10 text-center text-sm text-muted-foreground">
               <Sparkles className="size-6 text-muted-foreground/60" />
-              Nothing yet — AI activity shows up here as it happens.
+              {trimmedQuery ? "No entries match that search." : "Nothing yet — AI activity shows up here as it happens."}
             </CardContent>
           </Card>
         ) : (
           <ul className="space-y-2">
-            {entries.map((entry) => {
+            {filteredEntries.map((entry) => {
               const href = aiActivityHref(entry);
               const name = subjectName(entry);
               const content = (

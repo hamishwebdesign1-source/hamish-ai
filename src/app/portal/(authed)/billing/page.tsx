@@ -3,6 +3,7 @@ import { ExternalLink, Receipt, Wallet, Clock, CreditCard } from "lucide-react";
 import { createServerSupabaseClient } from "@/lib/supabase-server-auth";
 import { getPortalMembership } from "@/lib/portal-membership";
 import { getInvoiceDisplay } from "@/lib/invoice-status";
+import { InvoiceHistoryExport } from "@/components/platform/invoice-history-export";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 
@@ -117,7 +118,13 @@ export default async function PortalBillingPage({ searchParams }: { searchParams
         </div>
       </div>
 
-      <h2 className="text-section-title mt-8">Invoice history</h2>
+      <div className="mt-8 flex flex-wrap items-center justify-between gap-3">
+        <h2 className="text-section-title">Invoice history</h2>
+        {/* Studio improvement — same gap analytics-csv.ts closed for
+            Studio's own Analytics page, ported here: real data with
+            nowhere to take it (a spreadsheet, an accountant). */}
+        {!!invoices?.length && <InvoiceHistoryExport businessName={client.business_name} invoices={invoices} />}
+      </div>
 
       {!invoices?.length && <p className="mt-3 text-sm text-muted-foreground">No invoices yet.</p>}
 
