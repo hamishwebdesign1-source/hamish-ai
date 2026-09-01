@@ -11,6 +11,8 @@ import { EmailSenderPanel } from "@/components/platform/email-sender-panel";
 import { BookingLinkPanel } from "@/components/platform/booking-link-panel";
 import { CompetitiveIntelPanel } from "@/components/platform/competitive-intel-panel";
 import { AutomationRulesPanel } from "@/components/platform/automation-rules-panel";
+import { RateCardPanel } from "@/components/platform/rate-card-panel";
+import type { RateCardItem } from "@/lib/rate-card";
 import { DataPrivacyPanel } from "@/components/platform/data-privacy-panel";
 import { CommandCentreLayoutPanel } from "@/components/platform/command-centre-layout-panel";
 import { NotificationsPanel } from "@/components/platform/notifications-panel";
@@ -73,6 +75,7 @@ export default async function StudioSettingsPage({
     bookingLink?: string;
     competitiveIntelEnabled?: boolean;
     autoDraftHighScoreProspectsEnabled?: boolean;
+    rateCard?: RateCardItem[];
   };
   const commandCentreBlocks = resolveLayout(org?.command_centre_layout);
   const plan = (org?.plan ?? "starter") as PlatformPlanSlug;
@@ -290,6 +293,18 @@ export default async function StudioSettingsPage({
           <h2 className="font-heading text-xs font-semibold tracking-wide text-muted-foreground uppercase">Automation</h2>
           <div className="mt-3">
             <AutomationRulesPanel enabled={Boolean(brand.autoDraftHighScoreProspectsEnabled)} />
+          </div>
+        </div>
+      )}
+
+      {/* Roadmap item #6 — same isInternal gate; HamishAI's own pricing
+          lives in site-config.ts, a completely different thing from a
+          tenant's own rate card. */}
+      {!org?.is_internal && (
+        <div>
+          <h2 className="font-heading text-xs font-semibold tracking-wide text-muted-foreground uppercase">Proposals</h2>
+          <div className="mt-3">
+            <RateCardPanel initialItems={brand.rateCard ?? []} />
           </div>
         </div>
       )}

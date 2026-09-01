@@ -695,7 +695,7 @@ function CopyButton({ text }: { text: string }) {
   );
 }
 
-function SalesKitPreview({ kit, bookingLink }: { kit: SalesKit; bookingLink: string | null }) {
+function SalesKitPreview({ kit, bookingLink, prospectId }: { kit: SalesKit; bookingLink: string | null; prospectId: string }) {
   // Roadmap item #9 — same deterministic append sendForOrg() (autonomous-
   // outreach.ts) applies before an automated send, applied here so a
   // human copying either draft out to send themselves sees (and sends)
@@ -757,7 +757,20 @@ function SalesKitPreview({ kit, bookingLink }: { kit: SalesKit; bookingLink: str
           </ul>
         </div>
         <div className="rounded-lg border border-border p-3">
-          <p className="flex items-center gap-1.5 text-xs font-semibold"><FileText className="size-3.5 shrink-0 text-muted-foreground" /> Proposal outline</p>
+          <div className="flex items-center justify-between gap-2">
+            <p className="flex items-center gap-1.5 text-xs font-semibold"><FileText className="size-3.5 shrink-0 text-muted-foreground" /> Proposal outline</p>
+            {/* Roadmap item #6 — plain same-origin navigation, not a fetch:
+                the browser's own session cookie is what authorises this
+                (proposal-pdf/route.ts), same as any other in-app link. */}
+            <a
+              href={`/api/studio/prospects/${prospectId}/proposal-pdf`}
+              target="_blank"
+              rel="noreferrer"
+              className="shrink-0 text-[11px] text-accent underline underline-offset-2 hover:no-underline"
+            >
+              Download PDF
+            </a>
+          </div>
           <p className="mt-2 text-xs text-muted-foreground">{kit.proposal_outline.overview}</p>
           <ul className="mt-1.5 space-y-1 text-xs text-muted-foreground">
             {kit.proposal_outline.included.map((i) => (
@@ -777,7 +790,7 @@ function SalesKitSection({ prospect, bookingLink }: { prospect: Prospect; bookin
   return (
     <div>
       {prospect.sales_kit ? (
-        <SalesKitPreview kit={prospect.sales_kit} bookingLink={bookingLink} />
+        <SalesKitPreview kit={prospect.sales_kit} bookingLink={bookingLink} prospectId={prospect.id} />
       ) : (
         <div className="rounded-lg border border-dashed border-border p-4 text-center">
           <p className="text-sm text-muted-foreground">Not generated yet — email, follow-up, call script, LinkedIn message, meeting agenda and proposal outline, in one go.</p>

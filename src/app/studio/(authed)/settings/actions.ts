@@ -15,6 +15,7 @@ import { isStudioActionRateLimited } from "@/lib/chat-rate-limit";
 import type { PlatformPlanSlug } from "@/lib/platform-plans";
 import { inviteTeamMember, removeTeamMember } from "@/lib/team-members";
 import { isSafeBookingLink } from "@/lib/booking-link";
+import { sanitizeRateCardForWrite, type RateCardItem } from "@/lib/rate-card";
 
 // Same session-derivation as prospects/actions.ts's requireOrgId() — kept
 // as its own local copy, same convention billing/actions.ts documents.
@@ -538,6 +539,29 @@ export async function updateAutoDraftRule(enabled: boolean) {
 
   const { error } = await admin.from("organisations").update({ brand: merged }).eq("id", orgId);
   if (error) return { error: "Failed to save." };
+
+  revalidatePath("/studio/settings");
+  return { ok: true as const };
+}
+
+// Roadmap item #6 — an owner's own priced service list, the thing that
+// was genuinely missing (not just unwired) for a real proposal PDF to
+// quote. Whole-list replace, validated by rate-card.ts's own
+// sanitizeRateCardForWrite() — same shape as updateCommandCentreLayout()
+// (below) for the same kind of small owner-edited list.
+export async function updateRateCard(items: RateCardItem[]) {
+  const orgId = await requireOrgId();
+  const admin = getSupabaseAdmin();
+  if (!admin) return { error: "Supabase is not configured." };
+
+  const clean = sanitizeRateCardForWrite(items);
+  if (!clean) return { error: "Check your rate card — a price or label looks invalid." };
+
+  const { data: org } = await admin.from("organisations").select("brand").eq("id", orgId).single();
+  const merged = { ...(org?.brand ?? {}), rateCard: clean };
+
+  const { error } = await admin.from("organisations").update({ brand: merged }).eq("id", orgId);
+  if (error) return { error: "Failed to save your rate card." };
 
   revalidatePath("/studio/settings");
   return { ok: true as const };
