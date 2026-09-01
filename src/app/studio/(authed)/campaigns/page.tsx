@@ -33,9 +33,14 @@ export default async function StudioCampaignsPage() {
     // "active" a long time with genuinely zero real contact activity can
     // be flagged — a different angle from studio-engagement.ts's own
     // per-client engagement risk, which never looks at campaigns at all.
+    // replied_at added (Studio big-ticket — "connect campaigns to real
+    // outreach/outcome data") so each campaign can show its own real
+    // contact rate and reply rate, not just conversion — the same
+    // per-prospect fields lead-status.ts's own cadence logic already
+    // reads, just aggregated per campaign here instead of per prospect.
     supabase
       .from("prospects")
-      .select("id, business_name, campaign_id, status, deal_value_pence, contacted_at")
+      .select("id, business_name, campaign_id, status, deal_value_pence, contacted_at, replied_at")
       .eq("org_id", membership.orgId)
       .order("business_name"),
   ]);

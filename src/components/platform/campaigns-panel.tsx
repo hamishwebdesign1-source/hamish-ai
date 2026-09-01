@@ -19,6 +19,7 @@ type Prospect = {
   status: string;
   deal_value_pence: number | null;
   contacted_at: string | null;
+  replied_at: string | null;
 };
 
 const selectClasses =
@@ -192,6 +193,17 @@ function CampaignCard({ campaign, prospects, unassigned }: { campaign: Campaign;
 
   const converted = prospects.filter((p) => p.status === "converted").length;
   const conversionRate = prospects.length > 0 ? Math.round((converted / prospects.length) * 100) : null;
+  // Studio big-ticket ("connect campaigns to real outreach/outcome
+  // data") — a campaign could already show conversion, but nothing
+  // between "assigned" and "converted": whether this campaign's own
+  // prospects are actually being contacted, and once contacted, whether
+  // any of them are replying. Real per-prospect signals (the same ones
+  // lead-status.ts's own cadence reads), just aggregated per campaign
+  // rather than invented as a new metric.
+  const contactedCount = prospects.filter((p) => p.contacted_at).length;
+  const contactRate = prospects.length > 0 ? Math.round((contactedCount / prospects.length) * 100) : null;
+  const repliedCount = prospects.filter((p) => p.replied_at).length;
+  const replyRate = contactedCount > 0 ? Math.round((repliedCount / contactedCount) * 100) : null;
   // Studio improvement — the same tenant-entered deal_value_pence
   // prospecting-panel.tsx already sums for the Command Centre's overall
   // pipeline stat (page.tsx's own pipelineValuePence), just scoped to
@@ -283,6 +295,8 @@ function CampaignCard({ campaign, prospects, unassigned }: { campaign: Campaign;
         </div>
         <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 font-mono text-[11px] text-muted-foreground">
           <span>{prospects.length} prospect{prospects.length === 1 ? "" : "s"}</span>
+          {contactRate !== null && <span>{contactedCount}/{prospects.length} contacted ({contactRate}%)</span>}
+          {replyRate !== null && <span>{replyRate}% reply rate</span>}
           <span>{converted} converted</span>
           {conversionRate !== null ? <span>{conversionRate}% conversion</span> : <span>No data yet</span>}
           {pipelineValuePence > 0 && <span>£{Math.round(pipelineValuePence / 100).toLocaleString("en-GB")} pipeline</span>}
