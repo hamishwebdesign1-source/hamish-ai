@@ -15,6 +15,11 @@ import { isStudioActionRateLimited } from "@/lib/chat-rate-limit";
 import type { PlatformPlanSlug } from "@/lib/platform-plans";
 import { trackServerEvent } from "@/lib/analytics";
 import { sendOrgEmail } from "@/lib/send-org-email";
+import { sendClientEmail } from "@/lib/send-client-email";
+import { createProposalToken } from "@/lib/proposal-tokens";
+import { renderProposalPdf } from "@/lib/proposal-pdf";
+import type { RateCardItem } from "@/lib/rate-card";
+import { logAuditEvent } from "@/lib/audit-log";
 
 // Every action here re-derives the caller's org from their own session
 // rather than trusting an orgId argument from the client — Server Actions
@@ -263,6 +268,90 @@ export async function generateSalesKit(prospectId: string): Promise<
   if (!usageCheck.isInternal && "kit" in result) await recordUsageEvent(orgId, "sales_kit_generated");
   revalidatePath("/studio/prospects");
   return result;
+}
+
+// Studio big-ticket ("proposal send-and-track workflow") — roadmap item
+// #6 (proposal-pdf.tsx) stopped at "download a PDF"; this is the actual
+// send, plus a way to know what happened after. No new AI call and no
+// new proposal content — same sales_kit.proposal_outline the PDF route
+// already renders, just emailed with a public tracking link (and the
+// same PDF attached) instead of only ever downloaded by the tenant
+// themselves.
+export async function sendProposal(prospectId: string): Promise<{ ok: true } | { error: string }> {
+  const orgId = await requireOrgId();
+  const admin = getSupabaseAdmin();
+  if (!admin) return { error: "Supabase is not configured." };
+
+  const { data: prospect } = await admin
+    .from("prospects")
+    .select("business_name, email, sales_kit")
+    .eq("id", prospectId)
+    .eq("org_id", orgId)
+    .maybeSingle();
+  if (!prospect) return { error: "Prospect not found." };
+  if (!prospect.email) return { error: "This prospect has no contact email on file." };
+
+  const salesKit = prospect.sales_kit as SalesKit | null;
+  if (!salesKit?.proposal_outline) return { error: "Generate this prospect's sales kit first — there's no proposal content yet." };
+
+  const { data: org } = await admin.from("organisations").select("name, is_internal, brand").eq("id", orgId).single();
+  if (!org) return { error: "Organisation not found." };
+  const brand = (org.brand ?? {}) as { accentColor?: string; rateCard?: RateCardItem[]; replyToEmail?: string };
+  const orgName = org.is_internal ? "Hamish AI" : org.name;
+
+  // Same fail-closed gate every other tenant-facing send in this app
+  // uses (send-org-email.ts's own header) — a tenant with no reply-to
+  // configured yet just can't send under their own identity, rather
+  // than guessing one.
+  if (!org.is_internal && !brand.replyToEmail) {
+    return { error: "Add a reply-to email in Settings before sending proposals to prospects." };
+  }
+
+  const token = await createProposalToken(admin, { orgId, prospectId, sentTo: prospect.email });
+  if (!token) return { error: "Failed to create a tracking link for this proposal." };
+
+  const proposalUrl = `https://hamishai.org/proposal/${token}`;
+  const pdf = await renderProposalPdf({
+    orgName,
+    accentColor: brand.accentColor ?? null,
+    prospectBusinessName: prospect.business_name,
+    proposalOutline: salesKit.proposal_outline,
+    rateCard: brand.rateCard ?? [],
+    contactEmail: brand.replyToEmail ?? null,
+  });
+  const attachments = [
+    { filename: `${prospect.business_name.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}-proposal.pdf`, content: pdf },
+  ];
+
+  const subject = `A proposal from ${orgName}`;
+  const text = `Hi,\n\n${salesKit.proposal_outline.overview}\n\nYou can view and accept the full proposal here:\n${proposalUrl}\n\nA PDF copy is attached too.\n\n— ${orgName}`;
+
+  if (org.is_internal) {
+    await sendClientEmail(prospect.email, subject, text, attachments);
+  } else {
+    const sendResult = await sendOrgEmail({
+      orgId,
+      orgName: org.name,
+      replyToEmail: brand.replyToEmail!,
+      to: prospect.email,
+      subject,
+      text,
+      attachments,
+    });
+    if ("error" in sendResult) return sendResult;
+  }
+
+  logAuditEvent({
+    actor: orgName,
+    actorType: "admin",
+    action: "prospect.proposal_sent",
+    targetType: "prospect",
+    targetId: prospectId,
+    orgId,
+  });
+
+  revalidatePath("/studio/prospects");
+  return { ok: true };
 }
 
 // Mirrors /admin/(authed)/clients/page.tsx's addClient() exactly — same

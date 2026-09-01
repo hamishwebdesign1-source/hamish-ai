@@ -43,6 +43,19 @@ export default async function StudioProspectsPage() {
     .order("created_at", { ascending: false })
     .limit(50);
 
+  // Studio big-ticket ("proposal send-and-track workflow") — sent/
+  // viewed/accepted status per prospect, same session-scoped read as
+  // everything else on this page (proposal_tokens_select_own_org RLS,
+  // schema-proposal-tokens.sql). A prospect can have more than one row
+  // here if a proposal was sent twice — ProspectingPanel reduces this to
+  // the latest per prospect itself, same "aggregate in the panel"
+  // pattern requests-panel.tsx uses for tasksByRequest.
+  const { data: proposalTokens } = await supabase
+    .from("proposal_tokens")
+    .select("prospect_id, created_at, viewed_at, accepted_at")
+    .eq("org_id", membership.orgId)
+    .order("created_at", { ascending: false });
+
   return (
     <ProspectingPanel
       initialCategories={config.categories ?? []}
@@ -51,6 +64,7 @@ export default async function StudioProspectsPage() {
       purchasedCredits={org?.purchased_prospect_credits ?? 0}
       prospects={prospects ?? []}
       bookingLink={bookingLink}
+      proposalTokens={proposalTokens ?? []}
     />
   );
 }

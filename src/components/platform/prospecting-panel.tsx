@@ -52,6 +52,7 @@ import {
   generateWebsiteMockup,
   generateIcp,
   generateSalesKit,
+  sendProposal,
   markProspectContacted,
   markProspectReplied,
   markProspectQualified,
@@ -88,6 +89,14 @@ type Prospect = {
   deal_value_pence: number | null;
   created_at: string;
 };
+
+// Studio big-ticket ("proposal send-and-track workflow") — the latest
+// proposal_tokens row for a prospect, reduced from the flat list
+// prospects/page.tsx fetches (a prospect can have more than one if a
+// proposal was sent twice; ProspectingPanel below keeps only the most
+// recent per prospect_id, same "aggregate in the panel" shape
+// requests-panel.tsx uses for tasksByRequest).
+type ProposalToken = { prospect_id: string; created_at: string; viewed_at: string | null; accepted_at: string | null };
 
 function formatMoney(pence: number) {
   return `£${(pence / 100).toLocaleString("en-GB", { maximumFractionDigits: 0 })}`;
@@ -695,7 +704,66 @@ function CopyButton({ text }: { text: string }) {
   );
 }
 
-function SalesKitPreview({ kit, bookingLink, prospectId }: { kit: SalesKit; bookingLink: string | null; prospectId: string }) {
+function SendProposalControl({ prospectId, prospectEmail, proposalToken }: { prospectId: string; prospectEmail: string | null; proposalToken: ProposalToken | null }) {
+  const [pending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+  const [justSent, setJustSent] = useState(false);
+
+  function send() {
+    setError(null);
+    startTransition(async () => {
+      const r = await sendProposal(prospectId);
+      if (r && "error" in r) {
+        setError(r.error ?? "Failed to send — try again.");
+        return;
+      }
+      setJustSent(true);
+    });
+  }
+
+  if (proposalToken?.accepted_at) {
+    return <Badge variant="success">Accepted</Badge>;
+  }
+  if (justSent || proposalToken) {
+    return (
+      <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+        <Badge variant={proposalToken?.viewed_at ? "secondary" : "outline"}>{proposalToken?.viewed_at ? "Viewed" : "Sent"}</Badge>
+        <button type="button" onClick={send} disabled={pending || !prospectEmail} className="underline underline-offset-2 hover:no-underline disabled:opacity-50">
+          {pending ? "Resending…" : "Resend"}
+        </button>
+      </span>
+    );
+  }
+
+  return (
+    <span className="flex items-center gap-1.5">
+      <button
+        type="button"
+        onClick={send}
+        disabled={pending || !prospectEmail}
+        title={prospectEmail ? undefined : "This prospect has no contact email on file."}
+        className="flex shrink-0 items-center gap-1 text-[11px] text-accent underline underline-offset-2 hover:no-underline disabled:cursor-not-allowed disabled:opacity-50 disabled:no-underline"
+      >
+        <Send className="size-3" /> {pending ? "Sending…" : "Send proposal"}
+      </button>
+      {error && <span className="text-[11px] text-destructive">{error}</span>}
+    </span>
+  );
+}
+
+function SalesKitPreview({
+  kit,
+  bookingLink,
+  prospectId,
+  prospectEmail,
+  proposalToken,
+}: {
+  kit: SalesKit;
+  bookingLink: string | null;
+  prospectId: string;
+  prospectEmail: string | null;
+  proposalToken: ProposalToken | null;
+}) {
   // Roadmap item #9 — same deterministic append sendForOrg() (autonomous-
   // outreach.ts) applies before an automated send, applied here so a
   // human copying either draft out to send themselves sees (and sends)
@@ -759,17 +827,20 @@ function SalesKitPreview({ kit, bookingLink, prospectId }: { kit: SalesKit; book
         <div className="rounded-lg border border-border p-3">
           <div className="flex items-center justify-between gap-2">
             <p className="flex items-center gap-1.5 text-xs font-semibold"><FileText className="size-3.5 shrink-0 text-muted-foreground" /> Proposal outline</p>
-            {/* Roadmap item #6 — plain same-origin navigation, not a fetch:
-                the browser's own session cookie is what authorises this
-                (proposal-pdf/route.ts), same as any other in-app link. */}
-            <a
-              href={`/api/studio/prospects/${prospectId}/proposal-pdf`}
-              target="_blank"
-              rel="noreferrer"
-              className="shrink-0 text-[11px] text-accent underline underline-offset-2 hover:no-underline"
-            >
-              Download PDF
-            </a>
+            <div className="flex shrink-0 items-center gap-3">
+              <SendProposalControl prospectId={prospectId} prospectEmail={prospectEmail} proposalToken={proposalToken} />
+              {/* Roadmap item #6 — plain same-origin navigation, not a fetch:
+                  the browser's own session cookie is what authorises this
+                  (proposal-pdf/route.ts), same as any other in-app link. */}
+              <a
+                href={`/api/studio/prospects/${prospectId}/proposal-pdf`}
+                target="_blank"
+                rel="noreferrer"
+                className="shrink-0 text-[11px] text-accent underline underline-offset-2 hover:no-underline"
+              >
+                Download PDF
+              </a>
+            </div>
           </div>
           <p className="mt-2 text-xs text-muted-foreground">{kit.proposal_outline.overview}</p>
           <ul className="mt-1.5 space-y-1 text-xs text-muted-foreground">
@@ -783,14 +854,20 @@ function SalesKitPreview({ kit, bookingLink, prospectId }: { kit: SalesKit; book
   );
 }
 
-function SalesKitSection({ prospect, bookingLink }: { prospect: Prospect; bookingLink: string | null }) {
+function SalesKitSection({ prospect, bookingLink, proposalToken }: { prospect: Prospect; bookingLink: string | null; proposalToken: ProposalToken | null }) {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
   return (
     <div>
       {prospect.sales_kit ? (
-        <SalesKitPreview kit={prospect.sales_kit} bookingLink={bookingLink} prospectId={prospect.id} />
+        <SalesKitPreview
+          kit={prospect.sales_kit}
+          bookingLink={bookingLink}
+          prospectId={prospect.id}
+          prospectEmail={prospect.email}
+          proposalToken={proposalToken}
+        />
       ) : (
         <div className="rounded-lg border border-dashed border-border p-4 text-center">
           <p className="text-sm text-muted-foreground">Not generated yet — email, follow-up, call script, LinkedIn message, meeting agenda and proposal outline, in one go.</p>
@@ -829,11 +906,13 @@ function ProspectCard({
   selected,
   onToggleSelect,
   bookingLink,
+  proposalToken,
 }: {
   prospect: Prospect;
   selected: boolean;
   onToggleSelect: () => void;
   bookingLink: string | null;
+  proposalToken: ProposalToken | null;
 }) {
   const [open, setOpen] = useState(false);
   const hasContact = prospect.phone || prospect.email;
@@ -957,7 +1036,7 @@ function ProspectCard({
                   <WebsiteMockupSection prospect={prospect} />
                 </TabsPanel>
                 <TabsPanel value="kit">
-                  <SalesKitSection prospect={prospect} bookingLink={bookingLink} />
+                  <SalesKitSection prospect={prospect} bookingLink={bookingLink} proposalToken={proposalToken} />
                 </TabsPanel>
               </Tabs>
             ) : (
@@ -1000,6 +1079,7 @@ export function ProspectingPanel({
   purchasedCredits,
   prospects,
   bookingLink,
+  proposalTokens,
 }: {
   initialCategories: string[];
   initialAreas: string[];
@@ -1007,12 +1087,26 @@ export function ProspectingPanel({
   purchasedCredits: number;
   prospects: Prospect[];
   bookingLink: string | null;
+  proposalTokens: ProposalToken[];
 }) {
   const router = useRouter();
   const [categories, setCategories] = useState(initialCategories.join(", "));
   const [areas, setAreas] = useState(initialAreas.join(", "));
   const [savePending, startSave] = useTransition();
   const [saveStatus, setSaveStatus] = useState<"idle" | "saved" | "error">("idle");
+
+  // Studio big-ticket ("proposal send-and-track workflow") — reduced to
+  // the latest row per prospect_id. proposalTokens arrives ordered
+  // newest-first (prospects/page.tsx's own query), so the first row seen
+  // per id here is already the latest — nothing to compare timestamps
+  // against.
+  const latestProposalByProspect = useMemo(() => {
+    const map = new Map<string, ProposalToken>();
+    for (const t of proposalTokens) {
+      if (!map.has(t.prospect_id)) map.set(t.prospect_id, t);
+    }
+    return map;
+  }, [proposalTokens]);
 
   // Real-improvement pass — this page's own real shape, on closer
   // reading, isn't the Command Centre's "9 parallel content types"
@@ -1573,7 +1667,14 @@ export function ProspectingPanel({
             {kitsError && <p className="mt-1.5 text-xs text-destructive">{kitsError}</p>}
             <div className="mt-2 space-y-2">
               {visibleProspects.map((p) => (
-                <ProspectCard key={p.id} prospect={p} selected={selected.has(p.id)} onToggleSelect={() => toggleSelected(p.id)} bookingLink={bookingLink} />
+                <ProspectCard
+                  key={p.id}
+                  prospect={p}
+                  selected={selected.has(p.id)}
+                  onToggleSelect={() => toggleSelected(p.id)}
+                  bookingLink={bookingLink}
+                  proposalToken={latestProposalByProspect.get(p.id) ?? null}
+                />
               ))}
             </div>
           </>
