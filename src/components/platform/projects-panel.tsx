@@ -8,11 +8,12 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { createProject, updateProjectStatus } from "@/app/studio/(authed)/projects/actions";
+import { createProject, updateProjectStatus, assignProject } from "@/app/studio/(authed)/projects/actions";
 
 type Client = { id: string; business_name: string };
-type Project = { id: string; client_id: string; name: string; target_date: string | null; status: string; created_at: string };
+type Project = { id: string; client_id: string; name: string; target_date: string | null; status: string; created_at: string; assigned_to: string | null };
 type Task = { id: string; project_id: string | null; status: string };
+type TeamMember = { email: string; role: "owner" | "member" };
 
 const selectClasses =
   "h-8 rounded-lg border border-input bg-transparent px-2 text-xs outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50";
@@ -62,14 +63,27 @@ function ProjectCard({
   tasks,
   selected,
   onToggleSelect,
+  teamMembers,
 }: {
   project: Project;
   tasks: Task[];
   selected?: boolean;
   onToggleSelect?: () => void;
+  teamMembers: TeamMember[];
 }) {
   const [pending, startTransition] = useTransition();
   const [status, setStatus] = useState(project.status);
+  const [assignee, setAssignee] = useState(project.assigned_to ?? "");
+  const [assignPending, startAssign] = useTransition();
+
+  function setProjectAssignee(next: string) {
+    const prev = assignee;
+    setAssignee(next);
+    startAssign(async () => {
+      const r = await assignProject(project.id, next || null);
+      if (r && "error" in r) setAssignee(prev);
+    });
+  }
 
   const done = tasks.filter((t) => t.status === "done").length;
   const pct = tasks.length ? Math.round((done / tasks.length) * 100) : null;
@@ -116,6 +130,28 @@ function ProjectCard({
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-2">
+            {/* Studio big-ticket ("team collaboration") — same gate as
+                prospecting-panel.tsx/requests-panel.tsx's own assignee
+                selects: only meaningful once there's more than one
+                person to hand this to. No sibling-of-a-button concern
+                here, unlike those two — this card's header is a plain
+                div, not a click-to-expand button. */}
+            {teamMembers.length > 1 && (
+              <select
+                value={assignee}
+                onChange={(e) => setProjectAssignee(e.target.value)}
+                disabled={assignPending}
+                aria-label={`Assign ${project.name}`}
+                className={selectClasses}
+              >
+                <option value="">Unassigned</option>
+                {teamMembers.map((m) => (
+                  <option key={m.email} value={m.email}>
+                    {m.email}
+                  </option>
+                ))}
+              </select>
+            )}
             {status === "done" ? (
               <Badge variant="success">Done</Badge>
             ) : overdue ? (
@@ -221,12 +257,14 @@ function ClientProjectsGroup({
   tasksByProject,
   selected,
   onToggleSelect,
+  teamMembers,
 }: {
   client: Client;
   projects: Project[];
   tasksByProject: Map<string, Task[]>;
   selected: Set<string>;
   onToggleSelect: (id: string) => void;
+  teamMembers: TeamMember[];
 }) {
   return (
     <div>
@@ -245,6 +283,7 @@ function ClientProjectsGroup({
               tasks={tasksByProject.get(p.id) ?? []}
               selected={selected.has(p.id)}
               onToggleSelect={() => onToggleSelect(p.id)}
+              teamMembers={teamMembers}
             />
           ))}
         </div>
@@ -253,9 +292,25 @@ function ClientProjectsGroup({
   );
 }
 
-export function ProjectsPanel({ clients, projects, tasks }: { clients: Client[]; projects: Project[]; tasks: Task[] }) {
+export function ProjectsPanel({
+  clients,
+  projects,
+  tasks,
+  teamMembers,
+  currentUserEmail,
+}: {
+  clients: Client[];
+  projects: Project[];
+  tasks: Task[];
+  teamMembers: TeamMember[];
+  currentUserEmail: string;
+}) {
   const router = useRouter();
   const [filter, setFilter] = useState<"active" | "all">("active");
+  // Studio big-ticket ("team collaboration") — only meaningful once
+  // there's more than one person on the org, same gate as the assignee
+  // select itself.
+  const [mineOnly, setMineOnly] = useState(false);
 
   const tasksByProject = useMemo(() => {
     const map = new Map<string, Task[]>();
@@ -270,14 +325,15 @@ export function ProjectsPanel({ clients, projects, tasks }: { clients: Client[];
 
   const projectsByClient = useMemo(() => {
     const map = new Map<string, Project[]>();
-    const visible = filter === "active" ? projects.filter((p) => p.status !== "done") : projects;
+    let visible = filter === "active" ? projects.filter((p) => p.status !== "done") : projects;
+    if (mineOnly) visible = visible.filter((p) => p.assigned_to === currentUserEmail);
     for (const p of visible) {
       const list = map.get(p.client_id) ?? [];
       list.push(p);
       map.set(p.client_id, list);
     }
     return map;
-  }, [projects, filter]);
+  }, [projects, filter, mineOnly, currentUserEmail]);
 
   // Studio improvement — same client-side search pattern as
   // clients-panel.tsx/requests-panel.tsx. Filters by client name (this
@@ -373,6 +429,11 @@ export function ProjectsPanel({ clients, projects, tasks }: { clients: Client[];
               <option value="active">Active projects</option>
               <option value="all">All clients, all projects</option>
             </select>
+            {teamMembers.length > 1 && (
+              <Button size="sm" variant={mineOnly ? "secondary" : "ghost"} onClick={() => setMineOnly((v) => !v)}>
+                Assigned to me
+              </Button>
+            )}
             {clients.length > 4 && (
               <div className="relative ml-auto w-full max-w-56">
                 <Search className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
@@ -422,6 +483,7 @@ export function ProjectsPanel({ clients, projects, tasks }: { clients: Client[];
                     tasksByProject={tasksByProject}
                     selected={selected}
                     onToggleSelect={toggleSelected}
+                    teamMembers={teamMembers}
                   />
                 ))}
               </div>

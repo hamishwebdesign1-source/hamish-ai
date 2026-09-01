@@ -53,6 +53,7 @@ import {
   generateIcp,
   generateSalesKit,
   sendProposal,
+  assignProspect,
   markProspectContacted,
   markProspectReplied,
   markProspectQualified,
@@ -88,7 +89,15 @@ type Prospect = {
   replied_at: string | null;
   deal_value_pence: number | null;
   created_at: string;
+  assigned_to: string | null;
 };
+
+type TeamMember = { email: string; role: "owner" | "member" };
+
+// Same shared inline-<select> chrome as requests-panel.tsx/
+// projects-panel.tsx's own selectClasses.
+const selectClasses =
+  "h-7 rounded-lg border border-input bg-transparent px-2 text-[11px] outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50";
 
 // Studio big-ticket ("proposal send-and-track workflow") — the latest
 // proposal_tokens row for a prospect, reduced from the flat list
@@ -907,15 +916,28 @@ function ProspectCard({
   onToggleSelect,
   bookingLink,
   proposalToken,
+  teamMembers,
 }: {
   prospect: Prospect;
   selected: boolean;
   onToggleSelect: () => void;
   bookingLink: string | null;
   proposalToken: ProposalToken | null;
+  teamMembers: TeamMember[];
 }) {
   const [open, setOpen] = useState(false);
   const hasContact = prospect.phone || prospect.email;
+  const [assignee, setAssignee] = useState(prospect.assigned_to ?? "");
+  const [assignPending, startAssign] = useTransition();
+
+  function setProspectAssignee(next: string) {
+    const prev = assignee;
+    setAssignee(next);
+    startAssign(async () => {
+      const r = await assignProspect(prospect.id, next || null);
+      if (r && "error" in r) setAssignee(prev);
+    });
+  }
 
   return (
     <Card>
@@ -935,6 +957,27 @@ function ProspectCard({
             aria-label={`Select ${prospect.business_name}`}
             className="size-4 shrink-0 rounded border-border accent-accent"
           />
+          {/* Studio big-ticket ("team collaboration") — same sibling-of-
+              the-toggle-button reasoning as the checkbox above, and same
+              gate as requests-panel.tsx's own assignee select: only
+              meaningful once there's more than one person to hand this
+              to. */}
+          {teamMembers.length > 1 && (
+            <select
+              value={assignee}
+              onChange={(e) => setProspectAssignee(e.target.value)}
+              disabled={assignPending}
+              aria-label={`Assign ${prospect.business_name}`}
+              className={`${selectClasses} shrink-0`}
+            >
+              <option value="">Unassigned</option>
+              {teamMembers.map((m) => (
+                <option key={m.email} value={m.email}>
+                  {m.email}
+                </option>
+              ))}
+            </select>
+          )}
           <button
             type="button"
             onClick={() => setOpen((o) => !o)}
@@ -1080,6 +1123,8 @@ export function ProspectingPanel({
   prospects,
   bookingLink,
   proposalTokens,
+  teamMembers,
+  currentUserEmail,
 }: {
   initialCategories: string[];
   initialAreas: string[];
@@ -1088,6 +1133,8 @@ export function ProspectingPanel({
   prospects: Prospect[];
   bookingLink: string | null;
   proposalTokens: ProposalToken[];
+  teamMembers: TeamMember[];
+  currentUserEmail: string;
 }) {
   const router = useRouter();
   const [categories, setCategories] = useState(initialCategories.join(", "));
@@ -1212,6 +1259,10 @@ export function ProspectingPanel({
     "all" | "needs_verification" | "qualified" | "contacted" | "needs_followup" | "converted" | "lost"
   >("all");
   const [sortBy, setSortBy] = useState<"score" | "newest" | "oldest" | "name">("score");
+  // Studio big-ticket ("team collaboration") — only meaningful once
+  // there's more than one person on the org, same gate as the assignee
+  // select itself.
+  const [mineOnly, setMineOnly] = useState(false);
 
   // Client-side over the full prospect list, not a server round-trip —
   // everything's already loaded for the page, and this is a few dozen
@@ -1220,6 +1271,7 @@ export function ProspectingPanel({
     let list = prospects;
     if (statusFilter === "needs_followup") list = list.filter((p) => leadNeedsFollowUp(p));
     else if (statusFilter !== "all") list = list.filter((p) => p.status === statusFilter);
+    if (mineOnly) list = list.filter((p) => p.assigned_to === currentUserEmail);
     if (search.trim()) {
       const q = search.trim().toLowerCase();
       list = list.filter((p) => p.business_name.toLowerCase().includes(q));
@@ -1230,7 +1282,7 @@ export function ProspectingPanel({
     else if (sortBy === "oldest") sorted.sort((a, b) => a.created_at.localeCompare(b.created_at));
     else if (sortBy === "name") sorted.sort((a, b) => a.business_name.localeCompare(b.business_name));
     return sorted;
-  }, [prospects, search, statusFilter, sortBy]);
+  }, [prospects, search, statusFilter, mineOnly, currentUserEmail, sortBy]);
 
   // Studio improvement — bulk "mark as contacted" for however many rows
   // are currently selected, calling the exact same markProspectContacted()
@@ -1598,6 +1650,11 @@ export function ProspectingPanel({
                 <option value="oldest">Oldest first</option>
                 <option value="name">Name A–Z</option>
               </select>
+              {teamMembers.length > 1 && (
+                <Button size="sm" variant={mineOnly ? "secondary" : "ghost"} onClick={() => setMineOnly((v) => !v)}>
+                  Assigned to me
+                </Button>
+              )}
             </div>
           )}
         </div>
@@ -1674,6 +1731,7 @@ export function ProspectingPanel({
                   onToggleSelect={() => toggleSelected(p.id)}
                   bookingLink={bookingLink}
                   proposalToken={latestProposalByProspect.get(p.id) ?? null}
+                  teamMembers={teamMembers}
                 />
               ))}
             </div>

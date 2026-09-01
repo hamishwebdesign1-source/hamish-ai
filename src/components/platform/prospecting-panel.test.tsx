@@ -49,6 +49,7 @@ function baseProspect(overrides: Partial<Prospect> = {}): Prospect {
     replied_at: null,
     deal_value_pence: null,
     created_at: new Date().toISOString(),
+    assigned_to: null,
     ...overrides,
   };
 }

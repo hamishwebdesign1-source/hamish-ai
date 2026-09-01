@@ -3,6 +3,7 @@ import { createServerSupabaseClient } from "@/lib/supabase-server-auth";
 import { getOrgMembership } from "@/lib/org-membership";
 import { getUsageStatus } from "@/lib/usage-limits";
 import type { PlatformPlanSlug } from "@/lib/platform-plans";
+import { listTeamMembers } from "@/lib/team-members";
 import { ProspectingPanel } from "@/components/platform/prospecting-panel";
 
 // Server-side data assembly only — every write (settings, running
@@ -38,10 +39,15 @@ export default async function StudioProspectsPage() {
   // org boundary independently of this .eq() getting it right.
   const { data: prospects } = await supabase
     .from("prospects")
-    .select("id, business_name, category, neighbourhood, website, email, phone, status, score, score_breakdown, research, research_generated_at, website_mockup, sales_kit, contacted_at, last_contact_method, replied_at, deal_value_pence, created_at")
+    .select("id, business_name, category, neighbourhood, website, email, phone, status, score, score_breakdown, research, research_generated_at, website_mockup, sales_kit, contacted_at, last_contact_method, replied_at, deal_value_pence, created_at, assigned_to")
     .eq("org_id", membership.orgId)
     .order("created_at", { ascending: false })
     .limit(50);
+
+  // Studio big-ticket ("team collaboration") — same session-scoped read
+  // as requests/page.tsx's own (memberships_select_own RLS,
+  // schema-organisations.sql).
+  const teamMembers = await listTeamMembers(supabase, membership.orgId);
 
   // Studio big-ticket ("proposal send-and-track workflow") — sent/
   // viewed/accepted status per prospect, same session-scoped read as
@@ -65,6 +71,8 @@ export default async function StudioProspectsPage() {
       prospects={prospects ?? []}
       bookingLink={bookingLink}
       proposalTokens={proposalTokens ?? []}
+      teamMembers={teamMembers}
+      currentUserEmail={user.email}
     />
   );
 }

@@ -474,6 +474,55 @@ export async function convertProspectToClient(prospectId: string, email: string)
 // inbox: that's a real, separate, much bigger feature (multi-tenant
 // OAuth, Google app verification, per-org token storage), not something
 // this action set silently grows into.
+// Studio big-ticket ("team collaboration") — same shape as requests/
+// actions.ts's own requireOrgIdAndEmail()/assignRequest(), extended to
+// prospects: who's actually chasing this lead. A separate local helper
+// rather than changing requireOrgId()'s own return shape, same
+// "duplicated per file on purpose" convention every requireOrgId() copy
+// in this app already documents.
+async function requireOrgIdAndEmail(): Promise<{ orgId: string; email: string }> {
+  const supabase = await createServerSupabaseClient();
+  const {
+    data: { user },
+  } = await getUserWithRetry(supabase);
+  if (!user?.email) throw new Error("Not signed in.");
+
+  const membership = await getOrgMembership(supabase, user.email);
+  if (!membership) throw new Error("No organisation found for this session.");
+  return { orgId: membership.orgId, email: user.email };
+}
+
+export async function assignProspect(prospectId: string, assigneeEmail: string | null) {
+  const { orgId, email: actorEmail } = await requireOrgIdAndEmail();
+  const admin = getSupabaseAdmin();
+  if (!admin) return { error: "Supabase is not configured." };
+
+  const { data: prospect } = await admin.from("prospects").select("id").eq("id", prospectId).eq("org_id", orgId).maybeSingle();
+  if (!prospect) return { error: "Prospect not found." };
+
+  const normalised = assigneeEmail?.trim().toLowerCase() || null;
+  if (normalised) {
+    const { data: member } = await admin.from("memberships").select("email").eq("org_id", orgId).eq("email", normalised).maybeSingle();
+    if (!member) return { error: "That person isn't on your team." };
+  }
+
+  const { error } = await admin.from("prospects").update({ assigned_to: normalised }).eq("id", prospectId);
+  if (error) return { error: "Failed to update." };
+
+  logAuditEvent({
+    actor: actorEmail,
+    actorType: "admin",
+    action: normalised ? "prospect.assigned" : "prospect.unassigned",
+    targetType: "prospect",
+    targetId: prospectId,
+    orgId,
+    metadata: normalised ? { assignedTo: normalised } : undefined,
+  });
+
+  revalidatePath("/studio/prospects");
+  return { ok: true as const };
+}
+
 export async function markProspectContacted(prospectId: string) {
   const orgId = await requireOrgId();
   const admin = getSupabaseAdmin();
