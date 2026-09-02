@@ -300,7 +300,7 @@ export async function sendProposal(prospectId: string): Promise<{ ok: true } | {
 
   const { data: prospect } = await admin
     .from("prospects")
-    .select("business_name, email, sales_kit")
+    .select("business_name, email, sales_kit, status, contacted_at")
     .eq("id", prospectId)
     .eq("org_id", orgId)
     .maybeSingle();
@@ -355,6 +355,24 @@ export async function sendProposal(prospectId: string): Promise<{ ok: true } | {
       attachments,
     });
     if ("error" in sendResult) return sendResult;
+  }
+
+  // Studio big-ticket ("sendProposal doesn't feed the follow-up
+  // cadence") — lead-status.ts's own cadence (getLeadCadenceAction, used
+  // by autonomous-outreach.ts and the prospecting UI) is gated on
+  // status === "contacted" with a real contacted_at set; sending a
+  // proposal is real contact and was never recording either, so a
+  // prospect who never replies to an unanswered proposal could sit
+  // forever with no follow-up ever prompted. Only set when this is the
+  // *first* real contact (contacted_at still null) — a proposal sent
+  // after an initial contact already happened shouldn't reset an
+  // already-running cadence clock, same "don't clobber a more advanced
+  // state" reasoning markProspectContacted()'s own callers rely on.
+  if (!prospect.contacted_at && prospect.status !== "converted" && prospect.status !== "lost") {
+    await admin
+      .from("prospects")
+      .update({ status: "contacted", contacted_at: new Date().toISOString(), last_contact_method: "email" })
+      .eq("id", prospectId);
   }
 
   logAuditEvent({

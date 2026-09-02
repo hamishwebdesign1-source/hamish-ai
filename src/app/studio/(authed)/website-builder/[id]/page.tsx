@@ -11,6 +11,7 @@ import { ProjectStageTracker } from "@/components/platform/project-stage-tracker
 import { TroubleshootingComposer } from "@/components/platform/troubleshooting-composer";
 import { WebsiteProjectFilesPanel, type ProjectFile } from "@/components/platform/website-project-files-panel";
 import { WebsiteProjectAssigneeControl } from "@/components/platform/website-project-assignee-control";
+import { DeleteWebsiteProjectControl } from "@/components/platform/delete-website-project-control";
 import { listTeamMembers } from "@/lib/team-members";
 import { Eyebrow } from "@/components/eyebrow";
 import type { WebsiteBrief, WebsiteDiscovery } from "@/lib/website-brief";
@@ -75,7 +76,10 @@ export default async function WebsiteProjectDetailPage({ params }: { params: Pro
       <Eyebrow className="mt-4">Website Project</Eyebrow>
       <div className="mt-1 flex flex-wrap items-center justify-between gap-3">
         <h1 className="font-heading text-2xl font-semibold md:text-3xl">{clientName}</h1>
-        <WebsiteProjectAssigneeControl projectId={project.id} initialAssignedTo={project.assigned_to} teamMembers={teamMembers} />
+        <div className="flex items-center gap-3">
+          <WebsiteProjectAssigneeControl projectId={project.id} initialAssignedTo={project.assigned_to} teamMembers={teamMembers} />
+          <DeleteWebsiteProjectControl projectId={project.id} />
+        </div>
       </div>
       <div className="mt-4">
         <ProjectStageTracker stage={project.stage} />

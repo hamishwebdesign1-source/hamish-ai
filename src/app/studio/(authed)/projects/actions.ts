@@ -153,3 +153,30 @@ export async function assignTaskToProject(taskId: string, projectId: string | nu
   revalidatePath("/studio/projects");
   return { ok: true as const };
 }
+
+// Studio big-ticket ("no delete for projects/website-builder projects")
+// — the exact "a typo'd name or duplicate stuck around forever" bug
+// this session already fixed for campaigns (deleteCampaign(),
+// campaigns/actions.ts), never extended to projects. Same
+// "unassign, don't cascade-delete" shape for the one real child
+// relationship: tasks.project_id is nullable (schema-projects.sql),
+// a task belongs to its request first and a project only optionally,
+// so unassigning rather than deleting keeps the request/task itself
+// intact.
+export async function deleteProject(projectId: string) {
+  const orgId = await requireOrgId();
+  const admin = getSupabaseAdmin();
+  if (!admin) return { error: "Supabase is not configured." };
+
+  const { data: project } = await admin.from("projects").select("id").eq("id", projectId).eq("org_id", orgId).maybeSingle();
+  if (!project) return { error: "Project not found." };
+
+  await admin.from("tasks").update({ project_id: null }).eq("project_id", projectId);
+
+  const { error } = await admin.from("projects").delete().eq("id", projectId);
+  if (error) return { error: "Failed to delete the project." };
+
+  revalidatePath("/studio/projects");
+  revalidatePath("/studio/requests");
+  return { ok: true as const };
+}

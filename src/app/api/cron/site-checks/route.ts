@@ -26,7 +26,7 @@ export async function GET(request: Request) {
 
   const { data: clients, error } = await supabase
     .from("clients")
-    .select("id, business_name, website_url")
+    .select("id, business_name, website_url, org_id")
     .eq("status", "active")
     .not("website_url", "is", null);
 
@@ -75,6 +75,7 @@ export async function GET(request: Request) {
           websiteUrl: client.website_url,
           reasons,
           aiSummary: check.ai_summary ?? null,
+          orgId: client.org_id,
         });
       }
     }

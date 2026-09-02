@@ -607,3 +607,35 @@ export async function deleteProjectFile(projectId: string, fileId: string): Prom
   revalidatePath(`/studio/website-builder/${projectId}`);
   return { ok: true as const };
 }
+
+// Studio big-ticket ("no delete for projects/website-builder projects")
+// — same real gap deleteProject() (projects/actions.ts) closes, for the
+// other project-tracking entity. Real uploaded files removed from
+// Storage first (same order deleteClientData()'s own website-projects
+// cleanup uses), then the file rows (website_project_files.org_id/
+// website_project_id both NOT NULL, no cascade), then requests that
+// linked to this build unassigned rather than touched otherwise
+// (requests.website_project_id is nullable — a request itself, and any
+// reply already sent on it, stays intact), then the project row.
+export async function deleteWebsiteProject(projectId: string) {
+  const orgId = await requireOrgId();
+  const admin = getSupabaseAdmin();
+  if (!admin) return { error: "Supabase is not configured." };
+
+  const { data: project } = await admin.from("website_projects").select("id").eq("id", projectId).eq("org_id", orgId).maybeSingle();
+  if (!project) return { error: "Project not found." };
+
+  const { data: files } = await admin.from("website_project_files").select("storage_path").eq("website_project_id", projectId);
+  const storagePaths = (files ?? []).map((f) => f.storage_path);
+  if (storagePaths.length) await admin.storage.from("website-project-files").remove(storagePaths);
+  await admin.from("website_project_files").delete().eq("website_project_id", projectId);
+
+  await admin.from("requests").update({ website_project_id: null }).eq("website_project_id", projectId);
+
+  const { error } = await admin.from("website_projects").delete().eq("id", projectId);
+  if (error) return { error: "Failed to delete the project." };
+
+  revalidatePath("/studio/website-builder");
+  revalidatePath("/studio/requests");
+  return { ok: true as const };
+}

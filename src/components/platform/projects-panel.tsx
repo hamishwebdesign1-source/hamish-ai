@@ -2,13 +2,13 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { FolderKanban, Plus, CalendarDays, CircleAlert, Search } from "lucide-react";
+import { FolderKanban, Plus, CalendarDays, CircleAlert, Search, Trash2, X } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { createProject, updateProjectStatus, assignProject } from "@/app/studio/(authed)/projects/actions";
+import { createProject, updateProjectStatus, assignProject, deleteProject } from "@/app/studio/(authed)/projects/actions";
 
 type Client = { id: string; business_name: string };
 type Project = { id: string; client_id: string; name: string; target_date: string | null; status: string; created_at: string; assigned_to: string | null };
@@ -75,6 +75,23 @@ function ProjectCard({
   const [status, setStatus] = useState(project.status);
   const [assignee, setAssignee] = useState(project.assigned_to ?? "");
   const [assignPending, startAssign] = useTransition();
+  // Studio big-ticket ("no delete for projects/website-builder
+  // projects") — same confirm-then-delete shape as campaigns-panel.tsx's
+  // own CampaignCard.
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [deletePending, startDeleteTransition] = useTransition();
+  const [deleted, setDeleted] = useState(false);
+
+  function remove() {
+    startDeleteTransition(async () => {
+      const r = await deleteProject(project.id);
+      if (r && "error" in r) {
+        setConfirmingDelete(false);
+        return;
+      }
+      setDeleted(true);
+    });
+  }
 
   function setProjectAssignee(next: string) {
     const prev = assignee;
@@ -98,6 +115,13 @@ function ProjectCard({
       if (r && "error" in r) setStatus(project.status);
     });
   }
+
+  // revalidatePath re-fetches server data but doesn't unmount an already-
+  // rendered client card mid-transition — hide it immediately on success
+  // rather than leaving a just-deleted project visible until the next
+  // full navigation (same reasoning campaigns-panel.tsx's own
+  // CampaignCard documents).
+  if (deleted) return null;
 
   return (
     <Card>
@@ -168,6 +192,20 @@ function ProjectCard({
             <Button size="xs" variant="ghost" disabled={pending} onClick={toggleDone}>
               {status === "done" ? "Reopen" : "Mark done"}
             </Button>
+            {confirmingDelete ? (
+              <>
+                <Button size="xs" variant="destructive" disabled={deletePending} onClick={remove}>
+                  {deletePending ? "…" : "Confirm"}
+                </Button>
+                <Button size="icon-xs" variant="ghost" aria-label="Cancel delete" onClick={() => setConfirmingDelete(false)}>
+                  <X className="size-3" />
+                </Button>
+              </>
+            ) : (
+              <Button size="icon-xs" variant="ghost" aria-label="Delete project" onClick={() => setConfirmingDelete(true)}>
+                <Trash2 className="size-3" />
+              </Button>
+            )}
           </div>
         </div>
         {pct !== null && (
