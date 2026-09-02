@@ -37,8 +37,12 @@ export default function robots(): MetadataRoute.Robots {
     "/api/",
     "/go/",
     "/proposal/",
-    "/embed-demo",
   ];
+  // /embed-demo deliberately NOT here (2 Sep 2026) — it's real, rendered
+  // content, not an API/redirect route, so it now uses noindex on the
+  // page itself (embed-demo/page.tsx) instead, same reasoning as
+  // /demo and /concepts above: disallow would stop Google ever seeing
+  // that noindex tag in the first place.
 
   return {
     rules: [

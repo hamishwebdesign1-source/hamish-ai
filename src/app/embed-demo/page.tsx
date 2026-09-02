@@ -4,7 +4,16 @@
 // tenant's client's own site would see. Points at one specific, real,
 // enabled demo client so this only works while that client's embed
 // stays configured — remove this page once it's served its purpose.
-export const metadata = { title: "Embed chatbot demo" };
+//
+// noindex added (2 Sep 2026 SEO audit) — this is real, rendered content
+// (not an API/redirect route), so per robots.ts's own documented
+// reasoning (demo/concepts.layout.tsx use noindex, not disallow, for
+// exactly this class of page — disallow stops Google ever seeing a
+// noindex tag at all) this was using the wrong tool: robots.ts's
+// disallow list, alongside genuinely non-content paths like /api/ and
+// /go/. Moved to noindex here and dropped from robots.ts's disallow to
+// match.
+export const metadata = { title: "Embed chatbot demo", robots: { index: false, follow: false } };
 
 const DEMO_CLIENT_ID = "b64d73fe-83f8-4d19-925f-2a1c9d1ad7b8";
 
