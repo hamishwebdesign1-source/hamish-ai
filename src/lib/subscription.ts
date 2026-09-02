@@ -35,7 +35,11 @@ async function ensureMaintenanceProduct(stripe: Stripe, options?: Stripe.Request
 // the money to their bank account, not just a database attribution fix).
 // Kept as its own function rather than inlined twice (startSubscription
 // and cancelSubscription both need it) — same client row, same org
-// lookup.
+// lookup. Exported: the portal's own stripe-portal-session route needs
+// this too (see that route's own comment on the bug this closed — a
+// Customer id only exists in the namespace of the Stripe account it was
+// created under, and every non-internal org's clients are created under
+// that org's own connected account, never the platform's own).
 //
 // requireChargesEnabled defaults true (startSubscription's own need — no
 // point creating a new subscription under an account that can't yet take
@@ -46,8 +50,11 @@ async function ensureMaintenanceProduct(stripe: Stripe, options?: Stripe.Request
 // blocking that would trap them with a live subscription they can't
 // stop. Creating is the direction that needs a fully working connected
 // account; cancelling only needs to know which account the subscription
-// actually lives under.
-async function resolveStripeAccountOptions(
+// actually lives under. The portal billing-session route uses the same
+// false leniency as cancelling — a client viewing/managing an existing
+// payment method needs to know which account their existing Customer
+// lives under, not a fully working one.
+export async function resolveStripeAccountOptions(
   supabase: NonNullable<ReturnType<typeof getSupabaseAdmin>>,
   orgId: string | null,
   requireChargesEnabled = true

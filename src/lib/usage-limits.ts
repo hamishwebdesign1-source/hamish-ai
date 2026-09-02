@@ -19,7 +19,8 @@ export type UsageEventType =
   | "website_brief_generated"
   | "website_build_prompt_generated"
   | "website_troubleshooting_generated"
-  | "knowledge_document_imported";
+  | "knowledge_document_imported"
+  | "portal_copilot_question";
 
 // Calendar month, not a rolling 30 days — matches how the pricing page
 // already describes each plan ("up to 30 researched prospects a month"),
@@ -72,6 +73,16 @@ const USAGE_MULTIPLIER: Record<Exclude<UsageEventType, "prospect_researched">, n
   // a repeated working session — same headroom class as icp_built/
   // website_brief_generated, not the 10x chat-session ceiling.
   knowledge_document_imported: 3,
+  // Studio big-ticket ("portal copilot has no monthly usage cap") — the
+  // one AI action reachable by an outside party (a tenant's own client,
+  // not the tenant's own staff) rather than the org's own team, so the
+  // highest-exposure surface of all of them: a tenant doesn't control
+  // who their own clients are as tightly as they control their own
+  // staff. Same 10x headroom class as clients_copilot_question (its
+  // staff-facing counterpart, askClientsCopilot()) — a real chat
+  // session runs more questions than a one-off generation action, but
+  // each call is cheap (same Haiku model, no per-call research cost).
+  portal_copilot_question: 10,
 };
 
 // Real-improvement pass — shared source of truth for human-readable
@@ -92,6 +103,7 @@ export const USAGE_LABELS: Record<UsageEventType, string> = {
   website_build_prompt_generated: "Website build prompts generated",
   website_troubleshooting_generated: "Website troubleshooting fixes",
   knowledge_document_imported: "Knowledge base documents imported",
+  portal_copilot_question: "Client portal AI Copilot questions",
 };
 
 // All 10 real metered types, in the same order USAGE_MULTIPLIER lists
@@ -110,6 +122,7 @@ export const ALL_USAGE_EVENT_TYPES: UsageEventType[] = [
   "website_build_prompt_generated",
   "website_troubleshooting_generated",
   "knowledge_document_imported",
+  "portal_copilot_question",
 ];
 
 function limitFor(eventType: UsageEventType, plan: PlatformPlanSlug): number {

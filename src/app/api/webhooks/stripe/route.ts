@@ -6,6 +6,7 @@ import { sendErrorAlert } from "@/lib/send-error-alert";
 import { logInfo, logWarn, logError } from "@/lib/structured-log";
 import { trackServerEvent } from "@/lib/analytics";
 import { sendPaymentFailedEmail } from "@/lib/payment-failed-email";
+import { sendClientPaymentFailedEmail } from "@/lib/client-payment-failed-email";
 import { planSlugForPriceId } from "@/lib/platform-plans";
 
 // Stripe's own callback when an invoice's status changes — verified via
@@ -273,6 +274,19 @@ export async function POST(request: Request) {
       );
     } else {
       logInfo("stripe_webhook.invoice_status_updated", { stripe_invoice_id: invoice.id, new_status: newStatus });
+    }
+
+    // Studio big-ticket ("no alert to the agency when a client's own
+    // invoice payment fails") — attempt_count === 1 gates this to the
+    // *first* failed attempt only; Stripe's own Smart Retries can
+    // re-send this same event on every subsequent retry, and a tenant
+    // doesn't need a fresh email for each one, same "fires once per
+    // real transition" reasoning sendPaymentFailedEmail()'s own comment
+    // already documents for the platform-billing equivalent.
+    if (event.type === "invoice.payment_failed" && invoice.attempt_count === 1 && invoice.customer) {
+      const customerId = typeof invoice.customer === "string" ? invoice.customer : invoice.customer.id;
+      const { data: client } = await supabase.from("clients").select("business_name, org_id").eq("stripe_customer_id", customerId).maybeSingle();
+      if (client?.org_id) await sendClientPaymentFailedEmail(supabase, client.org_id, client.business_name);
     }
   }
 
