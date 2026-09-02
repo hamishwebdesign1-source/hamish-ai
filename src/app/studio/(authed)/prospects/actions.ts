@@ -132,8 +132,8 @@ export async function runDiscovery() {
   // (multiple searches + a research call per candidate).
   const admin = getSupabaseAdmin();
   if (admin) {
-    const { data: org } = await admin.from("organisations").select("is_internal").eq("id", orgId).single();
-    if (org && !org.is_internal && (await isStudioActionRateLimited(orgId))) {
+    const { data: org } = await admin.from("organisations").select("is_internal, plan").eq("id", orgId).single();
+    if (org && !org.is_internal && (await isStudioActionRateLimited(orgId, org.plan as PlatformPlanSlug))) {
       return { error: "You're doing that a lot right now — wait a few minutes and try again." };
     }
   }
@@ -154,8 +154,8 @@ export async function searchProspects(location: string, category: string) {
 
   const admin = getSupabaseAdmin();
   if (admin) {
-    const { data: org } = await admin.from("organisations").select("is_internal").eq("id", orgId).single();
-    if (org && !org.is_internal && (await isStudioActionRateLimited(orgId))) {
+    const { data: org } = await admin.from("organisations").select("is_internal, plan").eq("id", orgId).single();
+    if (org && !org.is_internal && (await isStudioActionRateLimited(orgId, org.plan as PlatformPlanSlug))) {
       return { error: "You're doing that a lot right now — wait a few minutes and try again." };
     }
   }

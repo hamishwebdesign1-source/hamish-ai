@@ -1,4 +1,5 @@
 import { getSupabaseAdmin } from "@/lib/supabase";
+import type { PlatformPlanSlug } from "@/lib/platform-plans";
 
 const WINDOW_SECONDS = 10 * 60;
 const MAX_REQUESTS = 20;
@@ -63,8 +64,20 @@ export async function isRateLimited(
 // aggregate burst call volume against Anthropic, not any one action type
 // specifically, so one bucket per org is simpler and just as effective as
 // five separate ones.
-export async function isStudioActionRateLimited(orgId: string): Promise<boolean> {
-  return isRateLimited(`studio-ai:${orgId}`, { windowSeconds: 5 * 60, maxRequests: 15 });
+//
+// Pricing-promise audit (2026-09-02) — the optional `plan` param replaces
+// Agency's old "priority research queue" bullet, which had nothing real
+// behind it: no async job queue exists anywhere in this codebase, every
+// AI action runs synchronously per request, so there was no queue for
+// "priority" to mean anything within. A genuinely higher burst allowance
+// is something this rate limiter can actually deliver honestly — real
+// headroom to run discovery/search back-to-back before hitting the same
+// soft cap Starter/Professional share. Callers that don't pass a plan
+// keep the original flat 15 (this stays the shared default for the other
+// four action types above, which the pricing copy never singled out).
+export async function isStudioActionRateLimited(orgId: string, plan?: PlatformPlanSlug): Promise<boolean> {
+  const maxRequests = plan === "agency" ? 30 : 15;
+  return isRateLimited(`studio-ai:${orgId}`, { windowSeconds: 5 * 60, maxRequests });
 }
 
 // Separate bucket for request triage — triggered by a tenant's own

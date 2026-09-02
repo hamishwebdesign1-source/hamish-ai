@@ -52,3 +52,37 @@ describe("isRateLimited", () => {
     expect(rpcMock).not.toHaveBeenCalled();
   });
 });
+
+// Pricing-promise audit (2026-09-02) — locks in the plan-aware burst
+// allowance that replaced Agency's old "priority research queue" bullet
+// (there was no queue anywhere in this codebase for "priority" to mean
+// anything within — see chat-rate-limit.ts's own comment).
+describe("isStudioActionRateLimited", () => {
+  it("uses the flat 15-request budget when no plan is passed", async () => {
+    rpcMock.mockResolvedValue({ data: true, error: null });
+    const { isStudioActionRateLimited } = await import("./chat-rate-limit");
+
+    await isStudioActionRateLimited("org-1");
+    expect(rpcMock).toHaveBeenCalledWith("check_rate_limit", {
+      p_key: "studio-ai:org-1",
+      p_window_seconds: 300,
+      p_max_requests: 15,
+    });
+  });
+
+  it("uses the flat 15-request budget for starter/professional", async () => {
+    rpcMock.mockResolvedValue({ data: true, error: null });
+    const { isStudioActionRateLimited } = await import("./chat-rate-limit");
+
+    await isStudioActionRateLimited("org-1", "professional");
+    expect(rpcMock).toHaveBeenCalledWith("check_rate_limit", expect.objectContaining({ p_max_requests: 15 }));
+  });
+
+  it("doubles the burst budget to 30 requests for the agency plan", async () => {
+    rpcMock.mockResolvedValue({ data: true, error: null });
+    const { isStudioActionRateLimited } = await import("./chat-rate-limit");
+
+    await isStudioActionRateLimited("org-1", "agency");
+    expect(rpcMock).toHaveBeenCalledWith("check_rate_limit", expect.objectContaining({ p_max_requests: 30 }));
+  });
+});
