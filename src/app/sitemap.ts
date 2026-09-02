@@ -1,0 +1,41 @@
+import type { MetadataRoute } from "next";
+import { caseStudies } from "@/lib/case-studies-data";
+
+// SEO audit (2026-09-02) — verified live and in source: hamishai.org had
+// no sitemap.xml at all (/sitemap.xml 404'd on the real domain). Only
+// genuinely indexable marketing/portfolio pages are listed — /demo/* and
+// /concepts/* are deliberately excluded (noindexed via their own
+// layout.tsx, see robots.ts's comment on why that's the right tool, not
+// disallow), and every /studio, /admin, /portal, /api route is excluded
+// as non-public.
+//
+// No lastModified dates: this app doesn't track a real per-page "last
+// edited" timestamp anywhere (no CMS, no DB row backing these static
+// pages), and fabricating one would be a real claim to a date this
+// codebase can't actually back up — omitted rather than guessed.
+export default function sitemap(): MetadataRoute.Sitemap {
+  const base = "https://hamishai.org";
+
+  const staticPages: MetadataRoute.Sitemap = [
+    { url: `${base}/`, changeFrequency: "weekly", priority: 1 },
+    { url: `${base}/services`, changeFrequency: "monthly", priority: 0.9 },
+    { url: `${base}/ai-solutions`, changeFrequency: "monthly", priority: 0.9 },
+    { url: `${base}/analytics`, changeFrequency: "monthly", priority: 0.8 },
+    { url: `${base}/platform`, changeFrequency: "monthly", priority: 0.9 },
+    { url: `${base}/portfolio`, changeFrequency: "monthly", priority: 0.8 },
+    { url: `${base}/about`, changeFrequency: "monthly", priority: 0.6 },
+    { url: `${base}/website-audit`, changeFrequency: "monthly", priority: 0.7 },
+    { url: `${base}/contact`, changeFrequency: "yearly", priority: 0.5 },
+    { url: `${base}/book`, changeFrequency: "yearly", priority: 0.6 },
+    { url: `${base}/privacy`, changeFrequency: "yearly", priority: 0.1 },
+    { url: `${base}/terms`, changeFrequency: "yearly", priority: 0.1 },
+  ];
+
+  const portfolioPages: MetadataRoute.Sitemap = caseStudies.map((c) => ({
+    url: `${base}/portfolio/${c.slug}`,
+    changeFrequency: "monthly",
+    priority: 0.7,
+  }));
+
+  return [...staticPages, ...portfolioPages];
+}

@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { PageHero } from "@/components/page-hero";
 import { Reveal } from "@/components/reveal";
+import { siteConfig } from "@/lib/site-config";
 
 export const metadata: Metadata = {
   title: "About | Hamish AI",
@@ -156,7 +157,7 @@ export default function AboutPage() {
         </Reveal>
         <Reveal delay={60}>
           <a
-            href="https://linkedin.com/in/hamish-mcfarlane"
+            href={siteConfig.linkedin}
             target="_blank"
             rel="noopener noreferrer"
             className="mt-6 inline-flex items-center gap-1 text-sm font-medium text-accent hover:underline"

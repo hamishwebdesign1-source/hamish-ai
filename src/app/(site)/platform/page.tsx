@@ -20,6 +20,8 @@ import {
 import { platformPlans, formatMonthlyPrice } from "@/lib/platform-plans";
 import { createServerSupabaseClient } from "@/lib/supabase-server-auth";
 import { getOrgMembership } from "@/lib/org-membership";
+import { FaqJsonLd } from "@/components/seo/faq-json-ld";
+import { PlatformProductJsonLd } from "@/components/seo/platform-product-json-ld";
 
 export const metadata: Metadata = {
   title: "HamishAI Agency Platform — Launch Your Own AI Agency",
@@ -82,6 +84,7 @@ export default async function PlatformPage() {
 
   return (
     <>
+      <PlatformProductJsonLd />
       {/* Same dark-video-hero DNA as the homepage (page.tsx) rather than
           the plain PageHero every other page uses — this page didn't have
           real photography behind it before (the product mockup sat on a
@@ -298,6 +301,7 @@ export default async function PlatformPage() {
       <section className="border-t border-border/60">
         <div className="mx-auto max-w-6xl px-6 py-16 md:py-20">
           <div className="max-w-3xl">
+            <FaqJsonLd faqs={platformFaqs} />
             <h2 className="font-heading text-2xl font-semibold md:text-3xl">Questions</h2>
             <Accordion className="mt-8">
               {platformFaqs.map((faq) => (

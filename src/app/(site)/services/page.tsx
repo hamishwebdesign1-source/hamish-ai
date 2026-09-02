@@ -12,6 +12,8 @@ import {
   AccordionContent,
 } from "@/components/ui/accordion";
 import { packages, foundingOfferNote, analyticsPackage } from "@/lib/site-config";
+import { FaqJsonLd } from "@/components/seo/faq-json-ld";
+import { ServicesJsonLd } from "@/components/seo/services-json-ld";
 
 // Derived directly from each package's real feature list below — nothing
 // here is invented, it's the same facts read as a comparable matrix
@@ -57,6 +59,7 @@ const pricingFaqs = [
 export default function ServicesPage() {
   return (
     <>
+      <ServicesJsonLd />
       <PageHero
         eyebrow="Services & pricing"
         title="AI transformation, at founding client prices."
@@ -248,6 +251,7 @@ export default function ServicesPage() {
       <section className="border-t border-border/60">
         <div className="mx-auto max-w-6xl px-6 py-16 md:py-20">
           <div className="max-w-3xl">
+            <FaqJsonLd faqs={pricingFaqs} />
             <h2 className="font-heading text-2xl font-semibold md:text-3xl">
               Pricing questions
             </h2>

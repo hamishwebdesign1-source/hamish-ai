@@ -30,6 +30,7 @@ import {
 import { aiSolutions } from "@/lib/ai-solutions-data";
 import { dashboardKpis, aiInsights } from "@/lib/analytics-data";
 import { KpiCard } from "@/components/analytics/kpi-card";
+import { FaqJsonLd } from "@/components/seo/faq-json-ld";
 
 const industries = [
   { icon: UtensilsCrossed, name: "Restaurants & cafés", href: "/portfolio/the-gannet" },
@@ -303,7 +304,7 @@ export default function HomePage() {
                   <div className="relative aspect-[16/10] w-full overflow-hidden bg-primary">
                     <Image
                       src={s.image}
-                      alt=""
+                      alt={`${s.name} illustration`}
                       fill
                       sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
                       className="object-cover"
@@ -496,6 +497,7 @@ export default function HomePage() {
       <section className="border-t border-border/60">
         <div className="mx-auto max-w-6xl px-6 py-16 md:py-20">
           <div className="max-w-3xl">
+            <FaqJsonLd faqs={faqs} />
             <Reveal>
               <h2 className="font-heading text-2xl font-semibold md:text-3xl">
                 Common questions

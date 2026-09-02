@@ -2,6 +2,7 @@ import Script from "next/script";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
 import { ChatWidget } from "@/components/chat-widget";
+import { OrganizationJsonLd } from "@/components/seo/organization-json-ld";
 
 export default function MarketingLayout({
   children,
@@ -10,6 +11,12 @@ export default function MarketingLayout({
 }>) {
   return (
     <>
+      {/* SEO/GEO audit (2026-09-02) — same "marketing layout, not root"
+          scoping this layout's own Preferred Sources script below already
+          established: Organization/WebSite entity markup is about this
+          public site as a publisher, not the authed app surfaces
+          (/studio, /portal, /admin) the root layout also covers. */}
+      <OrganizationJsonLd />
       {/* Google Preferred Sources — lets a reader add hamishai.org as a
           preferred source in Search/Discover/AI Overviews (Google Search
           Central: developers.google.com/search/docs/appearance/preferred-sources).
