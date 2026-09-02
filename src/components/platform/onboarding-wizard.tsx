@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Check, Sparkles, CreditCard } from "lucide-react";
+import { Check, Sparkles, CreditCard, ChevronDown, ChevronUp } from "lucide-react";
 import { Eyebrow } from "@/components/eyebrow";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -43,6 +43,7 @@ export function OnboardingWizard({ email, initialPlan }: { email: string; initia
   const [selectedPlan, setSelectedPlan] = useState<PlatformPlanSlug>(initialPlan ?? "professional");
   const [agencyName, setAgencyName] = useState("");
   const [agencyType, setAgencyType] = useState<(typeof AGENCY_TYPES)[number]["slug"] | null>(null);
+  const [expandedType, setExpandedType] = useState<(typeof AGENCY_TYPES)[number]["slug"] | null>(null);
   const [services, setServices] = useState<string[]>([]);
   const [accentColor, setAccentColor] = useState("#2b5d59");
   const [status, setStatus] = useState<"idle" | "submitting" | "error">("idle");
@@ -180,18 +181,50 @@ export function OnboardingWizard({ email, initialPlan }: { email: string; initia
               </p>
               <div className="mt-6 space-y-2">
                 {AGENCY_TYPES.map((type) => (
-                  <button
+                  <div
                     key={type.slug}
-                    type="button"
-                    onClick={() => setAgencyType(type.slug)}
                     className={cn(
-                      "w-full rounded-xl border p-4 text-left transition-colors",
+                      "w-full rounded-xl border transition-colors",
                       agencyType === type.slug ? "border-accent/60 bg-accent/5" : "border-border hover:bg-secondary/40"
                     )}
                   >
-                    <p className="font-heading text-sm font-semibold">{type.name}</p>
-                    <p className="mt-1 text-xs text-muted-foreground">{type.description}</p>
-                  </button>
+                    <button type="button" onClick={() => setAgencyType(type.slug)} className="w-full p-4 text-left">
+                      <p className="font-heading text-sm font-semibold">{type.name}</p>
+                      <p className="mt-1 text-xs text-muted-foreground">{type.description}</p>
+                    </button>
+                    {/* Content enrichment pass — a one-line description isn't
+                        enough to actually choose a business model from, but
+                        showing all 4 bullets for all 3 cards at once would
+                        make this step overwhelming. Expand/collapse per card,
+                        sibling of the select button above (not nested inside
+                        it) — same reasoning every other checkbox-inside-a-
+                        clickable-row fix elsewhere in this app documents. */}
+                    <button
+                      type="button"
+                      onClick={() => setExpandedType((prev) => (prev === type.slug ? null : type.slug))}
+                      className="flex w-full items-center gap-1 px-4 pb-3 text-[11px] font-medium text-accent"
+                    >
+                      {expandedType === type.slug ? (
+                        <>
+                          <ChevronUp className="size-3" /> Hide how this works
+                        </>
+                      ) : (
+                        <>
+                          <ChevronDown className="size-3" /> How does this work?
+                        </>
+                      )}
+                    </button>
+                    {expandedType === type.slug && (
+                      <ul className="space-y-1.5 border-t border-border px-4 py-3 text-xs text-muted-foreground">
+                        {type.howItWorks.map((point) => (
+                          <li key={point} className="flex gap-2">
+                            <span className="mt-1.5 size-1 shrink-0 rounded-full bg-accent" />
+                            {point}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
                 ))}
               </div>
               <div className="mt-6 flex gap-3">

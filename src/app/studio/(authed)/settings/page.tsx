@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { CircleAlert, CheckCircle2, CreditCard, ExternalLink, Clock, Activity, Bot } from "lucide-react";
+import { CircleAlert, CheckCircle2, CreditCard, ExternalLink, Clock, Activity, Bot, Briefcase } from "lucide-react";
 import { createServerSupabaseClient } from "@/lib/supabase-server-auth";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { getOrgMembership } from "@/lib/org-membership";
@@ -25,6 +25,7 @@ import type { PlatformPlanSlug } from "@/lib/platform-plans";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { findAgencyType } from "@/lib/agency-types";
 
 // Server-side data assembly only, same split as /studio/prospects — the
 // connect/disconnect/check actions live in settings/actions.ts and
@@ -64,7 +65,7 @@ export default async function StudioSettingsPage({
   const { data: org } = await supabase
     .from("organisations")
     .select(
-      "name, brand, is_internal, plan, stripe_connect_account_id, stripe_connect_charges_enabled, deletion_requested_at, command_centre_layout, owner_digest_enabled, today_strip_stats"
+      "name, brand, is_internal, plan, stripe_connect_account_id, stripe_connect_charges_enabled, deletion_requested_at, command_centre_layout, owner_digest_enabled, today_strip_stats, prospecting_config"
     )
     .eq("id", membership.orgId)
     .single();
@@ -80,6 +81,13 @@ export default async function StudioSettingsPage({
   const commandCentreBlocks = resolveLayout(org?.command_centre_layout);
   const plan = (org?.plan ?? "starter") as PlatformPlanSlug;
   const seatLimit = seatLimitForPlan(plan);
+  // Content enrichment — the agency type picked once at onboarding was
+  // never surfaced anywhere in Studio again afterwards (agencyType is
+  // otherwise only ever read by draft-sales-kit.ts, to shape AI-generated
+  // outreach voice, never displayed back to the tenant). See agency-
+  // types.ts's own comment for the full "what Studio does vs. what you
+  // bring yourself" reasoning behind the howItWorks content shown below.
+  const agencyType = findAgencyType((org?.prospecting_config as { agencyType?: string } | null)?.agencyType);
 
   // Command Centre Phase 5e — command_centre_layout_history_select_own_org
   // RLS (schema-rls-command-centre-layout-history.sql) enforces the same
@@ -243,6 +251,61 @@ export default async function StudioSettingsPage({
           <h2 className="font-heading text-xs font-semibold tracking-wide text-muted-foreground uppercase">Branding</h2>
           <div className="mt-3">
             <BrandingPanel accentColor={brand.accentColor ?? null} />
+          </div>
+        </div>
+      )}
+
+      {/* Content enrichment — was picked once at signup and never shown
+          again. Read-only here on purpose: this explains what's already
+          shaping your AI-generated outreach voice (draft-sales-kit.ts),
+          not a settings toggle to change it — same "the onboarding wizard
+          is the one place this decision gets made" scope this session's
+          own agency-type-templates fix already established. */}
+      {!org?.is_internal && agencyType && (
+        <div>
+          <h2 className="font-heading text-xs font-semibold tracking-wide text-muted-foreground uppercase">Business model</h2>
+          <div className="mt-3">
+            <Card>
+              <CardContent className="space-y-3">
+                <div className="flex items-center gap-3">
+                  <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-accent/10 text-accent">
+                    <Briefcase className="size-4" />
+                  </span>
+                  <div>
+                    <p className="text-sm font-medium">{agencyType.name}</p>
+                    <p className="text-xs text-muted-foreground">{agencyType.description}</p>
+                  </div>
+                </div>
+                <div className="border-t border-border pt-3">
+                  <p className="text-xs font-semibold text-muted-foreground">Services you picked at signup</p>
+                  <div className="mt-1.5 flex flex-wrap gap-1.5">
+                    {((org?.prospecting_config as { services?: string[] } | null)?.services ?? agencyType.services).map((service) => (
+                      <Badge key={service} variant="secondary">
+                        {service}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+                <div className="border-t border-border pt-3">
+                  <p className="text-xs font-semibold text-muted-foreground">How this works in Studio</p>
+                  <ul className="mt-1.5 space-y-1.5 text-xs text-muted-foreground">
+                    {agencyType.howItWorks.map((point) => (
+                      <li key={point} className="flex gap-2">
+                        <span className="mt-1.5 size-1 shrink-0 rounded-full bg-accent" />
+                        {point}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+                <p className="border-t border-border pt-3 text-[11px] text-muted-foreground">
+                  This shapes the tone of your AI-generated outreach — set once during signup. Email{" "}
+                  <a href="mailto:hello@hamishai.org" className="text-accent underline underline-offset-2">
+                    hello@hamishai.org
+                  </a>{" "}
+                  if your business has genuinely changed direction and you&apos;d like it updated.
+                </p>
+              </CardContent>
+            </Card>
           </div>
         </div>
       )}
