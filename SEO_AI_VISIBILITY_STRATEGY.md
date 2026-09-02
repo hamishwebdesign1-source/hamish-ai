@@ -142,17 +142,12 @@ under `src/components/seo/`):
 | `Service` (as `ItemList`) | `/services` | The 4 real consultancy packages, live from `site-config.ts` |
 | `FAQPage` | `/`, `/services` | Real, already-visible FAQ content, verbatim |
 | `Person` | `/about` | Hamish McFarlane's real, stated background |
+| `BreadcrumbList` | `/portfolio/[slug]` | Real, visible Home > Portfolio > [Case Study] trail — added alongside the UI itself (`src/components/breadcrumbs.tsx`), not schema-only |
 
 **Deliberately not added** (per the audit's own "don't add schema for
 information that isn't actually present" rule):
 - `AggregateRating` / `Review` — no real reviews exist anywhere in this
   codebase to cite.
-- `BreadcrumbList` — no visible breadcrumb UI exists on any page yet. Adding
-  the schema without the visible trail would be exactly the kind of
-  schema-for-schema's-sake the brief prohibited. **Recommended, not built**:
-  a small, real breadcrumb component on `/portfolio/[slug]` pages (Home >
-  Portfolio > [Case Study]) would be low-risk, genuinely useful UI, and
-  would earn real BreadcrumbList schema — a good scoped follow-up.
 - `SoftwareApplication` on `/` — `Product` was the more defensible choice;
   `SoftwareApplication` schema expects fields (operatingSystem, real install
   counts) this codebase has no honest way to fill in.
@@ -190,20 +185,16 @@ assumed):
 │  homepage teaser → /analytics, etc.)
 ```
 
-**Recommended additions** (not built in this pass — genuine content-strategy
-calls, not code fixes):
-1. `/agency` should link back to `/` more than once — currently only the
-   header's muted link does this. A line in `/agency`'s own copy ("this
-   system is also what we sell — see the Agency Platform") pointing to `/`
-   would close the loop honestly (it's already true, per the homepage's own
-   "Built for HamishAI. Now available to you" section).
-2. Once the Content Roadmap items exist, every pillar/supporting-page
-   relationship listed there should link both ways — pillar → supporting,
-   supporting → pillar — not just downward.
-3. `/about` (Person schema, real credibility) is currently not linked from
-   the homepage `/` at all — worth one link ("built by a Technology
-   Business Analyst — read more") given it's real, verifiable, and exactly
-   the kind of E-E-A-T signal Google's helpful-content guidance rewards.
+**Done** (both closed in the follow-up pass, `bb4834f`):
+1. `/agency` now links back to `/` in its own copy — "That system is also
+   what we sell — see the Agency Platform."
+2. `/` now links to `/about` next to the existing "See AI Business
+   Analytics" link — "Built by a Technology Business Analyst — read more."
+
+**Still recommended** (genuine content-strategy work, not a code fix):
+- Once the Content Roadmap items exist, every pillar/supporting-page
+  relationship listed there should link both ways — pillar → supporting,
+  supporting → pillar — not just downward.
 
 ---
 
@@ -314,8 +305,6 @@ without a real reason it fits HamishAI's actual audience.
 **60 days**
 - Publish 5-8 more Content Roadmap pieces, cross-linked per the pillar
   structure below.
-- Build the real breadcrumb UI + BreadcrumbList schema on
-  `/portfolio/[slug]`.
 - First LinkedIn thought-leadership push tied to the real NatWest/
   business-analyst story.
 
@@ -394,6 +383,9 @@ See the individual commits for full detail — summarized here:
 7. Fixed a stale LinkedIn URL on `/about`.
 8. The homepage/`/platform` swap (a separate, larger change — see its own
    commit) and every metadata/schema update that required.
+9. Real breadcrumb UI + BreadcrumbList schema on `/portfolio/[slug]`, and
+   the two internal-linking gaps this doc originally flagged
+   (`/agency` → `/`, `/` → `/about`) — both closed.
 
 ## What still needs to be done externally
 
