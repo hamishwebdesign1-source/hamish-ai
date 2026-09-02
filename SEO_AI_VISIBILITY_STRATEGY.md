@@ -54,6 +54,11 @@ access to.
 | 6 of 8 homepage images had empty `alt` | Live DOM check | **Fixed** |
 | `/about`'s LinkedIn link didn't match the site's real one used everywhere else | Source grep | **Fixed** |
 | `organisations.name` (unrelated to marketing SEO, but same audit) fed an email `From` header with no control-character stripping | Source read | **Fixed** (separate, already-shipped commit this session) |
+| 2 meta descriptions ran past Google's ~155-160 char truncation point (`/analytics` 186 chars, `/ai-solutions` 159) | Parsed every page's real metadata export, measured length | **Fixed** — both trimmed, no real content dropped |
+| `/analytics` has a real, visible 5-question FAQ accordion the first FAQPage schema pass missed | Source grep for every `AccordionItem` usage across `(site)` | **Fixed** — `FaqJsonLd` added |
+| No `og:type`/`og:site_name`/`og:locale` anywhere — `openGraph` was never set in this codebase | Live meta-tag dump on `/about`; source-wide grep for `openGraph` | **Fixed** — set once in `(site)/layout.tsx`, applies sitewide |
+| `<html lang="en">` under-specified a consistently British-English site | Source read | **Fixed** — now `en-GB`, matching the new `og:locale` (`en_GB`) |
+| 2 more empty `alt=""` on `/portfolio`'s case-study preview images | Source read | **Fixed** |
 | **Not yet checked**: Core Web Vitals / real page-speed numbers | — | Needs a real Lighthouse or PageSpeed Insights run against the live URL — not something verifiable from source alone |
 | **Not yet checked**: mobile usability audit beyond responsive-class review | — | Needs a real device/viewport pass |
 | **Not verified**: whether Google has actually crawled/indexed the new sitemap yet | — | Needs Search Console — submit the sitemap there (see 30-day plan) |
@@ -143,6 +148,7 @@ under `src/components/seo/`):
 | `FAQPage` | `/`, `/services` | Real, already-visible FAQ content, verbatim |
 | `Person` | `/about` | Hamish McFarlane's real, stated background |
 | `BreadcrumbList` | `/portfolio/[slug]` | Real, visible Home > Portfolio > [Case Study] trail — added alongside the UI itself (`src/components/breadcrumbs.tsx`), not schema-only |
+| `ItemList` | `/portfolio` | The 5 real case studies, live from `case-studies-data.ts` |
 
 **Deliberately not added** (per the audit's own "don't add schema for
 information that isn't actually present" rule):
@@ -386,6 +392,12 @@ See the individual commits for full detail — summarized here:
 9. Real breadcrumb UI + BreadcrumbList schema on `/portfolio/[slug]`, and
    the two internal-linking gaps this doc originally flagged
    (`/agency` → `/`, `/` → `/about`) — both closed.
+10. Trimmed 2 truncating meta descriptions; added the FAQPage schema
+    `/analytics` was missing; set `og:type`/`og:site_name`/`og:locale`
+    sitewide (never set anywhere before); corrected `<html lang>` to
+    `en-GB`; added `/portfolio`'s ItemList schema and fixed 2 more
+    empty `alt=""`; confirmed no duplicate `<title>` across any page
+    and correct `priority` image usage (no LCP-hurting over-use).
 
 ## What still needs to be done externally
 
