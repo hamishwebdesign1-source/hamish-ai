@@ -47,10 +47,11 @@ export function OrganizationJsonLd() {
         url: "https://hamishai.org",
         name: siteConfig.name,
         publisher: { "@id": "https://hamishai.org/#organization" },
-        // Matches the root layout's actual declared <html lang="en">
-        // exactly — not "en-GB", which nothing in this codebase
-        // currently declares even though the copy is British English.
-        inLanguage: "en",
+        // Matches the root layout's own <html lang="en-GB"> (fixed in
+        // the same audit pass) and (site)/layout.tsx's og:locale
+        // (en_GB) — all three now agree, where this used to be the one
+        // place still saying the more generic "en".
+        inLanguage: "en-GB",
       },
     ],
   };

@@ -43,7 +43,13 @@ export default function RootLayout({
 }>) {
   return (
     <html
-      lang="en"
+      // SEO audit (2026-09-02) — was the generic "en"; the site's own
+      // copy is consistently British English throughout ("colour",
+      // "organisation", "optimisation") and og:locale ((site)/layout.tsx)
+      // is now explicitly en_GB, so this was the one place still
+      // under-specifying which. A real, if small, signal for screen
+      // readers and search engines, not just decorative.
+      lang="en-GB"
       className={`${dmSans.variable} ${plexMono.variable} ${fraunces.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">

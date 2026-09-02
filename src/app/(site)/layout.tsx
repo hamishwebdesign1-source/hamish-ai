@@ -1,8 +1,27 @@
+import type { Metadata } from "next";
 import Script from "next/script";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
 import { ChatWidget } from "@/components/chat-widget";
 import { OrganizationJsonLd } from "@/components/seo/organization-json-ld";
+
+// SEO/GEO audit (2026-09-02) — verified live: no page anywhere set
+// `og:type`, `og:site_name`, or `og:locale` (confirmed via a live meta
+// tag dump on /about — og:title/description/image were present,
+// auto-derived by Next.js from each page's own plain title/description,
+// but nothing in this codebase had ever set the `openGraph` object
+// itself). Set once here, at the same marketing-layout scope as the
+// Organization schema above, and it applies to every page under it —
+// each page's own `title`/`description` still flow through and
+// override the title/description a social platform actually shows;
+// this only fills in the structural fields nothing was setting.
+export const metadata: Metadata = {
+  openGraph: {
+    type: "website",
+    siteName: "Hamish AI",
+    locale: "en_GB",
+  },
+};
 
 export default function MarketingLayout({
   children,

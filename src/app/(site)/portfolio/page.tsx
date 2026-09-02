@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { PageHero } from "@/components/page-hero";
 import { Reveal } from "@/components/reveal";
 import { caseStudies } from "@/lib/case-studies-data";
+import { PortfolioJsonLd } from "@/components/seo/portfolio-json-ld";
 
 export const metadata: Metadata = {
   title: "Portfolio | Hamish AI",
@@ -17,6 +18,7 @@ export const metadata: Metadata = {
 export default function PortfolioPage() {
   return (
     <>
+      <PortfolioJsonLd />
       <PageHero
         eyebrow="Portfolio"
         title="Case studies, not just concepts."
@@ -43,7 +45,7 @@ export default function PortfolioPage() {
                   {study.signatureImage && (
                     <Image
                       src={study.signatureImage}
-                      alt=""
+                      alt={`${study.name} — case study preview`}
                       fill
                       sizes="180px"
                       className="object-cover"
@@ -73,7 +75,7 @@ export default function PortfolioPage() {
                   {study.signatureImage && (
                     <Image
                       src={study.signatureImage}
-                      alt=""
+                      alt={`${study.name} — case study preview`}
                       fill
                       sizes="(min-width: 640px) 50vw, 100vw"
                       className="object-cover transition-transform duration-500 ease-out group-hover:scale-[1.06]"
