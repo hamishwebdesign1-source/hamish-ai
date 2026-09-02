@@ -16,6 +16,23 @@ import { siteConfig } from "@/lib/site-config";
 // have would be exactly the kind of schema-for-schema's-sake the audit
 // was told not to do. No `aggregateRating`/`review` — no real reviews
 // exist anywhere in this codebase to cite.
+//
+// `description` deliberately does NOT reuse siteConfig.description (2 Sep
+// 2026 fix) — that field is Platform-only copy (matches the homepage's
+// own <meta name="description">), but this component renders sitewide,
+// including on /agency, the still-real, still-operating Edinburgh
+// consultancy page. Verified live: /agency's own Organization JSON-LD was
+// literally saying "The platform behind HamishAI, now yours to run your
+// own agency on" directly under a page whose entire content is the
+// consultancy pitch — accurate for search engines looking at "/", wrong
+// for any AI system or crawler reading it via "/agency". Since the
+// Organization entity genuinely runs both (real, not aspirational — the
+// consultancy is still active, per (site)/agency/page.tsx's own comment),
+// the fix is a description that's true regardless of which page a
+// crawler enters through, not borrowed from either page's own pitch.
+const ORGANIZATION_DESCRIPTION =
+  "Hamish AI — an Edinburgh AI consultancy for small businesses, and the team behind the HamishAI Agency Platform, the infrastructure other agencies run their own AI services business on.";
+
 export function OrganizationJsonLd() {
   const jsonLd = {
     "@context": "https://schema.org",
@@ -27,7 +44,7 @@ export function OrganizationJsonLd() {
         alternateName: "HamishAI",
         url: "https://hamishai.org",
         logo: "https://hamishai.org/icon.svg",
-        description: siteConfig.description,
+        description: ORGANIZATION_DESCRIPTION,
         email: siteConfig.email,
         areaServed: {
           "@type": "City",
