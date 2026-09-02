@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { Check, Sparkles, CreditCard, ChevronDown, ChevronUp } from "lucide-react";
+import { Check, Sparkles, CreditCard, ChevronDown, ChevronUp, Lock } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { Eyebrow } from "@/components/eyebrow";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -32,6 +33,23 @@ import { submitOnboarding } from "@/app/platform/onboarding/actions";
 type Step = "start" | "name" | "type" | "services" | "branding" | "review";
 const STEPS: Step[] = ["start", "name", "type", "services", "branding", "review"];
 
+// Pricing-promise audit (2026-09-02) — platform-plans.ts's own features
+// list promises "1 agency type template" (Starter), "2 to 3" (Professional),
+// "All" (Agency), but nothing anywhere actually restricted which of the 3
+// AGENCY_TYPES a tenant could pick — every plan saw and could select all
+// 3. Gates the "type" step by count, in AGENCY_TYPES' own declared order
+// (analytics, automation, lead-generation) — not a new ranking invented
+// here, just the array's existing order. Keyed off `selectedPlan`, not a
+// server-fetched org.plan: this step runs before the org even exists, and
+// selectedPlan already reflects the plan the tenant actually clicked into
+// signup with (see its own declaration above), which is the real signal
+// of intent here, not the "starts on Starter" trial default.
+const AGENCY_TYPE_COUNT_FOR_PLAN: Record<PlatformPlanSlug, number> = {
+  starter: 1,
+  professional: 2,
+  agency: 3,
+};
+
 export function OnboardingWizard({ email, initialPlan }: { email: string; initialPlan: PlatformPlanSlug | null }) {
   const [step, setStep] = useState<Step>("start");
   // "trial" is the default regardless of whether a plan arrived via
@@ -50,7 +68,17 @@ export function OnboardingWizard({ email, initialPlan }: { email: string; initia
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const stepIndex = STEPS.indexOf(step);
-  const selectedType = AGENCY_TYPES.find((t) => t.slug === agencyType);
+  const unlockedTypeCount = AGENCY_TYPE_COUNT_FOR_PLAN[selectedPlan];
+  // Derived, not effect-driven — a real, reachable edge case: pick a type
+  // only Agency unlocks, click back, switch to Starter. Rather than a
+  // useEffect calling setAgencyType(null) (a synchronous-setState-in-
+  // effect anti-pattern this codebase's own lint config flags), a
+  // now-locked selection just stops counting as selected wherever
+  // selectedType is read below — no separate reset needed, and clicking
+  // a still-unlocked card overwrites the stale slug in state normally.
+  const rawSelectedType = AGENCY_TYPES.find((t) => t.slug === agencyType);
+  const rawSelectedIndex = rawSelectedType ? AGENCY_TYPES.indexOf(rawSelectedType) : -1;
+  const selectedType = rawSelectedIndex >= 0 && rawSelectedIndex >= unlockedTypeCount ? undefined : rawSelectedType;
 
   function next() {
     if (stepIndex < STEPS.length - 1) setStep(STEPS[stepIndex + 1]);
@@ -180,16 +208,34 @@ export function OnboardingWizard({ email, initialPlan }: { email: string; initia
                 This shapes how prospecting and reporting work for you — pick the closest fit.
               </p>
               <div className="mt-6 space-y-2">
-                {AGENCY_TYPES.map((type) => (
+                {AGENCY_TYPES.map((type, i) => {
+                  const locked = i >= unlockedTypeCount;
+                  return (
                   <div
                     key={type.slug}
                     className={cn(
                       "w-full rounded-xl border transition-colors",
-                      agencyType === type.slug ? "border-accent/60 bg-accent/5" : "border-border hover:bg-secondary/40"
+                      locked
+                        ? "border-border opacity-60"
+                        : agencyType === type.slug
+                          ? "border-accent/60 bg-accent/5"
+                          : "border-border hover:bg-secondary/40"
                     )}
                   >
-                    <button type="button" onClick={() => setAgencyType(type.slug)} className="w-full p-4 text-left">
-                      <p className="font-heading text-sm font-semibold">{type.name}</p>
+                    <button
+                      type="button"
+                      onClick={() => !locked && setAgencyType(type.slug)}
+                      disabled={locked}
+                      className={cn("w-full p-4 text-left", locked && "cursor-not-allowed")}
+                    >
+                      <p className="flex items-center gap-2 font-heading text-sm font-semibold">
+                        {type.name}
+                        {locked && (
+                          <Badge variant="secondary" className="gap-1 font-mono text-[10px] font-normal">
+                            <Lock className="size-2.5" /> {platformPlans[i].name} plan
+                          </Badge>
+                        )}
+                      </p>
                       <p className="mt-1 text-xs text-muted-foreground">{type.description}</p>
                     </button>
                     {/* Content enrichment pass — a one-line description isn't
@@ -225,11 +271,12 @@ export function OnboardingWizard({ email, initialPlan }: { email: string; initia
                       </ul>
                     )}
                   </div>
-                ))}
+                  );
+                })}
               </div>
               <div className="mt-6 flex gap-3">
                 <Button variant="outline" className="flex-1" onClick={back}>Back</Button>
-                <Button className="flex-1" disabled={!agencyType} onClick={next}>Continue</Button>
+                <Button className="flex-1" disabled={!selectedType} onClick={next}>Continue</Button>
               </div>
             </>
           )}

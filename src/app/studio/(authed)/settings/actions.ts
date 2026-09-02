@@ -78,6 +78,12 @@ export async function runReplyCheck() {
 // updateProspectingConfig() in prospects/actions.ts: brand is expected to
 // grow more keys later (logo, eventually a custom domain per that
 // column's own schema comment) and a colour update shouldn't erase them.
+// Pricing-promise audit (2026-09-02) — Starter's own bullet
+// ("HamishAI-branded client portal") only means something if this is
+// actually refused on that plan, not just hidden by the UI. Real
+// server-side gate, same "never trust the client" rule every ownership
+// check in this codebase already follows — BrandingPanel's own
+// `locked` prop is the UI half of this, not a substitute for it.
 export async function updateBrandAccent(color: string) {
   const orgId = await requireOrgId();
   const admin = getSupabaseAdmin();
@@ -85,7 +91,11 @@ export async function updateBrandAccent(color: string) {
 
   if (!/^#[0-9a-f]{6}$/i.test(color)) return { error: "Enter a valid colour." };
 
-  const { data: org } = await admin.from("organisations").select("brand").eq("id", orgId).single();
+  const { data: org } = await admin.from("organisations").select("brand, plan, is_internal").eq("id", orgId).single();
+  if (!org?.is_internal && org?.plan === "starter") {
+    return { error: "Upgrade to Professional to set your own portal colour." };
+  }
+
   const merged = { ...(org?.brand ?? {}), accentColor: color };
 
   const { error } = await admin.from("organisations").update({ brand: merged }).eq("id", orgId);

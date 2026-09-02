@@ -5,6 +5,20 @@ import { headers } from "next/headers";
 import { createAgencyOrganisation, type CreateAgencyInput } from "@/lib/platform-onboarding";
 import { createPlatformCheckoutSession } from "@/lib/platform-checkout";
 import type { PlatformPlanSlug } from "@/lib/platform-plans";
+import { AGENCY_TYPES } from "@/lib/agency-types";
+
+// Pricing-promise audit (2026-09-02) — same order/count the wizard's own
+// AGENCY_TYPE_COUNT_FOR_PLAN uses (onboarding-wizard.tsx), duplicated
+// here rather than imported: that one is keyed for a client component's
+// UI gating, this is the server-side consistency check backing it up
+// (never trust the client rule) — a request crafted to call this Server
+// Action directly, bypassing the wizard's own disabled cards entirely,
+// shouldn't be able to claim a type the declared plan doesn't unlock.
+const AGENCY_TYPE_COUNT_FOR_PLAN: Record<PlatformPlanSlug, number> = {
+  starter: 1,
+  professional: 2,
+  agency: 3,
+};
 
 // Same Host-header origin pattern as billing/actions.ts's own
 // getOrigin() — a Server Action has no request.url to build success/
@@ -29,6 +43,18 @@ export async function submitOnboarding(
   input: CreateAgencyInput & { startMode: "trial" | "pay-now"; selectedPlan: PlatformPlanSlug | null }
 ) {
   const { startMode, selectedPlan, ...agencyInput } = input;
+
+  // Not org.plan (every org starts on 'starter' regardless of intent —
+  // see createAgencyOrganisation()'s own comment; a real plan upgrade
+  // only lands later, via the Stripe webhook, if pay-now checkout ever
+  // completes) — the declared selectedPlan is the only signal available
+  // at this point, same one the wizard's own gating already trusted.
+  const typeIndex = AGENCY_TYPES.findIndex((t) => t.name === agencyInput.agencyType);
+  const allowedCount = AGENCY_TYPE_COUNT_FOR_PLAN[selectedPlan ?? "starter"];
+  if (typeIndex >= allowedCount) {
+    return { error: "That business model isn't available on the selected plan." };
+  }
+
   const result = await createAgencyOrganisation(agencyInput);
   if ("error" in result) return result;
 

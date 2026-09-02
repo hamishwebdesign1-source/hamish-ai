@@ -250,8 +250,30 @@ export default async function StudioSettingsPage({
         <div>
           <h2 className="font-heading text-xs font-semibold tracking-wide text-muted-foreground uppercase">Branding</h2>
           <div className="mt-3">
-            <BrandingPanel accentColor={brand.accentColor ?? null} />
+            <BrandingPanel
+              accentColor={brand.accentColor ?? null}
+              locked={plan === "starter"}
+              upgradeReason="Your plan includes HamishAI's own portal branding. Upgrade to Professional to set your own accent colour."
+            />
           </div>
+          {/* Pricing-promise audit (2026-09-02) — the Agency plan's own
+              "White-label add-on available once requested" had no
+              request path anywhere in the product; a tenant would have
+              had to already know to email us out of band. Real
+              white-labelling (a verified sending/portal domain per org)
+              is a genuinely bigger build than this settings page — see
+              send-org-email.ts's own comment — so this is the honest
+              "request" entry point the pricing copy promises, not the
+              feature itself. */}
+          {plan === "agency" && (
+            <p className="mt-3 text-xs text-muted-foreground">
+              Your plan includes white-label as an add-on. Email{" "}
+              <a href="mailto:hello@hamishai.org?subject=White-label request" className="text-accent underline underline-offset-2">
+                hello@hamishai.org
+              </a>{" "}
+              to request your own sending domain and portal URL.
+            </p>
+          )}
         </div>
       )}
 
