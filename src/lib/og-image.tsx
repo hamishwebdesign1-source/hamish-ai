@@ -124,6 +124,18 @@ function wrapLines(words: string[], maxWidth: number, avgCharWidth: number) {
 // The words inside `highlight` render in accent blue, the same color as the
 // eyebrow, giving each card one real focal point instead of a wall of flat
 // ink text.
+// Trailing punctuation stripped before comparing, not just an exact
+// string match — found live, 2 Sep 2026: a `highlight` phrase landing on
+// title's last word (before a full stop) or a word followed by a comma
+// silently failed to match ("time" vs title's own "time.", "studies" vs
+// "studies,") and rendered the whole highlight in plain ink with no
+// error, on 3 separate real pages before this fix (home, book,
+// portfolio). Comparing only the stripped form means a caller no longer
+// has to remember to duplicate title's own punctuation inside its own
+// `highlight` string for this exact, easy-to-miss case — the original,
+// punctuated word is still what actually renders.
+const stripTrailingPunctuation = (w: string) => w.replace(/[.,!?;:]+$/, "");
+
 function TitleText({ title, highlight }: { title: string; highlight?: string }) {
   const words = title.split(" ");
   let hlStart = -1;
@@ -131,7 +143,7 @@ function TitleText({ title, highlight }: { title: string; highlight?: string }) 
   if (highlight) {
     const hlWords = highlight.split(" ");
     for (let i = 0; i <= words.length - hlWords.length; i++) {
-      if (hlWords.every((w, j) => words[i + j] === w)) {
+      if (hlWords.every((w, j) => stripTrailingPunctuation(words[i + j]) === stripTrailingPunctuation(w))) {
         hlStart = i;
         hlEnd = i + hlWords.length - 1;
         break;

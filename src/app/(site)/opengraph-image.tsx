@@ -23,13 +23,12 @@ export const alt = "HamishAI Agency Platform — the complete infrastructure for
 export default async function Image() {
   return ogImageResponse({
     eyebrow: "HamishAI Agency Platform",
-    // No trailing period, unlike the real <h1> — ogImageResponse's
-    // highlight matching (og-image.tsx) does an exact word-token
-    // comparison against title.split(" "), so a highlighted phrase
-    // landing on the sentence's last word silently fails to match
-    // "agency." (period attached, no space) and renders unhighlighted
-    // with no error. Confirmed live before settling on this.
-    title: "The complete infrastructure for your own AI agency",
+    // Trailing period restored to match the real <h1> exactly (2 Sep
+    // 2026) — first shipped without one, working around a real bug in
+    // og-image.tsx's own highlight matching that's since been fixed at
+    // the root (trailing punctuation is now stripped before comparing),
+    // so the title no longer needs to avoid its own real punctuation.
+    title: "The complete infrastructure for your own AI agency.",
     highlight: "AI agency",
   });
 }
