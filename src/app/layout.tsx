@@ -22,16 +22,18 @@ const fraunces = Fraunces({
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://hamishai.org"),
-  title: "Hamish AI | Edinburgh's AI Transformation Partner for Small Businesses",
-  // Rewritten 19 Aug 2026 — this is the meta description search engines
-  // and social link previews actually show, so it's arguably the single
-  // highest-stakes line of copy on the site: a stranger reads this before
-  // they've clicked through to anything else. The old line ("unlock new
-  // growth opportunities using practical AI solutions") was generic
-  // AI-agency filler; this says the one concrete, unusual thing about the
-  // offer instead — same fix as the homepage headline, same reasoning.
+  // Updated 2 Sep 2026 — the Agency Platform is now the homepage (see
+  // (site)/page.tsx's own comment), so this root default — used as the
+  // fallback for any page that somehow renders with no metadata of its
+  // own — should describe that, not the archived Edinburgh homepage's
+  // pitch (that page, /agency, now carries its own matching metadata
+  // export instead). The homepage's own metadata export already
+  // overrides this for "/" specifically; this mainly matters for
+  // consistency (the root default and the actual homepage should agree)
+  // and true edge cases.
+  title: "HamishAI Agency Platform — Launch Your Own AI Agency",
   description:
-    "AI websites and automation for Edinburgh small businesses — see a free, working prototype before you pay anything. Plain English, no obligation.",
+    "The platform behind HamishAI, now yours to run your own agency on. Prospecting, AI analysis, outreach and client delivery, in one workspace.",
 };
 
 export default function RootLayout({

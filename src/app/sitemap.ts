@@ -16,17 +16,22 @@ import { caseStudies } from "@/lib/case-studies-data";
 export default function sitemap(): MetadataRoute.Sitemap {
   const base = "https://hamishai.org";
 
+  // Updated 2 Sep 2026 — the Agency Platform moved from /platform to /
+  // (the homepage); /platform now 301-redirects here (next.config.ts),
+  // so it's dropped from this list rather than listed as a second URL
+  // for the same content. The archived former homepage lives at /agency
+  // now, still real and indexable, just no longer priority 1.
   const staticPages: MetadataRoute.Sitemap = [
     { url: `${base}/`, changeFrequency: "weekly", priority: 1 },
-    { url: `${base}/services`, changeFrequency: "monthly", priority: 0.9 },
-    { url: `${base}/ai-solutions`, changeFrequency: "monthly", priority: 0.9 },
-    { url: `${base}/analytics`, changeFrequency: "monthly", priority: 0.8 },
-    { url: `${base}/platform`, changeFrequency: "monthly", priority: 0.9 },
-    { url: `${base}/portfolio`, changeFrequency: "monthly", priority: 0.8 },
-    { url: `${base}/about`, changeFrequency: "monthly", priority: 0.6 },
-    { url: `${base}/website-audit`, changeFrequency: "monthly", priority: 0.7 },
-    { url: `${base}/contact`, changeFrequency: "yearly", priority: 0.5 },
-    { url: `${base}/book`, changeFrequency: "yearly", priority: 0.6 },
+    { url: `${base}/agency`, changeFrequency: "weekly", priority: 0.8 },
+    { url: `${base}/services`, changeFrequency: "monthly", priority: 0.7 },
+    { url: `${base}/ai-solutions`, changeFrequency: "monthly", priority: 0.7 },
+    { url: `${base}/analytics`, changeFrequency: "monthly", priority: 0.7 },
+    { url: `${base}/portfolio`, changeFrequency: "monthly", priority: 0.6 },
+    { url: `${base}/about`, changeFrequency: "monthly", priority: 0.5 },
+    { url: `${base}/website-audit`, changeFrequency: "monthly", priority: 0.6 },
+    { url: `${base}/contact`, changeFrequency: "yearly", priority: 0.4 },
+    { url: `${base}/book`, changeFrequency: "yearly", priority: 0.5 },
     { url: `${base}/privacy`, changeFrequency: "yearly", priority: 0.1 },
     { url: `${base}/terms`, changeFrequency: "yearly", priority: 0.1 },
   ];

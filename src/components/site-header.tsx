@@ -26,8 +26,18 @@ export function SiteHeader() {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
+  // 2 Sep 2026 — the Agency Platform marketing page moved from /platform
+  // to / (the homepage), and the previous homepage moved to /agency (see
+  // (site)/page.tsx's own comment for the full reasoning). This header is
+  // shared by both worlds, so "am I on a Platform page" can no longer be
+  // a startsWith("/platform") check — that would now miss the homepage
+  // itself. Exact-match on "/" (not startsWith, which would wrongly match
+  // every route) plus the real /platform/* subroutes (signup, onboarding,
+  // callback — untouched, still under src/app/platform/) and /studio.
+  const isPlatformContext = pathname === "/" || pathname.startsWith("/platform/") || pathname.startsWith("/studio");
+
   useEffect(() => {
-    if (!pathname.startsWith("/platform")) return;
+    if (!isPlatformContext) return;
     // Session check only, not org membership — /studio's own server-side
     // gate already sends a signed-in-but-orgless visitor on to
     // /platform/onboarding correctly, so this doesn't need to duplicate
@@ -35,7 +45,7 @@ export function SiteHeader() {
     getSupabaseBrowserClient()
       .auth.getUser()
       .then(({ data }) => setSignedIn(Boolean(data.user)));
-  }, [pathname]);
+  }, [isPlatformContext]);
 
   return (
     <header
@@ -83,35 +93,45 @@ export function SiteHeader() {
               this sat flush in the main nav. A muted, visually distinct
               text link instead of a matching nav item or button keeps it
               reachable without implying it's another consultancy page. */}
-          {pathname.startsWith("/platform") ? (
+          {isPlatformContext && signedIn ? null : isPlatformContext ? (
             // Contextual, not global — this header is shared with every
-            // consultancy page too (About, Services...), and a "Sign in"
-            // link there would confuse a local business owner who isn't
-            // an Agency Platform tenant at all, same reasoning as this
-            // link's own comment for why "Launch an AI agency" stays
-            // muted rather than a full nav item. Only shown once someone's
-            // actually on a Platform-related page.
+            // consultancy page too (About, Services, /agency...), and a
+            // "Sign in" link there would confuse a local business owner
+            // who isn't an Agency Platform tenant at all, same reasoning
+            // as this link's own comment for why "Launch an AI agency"
+            // stays muted rather than a full nav item.
+            // Only shown once someone's actually on a Platform-related
+            // page (now including the homepage itself). Skipped entirely
+            // when already signed in — the primary button just to the
+            // right already says "Go to Studio", so this would only
+            // repeat it.
             <Link
-              href={signedIn ? "/studio" : "/platform/signup"}
+              href="/platform/signup"
               className="hidden text-xs text-muted-foreground underline decoration-border underline-offset-4 transition-colors hover:text-foreground lg:inline"
             >
-              {signedIn ? "Go to Studio" : "Sign in"}
+              Sign in
             </Link>
           ) : (
             <Link
-              href="/platform"
+              href="/"
               className="hidden text-xs text-muted-foreground underline decoration-border underline-offset-4 transition-colors hover:text-foreground lg:inline"
             >
               Launch an AI agency →
             </Link>
           )}
-          <Button
-            size="sm"
-            className="hidden sm:inline-flex"
-            render={<Link href="/book" />}
-          >
-            Book a free AI consultation
-          </Button>
+          {/* Also contextual, same reasoning as the muted link above —
+              with the Platform now the homepage, always showing the
+              consultancy's own CTA here would put the wrong primary
+              button on the page most people land on first. */}
+          {isPlatformContext ? (
+            <Button size="sm" className="hidden sm:inline-flex" render={<Link href={signedIn ? "/studio" : "/platform/signup"} />}>
+              {signedIn ? "Go to Studio" : "Start free trial"}
+            </Button>
+          ) : (
+            <Button size="sm" className="hidden sm:inline-flex" render={<Link href="/book" />}>
+              Book a free AI consultation
+            </Button>
+          )}
           <Button
             size="icon"
             variant="ghost"
@@ -138,29 +158,43 @@ export function SiteHeader() {
                 {item.label}
               </Link>
             ))}
-            <Button
-              size="sm"
-              className="mt-2 w-full"
-              render={<Link href="/book" />}
-              onClick={() => setOpen(false)}
-            >
-              Book a free AI consultation
-            </Button>
-            {pathname.startsWith("/platform") ? (
+            {isPlatformContext ? (
+              <Button
+                size="sm"
+                className="mt-2 w-full"
+                render={<Link href={signedIn ? "/studio" : "/platform/signup"} />}
+                onClick={() => setOpen(false)}
+              >
+                {signedIn ? "Go to Studio" : "Start free trial"}
+              </Button>
+            ) : (
+              <Button
+                size="sm"
+                className="mt-2 w-full"
+                render={<Link href="/book" />}
+                onClick={() => setOpen(false)}
+              >
+                Book a free AI consultation
+              </Button>
+            )}
+            {/* Signed in + platform context already has "Go to Studio" as
+                the primary button just above — this second link would
+                just repeat it, so it's skipped rather than duplicated. */}
+            {isPlatformContext && signedIn ? null : isPlatformContext ? (
               <Link
-                href={signedIn ? "/studio" : "/platform/signup"}
+                href="/platform/signup"
                 className="text-center text-xs text-muted-foreground underline decoration-border underline-offset-4"
                 onClick={() => setOpen(false)}
               >
-                {signedIn ? "Go to Studio" : "Sign in"}
+                Sign in
               </Link>
             ) : (
               <Link
-                href="/platform"
+                href="/"
                 className="text-center text-xs text-muted-foreground underline decoration-border underline-offset-4"
                 onClick={() => setOpen(false)}
               >
-                Or launch your own AI agency →
+                Launch an AI agency →
               </Link>
             )}
           </div>

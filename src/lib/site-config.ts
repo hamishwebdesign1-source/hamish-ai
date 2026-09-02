@@ -1,12 +1,18 @@
 export const siteConfig = {
   name: "Hamish AI",
-  tagline: "Edinburgh's AI transformation partner for small businesses",
-  // Kept in sync with layout.tsx's <meta name="description"> even though
-  // nothing currently reads this field (confirmed via grep) — a stale,
-  // contradictory copy of the same fact sitting unused here is exactly
-  // the kind of drift that looks intentional to whoever finds it next.
+  // Updated 2 Sep 2026, alongside layout.tsx's own metadata — the Agency
+  // Platform is now the homepage/growth focus (see (site)/page.tsx's own
+  // comment), so this and `description` below now lead with that rather
+  // than the Edinburgh consultancy pitch, which is still real (still
+  // reachable at /agency, still what `location`/`email`/`phone` below
+  // genuinely belong to) but no longer the primary framing.
+  tagline: "Infrastructure for AI agencies — built running a real one in Edinburgh.",
+  // Kept in sync with layout.tsx's <meta name="description"> — now
+  // read by organization-json-ld.tsx's sitewide Organization schema, so
+  // drift here is no longer just a stale unused field, it's a real,
+  // visible-to-search-engines inconsistency if the two disagree.
   description:
-    "AI websites and automation for Edinburgh small businesses — see a free, working prototype before you pay anything. Plain English, no obligation.",
+    "The platform behind HamishAI, now yours to run your own agency on. Prospecting, AI analysis, outreach and client delivery, in one workspace.",
   location: "Edinburgh, Scotland",
   email: "HamishWebDesign1@gmail.com",
   phone: "07949 674994",

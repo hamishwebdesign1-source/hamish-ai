@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { PageHero } from "@/components/page-hero";
 import { siteConfig } from "@/lib/site-config";
 import { platformPlans, formatMonthlyPrice, PROSPECT_CREDIT_PACK } from "@/lib/platform-plans";
@@ -55,7 +56,7 @@ export default function TermsPage() {
               A one-time credit pack (+{PROSPECT_CREDIT_PACK.prospects} prospects for £
               {(PROSPECT_CREDIT_PACK.pricePence / 100).toFixed(0)}) is also available if you go over your monthly
               allowance — this is a single purchase, not a subscription, and doesn&apos;t renew. Current prices are
-              always shown on the <a href="/platform" className="text-accent hover:underline">pricing page</a>; if
+              always shown on the <Link href="/" className="text-accent hover:underline">pricing page</Link>; if
               we change them, it won&apos;t affect a subscription you already have until you&apos;re told in
               advance.
             </p>

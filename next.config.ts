@@ -24,6 +24,18 @@ const nextConfig: NextConfig = {
       bodySizeLimit: "4.5mb",
     },
   },
+  // 2 Sep 2026 — the Agency Platform marketing page moved from /platform
+  // to / (it's the homepage now; the old homepage moved to /agency, see
+  // (site)/page.tsx's own comment). Permanent redirect, not a deleted
+  // route left to 404: /platform/signup, /platform/onboarding, and
+  // /platform/callback are untouched (they live under src/app/platform/,
+  // a different folder from the marketing page that was under
+  // src/app/(site)/platform/) — this only redirects the bare marketing
+  // URL, so any existing bookmark or backlink still lands on real,
+  // correct content instead of a dead end.
+  async redirects() {
+    return [{ source: "/platform", destination: "/", permanent: true }];
+  },
 };
 
 // withSentryConfig is safe to apply unconditionally — without SENTRY_ORG/
