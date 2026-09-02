@@ -120,11 +120,35 @@ export default async function StudioHomePage() {
   const membership = await getOrgMembership(supabase, user.email);
   if (!membership) redirect("/platform/onboarding");
 
-  const { data: org } = await supabase
+  const { data: orgResult } = await supabase
     .from("organisations")
     .select("name, plan, prospecting_config, is_internal, brand, stripe_connect_charges_enabled, command_centre_layout, today_strip_stats")
     .eq("id", membership.orgId)
     .single();
+
+  // Bug fix — reported live: the greeting showed the literal fallback
+  // text "your agency" instead of a tenant's real org name, even though
+  // the exact same row's name renders correctly in the layout just above
+  // it (layout.tsx's own, much narrower, org query — name,
+  // tour_completed_at, subscription_status, trial_ends_at, is_internal).
+  // Couldn't pin down a definitive root cause without live reproduction
+  // (the membership resolution is deterministic, every column in the
+  // wider select genuinely exists on organisations) — but `.single()`
+  // throws (data null) on any transient hiccup for this one row, where
+  // the rest of this page's UI just quietly renders with an empty org.
+  // Retry once with the identical column set — same shape, so nothing
+  // downstream needs to guard for a narrower fallback — rather than
+  // leaving the org's own name silently blank on a query that should
+  // succeed.
+  const org =
+    orgResult ??
+    (
+      await supabase
+        .from("organisations")
+        .select("name, plan, prospecting_config, is_internal, brand, stripe_connect_charges_enabled, command_centre_layout, today_strip_stats")
+        .eq("id", membership.orgId)
+        .maybeSingle()
+    ).data;
   const blocks = resolveLayout(org?.command_centre_layout);
 
   const config = (org?.prospecting_config ?? {}) as { agencyType?: string; services?: string[] };
