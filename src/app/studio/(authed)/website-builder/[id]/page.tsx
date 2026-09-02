@@ -10,6 +10,8 @@ import { LaunchPanel } from "@/components/platform/launch-panel";
 import { ProjectStageTracker } from "@/components/platform/project-stage-tracker";
 import { TroubleshootingComposer } from "@/components/platform/troubleshooting-composer";
 import { WebsiteProjectFilesPanel, type ProjectFile } from "@/components/platform/website-project-files-panel";
+import { WebsiteProjectAssigneeControl } from "@/components/platform/website-project-assignee-control";
+import { listTeamMembers } from "@/lib/team-members";
 import { Eyebrow } from "@/components/eyebrow";
 import type { WebsiteBrief, WebsiteDiscovery } from "@/lib/website-brief";
 import type { BuildPhase } from "@/lib/website-build-phases";
@@ -31,14 +33,19 @@ export default async function WebsiteProjectDetailPage({ params }: { params: Pro
 
   // Session-scoped client — website_projects_select_own_org RLS enforces
   // the same org boundary independently of this .eq() getting it right.
-  const { data: project } = await supabase
-    .from("website_projects")
-    .select(
-      "id, stage, discovery, brief, brief_generated_at, client_id, tool_quiz_answers, recommended_tool, build_phases, current_phase_index, live_url, analytics_connected, troubleshooting_log, clients(business_name)"
-    )
-    .eq("id", id)
-    .eq("org_id", membership.orgId)
-    .single();
+  const [{ data: project }, teamMembers] = await Promise.all([
+    supabase
+      .from("website_projects")
+      .select(
+        "id, stage, discovery, brief, brief_generated_at, client_id, tool_quiz_answers, recommended_tool, build_phases, current_phase_index, live_url, analytics_connected, troubleshooting_log, assigned_to, clients(business_name)"
+      )
+      .eq("id", id)
+      .eq("org_id", membership.orgId)
+      .single(),
+    // Studio big-ticket ("team collaboration") — same session-scoped
+    // read as every other page that added assignment this session.
+    listTeamMembers(supabase, membership.orgId),
+  ]);
 
   if (!project) notFound();
 
@@ -66,7 +73,10 @@ export default async function WebsiteProjectDetailPage({ params }: { params: Pro
         <ArrowLeft className="size-3.5" /> Website Builder
       </Link>
       <Eyebrow className="mt-4">Website Project</Eyebrow>
-      <h1 className="mt-1 font-heading text-2xl font-semibold md:text-3xl">{clientName}</h1>
+      <div className="mt-1 flex flex-wrap items-center justify-between gap-3">
+        <h1 className="font-heading text-2xl font-semibold md:text-3xl">{clientName}</h1>
+        <WebsiteProjectAssigneeControl projectId={project.id} initialAssignedTo={project.assigned_to} teamMembers={teamMembers} />
+      </div>
       <div className="mt-4">
         <ProjectStageTracker stage={project.stage} />
       </div>

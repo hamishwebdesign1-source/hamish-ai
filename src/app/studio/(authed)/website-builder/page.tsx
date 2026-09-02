@@ -43,6 +43,7 @@ type WebsiteProjectRow = {
   id: string;
   stage: string;
   created_at: string;
+  assigned_to: string | null;
   clients: { business_name: string } | null;
 };
 
@@ -64,6 +65,16 @@ function ProjectRow({ project }: { project: WebsiteProjectRow }) {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            {/* Studio big-ticket ("team collaboration") — read-only here
+                (this row is a plain server-rendered <Link>, not an
+                interactive card); the assignee <select> itself lives on
+                the project's own detail page
+                (WebsiteProjectAssigneeControl). */}
+            {project.assigned_to && (
+              <span className="font-mono text-[11px] text-muted-foreground" title={`Assigned to ${project.assigned_to}`}>
+                {project.assigned_to.split("@")[0]}
+              </span>
+            )}
             {isStale && (
               <Badge variant="warning" className="gap-1">
                 <Clock className="size-3" /> {daysOld}d
@@ -97,7 +108,7 @@ export default async function WebsiteBuilderPage() {
   // independently of this .eq() getting it right.
   const { data: projects } = await supabase
     .from("website_projects")
-    .select("id, stage, created_at, client_id, clients(business_name)")
+    .select("id, stage, created_at, client_id, assigned_to, clients(business_name)")
     .eq("org_id", membership.orgId)
     .order("created_at", { ascending: false });
 

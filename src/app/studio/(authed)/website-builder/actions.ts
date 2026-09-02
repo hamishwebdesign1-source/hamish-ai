@@ -13,6 +13,8 @@ import { recommendTool, AI_CODING_TOOLS, type ToolId, type ToolQuizAnswers } fro
 import { getUsageStatus, recordUsageEvent } from "@/lib/usage-limits";
 import { isStudioActionRateLimited } from "@/lib/chat-rate-limit";
 import type { PlatformPlanSlug } from "@/lib/platform-plans";
+import { logAuditEvent } from "@/lib/audit-log";
+import { notifyAssignee } from "@/lib/team-members";
 
 // Same session-derivation as every other Studio actions.ts file this
 // session — kept as its own local copy, same convention settings/actions.ts
@@ -124,6 +126,74 @@ export async function createWebsiteProject(clientId: string, discoveryInput: Par
 
   revalidatePath("/studio/website-builder");
   redirect(`/studio/website-builder/${project.id}`);
+}
+
+// Same shape as requests/prospects/projects actions.ts's own
+// requireOrgIdAndEmail() — a separate local helper rather than changing
+// requireOrgId()'s own return shape, same "duplicated per file on
+// purpose" convention every requireOrgId() copy in this app documents.
+async function requireOrgIdAndEmail(): Promise<{ orgId: string; email: string }> {
+  const supabase = await createServerSupabaseClient();
+  const {
+    data: { user },
+  } = await getUserWithRetry(supabase);
+  if (!user?.email) throw new Error("Not signed in.");
+
+  const membership = await getOrgMembership(supabase, user.email);
+  if (!membership) throw new Error("No organisation found for this session.");
+  return { orgId: membership.orgId, email: user.email };
+}
+
+// Studio big-ticket ("team collaboration") — the one project-like
+// workflow left out of assignment when requests/prospects/projects got
+// it. Same shape as assignProject() (projects/actions.ts).
+export async function assignWebsiteProject(projectId: string, assigneeEmail: string | null) {
+  const { orgId, email: actorEmail } = await requireOrgIdAndEmail();
+  const admin = getSupabaseAdmin();
+  if (!admin) return { error: "Supabase is not configured." };
+
+  const { data: project } = await admin
+    .from("website_projects")
+    .select("id, clients(business_name)")
+    .eq("id", projectId)
+    .eq("org_id", orgId)
+    .maybeSingle();
+  if (!project) return { error: "Project not found." };
+
+  const normalised = assigneeEmail?.trim().toLowerCase() || null;
+  if (normalised) {
+    const { data: member } = await admin.from("memberships").select("email").eq("org_id", orgId).eq("email", normalised).maybeSingle();
+    if (!member) return { error: "That person isn't on your team." };
+  }
+
+  const { error } = await admin.from("website_projects").update({ assigned_to: normalised }).eq("id", projectId);
+  if (error) return { error: "Failed to update." };
+
+  logAuditEvent({
+    actor: actorEmail,
+    actorType: "admin",
+    action: normalised ? "website_project.assigned" : "website_project.unassigned",
+    targetType: "website_project",
+    targetId: projectId,
+    orgId,
+    metadata: normalised ? { assignedTo: normalised } : undefined,
+  });
+
+  if (normalised) {
+    const clients = project.clients as { business_name: string } | { business_name: string }[] | null;
+    const businessName = (Array.isArray(clients) ? clients[0] : clients)?.business_name;
+    notifyAssignee(admin, {
+      orgId,
+      assigneeEmail: normalised,
+      assignedByEmail: actorEmail,
+      itemLabel: businessName ? `the website build for ${businessName}` : "a website build",
+      path: "/studio/website-builder",
+    });
+  }
+
+  revalidatePath("/studio/website-builder");
+  revalidatePath(`/studio/website-builder/${projectId}`);
+  return { ok: true as const };
 }
 
 // Explicit regenerate — same "never auto-regenerate, only on a deliberate

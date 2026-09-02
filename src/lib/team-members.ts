@@ -117,7 +117,13 @@ export async function removeTeamMember(admin: SupabaseClient, orgId: string, ema
 // actually sending it.
 export async function notifyAssignee(
   admin: SupabaseClient,
-  params: { orgId: string; assigneeEmail: string; assignedByEmail: string; itemLabel: string; path: "/studio/requests" | "/studio/prospects" | "/studio/projects" }
+  params: {
+    orgId: string;
+    assigneeEmail: string;
+    assignedByEmail: string;
+    itemLabel: string;
+    path: "/studio/requests" | "/studio/prospects" | "/studio/projects" | "/studio/website-builder";
+  }
 ): Promise<void> {
   // No point emailing someone about assigning something to themselves.
   if (params.assigneeEmail === params.assignedByEmail) return;
