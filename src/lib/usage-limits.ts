@@ -18,7 +18,8 @@ export type UsageEventType =
   | "layout_redesign_proposed"
   | "website_brief_generated"
   | "website_build_prompt_generated"
-  | "website_troubleshooting_generated";
+  | "website_troubleshooting_generated"
+  | "knowledge_document_imported";
 
 // Calendar month, not a rolling 30 days — matches how the pricing page
 // already describes each plan ("up to 30 researched prospects a month"),
@@ -65,6 +66,12 @@ const USAGE_MULTIPLIER: Record<Exclude<UsageEventType, "prospect_researched">, n
   // research cost) — same headroom class as clients_copilot_question,
   // not the 3x ceiling a full brief/build-phase regeneration gets.
   website_troubleshooting_generated: 10,
+  // Studio big-ticket ("Knowledge Base AI document import") — a real
+  // document import happens a handful of times per client onboarding
+  // (the initial FAQ doc, maybe a re-upload once it's out of date), not
+  // a repeated working session — same headroom class as icp_built/
+  // website_brief_generated, not the 10x chat-session ceiling.
+  knowledge_document_imported: 3,
 };
 
 // Real-improvement pass — shared source of truth for human-readable
@@ -84,6 +91,7 @@ export const USAGE_LABELS: Record<UsageEventType, string> = {
   website_brief_generated: "Website briefs generated",
   website_build_prompt_generated: "Website build prompts generated",
   website_troubleshooting_generated: "Website troubleshooting fixes",
+  knowledge_document_imported: "Knowledge base documents imported",
 };
 
 // All 10 real metered types, in the same order USAGE_MULTIPLIER lists
@@ -101,6 +109,7 @@ export const ALL_USAGE_EVENT_TYPES: UsageEventType[] = [
   "website_brief_generated",
   "website_build_prompt_generated",
   "website_troubleshooting_generated",
+  "knowledge_document_imported",
 ];
 
 function limitFor(eventType: UsageEventType, plan: PlatformPlanSlug): number {

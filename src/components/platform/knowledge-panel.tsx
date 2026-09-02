@@ -1,15 +1,21 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import Link from "next/link";
-import { BookOpen, Plus, Pencil, Trash2, X, Sparkles, Search } from "lucide-react";
+import { BookOpen, Plus, Pencil, Trash2, X, Sparkles, Search, Upload } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { createKnowledgeEntry, updateKnowledgeEntry, deleteKnowledgeEntry } from "@/app/studio/(authed)/knowledge/actions";
+import {
+  createKnowledgeEntry,
+  updateKnowledgeEntry,
+  deleteKnowledgeEntry,
+  extractKnowledgeFromDocument,
+  importKnowledgeEntries,
+} from "@/app/studio/(authed)/knowledge/actions";
 
 type Client = { id: string; business_name: string; source_lead_id?: string | null };
 type Entry = { id: string; client_id: string | null; title: string; content: string; created_at: string };
@@ -122,6 +128,164 @@ function ResearchImportCard({ client, research, onImport }: { client: Client; re
         <Button size="sm" variant="outline" className="shrink-0" onClick={onImport}>
           Add to knowledge base
         </Button>
+      </CardContent>
+    </Card>
+  );
+}
+
+// Studio big-ticket ("Knowledge Base AI document import") — the tenant
+// equivalent of admin's own importKnowledgeFromDocument()
+// (/admin/(authed)/knowledge/page.tsx). Deliberately a two-step
+// extract-then-review flow, not admin's direct insert: same
+// "importing research doesn't skip the human-reviews-before-it-saves
+// step" convention EntryForm's own comment documents above — a tenant
+// can edit or drop any extracted entry before anything is actually
+// saved, via the same review-list shape, just for many entries at once
+// instead of one.
+type ExtractedEntry = { title: string; content: string };
+
+function DocumentImportControl({ clients }: { clients: Client[] }) {
+  const [clientId, setClientId] = useState("");
+  const [extractPending, startExtract] = useTransition();
+  const [extractError, setExtractError] = useState<string | null>(null);
+  const [reviewing, setReviewing] = useState<ExtractedEntry[] | null>(null);
+  const [savePending, startSave] = useTransition();
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [open, setOpen] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  function extract(formData: FormData) {
+    setExtractError(null);
+    startExtract(async () => {
+      const r = await extractKnowledgeFromDocument(formData);
+      if ("error" in r) {
+        setExtractError(r.error);
+        return;
+      }
+      setReviewing(r.entries);
+    });
+  }
+
+  function updateEntry(index: number, field: "title" | "content", value: string) {
+    setReviewing((prev) => (prev ? prev.map((e, i) => (i === index ? { ...e, [field]: value } : e)) : prev));
+  }
+
+  function removeEntry(index: number) {
+    setReviewing((prev) => (prev ? prev.filter((_, i) => i !== index) : prev));
+  }
+
+  function saveAll() {
+    if (!reviewing?.length) return;
+    setSaveError(null);
+    startSave(async () => {
+      const r = await importKnowledgeEntries(clientId || null, reviewing);
+      if (r && "error" in r) {
+        setSaveError(r.error ?? "Failed to save.");
+        return;
+      }
+      setReviewing(null);
+      setOpen(false);
+    });
+  }
+
+  if (reviewing) {
+    return (
+      <Card>
+        <CardContent className="space-y-3 py-4">
+          <p className="text-xs font-semibold text-muted-foreground">
+            {reviewing.length} entr{reviewing.length === 1 ? "y" : "ies"} found — review before saving
+          </p>
+          <div className="space-y-2">
+            {reviewing.map((e, i) => (
+              <div key={i} className="rounded-lg border border-border p-2.5">
+                <div className="flex items-start justify-between gap-2">
+                  <Input value={e.title} onChange={(ev) => updateEntry(i, "title", ev.target.value)} className="h-8 text-sm font-medium" />
+                  <Button size="xs" variant="ghost" onClick={() => removeEntry(i)} aria-label={`Remove "${e.title}"`}>
+                    <X className="size-3.5" />
+                  </Button>
+                </div>
+                <Textarea value={e.content} onChange={(ev) => updateEntry(i, "content", ev.target.value)} rows={2} className="mt-1.5 text-xs" />
+              </div>
+            ))}
+          </div>
+          <div className="flex items-center gap-2">
+            <Button size="sm" disabled={savePending || reviewing.length === 0} onClick={saveAll}>
+              {savePending ? "Saving…" : `Save ${reviewing.length} entr${reviewing.length === 1 ? "y" : "ies"}`}
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => setReviewing(null)}>
+              Cancel
+            </Button>
+          </div>
+          {saveError && <p className="text-xs text-destructive">{saveError}</p>}
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (!open) {
+    return (
+      <Button size="sm" variant="outline" onClick={() => setOpen(true)}>
+        <Upload className="size-3.5" /> Import from document
+      </Button>
+    );
+  }
+
+  return (
+    <Card>
+      <CardContent className="space-y-3 py-4">
+        <p className="text-xs text-muted-foreground">
+          Upload a document (.pdf, .docx, .txt) and the AI splits it into entries you can review before saving —
+          business facts only, hours, pricing, policies, FAQs.
+        </p>
+        <div>
+          <Label htmlFor="kb-import-client" className="text-xs">
+            Applies to
+          </Label>
+          <select id="kb-import-client" value={clientId} onChange={(e) => setClientId(e.target.value)} className={selectClasses}>
+            <option value="">General (all clients)</option>
+            {clients.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.business_name}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <Label htmlFor="kb-import-file" className="text-xs">
+            Document
+          </Label>
+          <input
+            ref={fileInputRef}
+            id="kb-import-file"
+            name="document"
+            type="file"
+            accept=".pdf,.docx,.txt,.md"
+            required
+            className="block w-full text-sm"
+          />
+        </div>
+        <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            disabled={extractPending}
+            onClick={() => {
+              const file = fileInputRef.current?.files?.[0];
+              if (!file) {
+                setExtractError("Choose a file first.");
+                return;
+              }
+              const formData = new FormData();
+              formData.set("document", file);
+              extract(formData);
+            }}
+          >
+            {extractPending ? "Extracting…" : "Extract entries"}
+          </Button>
+          <Button size="sm" variant="ghost" onClick={() => setOpen(false)}>
+            Cancel
+          </Button>
+        </div>
+        {extractError && <p className="text-xs text-destructive">{extractError}</p>}
       </CardContent>
     </Card>
   );
@@ -265,13 +429,16 @@ export function KnowledgePanel({
         </div>
       )}
 
-      <div className="mt-6">
+      <div className="mt-6 space-y-3">
         {draft ? (
           <EntryForm draft={draft} clients={clients} onCancel={() => setDraft(null)} onSaved={() => setDraft(null)} />
         ) : (
-          <Button size="sm" onClick={() => setDraft({ clientId: "", title: "", content: "" })}>
-            <Plus className="size-3.5" /> Add entry
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button size="sm" onClick={() => setDraft({ clientId: "", title: "", content: "" })}>
+              <Plus className="size-3.5" /> Add entry
+            </Button>
+            <DocumentImportControl clients={clients} />
+          </div>
         )}
       </div>
 
