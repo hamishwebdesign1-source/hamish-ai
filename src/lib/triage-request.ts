@@ -7,6 +7,7 @@ import { logAuditEvent } from "@/lib/audit-log";
 import { getUsageStatus, recordUsageEvent } from "@/lib/usage-limits";
 import { isTriageRateLimited } from "@/lib/chat-rate-limit";
 import type { PlatformPlanSlug } from "@/lib/platform-plans";
+import { logAiCall } from "@/lib/ai-call-log";
 
 type Client = {
   id: string;
@@ -351,6 +352,20 @@ export async function triageRequest(
   // common under real load than a single-attempt happy path assumed. Only
   // the last attempt's result is accepted as a last resort if still
   // imperfect, never a silent placeholder.
+  //
+  // Studio big-ticket ("Model Performance completeness") — logAiCall()
+  // below both return points, not in a Studio Server Action, because
+  // this whole function is triggered by a tenant's own *client* (via
+  // /portal/requests or an inbound email), not the tenant themselves —
+  // same reasoning request_triaged's own usage-metering comment above
+  // already gives for why the cap lives in this one place every path
+  // passes through. Gated the same way (a real tenant org only, not
+  // HamishAI's own internal triage).
+  const startedAt = Date.now();
+  const logResult = (success: boolean) => {
+    if (client.org_id && sender && !sender.isInternal) logAiCall(client.org_id, "request_triage", { success, latencyMs: Date.now() - startedAt });
+  };
+
   let triage: TriageResult | null = null;
   try {
     for (let attempt = 0; attempt < 3; attempt++) {
@@ -361,11 +376,16 @@ export async function triageRequest(
       }
       if (result && attempt === 2) triage = result; // last attempt: use what we have rather than nothing
     }
-    if (!triage) return { error: "The AI did not return a structured result." as const };
+    if (!triage) {
+      logResult(false);
+      return { error: "The AI did not return a structured result." as const };
+    }
   } catch (error) {
     console.error("Triage request failed:", error);
+    logResult(false);
     return { error: "The triage agent is temporarily unavailable." as const };
   }
+  logResult(true);
 
   const status = triage.missing_info.length ? "awaiting_info" : "triaged";
 
@@ -609,6 +629,13 @@ export async function regenerateDraftResponse(clientId: string, rawText: string)
   const anthropic = new Anthropic({ apiKey });
   const model = process.env.ANTHROPIC_MODEL || "claude-haiku-4-5-20251001";
 
+  // Studio big-ticket ("Model Performance completeness") — same
+  // logAiCall() shape as triageRequest() above.
+  const startedAt = Date.now();
+  const logResult = (success: boolean) => {
+    if (client.org_id && !sender.isInternal) logAiCall(client.org_id, "request_triage", { success, latencyMs: Date.now() - startedAt });
+  };
+
   let triage: TriageResult | null = null;
   try {
     for (let attempt = 0; attempt < 3; attempt++) {
@@ -619,11 +646,16 @@ export async function regenerateDraftResponse(clientId: string, rawText: string)
       }
       if (result && attempt === 2) triage = result;
     }
-    if (!triage) return { error: "The AI did not return a structured result." };
+    if (!triage) {
+      logResult(false);
+      return { error: "The AI did not return a structured result." };
+    }
   } catch (error) {
     console.error("Draft regeneration failed:", error);
+    logResult(false);
     return { error: "The triage agent is temporarily unavailable." };
   }
+  logResult(true);
 
   if (!sender.isInternal && client.org_id) await recordUsageEvent(client.org_id, "request_triaged");
 

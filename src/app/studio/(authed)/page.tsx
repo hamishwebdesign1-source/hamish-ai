@@ -24,7 +24,7 @@ import { getStudioAnalytics, RANGE_LABELS, type AnalyticsRange, type AnalyticsDa
 import { generateInsights } from "@/lib/studio-insights";
 import { computeClientEngagementRisk } from "@/lib/studio-engagement";
 import { computeRecentClientActivity } from "@/lib/studio-client-activity";
-import { getModelPerformance } from "@/lib/studio-model-performance";
+import { getModelPerformance, emptyModelPerformance } from "@/lib/studio-model-performance";
 import { computeClientAiAdoption } from "@/lib/studio-ai-adoption";
 import { getHealthTrend, getHealthSeries } from "@/lib/studio-health-history";
 import { getAdoptionSeries } from "@/lib/studio-adoption-history";
@@ -276,20 +276,7 @@ export default async function StudioHomePage() {
 
   const admin = getSupabaseAdmin();
   const [modelPerformance, healthTrend, adoptionSeries, healthSeries, analyticsEntries] = await Promise.all([
-    admin
-      ? getModelPerformance(admin, membership.orgId)
-      : Promise.resolve({
-          callCount: 0,
-          successRatePct: null,
-          medianLatencyMs: null,
-          estimatedCostUsd: null,
-          estimatedCostGbp: null,
-          fxRateFetchedAt: null,
-          byFeature: {
-            design_assistant: { callCount: 0, successRatePct: null, medianLatencyMs: null, estimatedCostUsd: null, estimatedCostGbp: null },
-            business_analyst: { callCount: 0, successRatePct: null, medianLatencyMs: null, estimatedCostUsd: null, estimatedCostGbp: null },
-          },
-        }),
+    admin ? getModelPerformance(admin, membership.orgId) : Promise.resolve(emptyModelPerformance()),
     admin && agencyHealth.healthScore !== null
       ? getHealthTrend(admin, membership.orgId, agencyHealth.healthScore)
       : Promise.resolve(null),

@@ -4,7 +4,22 @@ import { getSupabaseAdmin } from "@/lib/supabase";
 // schema-ai-call-log.sql for why this is a separate table from
 // usage_events rather than new columns on it.
 
-export type AiCallFeature = "design_assistant" | "business_analyst";
+// Studio big-ticket ("Model Performance completeness") — widened from
+// the original 2-feature set to the real full list of Claude-backed
+// Studio actions (see studio-model-performance.ts's own AiFeature type,
+// which this must stay in lockstep with — same values, same order).
+export type AiCallFeature =
+  | "design_assistant"
+  | "business_analyst"
+  | "prospect_research"
+  | "sales_kit"
+  | "website_mockup"
+  | "icp_builder"
+  | "request_triage"
+  | "website_brief"
+  | "website_build_phase"
+  | "website_troubleshooting"
+  | "knowledge_import";
 
 // Fire-and-forget, same posture as trackServerEvent() and
 // recordUsageEvent(): logging a call must never be the reason the real

@@ -409,25 +409,34 @@ export function buildSectionContent(params: {
                 </>
               )}
             </p>
-            {/* Studio improvement — only shown once both features have
-                real calls to break down; with only one feature in use,
-                the aggregate above already *is* that feature's own
-                number, so a breakdown would just repeat it. */}
-            {modelPerformance.byFeature.design_assistant.callCount > 0 && modelPerformance.byFeature.business_analyst.callCount > 0 && (
-              <div className="mt-3 space-y-1.5 border-t border-border pt-3">
-                {(Object.keys(FEATURE_LABELS) as AiFeature[]).map((feature) => {
-                  const stats = modelPerformance.byFeature[feature];
-                  return (
-                    <div key={feature} className="flex items-center justify-between gap-2 text-xs">
-                      <span className="text-muted-foreground">{FEATURE_LABELS[feature]}</span>
-                      <span className="font-mono text-muted-foreground">
-                        {stats.callCount} call{stats.callCount === 1 ? "" : "s"} · {stats.successRatePct ?? "—"}% success
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
+            {/* Studio big-ticket ("Model Performance completeness") —
+                generalised from the original 2-feature version: only
+                shown once at least two of the now-10 real features have
+                actual calls to break down (with only one feature in
+                use, the aggregate above already *is* that feature's own
+                number, so a breakdown would just repeat it), and only
+                lists features that actually fired — a static list of 10
+                rows, 8 of them permanently "0 calls," would be noise on
+                every org that only ever uses a couple of these. */}
+            {(() => {
+              const featuresWithCalls = (Object.keys(FEATURE_LABELS) as AiFeature[]).filter((f) => modelPerformance.byFeature[f].callCount > 0);
+              if (featuresWithCalls.length < 2) return null;
+              return (
+                <div className="mt-3 space-y-1.5 border-t border-border pt-3">
+                  {featuresWithCalls.map((feature) => {
+                    const stats = modelPerformance.byFeature[feature];
+                    return (
+                      <div key={feature} className="flex items-center justify-between gap-2 text-xs">
+                        <span className="text-muted-foreground">{FEATURE_LABELS[feature]}</span>
+                        <span className="font-mono text-muted-foreground">
+                          {stats.callCount} call{stats.callCount === 1 ? "" : "s"} · {stats.successRatePct ?? "—"}% success
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
           </CardContent>
         </Card>
       ) : undefined,

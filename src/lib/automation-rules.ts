@@ -4,6 +4,7 @@ import { getUsageStatus, recordUsageEvent } from "@/lib/usage-limits";
 import { isStudioActionRateLimited } from "@/lib/chat-rate-limit";
 import { logAuditEvent } from "@/lib/audit-log";
 import { findAgencyType } from "@/lib/agency-types";
+import { logAiCall } from "@/lib/ai-call-log";
 import type { PlatformPlanSlug } from "@/lib/platform-plans";
 
 // Roadmap item #10 ("no-code automation rules engine") — re-grounded
@@ -90,7 +91,11 @@ export async function runAutoDraftHighScoreProspectsRule() {
       if (!usage.allowed) break;
 
       const agencyType = findAgencyType((org.prospecting_config as { agencyType?: string } | null)?.agencyType);
+      const startedAt = Date.now();
       const result = await draftSalesKit(p.id, { name: org.name, isInternal: false, agencyType });
+      // Studio big-ticket ("Model Performance completeness") — same
+      // shape check prospects/actions.ts's own generateSalesKit() uses.
+      logAiCall(org.id, "sales_kit", { success: "kit" in result, latencyMs: Date.now() - startedAt });
       if (!("kit" in result)) continue;
 
       await recordUsageEvent(org.id, "sales_kit_generated");

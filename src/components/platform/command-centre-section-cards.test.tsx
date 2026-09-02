@@ -6,7 +6,7 @@ import { buildSectionContent } from "./command-centre-section-cards";
 import type { Insight } from "@/lib/studio-insights";
 import type { StudioBriefing } from "@/lib/studio-briefing";
 import type { ClientEngagementRisk } from "@/lib/studio-engagement";
-import type { ModelPerformanceWithCost } from "@/lib/studio-model-performance";
+import { emptyModelPerformance } from "@/lib/studio-model-performance";
 import type { AiAdoption } from "@/lib/studio-ai-adoption";
 import type { ClientActivityItem } from "@/lib/studio-client-activity";
 import type { ActionQueueItem } from "@/lib/studio-action-queue";
@@ -68,15 +68,6 @@ function emptyBriefing(): StudioBriefing {
     topOpportunity: null,
     topOpportunities: [],
     followUpsDueList: [],
-  };
-}
-
-function emptyModelPerformance(): ModelPerformanceWithCost {
-  const emptyFeature = { callCount: 0, successRatePct: null, medianLatencyMs: null, estimatedCostUsd: null, estimatedCostGbp: null };
-  return {
-    ...emptyFeature,
-    fxRateFetchedAt: null,
-    byFeature: { design_assistant: emptyFeature, business_analyst: emptyFeature },
   };
 }
 

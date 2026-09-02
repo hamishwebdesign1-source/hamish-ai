@@ -21,6 +21,7 @@ import { renderProposalPdf } from "@/lib/proposal-pdf";
 import type { RateCardItem } from "@/lib/rate-card";
 import { logAuditEvent } from "@/lib/audit-log";
 import { notifyAssignee } from "@/lib/team-members";
+import { logAiCall } from "@/lib/ai-call-log";
 
 // Every action here re-derives the caller's org from their own session
 // rather than trusting an orgId argument from the client — Server Actions
@@ -94,7 +95,9 @@ export async function generateIcp(description: string) {
     return { error: usageCheckErrorMessage(usageCheck) };
   }
 
+  const startedAt = Date.now();
   const result = await buildIcp(description);
+  logAiCall(orgId, "icp_builder", { success: "icp" in result, latencyMs: Date.now() - startedAt });
   if (!usageCheck.isInternal && "icp" in result) await recordUsageEvent(orgId, "icp_built");
   return result;
 }
@@ -187,7 +190,15 @@ export async function researchProspect(prospectId: string) {
     .single();
   if (prospectError || !prospect) return { error: "Prospect not found." };
 
+  // Studio big-ticket ("Model Performance completeness") — timed around
+  // the whole call rather than threaded deep into researchLead() itself
+  // (shared with /admin, which has no org concept at all to log
+  // against) — same reasoning generateWebsiteMockup()/generateIcp()
+  // below apply. "success" is the same shape check the caller already
+  // uses to decide whether usage quota was actually spent.
+  const startedAt = Date.now();
   const result = await researchLead(prospectId);
+  logAiCall(orgId, "prospect_research", { success: "research" in result, latencyMs: Date.now() - startedAt });
   revalidatePath("/studio/prospects");
   return result;
 }
@@ -217,7 +228,9 @@ export async function generateWebsiteMockup(prospectId: string) {
   const { data: org } = await admin.from("organisations").select("name, is_internal").eq("id", orgId).single();
   const orgName = org && !org.is_internal ? org.name : "HamishAI";
 
+  const startedAt = Date.now();
   const result = await draftWebsiteMockup(prospectId, orgName);
+  logAiCall(orgId, "website_mockup", { success: "mockup" in result, latencyMs: Date.now() - startedAt });
   if (!usageCheck.isInternal && "mockup" in result) await recordUsageEvent(orgId, "website_mockup_generated");
   revalidatePath("/studio/prospects");
   return result;
@@ -265,7 +278,9 @@ export async function generateSalesKit(prospectId: string): Promise<
         }
       : { name: "Hamish AI", isInternal: true };
 
+  const startedAt = Date.now();
   const result = await draftSalesKit(prospectId, sender);
+  logAiCall(orgId, "sales_kit", { success: "kit" in result, latencyMs: Date.now() - startedAt });
   if (!usageCheck.isInternal && "kit" in result) await recordUsageEvent(orgId, "sales_kit_generated");
   revalidatePath("/studio/prospects");
   return result;

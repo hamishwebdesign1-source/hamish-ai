@@ -27,6 +27,13 @@ vi.mock("@/lib/audit-log", () => ({
   logAuditEvent: (...args: unknown[]) => logAuditEventMock(...args),
 }));
 
+// Studio big-ticket ("Model Performance completeness") — automation-rules.ts
+// now logs every real draftSalesKit() attempt here too.
+const logAiCallMock = vi.fn();
+vi.mock("@/lib/ai-call-log", () => ({
+  logAiCall: (...args: unknown[]) => logAiCallMock(...args),
+}));
+
 // A chainable, directly-awaitable stub — every filter/order/limit method
 // returns the same object, which is itself thenable, matching the real
 // query shape: .select().eq().in().gte().lte().not().is().order().limit().
@@ -75,6 +82,7 @@ beforeEach(() => {
   isStudioActionRateLimitedMock.mockReset();
   isStudioActionRateLimitedMock.mockResolvedValue(false);
   logAuditEventMock.mockReset();
+  logAiCallMock.mockReset();
 });
 
 describe("runAutoDraftHighScoreProspectsRule", () => {

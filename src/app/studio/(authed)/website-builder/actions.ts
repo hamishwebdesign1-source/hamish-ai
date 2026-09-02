@@ -15,6 +15,7 @@ import { isStudioActionRateLimited } from "@/lib/chat-rate-limit";
 import type { PlatformPlanSlug } from "@/lib/platform-plans";
 import { logAuditEvent } from "@/lib/audit-log";
 import { notifyAssignee } from "@/lib/team-members";
+import { logAiCall } from "@/lib/ai-call-log";
 
 // Same session-derivation as every other Studio actions.ts file this
 // session — kept as its own local copy, same convention settings/actions.ts
@@ -109,7 +110,10 @@ export async function createWebsiteProject(clientId: string, discoveryInput: Par
     .single();
   if (insertError || !project) return { error: "Failed to create the project." };
 
+  const startedAt = Date.now();
   const result = await generateWebsiteBrief(discovery);
+  // Studio big-ticket ("Model Performance completeness").
+  logAiCall(orgId, "website_brief", { success: !("error" in result), latencyMs: Date.now() - startedAt });
   if ("error" in result) {
     // The project still exists with real discovery answers even if the
     // brief call itself failed — the detail page's own "Generate brief"
@@ -210,7 +214,10 @@ export async function regenerateWebsiteBrief(projectId: string): Promise<{ error
   const usageCheck = await checkAiUsage(orgId, "website_brief_generated");
   if (!usageCheck.allowed) return { error: aiUsageErrorMessage(usageCheck) };
 
+  const startedAt = Date.now();
   const result = await generateWebsiteBrief(project.discovery as WebsiteDiscovery);
+  // Studio big-ticket ("Model Performance completeness").
+  logAiCall(orgId, "website_brief", { success: !("error" in result), latencyMs: Date.now() - startedAt });
   if ("error" in result) return { error: result.error };
 
   const { error } = await admin
@@ -350,7 +357,10 @@ export async function generateNextBuildPhase(projectId: string): Promise<{ error
   const nextPhaseId = BUILD_PHASE_ORDER[existing.length];
   if (!nextPhaseId) return { error: "All phases are already generated." };
 
+  const startedAt = Date.now();
   const result = await generateBuildPhaseGroup(project.brief as WebsiteBrief, project.recommended_tool as ToolId, [nextPhaseId]);
+  // Studio big-ticket ("Model Performance completeness").
+  logAiCall(orgId, "website_build_phase", { success: !("error" in result), latencyMs: Date.now() - startedAt });
   if ("error" in result) return { error: result.error };
 
   const phase = result.phases[0];
@@ -514,7 +524,10 @@ export async function getTroubleshootingHelp(projectId: string, issue: string): 
   const phases = project.build_phases as BuildPhase[] | null;
   const currentPhase = phases?.[project.current_phase_index] ?? null;
 
+  const startedAt = Date.now();
   const result = await generateTroubleshootingHelp(project.brief as WebsiteBrief, project.recommended_tool as ToolId, currentPhase, trimmedIssue);
+  // Studio big-ticket ("Model Performance completeness").
+  logAiCall(orgId, "website_troubleshooting", { success: !("error" in result), latencyMs: Date.now() - startedAt });
   if ("error" in result) return { error: result.error };
 
   const entry: TroubleshootingEntry = {

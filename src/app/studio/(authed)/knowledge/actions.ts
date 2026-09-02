@@ -9,6 +9,7 @@ import { extractKnowledgeEntries } from "@/lib/extract-knowledge-entries";
 import { getUsageStatus, recordUsageEvent } from "@/lib/usage-limits";
 import { isStudioActionRateLimited } from "@/lib/chat-rate-limit";
 import type { PlatformPlanSlug } from "@/lib/platform-plans";
+import { logAiCall } from "@/lib/ai-call-log";
 
 // Same session-derivation as every other /studio actions.ts file.
 async function requireOrgId(): Promise<string> {
@@ -141,7 +142,10 @@ export async function extractKnowledgeFromDocument(
   const text = await extractTextFromFile(buffer, file.name);
   if (!text.trim()) return { error: "Couldn't read any text from that file." };
 
+  const startedAt = Date.now();
   const result = await extractKnowledgeEntries(text);
+  // Studio big-ticket ("Model Performance completeness").
+  logAiCall(orgId, "knowledge_import", { success: "entries" in result, latencyMs: Date.now() - startedAt });
   if ("error" in result) return result;
   if (!result.entries.length) return { error: "No usable business facts found in that document." };
 
