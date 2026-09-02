@@ -51,9 +51,9 @@ describe("getUsageStatus limit computation", () => {
 });
 
 describe("ALL_USAGE_EVENT_TYPES / USAGE_LABELS", () => {
-  it("lists exactly 12 distinct event types with no duplicates", () => {
-    expect(ALL_USAGE_EVENT_TYPES).toHaveLength(12);
-    expect(new Set(ALL_USAGE_EVENT_TYPES).size).toBe(12);
+  it("lists exactly 13 distinct event types with no duplicates", () => {
+    expect(ALL_USAGE_EVENT_TYPES).toHaveLength(13);
+    expect(new Set(ALL_USAGE_EVENT_TYPES).size).toBe(13);
   });
 
   it("has a human-readable label for every real usage type, and no orphan labels", () => {

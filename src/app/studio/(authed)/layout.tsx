@@ -12,6 +12,7 @@ import { HelpModeProvider } from "@/components/platform/help-mode-context";
 import { HelpModeToggle } from "@/components/platform/help-mode-toggle";
 import { StudioTour } from "@/components/platform/studio-tour";
 import { IdentifyOrg } from "@/components/platform/identify-org";
+import { StudioAssistantWidget } from "@/components/platform/studio-assistant-widget";
 
 // Studio improvement — trial_ends_at was only ever shown on the Billing
 // page (billing/page.tsx's own trialDaysLeft), so an agency on day 6 of
@@ -140,6 +141,7 @@ export default async function StudioAuthedLayout({ children }: { children: React
           <StudioSidebar requestsBadgeCount={requestsBadgeCount ?? undefined} />
           <main className="min-w-0 flex-1 py-10">{children}</main>
         </div>
+        <StudioAssistantWidget orgName={org?.name ?? "your agency"} />
       </div>
     </HelpModeProvider>
   );

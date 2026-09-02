@@ -17,6 +17,7 @@ import { getUsdGbpRate } from "@/lib/fx-rate";
 export type AiFeature =
   | "design_assistant"
   | "business_analyst"
+  | "studio_assistant"
   | "prospect_research"
   | "sales_kit"
   | "website_mockup"
@@ -30,6 +31,7 @@ export type AiFeature =
 export const FEATURE_LABELS: Record<AiFeature, string> = {
   design_assistant: "AI Design Assistant",
   business_analyst: "AI Business Analyst",
+  studio_assistant: "Studio AI Assistant",
   prospect_research: "Prospect research",
   sales_kit: "Sales kit generation",
   website_mockup: "Website mockups",

@@ -11,6 +11,7 @@ import { getSupabaseAdmin } from "@/lib/supabase";
 export type AiCallFeature =
   | "design_assistant"
   | "business_analyst"
+  | "studio_assistant"
   | "prospect_research"
   | "sales_kit"
   | "website_mockup"

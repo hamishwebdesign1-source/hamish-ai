@@ -20,7 +20,8 @@ export type UsageEventType =
   | "website_build_prompt_generated"
   | "website_troubleshooting_generated"
   | "knowledge_document_imported"
-  | "portal_copilot_question";
+  | "portal_copilot_question"
+  | "studio_assistant_question";
 
 // Calendar month, not a rolling 30 days — matches how the pricing page
 // already describes each plan ("up to 30 researched prospects a month"),
@@ -83,6 +84,17 @@ const USAGE_MULTIPLIER: Record<Exclude<UsageEventType, "prospect_researched">, n
   // session runs more questions than a one-off generation action, but
   // each call is cheap (same Haiku model, no per-call research cost).
   portal_copilot_question: 10,
+  // Studio AI Assistant (global floating widget, every /studio page) —
+  // same 10x chat-session headroom class as clients_copilot_question,
+  // its narrower predecessor: same cheap Haiku model, no per-call
+  // research cost, and a real session asks several questions in a row.
+  // A separate event type rather than reusing clients_copilot_question:
+  // this is a distinct, broader surface (also answers "how do I…"
+  // product questions from the Help FAQs), and keeping them separate
+  // means each can be tuned independently later without conflating "how
+  // often do you ask about your own business" with "how often do you
+  // ask how Studio works."
+  studio_assistant_question: 10,
 };
 
 // Real-improvement pass — shared source of truth for human-readable
@@ -104,10 +116,11 @@ export const USAGE_LABELS: Record<UsageEventType, string> = {
   website_troubleshooting_generated: "Website troubleshooting fixes",
   knowledge_document_imported: "Knowledge base documents imported",
   portal_copilot_question: "Client portal AI Copilot questions",
+  studio_assistant_question: "Studio AI Assistant questions",
 };
 
-// All 10 real metered types, in the same order USAGE_MULTIPLIER lists
-// the 9 secondary ones (prospect_researched first, the one marketed
+// All 13 real metered types, in the same order USAGE_MULTIPLIER lists
+// the 12 secondary ones (prospect_researched first, the one marketed
 // plan feature) — the one place both billing/page.tsx and
 // usage-warnings.ts can loop over "every real usage type" from.
 export const ALL_USAGE_EVENT_TYPES: UsageEventType[] = [
@@ -123,6 +136,7 @@ export const ALL_USAGE_EVENT_TYPES: UsageEventType[] = [
   "website_troubleshooting_generated",
   "knowledge_document_imported",
   "portal_copilot_question",
+  "studio_assistant_question",
 ];
 
 function limitFor(eventType: UsageEventType, plan: PlatformPlanSlug): number {

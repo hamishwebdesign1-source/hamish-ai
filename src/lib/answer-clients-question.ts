@@ -20,7 +20,7 @@ import { logAiCall } from "@/lib/ai-call-log";
 // actually answer "why did revenue change" instead of the old prompt's
 // explicit "I don't have that."
 
-type ClientSummary = {
+export type ClientSummary = {
   businessName: string;
   healthScore: number | null;
   openRequests: number;
@@ -29,7 +29,13 @@ type ClientSummary = {
   overdueProjectCount: number;
 };
 
-async function buildClientsSummary(orgId: string): Promise<ClientSummary[]> {
+// Exported for answer-studio-question.ts (the global Studio AI Assistant)
+// to reuse the exact same real-data computation rather than a second copy
+// that could drift — that assistant's own system prompt is broader (also
+// grounded in the Help FAQs), but the underlying client/analytics numbers
+// it reasons over should be identical to what this file's own
+// answerClientsQuestion() already computes.
+export async function buildClientsSummary(orgId: string): Promise<ClientSummary[]> {
   const admin = getSupabaseAdmin();
   if (!admin) return [];
 
@@ -81,7 +87,7 @@ async function buildClientsSummary(orgId: string): Promise<ClientSummary[]> {
   });
 }
 
-function buildAnalyticsSummary(analytics: Awaited<ReturnType<typeof getStudioAnalytics>>): string {
+export function buildAnalyticsSummary(analytics: Awaited<ReturnType<typeof getStudioAnalytics>>): string {
   const lines = analytics.kpis.map((kpi) => {
     const current = kpi.format === "money" ? `£${(kpi.value / 100).toLocaleString("en-GB")}` : kpi.value.toLocaleString("en-GB");
     const previous = kpi.format === "money" ? `£${(kpi.previousValue / 100).toLocaleString("en-GB")}` : kpi.previousValue.toLocaleString("en-GB");
