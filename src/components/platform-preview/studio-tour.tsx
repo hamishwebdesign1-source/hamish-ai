@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Image from "next/image";
-import { ArrowLeft, ArrowRight, CheckCircle2, Circle, Search, Globe, Users, BookOpen, ChartColumn } from "lucide-react";
+import { ArrowLeft, ArrowRight, CheckCircle2, Circle, Search, Sparkles, Globe, Users, BookOpen, ChartColumn } from "lucide-react";
 
 // Real product screenshots, not the hand-built mockup this replaced (the
 // old JourneyExplorer — deleted alongside this file landing). Captured
@@ -13,14 +13,20 @@ import { ArrowLeft, ArrowRight, CheckCircle2, Circle, Search, Globe, Users, Book
 // feels very amateur... screenshots of /studio explaining the journey")
 // is what this exists to answer.
 //
-// Five stages, not the old six (Build/Find/Win/Deliver/Prove/Grow) —
-// deliberately not force-fitted onto that framework. These are only the
-// screens the real walkthrough actually captured; "Win" (the sales
-// pipeline mid-stage) and "Grow" (invoicing) aren't shown here because
-// no real screenshot of them exists yet, and a caption describing a
-// screen that isn't there would be exactly the kind of thing this whole
-// fix is meant to stop doing. Every caption below only describes what is
-// visibly on screen in its own image.
+// Six stages, not the old JourneyExplorer's six (Build/Find/Win/Deliver/
+// Prove/Grow) — deliberately not force-fitted onto that framework. These
+// are only the screens a real walkthrough actually captured; "Win" (the
+// sales pipeline mid-stage) and "Grow" (invoicing) aren't shown here
+// because no real screenshot of them exists yet, and a caption
+// describing a screen that isn't there would be exactly the kind of
+// thing this whole fix is meant to stop doing. Every caption below only
+// describes what is visibly on screen in its own image.
+//
+// "Analyse" (02) added 2 Sep 2026, same session — captured live via
+// Claude in Chrome from the real, signed-in production account
+// (hamishai.org/studio/prospects), the same prospect already shown in
+// Find's own screenshot (La Salle de Sport Paris Madeleine), expanded to
+// its real Research tab.
 const steps = [
   {
     id: "find",
@@ -33,41 +39,51 @@ const steps = [
     alt: "Studio's Prospects screen: a location and category search form above a scored list of real leads — W Fitness (5/5), La Salle de Sport Paris Madeleine (4/5), Mufti Hairdressing (4/5) and Argus Fish Bar (4/5) — each marked Needs Verification.",
   },
   {
-    id: "build",
+    id: "analyse",
     number: "02",
+    label: "Analyse",
+    icon: Sparkles,
+    image: "/images/platform/studio-tour/02-analyse-research.png",
+    heading: "See exactly why the AI scored them",
+    body: "Every prospect gets a full breakdown — fit, need, value and confidence, a plain-English reason to pursue them, and the real weaknesses and opportunities found on their existing site.",
+    alt: "Studio's Research tab for La Salle de Sport Paris Madeleine, scored 4/5: Fit 5/5, Need 5/5, Value 4/5, Confidence 3/5, a 'Why pursue this one' explanation, an estimated £3,000–£6,000 project value with Medium Conversion Probability and High AI Fit, and lists of weaknesses, strengths and AI opportunities.",
+  },
+  {
+    id: "build",
+    number: "03",
     label: "Build",
     icon: Globe,
-    image: "/images/platform/studio-tour/02-build-website.png",
+    image: "/images/platform/studio-tour/03-build-website.png",
     heading: "Build the client's website with AI",
     body: "Studio doesn't host or build the site for you — it hands you the brief and the step-by-step AI instructions to build it yourself with Claude Code, Cursor, or Codex, with guides for each built in.",
     alt: "Studio's Website Builder screen, showing the full sidebar (Command Centre, Analytics, Prospects, Campaigns, Website Builder, Clients, Requests, Projects, Knowledge), a Create Website Project button, and AI coding tool guide cards for Claude Code, Cursor and OpenAI Codex.",
   },
   {
     id: "deliver",
-    number: "03",
+    number: "04",
     label: "Deliver",
     icon: Users,
-    image: "/images/platform/studio-tour/03-deliver-clients.png",
+    image: "/images/platform/studio-tour/04-deliver-clients.png",
     heading: "Deliver through a branded client portal",
     body: "Convert a prospect and they get their own portal login — under your agency's name, never Studio's.",
     alt: "Studio's Clients screen: an empty state reading 'No clients yet — convert a prospect from Prospects to get started,' with a note that each client gets their own portal login at hamishai.org/portal, branded to the agency.",
   },
   {
     id: "support",
-    number: "04",
+    number: "05",
     label: "Support",
     icon: BookOpen,
-    image: "/images/platform/studio-tour/04-support-knowledge.png",
+    image: "/images/platform/studio-tour/05-support-knowledge.png",
     heading: "Power client support with a knowledge base",
     body: "Add facts about a client's business once, and their own AI support agent can answer instantly instead of every question turning into a request.",
     alt: "Studio's Knowledge base screen, with Add entry and Import from document buttons above an empty state explaining that entries power clients' AI Copilot and support agent.",
   },
   {
     id: "measure",
-    number: "05",
+    number: "06",
     label: "Measure",
     icon: ChartColumn,
-    image: "/images/platform/studio-tour/05-measure-performance.png",
+    image: "/images/platform/studio-tour/06-measure-performance.png",
     heading: "See real AI usage, not a projection",
     body: "Every AI call your agency makes — success rate, latency, and cost — tracked from your own Command Centre, alongside a setup checklist for what's still left to do.",
     alt: "Studio's Command Centre performance panel: 100% success rate, 1.6s median latency, and an estimated 30-day cost of £0.01 across 4 calls, broken down by AI Business Analyst and Studio AI Assistant, above a Getting Set Up checklist.",
