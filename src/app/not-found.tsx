@@ -10,21 +10,30 @@ export const metadata: Metadata = {
   title: "Page not found | Hamish AI",
 };
 
+// SEO audit (2 Sep 2026) — found genuinely stale, not just theoretically
+// so: verified live that hamishai.org's real 404 page still pointed
+// every "helpful destination" at the archived Edinburgh consultancy
+// pages (Services, Portfolio, Book a consultation), missed by every
+// other homepage-swap cleanup pass this session (nav, footer,
+// Organization schema, og:image...). Updated to lead with the current
+// Platform-first site's own real anchors — Portfolio kept as the one
+// genuinely evergreen destination, real work either audience would want
+// to see, not consultancy-exclusive.
 const destinations = [
   {
-    href: "/services",
-    title: "Services & pricing",
-    body: "See the three AI transformation packages and what each includes.",
+    href: "/#how-it-works",
+    title: "How it works",
+    body: "See the real product journey — from first prospect to paid client.",
+  },
+  {
+    href: "/#pricing",
+    title: "Pricing",
+    body: "Three plans, one 7-day free trial, no card required.",
   },
   {
     href: "/portfolio",
     title: "Portfolio",
     body: "Real examples of AI-powered redesigns for Edinburgh businesses.",
-  },
-  {
-    href: "/book",
-    title: "Book a consultation",
-    body: "Pick a time straight off the calendar — no charge, no obligation.",
   },
 ];
 
