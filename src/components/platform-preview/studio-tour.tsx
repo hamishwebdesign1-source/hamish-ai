@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Image from "next/image";
-import { ArrowLeft, ArrowRight, CheckCircle2, Circle, Search, Sparkles, Globe, Users, BookOpen, ChartColumn } from "lucide-react";
+import { ArrowLeft, ArrowRight, CheckCircle2, Circle, Search, Sparkles, Globe, Users, Receipt, BookOpen, ChartColumn } from "lucide-react";
 
 // Real product screenshots, not the hand-built mockup this replaced (the
 // old JourneyExplorer — deleted alongside this file landing). Captured
@@ -27,6 +27,17 @@ import { ArrowLeft, ArrowRight, CheckCircle2, Circle, Search, Sparkles, Globe, U
 // (hamishai.org/studio/prospects), the same prospect already shown in
 // Find's own screenshot (La Salle de Sport Paris Madeleine), expanded to
 // its real Research tab.
+//
+// Deliver's screenshot recaptured, and Charge (05) added, later the same
+// day — the original Deliver capture showed Clients' empty state ("No
+// clients yet"), because at the time that screenshot was taken, a real
+// production bug (an RLS policy recursion — fixed via direct SQL, not in
+// this repo) meant converted clients genuinely couldn't be read back,
+// even though they existed. Once that was fixed and confirmed live, both
+// this step's screenshot and Charge's were captured fresh — Deliver now
+// shows the real, populated Clients list, and Charge shows the real
+// per-client Invoices section, honestly reflecting Stripe not being
+// connected yet rather than staging a fake connected state.
 const steps = [
   {
     id: "find",
@@ -66,24 +77,34 @@ const steps = [
     image: "/images/platform/studio-tour/04-deliver-clients.png",
     heading: "Deliver through a branded client portal",
     body: "Convert a prospect and they get their own portal login — under your agency's name, never Studio's.",
-    alt: "Studio's Clients screen: an empty state reading 'No clients yet — convert a prospect from Prospects to get started,' with a note that each client gets their own portal login at hamishai.org/portal, branded to the agency.",
+    alt: "Studio's Clients screen showing 3 real clients: W Fitness, La Salle de Sport Paris Madeleine, and a demo client, each with their own portal login at hamishai.org/portal, branded to the agency.",
+  },
+  {
+    id: "charge",
+    number: "05",
+    label: "Charge",
+    icon: Receipt,
+    image: "/images/platform/studio-tour/05-charge-invoices.png",
+    heading: "Invoice clients through your own Stripe account",
+    body: "Connect your own Stripe account once in Settings, then invoice any client directly from their card — payments go straight to you, not through Studio.",
+    alt: "Studio's Invoices section on a client's card, reading 'Connect Stripe in Settings before you can invoice this client' — the real prompt shown before a Stripe account is connected.",
   },
   {
     id: "support",
-    number: "05",
+    number: "06",
     label: "Support",
     icon: BookOpen,
-    image: "/images/platform/studio-tour/05-support-knowledge.png",
+    image: "/images/platform/studio-tour/06-support-knowledge.png",
     heading: "Power client support with a knowledge base",
     body: "Add facts about a client's business once, and their own AI support agent can answer instantly instead of every question turning into a request.",
     alt: "Studio's Knowledge base screen, with Add entry and Import from document buttons above an empty state explaining that entries power clients' AI Copilot and support agent.",
   },
   {
     id: "measure",
-    number: "06",
+    number: "07",
     label: "Measure",
     icon: ChartColumn,
-    image: "/images/platform/studio-tour/06-measure-performance.png",
+    image: "/images/platform/studio-tour/07-measure-performance.png",
     heading: "See real AI usage, not a projection",
     body: "Every AI call your agency makes — success rate, latency, and cost — tracked from your own Command Centre, alongside a setup checklist for what's still left to do.",
     alt: "Studio's Command Centre performance panel: 100% success rate, 1.6s median latency, and an estimated 30-day cost of £0.01 across 4 calls, broken down by AI Business Analyst and Studio AI Assistant, above a Getting Set Up checklist.",
