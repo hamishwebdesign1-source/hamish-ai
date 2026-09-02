@@ -36,6 +36,17 @@ export function SiteHeader() {
   // callback — untouched, still under src/app/platform/) and /studio.
   const isPlatformContext = pathname === "/" || pathname.startsWith("/platform/") || pathname.startsWith("/studio");
 
+  // Reported live, 2 Sep 2026: the main nav itself was still the
+  // consultancy's 6 links (AI Solutions/Analytics/Services/Portfolio/
+  // About/Contact) on every page, including the new Platform-first
+  // homepage — a visitor landing on "launch your own AI agency" saw a
+  // nav offering six links to a *different* product right above the
+  // "Start free trial" CTA. Same contextual split as the CTA/muted-link
+  // below, applied to the nav itself: platformNav's anchors only ever
+  // matter where this header actually renders on a Platform page, which
+  // in practice is just "/" (isPlatformContext's own comment above).
+  const navItems = isPlatformContext ? siteConfig.platformNav : siteConfig.nav;
+
   useEffect(() => {
     if (!isPlatformContext) return;
     // Session check only, not org membership — /studio's own server-side
@@ -61,7 +72,7 @@ export function SiteHeader() {
         </Link>
 
         <nav className="hidden items-center gap-10 md:flex">
-          {siteConfig.nav.map((item) => {
+          {navItems.map((item) => {
             const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
             return (
               <Link
@@ -148,7 +159,7 @@ export function SiteHeader() {
       {open && (
         <nav className="animate-in fade-in slide-in-from-top-2 border-t border-border/60 bg-background px-6 py-4 duration-200 md:hidden">
           <div className="flex flex-col gap-4">
-            {siteConfig.nav.map((item) => (
+            {navItems.map((item) => (
               <Link
                 key={item.href}
                 href={item.href}

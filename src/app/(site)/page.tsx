@@ -164,7 +164,7 @@ export default async function HomePage() {
         </div>
       </section>
 
-      <section className="border-t border-border/60 bg-secondary/40">
+      <section id="how-it-works" className="scroll-mt-20 border-t border-border/60 bg-secondary/40">
         <div className="mx-auto max-w-6xl px-6 py-16 md:py-20">
           <Reveal>
             <Eyebrow className="mb-4">The complete journey</Eyebrow>
@@ -264,7 +264,7 @@ export default async function HomePage() {
         </div>
       </section>
 
-      <section className="mx-auto max-w-6xl px-6 py-16 md:py-20">
+      <section id="pricing" className="scroll-mt-20 mx-auto max-w-6xl px-6 py-16 md:py-20">
         <Reveal>
           <h2 className="font-heading text-2xl font-semibold md:text-3xl">Simple pricing. Serious infrastructure.</h2>
         </Reveal>
@@ -314,7 +314,7 @@ export default async function HomePage() {
         </div>
       </section>
 
-      <section className="border-t border-border/60">
+      <section id="faq" className="scroll-mt-20 border-t border-border/60">
         <div className="mx-auto max-w-6xl px-6 py-16 md:py-20">
           <div className="max-w-3xl">
             <FaqJsonLd faqs={platformFaqs} />

@@ -17,6 +17,13 @@ export const siteConfig = {
   email: "HamishWebDesign1@gmail.com",
   phone: "07949 674994",
   linkedin: "https://www.linkedin.com/in/hamish-mcfarlane-38a4881b2/",
+  // The consultancy's own nav — real feedback flagged that this reading
+  // as the site's primary navigation on the new Platform-first homepage
+  // was confusing (six links to a different product, right above a
+  // "Start free trial" CTA). Still shown as-is on every consultancy page
+  // (/agency, /services, /about, ...) — those pages are unchanged and
+  // this nav is still correct there. site-header.tsx now picks between
+  // this and platformNav below based on which page is actually showing.
   nav: [
     { label: "AI Solutions", href: "/ai-solutions" },
     { label: "Analytics", href: "/analytics" },
@@ -24,6 +31,19 @@ export const siteConfig = {
     { label: "Portfolio", href: "/portfolio" },
     { label: "About", href: "/about" },
     { label: "Contact", href: "/contact" },
+  ],
+  // Shown only where SiteHeader actually renders on a Platform-context
+  // page — in practice just "/" itself: /platform/signup and
+  // /platform/onboarding are deliberately chromeless (no SiteHeader at
+  // all, confirmed by source read — a signup funnel shouldn't have a
+  // distracting nav), and /studio has its own entirely separate header
+  // (StudioSidebar). Real anchors on the homepage's own sections
+  // (page.tsx), not new pages — the Platform is one long page today, not
+  // several.
+  platformNav: [
+    { label: "How it works", href: "/#how-it-works" },
+    { label: "Pricing", href: "/#pricing" },
+    { label: "FAQ", href: "/#faq" },
   ],
 };
 
