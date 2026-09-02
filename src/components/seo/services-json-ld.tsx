@@ -14,6 +14,11 @@ function packageToService(pkg: Package) {
     "@type": "Service",
     name: pkg.name,
     description: pkg.tagline,
+    // Added 2 Sep 2026, same as website-audit-json-ld.tsx's own fix —
+    // every package is a real section on this one real page, not a
+    // separate URL each, so all 4 share the same genuine canonical
+    // location rather than being left without a url at all.
+    url: "https://www.hamishai.org/services",
     provider: { "@type": "Organization", name: "HamishAI" },
     areaServed: { "@type": "City", name: "Edinburgh" },
     offers: {

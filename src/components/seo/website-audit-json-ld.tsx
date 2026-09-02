@@ -9,6 +9,11 @@ export function WebsiteAuditJsonLd() {
     name: "Free Website Health Check",
     description:
       "Real technical checks (SSL, mobile-friendliness, load speed) plus a plain-English AI review of what's working, what isn't, and where AI could specifically help.",
+    // Added 2 Sep 2026 — every other entity schema on the site
+    // (Organization, Person, Product) includes its own real url; this
+    // was the one Service schema missing it, the real canonical
+    // location of this exact free tool.
+    url: "https://www.hamishai.org/website-audit",
     provider: { "@type": "Organization", name: "HamishAI" },
     areaServed: { "@type": "City", name: "Edinburgh" },
     offers: {
