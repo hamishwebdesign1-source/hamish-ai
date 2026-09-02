@@ -103,7 +103,7 @@ async function buildOwnerDigestSummary(admin: SupabaseClient, orgId: string): Pr
         })()
       : null;
 
-  const { data: clients } = await admin.from("clients").select("id, business_name").eq("org_id", orgId);
+  const { data: clients } = await admin.from("clients").select("id, business_name, created_at").eq("org_id", orgId);
   const clientIds = (clients ?? []).map((c) => c.id);
 
   const [{ data: requests }, { data: invoices }, { data: projects }] = clientIds.length

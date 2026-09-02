@@ -16,7 +16,7 @@ function daysAgo(n: number): string {
 describe("computeClientEngagementRisk", () => {
   it("omits a client with recent activity and no overdue invoice entirely", () => {
     const risks = computeClientEngagementRisk(
-      [{ id: "c1", business_name: "Acme" }],
+      [{ id: "c1", business_name: "Acme", created_at: daysAgo(200) }],
       [{ client_id: "c1", created_at: daysAgo(2) }],
       [],
       NOW
@@ -26,7 +26,7 @@ describe("computeClientEngagementRisk", () => {
 
   it("flags a client quiet for 2+ weeks as warning, not critical", () => {
     const risks = computeClientEngagementRisk(
-      [{ id: "c1", business_name: "Acme" }],
+      [{ id: "c1", business_name: "Acme", created_at: daysAgo(200) }],
       [{ client_id: "c1", created_at: daysAgo(20) }], // last contact ~3 weeks ago
       [],
       NOW
@@ -38,7 +38,7 @@ describe("computeClientEngagementRisk", () => {
 
   it("flags a client silent for a full month as critical on quiet weeks alone", () => {
     const risks = computeClientEngagementRisk(
-      [{ id: "c1", business_name: "Acme" }],
+      [{ id: "c1", business_name: "Acme", created_at: daysAgo(200) }],
       [{ client_id: "c1", created_at: daysAgo(60) }],
       [],
       NOW
@@ -49,7 +49,7 @@ describe("computeClientEngagementRisk", () => {
 
   it("escalates to critical when a shorter silence stacks with an overdue invoice", () => {
     const risks = computeClientEngagementRisk(
-      [{ id: "c1", business_name: "Acme" }],
+      [{ id: "c1", business_name: "Acme", created_at: daysAgo(200) }],
       [{ client_id: "c1", created_at: daysAgo(16) }], // ~2 quiet weeks
       [{ id: "inv-1", client_id: "c1", status: "open", due_date: "2026-08-01", reminder_sent_at: null }], // well past due
       NOW
@@ -60,7 +60,7 @@ describe("computeClientEngagementRisk", () => {
 
   it("flags an overdue invoice on its own as warning even with recent contact", () => {
     const risks = computeClientEngagementRisk(
-      [{ id: "c1", business_name: "Acme" }],
+      [{ id: "c1", business_name: "Acme", created_at: daysAgo(200) }],
       [{ client_id: "c1", created_at: daysAgo(1) }],
       [{ id: "inv-1", client_id: "c1", status: "open", due_date: "2026-08-01", reminder_sent_at: null }],
       NOW
@@ -70,7 +70,7 @@ describe("computeClientEngagementRisk", () => {
 
   it("ignores a paid invoice and a not-yet-due invoice — neither counts as overdue", () => {
     const risks = computeClientEngagementRisk(
-      [{ id: "c1", business_name: "Acme" }],
+      [{ id: "c1", business_name: "Acme", created_at: daysAgo(200) }],
       [{ client_id: "c1", created_at: daysAgo(20) }],
       [
         { id: "inv-paid", client_id: "c1", status: "paid", due_date: "2026-08-01", reminder_sent_at: null },
@@ -85,7 +85,7 @@ describe("computeClientEngagementRisk", () => {
 
   it("surfaces the specific overdue invoice's id and reminder_sent_at", () => {
     const risks = computeClientEngagementRisk(
-      [{ id: "c1", business_name: "Acme" }],
+      [{ id: "c1", business_name: "Acme", created_at: daysAgo(200) }],
       [{ client_id: "c1", created_at: daysAgo(1) }],
       [{ id: "inv-1", client_id: "c1", status: "open", due_date: "2026-08-01", reminder_sent_at: "2026-08-20T09:00:00Z" }],
       NOW
@@ -96,7 +96,7 @@ describe("computeClientEngagementRisk", () => {
 
   it("picks the earliest-due overdue invoice when a client has more than one", () => {
     const risks = computeClientEngagementRisk(
-      [{ id: "c1", business_name: "Acme" }],
+      [{ id: "c1", business_name: "Acme", created_at: daysAgo(200) }],
       [{ client_id: "c1", created_at: daysAgo(1) }],
       [
         { id: "inv-later", client_id: "c1", status: "open", due_date: "2026-08-10", reminder_sent_at: null },
@@ -111,8 +111,8 @@ describe("computeClientEngagementRisk", () => {
   it("never lets one client's requests or invoices count toward another client's risk", () => {
     const risks = computeClientEngagementRisk(
       [
-        { id: "c1", business_name: "Quiet Co" },
-        { id: "c2", business_name: "Active Co" },
+        { id: "c1", business_name: "Quiet Co", created_at: daysAgo(200) },
+        { id: "c2", business_name: "Active Co", created_at: daysAgo(200) },
       ],
       [{ client_id: "c2", created_at: daysAgo(1) }],
       [], // c2's invoice history is clean — isolation is the point, not the invoice rule
@@ -131,9 +131,9 @@ describe("computeClientEngagementRisk", () => {
   it("ranks critical clients before warning, and longer silences first within a tier", () => {
     const risks = computeClientEngagementRisk(
       [
-        { id: "c-warn", business_name: "Warn Co" },
-        { id: "c-crit-longer", business_name: "Crit Long Co" },
-        { id: "c-crit-shorter", business_name: "Crit Short Co" },
+        { id: "c-warn", business_name: "Warn Co", created_at: daysAgo(200) },
+        { id: "c-crit-longer", business_name: "Crit Long Co", created_at: daysAgo(200) },
+        { id: "c-crit-shorter", business_name: "Crit Short Co", created_at: daysAgo(200) },
       ],
       [
         { client_id: "c-warn", created_at: daysAgo(16) }, // ~2 quiet weeks -> warning
@@ -146,9 +146,29 @@ describe("computeClientEngagementRisk", () => {
     expect(risks.map((r) => r.clientId)).toEqual(["c-crit-longer", "c-crit-shorter", "c-warn"]);
   });
 
+  // Bug fix — a client converted a few days ago has genuinely zero
+  // request history yet, which used to look identical to a client gone
+  // silent for the entire 6-week window (every bucket has zero requests
+  // either way) and immediately hit the same quietWeeks >= 4 "critical"
+  // threshold as a truly abandoned client. Same bug class as client-
+  // health.ts's own "brand-new org shows a misleading 0" fix.
+  it("never flags a client converted within the last few days as critical for having no history yet", () => {
+    const risks = computeClientEngagementRisk([{ id: "c1", business_name: "Brand New Co", created_at: daysAgo(3) }], [], [], NOW);
+    expect(risks).toEqual([]);
+  });
+
+  it("only counts quiet weeks that occurred after the client actually became a client", () => {
+    // Converted 12 days ago — that's genuinely 1 full quiet week (not the
+    // 6 every older-but-equally-silent client in these tests gets), so
+    // this should read as "not at risk" (below the warning threshold),
+    // not warning or critical.
+    const risks = computeClientEngagementRisk([{ id: "c1", business_name: "Newish Co", created_at: daysAgo(12) }], [], [], NOW);
+    expect(risks).toEqual([]);
+  });
+
   it("builds exactly 6 week cells, oldest to newest", () => {
     const risks = computeClientEngagementRisk(
-      [{ id: "c1", business_name: "Acme" }],
+      [{ id: "c1", business_name: "Acme", created_at: daysAgo(200) }],
       [{ client_id: "c1", created_at: daysAgo(60) }],
       [],
       NOW
@@ -164,7 +184,7 @@ describe("computeClientEngagementRisk", () => {
   describe("declining-trend early warning", () => {
     it("flags a client whose contact frequency has genuinely dropped, even with recent contact", () => {
       const risks = computeClientEngagementRisk(
-        [{ id: "c1", business_name: "Acme" }],
+        [{ id: "c1", business_name: "Acme", created_at: daysAgo(200) }],
         [
           // Prior 3 weeks: steady weekly contact (well above the activity
           // floor). Recent 3 weeks: one single request days ago — a real
@@ -189,7 +209,7 @@ describe("computeClientEngagementRisk", () => {
       // trend has enough to say anything real, so this client shouldn't
       // appear at all, not read as "declining" from a single data point.
       const risks = computeClientEngagementRisk(
-        [{ id: "c1", business_name: "Acme" }],
+        [{ id: "c1", business_name: "Acme", created_at: daysAgo(200) }],
         [{ client_id: "c1", created_at: daysAgo(24) }, { client_id: "c1", created_at: daysAgo(2) }],
         [],
         NOW
@@ -199,7 +219,7 @@ describe("computeClientEngagementRisk", () => {
 
     it("does not flag a client whose contact frequency is steady, not declining", () => {
       const risks = computeClientEngagementRisk(
-        [{ id: "c1", business_name: "Acme" }],
+        [{ id: "c1", business_name: "Acme", created_at: daysAgo(200) }],
         [
           { client_id: "c1", created_at: daysAgo(38) },
           { client_id: "c1", created_at: daysAgo(31) },
@@ -216,7 +236,7 @@ describe("computeClientEngagementRisk", () => {
 
     it("never lets a declining trend downgrade an already-critical or -warning tier", () => {
       const risks = computeClientEngagementRisk(
-        [{ id: "c1", business_name: "Acme" }],
+        [{ id: "c1", business_name: "Acme", created_at: daysAgo(200) }],
         [
           // All 3 in the prior window (weeks 0-2), none in weeks 3-5 ->
           // quietWeeks=4 on its own already means "critical"; the same
@@ -237,9 +257,9 @@ describe("computeClientEngagementRisk", () => {
     it("sorts early_warning after both critical and warning", () => {
       const risks = computeClientEngagementRisk(
         [
-          { id: "c-early", business_name: "Early Co" },
-          { id: "c-warn", business_name: "Warn Co" },
-          { id: "c-crit", business_name: "Crit Co" },
+          { id: "c-early", business_name: "Early Co", created_at: daysAgo(200) },
+          { id: "c-warn", business_name: "Warn Co", created_at: daysAgo(200) },
+          { id: "c-crit", business_name: "Crit Co", created_at: daysAgo(200) },
         ],
         [
           { client_id: "c-early", created_at: daysAgo(38) },

@@ -42,7 +42,15 @@ export type ClientEngagementRisk = {
   weeks: WeekCell[]; // oldest to newest, WEEKS_BACK long
 };
 
-export type EngagementClientRow = { id: string; business_name: string };
+// created_at — bug fix (same class as client-health.ts's own "brand-new
+// org shows a misleading 0" fix): without knowing when a client actually
+// became a client, the quietWeeks count below couldn't tell "gone quiet
+// for a month" apart from "converted three days ago and hasn't had the
+// chance to raise anything yet" — both looked identical (every bucket
+// before today has zero requests), so a client onboarded this week could
+// immediately show up as "critical" engagement risk for the crime of
+// being new.
+export type EngagementClientRow = { id: string; business_name: string; created_at: string };
 export type EngagementRequestRow = { client_id: string; created_at: string };
 export type EngagementInvoiceRow = {
   id: string;
@@ -147,8 +155,15 @@ export function computeClientEngagementRisk(
     );
     const weeks: WeekCell[] = buckets.map(({ end }, i) => ({ label: weekLabel(end), active: weekCounts[i] > 0 }));
 
+    // Bug fix — stop counting once a bucket started before the client
+    // even existed. Without this, a client converted a few days ago
+    // (genuinely zero real history yet, not "gone quiet") counted every
+    // one of the WEEKS_BACK buckets as silent and hit the same >= 4
+    // threshold a truly abandoned client would — see EngagementClientRow's
+    // own comment for the full story.
     let quietWeeks = 0;
     for (let i = weeks.length - 1; i >= 0; i--) {
+      if (buckets[i].start.toISOString() < client.created_at) break;
       if (weeks[i].active) break;
       quietWeeks++;
     }
