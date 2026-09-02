@@ -5,7 +5,12 @@ import type { Metadata } from "next";
 // to this concept_slug (unlike the other 20), so the business name comes
 // from the page's own real, visible text instead ("PJ McHale Joiners &
 // Builders" — page.tsx's own hero copy).
-export const metadata: Metadata = { title: "PJ McHale Joiners & Builders" };
+// description added same pass — see blackadder-mcmonagle/layout.tsx.
+export const metadata: Metadata = {
+  title: "PJ McHale Joiners & Builders",
+  description:
+    "A concept website redesign by HamishAI for PJ McHale Joiners & Builders — a real example of what AI-powered redesign could look like.",
+};
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   return <>{children}</>;

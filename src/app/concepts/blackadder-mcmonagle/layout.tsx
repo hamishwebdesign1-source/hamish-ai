@@ -15,7 +15,17 @@ import type { Metadata } from "next";
 // per-folder layout, wrapping children unchanged, whose only job is
 // providing this one real title. Business name from the real prospects
 // row (concept_slug = "blackadder-mcmonagle"), not guessed from the URL slug.
-export const metadata: Metadata = { title: "Blackadder & McMonagle" };
+// description added same pass, same root cause as title: every page
+// also inherited the root layout's own Platform-focused description
+// ("The platform behind HamishAI...") instead of anything naming this
+// business. Wording matches real, already-visible copy several of these
+// pages already show ("Concept by Hamish AI for {Business}"), not
+// invented from scratch.
+export const metadata: Metadata = {
+  title: "Blackadder & McMonagle",
+  description:
+    "A concept website redesign by HamishAI for Blackadder & McMonagle — a real example of what AI-powered redesign could look like.",
+};
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
