@@ -34,7 +34,21 @@ export async function sendOrgEmail(params: {
   text: string;
   attachments?: EmailAttachment[];
 }): Promise<{ sent: true } | { error: string }> {
-  const { orgId, orgName, replyToEmail, to, subject, text, attachments } = params;
+  const { orgId, replyToEmail, to, subject, text, attachments } = params;
+
+  // Defense in depth, spotted during a security spot-check of this send
+  // path (backlog: "One-click 'Send payment reminder'…"): organisations.name
+  // is only whitespace-trimmed at signup (platform-onboarding.ts), with no
+  // restriction on embedded control characters, and lands directly in this
+  // email's From display name. Resend's API almost certainly already
+  // rejects/sanitizes CRLF header-injection attempts server-side (this is
+  // the most basic, most-tested attack in the transactional-email space) —
+  // this isn't a confirmed exploit — but stripping control characters here
+  // costs nothing and means this send path doesn't rely on that assumption
+  // holding. A tenant crafting their own org name only ever affects their
+  // own outgoing email, never another org's — this closes a theoretical
+  // gap, not a cross-tenant one.
+  const orgName = params.orgName.replace(/[\r\n\t]/g, " ").trim();
 
   // Per-org bucket, separate from isStudioActionRateLimited's AI-call
   // budget — this is guarding real email deliverability/spend, not
