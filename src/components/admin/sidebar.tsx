@@ -1,4 +1,4 @@
-import { LayoutDashboard, Users, BookOpen, Plug, Search, Workflow, ShieldCheck, History, Sparkles, Clapperboard, Workflow as Automation } from "lucide-react";
+import { LayoutDashboard, Users, BookOpen, Plug, Search, Workflow, ShieldCheck, History, Sparkles, Clapperboard, Workflow as Automation, Building2 } from "lucide-react";
 import { AdminNavLink } from "@/components/admin/nav-link";
 
 // Portal redesign Stage 3 — replaces the old single-row top nav (9 items
@@ -25,6 +25,13 @@ export const NAV_SECTIONS: {
     ],
   },
   { label: null, items: [{ href: "/admin/knowledge", label: "Knowledge", icon: BookOpen }] },
+  // Studio big-ticket ("org deletion requests have no admin resolution
+  // path") — requestAccountDeletion() (Studio Settings) has written
+  // organisations.deletion_requested_at since GDPR minimum-viable
+  // compliance part 3 shipped, but there was never anywhere in /admin
+  // to see or resolve one — the promised "we'll confirm with you before
+  // anything is actually removed" had no operationalised half.
+  { label: "Agency Platform", items: [{ href: "/admin/agencies", label: "Agencies", icon: Building2 }] },
   { label: "Reference", items: [{ href: "/admin/process", label: "Process", icon: Workflow }] },
   {
     label: "System",

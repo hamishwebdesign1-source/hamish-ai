@@ -15,6 +15,11 @@ const ACTION_LABEL: Record<string, string> = {
   "client_member.removed": "Team member removed",
   "subscription.started": "Subscription started",
   "subscription.cancelled": "Subscription cancelled",
+  // Studio big-ticket ("org deletion requests have no admin resolution
+  // path") — see /admin/agencies (the actual resolution surface) for
+  // the full reasoning.
+  "organisation.deletion_requested": "Account deletion requested",
+  "organisation.deletion_request_processed": "Account deletion request processed",
 };
 
 const actorTypeVariant: Record<string, "secondary" | "outline" | "warning"> = {
@@ -41,13 +46,24 @@ function describeEntry(entry: { action: string; metadata: Record<string, unknown
   }
 }
 
+function orgName(entry: { organisations?: { name: string } | { name: string }[] | null }): string | null {
+  const org = Array.isArray(entry.organisations) ? entry.organisations[0] : entry.organisations;
+  return org?.name ?? null;
+}
+
 export default async function ActivityLogPage({ searchParams }: { searchParams: Promise<{ client?: string; q?: string }> }) {
   const { client: clientFilter, q: searchQuery } = await searchParams;
   const supabase = getSupabaseAdmin();
 
   let query = supabase
     ?.from("audit_log")
-    .select("id, created_at, actor, actor_type, action, client_id, metadata, clients(business_name)")
+    // org_id/organisations(name) added for the two organisation.* actions
+    // below — without it, entry.actor is just the raw org UUID
+    // logAuditEvent({ actor: orgId, ... }) writes for those (same
+    // established, if imperfect, convention client.data_deleted's own
+    // actor: orgId already uses), with no way to see what org that even
+    // is.
+    .select("id, created_at, actor, actor_type, action, client_id, org_id, metadata, clients(business_name), organisations(name)")
     .order("created_at", { ascending: false })
     .limit(100);
 
@@ -68,6 +84,7 @@ export default async function ActivityLogPage({ searchParams }: { searchParams: 
           entry.actor,
           describeEntry(entry as { action: string; metadata: Record<string, unknown> | null }),
           client?.business_name,
+          orgName(entry as { organisations?: { name: string } | { name: string }[] | null }),
         ];
         return fields.some((field) => field && String(field).toLowerCase().includes(trimmedQuery));
       })
@@ -130,6 +147,7 @@ export default async function ActivityLogPage({ searchParams }: { searchParams: 
         <ul className="mt-6 space-y-2">
           {entries.map((entry) => {
             const client = entry.clients as unknown as { business_name: string } | null;
+            const org = orgName(entry as { organisations?: { name: string } | { name: string }[] | null });
             return (
               <li key={entry.id} className="flex items-start justify-between gap-3 rounded-lg border border-border bg-card px-4 py-3">
                 <div>
@@ -147,6 +165,14 @@ export default async function ActivityLogPage({ searchParams }: { searchParams: 
                         {" · "}
                         <Link href={`/admin/clients/${entry.client_id}`} className="text-accent hover:underline">
                           {client.business_name}
+                        </Link>
+                      </>
+                    )}
+                    {!client && org && (
+                      <>
+                        {" · "}
+                        <Link href="/admin/agencies" className="text-accent hover:underline">
+                          {org}
                         </Link>
                       </>
                     )}
