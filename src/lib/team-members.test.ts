@@ -24,10 +24,28 @@ function buildAdmin(opts: {
   removeTargetRole?: "owner" | "member" | null;
   onInsert?: (row: Record<string, unknown>) => void;
   onDelete?: () => void;
+  onUnassign?: (table: string) => void;
 }) {
   let selectCall = 0;
+  // Studio big-ticket ("removing a team member orphans their
+  // assignments") — removeTeamMember() now also clears assigned_to on
+  // these 4 tables; stubbed generically since every call has the exact
+  // same update().eq().eq() shape.
+  const ASSIGNMENT_TABLES = ["requests", "prospects", "projects", "website_projects"];
   return {
     from(table: string) {
+      if (ASSIGNMENT_TABLES.includes(table)) {
+        return {
+          update: () => ({
+            eq: () => ({
+              eq: () => {
+                opts.onUnassign?.(table);
+                return Promise.resolve({ error: null });
+              },
+            }),
+          }),
+        };
+      }
       if (table !== "memberships") throw new Error(`Unexpected table in test: ${table}`);
       return {
         select: (cols: string) => {
@@ -166,5 +184,16 @@ describe("removeTeamMember", () => {
     const result = await removeTeamMember(admin as never, "org-1", "member@acme.example");
     expect(result).toEqual({ ok: true });
     expect(deleted).toBe(true);
+  });
+
+  // Studio big-ticket ("removing a team member orphans their
+  // assignments") — proves the actual fix: assigned_to gets cleared on
+  // every table it can live on, not just the membership row itself.
+  it("clears assigned_to on requests, prospects, projects, and website_projects for the removed member", async () => {
+    const unassignedTables: string[] = [];
+    const admin = buildAdmin({ removeTargetRole: "member", onUnassign: (table) => unassignedTables.push(table) });
+    const result = await removeTeamMember(admin as never, "org-1", "member@acme.example");
+    expect(result).toEqual({ ok: true });
+    expect(unassignedTables.sort()).toEqual(["projects", "prospects", "requests", "website_projects"]);
   });
 });

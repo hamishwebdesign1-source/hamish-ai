@@ -15,6 +15,7 @@ import type { PlatformPlanSlug } from "@/lib/platform-plans";
 import { sendOrgEmail } from "@/lib/send-org-email";
 import { logAuditEvent } from "@/lib/audit-log";
 import { notifyAssignee } from "@/lib/team-members";
+import { logAiCall } from "@/lib/ai-call-log";
 
 // Same session-derivation as prospects/actions.ts's requireOrgId() — kept
 // as its own local copy, same convention billing/actions.ts documents.
@@ -305,12 +306,19 @@ export async function turnRequestIntoWebsiteTask(
   const phases = project.build_phases as BuildPhase[] | null;
   const currentPhase = phases?.[project.current_phase_index] ?? null;
 
+  const startedAt = Date.now();
   const result = await generateTroubleshootingHelp(
     project.brief as WebsiteBrief,
     project.recommended_tool as ToolId,
     currentPhase,
     request.raw_text
   );
+  // Studio big-ticket ("Model Performance completeness," round 2) — the
+  // one real Claude call site the original sweep missed: this is the
+  // same generateTroubleshootingHelp() call website-builder/actions.ts's
+  // getTroubleshootingHelp() already logs, just entered from the
+  // Requests page's "turn into website task" flow instead.
+  logAiCall(orgId, "website_troubleshooting", { success: !("error" in result), latencyMs: Date.now() - startedAt });
   if ("error" in result) return { error: result.error };
 
   const entry: TroubleshootingEntry = {

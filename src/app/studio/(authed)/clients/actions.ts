@@ -259,6 +259,27 @@ export async function deleteClientData(clientId: string) {
   await admin.from("projects").delete().eq("client_id", clientId);
   await admin.from("monthly_reports").delete().eq("client_id", clientId);
 
+  // Studio big-ticket ("GDPR erasure crashes for any client with a
+  // website-builder project") — website_projects.client_id is NOT NULL
+  // with no ON DELETE CASCADE (schema-website-projects.sql), so without
+  // this the final clients delete below fails outright on an FK
+  // violation for any client who ever went through Website Builder,
+  // leaving everything else already deleted but the client row itself
+  // stuck. Real uploaded files (website_project_files, a private
+  // Storage bucket — schema-website-project-files.sql) are removed from
+  // Storage first, same "remove the object, then the row" order
+  // deleteWebsiteProjectFile() (website-project-files.ts) already uses,
+  // so this doesn't leave orphaned files behind in the bucket either.
+  const { data: websiteProjects } = await admin.from("website_projects").select("id").eq("client_id", clientId);
+  const websiteProjectIds = (websiteProjects ?? []).map((p) => p.id);
+  if (websiteProjectIds.length) {
+    const { data: files } = await admin.from("website_project_files").select("storage_path").in("website_project_id", websiteProjectIds);
+    const storagePaths = (files ?? []).map((f) => f.storage_path);
+    if (storagePaths.length) await admin.storage.from("website-project-files").remove(storagePaths);
+    await admin.from("website_project_files").delete().in("website_project_id", websiteProjectIds);
+    await admin.from("website_projects").delete().in("id", websiteProjectIds);
+  }
+
   const { error } = await admin.from("clients").delete().eq("id", clientId);
   if (error) return { error: "Failed to delete this client's data." };
 

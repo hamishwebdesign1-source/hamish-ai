@@ -99,6 +99,23 @@ export async function removeTeamMember(admin: SupabaseClient, orgId: string, ema
   const { error } = await admin.from("memberships").delete().eq("org_id", orgId).eq("email", email);
   if (error) return { error: "Failed to remove that person." };
 
+  // Studio big-ticket ("removing a team member orphans their
+  // assignments") — assigned_to (requests/prospects/projects/
+  // website_projects) is a plain text column, not a foreign key to
+  // memberships (same reasoning schema-request-assignment.sql's own
+  // comment gives: memberships has no standalone primary key on email
+  // alone), so nothing errors when the assignee leaves the team — the
+  // item just silently falls out of anyone's "assigned to me" view and
+  // its own assignee <select> shows a value that no longer matches any
+  // real teammate. Cleared here, in the one place a departure is known,
+  // rather than every assignee <select> having to defend against a
+  // dangling value itself.
+  await Promise.all(
+    (["requests", "prospects", "projects", "website_projects"] as const).map((table) =>
+      admin.from(table).update({ assigned_to: null }).eq("org_id", orgId).eq("assigned_to", email)
+    )
+  );
+
   return { ok: true };
 }
 
