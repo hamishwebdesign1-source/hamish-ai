@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { DM_Sans, IBM_Plex_Mono, Fraunces, Chakra_Petch, Sora } from "next/font/google";
 import { AnalyticsProvider } from "@/components/analytics-provider";
 import "./globals.css";
@@ -61,6 +61,20 @@ export const metadata: Metadata = {
   title: "HamishAI Agency Platform — Launch Your Own AI Agency",
   description:
     "The platform behind HamishAI, now yours to run your own agency on. Prospecting, AI analysis, outreach and client delivery, in one workspace.",
+};
+
+// SEO/branding audit (2 Sep 2026) — themeColor moved out of `metadata`
+// into its own `viewport` export per Next.js's current App Router API
+// (checked node_modules/next/dist/docs/.../generate-viewport.md before
+// writing this, per this repo's own AGENTS.md — metadata.themeColor is
+// the deprecated pre-Next-14 shape). Verified live: no
+// <meta name="theme-color"> existed at all before this. Same real
+// #f4f7fb as manifest.ts's own theme_color/background_color — see that
+// file's comment for how it was derived (globals.css's real light
+// --background token, converted precisely, independently confirmed
+// against og-image.tsx's own hand-picked BRAND.paper constant).
+export const viewport: Viewport = {
+  themeColor: "#f4f7fb",
 };
 
 export default function RootLayout({

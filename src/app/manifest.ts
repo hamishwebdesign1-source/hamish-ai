@@ -10,11 +10,20 @@ import type { MetadataRoute } from "next";
 // <link rel="manifest"> tag automatically.
 //
 // Every value here is real, not invented for this file: name/description
-// match the root layout's own metadata (layout.tsx) exactly; theme_color
-// and background_color reuse icon.svg's own real dark background
-// (#0b0f1a) rather than a new colour choice; the icon references the
-// same real icon.svg already served sitewide (modern Chrome/Android
-// accept an SVG with sizes: "any" directly, no new raster asset needed).
+// match the root layout's own metadata (layout.tsx) exactly; the icon
+// references the same real icon.svg already served sitewide (modern
+// Chrome/Android accept an SVG with sizes: "any" directly, no new
+// raster asset needed).
+//
+// theme_color/background_color corrected 2 Sep 2026 — first shipped as
+// #0b0f1a (icon.svg's own dark background), but that's the hero-only
+// tone; the site's actual predominant background (About, Services,
+// Contact, Portfolio, Terms, Privacy, AI Solutions, Analytics, Book,
+// Website Audit — every page except the Home/Agency hero) is globals.css's
+// light --background token, oklch(0.975 0.006 250). Converted precisely
+// (OKLCH → sRGB) to #f4f7fb — independently confirmed correct: it's an
+// exact match for og-image.tsx's own hand-picked BRAND.paper constant,
+// arrived at completely separately.
 export default function manifest(): MetadataRoute.Manifest {
   return {
     name: "HamishAI Agency Platform — Launch Your Own AI Agency",
@@ -23,8 +32,8 @@ export default function manifest(): MetadataRoute.Manifest {
       "The platform behind HamishAI, now yours to run your own agency on. Prospecting, AI analysis, outreach and client delivery, in one workspace.",
     start_url: "/",
     display: "standalone",
-    background_color: "#0b0f1a",
-    theme_color: "#0b0f1a",
+    background_color: "#f4f7fb",
+    theme_color: "#f4f7fb",
     icons: [
       {
         src: "/icon.svg",
