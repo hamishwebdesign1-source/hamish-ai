@@ -20,6 +20,7 @@ import {
   Search,
   Radar,
   Repeat,
+  Mail,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -396,7 +397,7 @@ function GenerateReportControl({ clientId }: { clientId: string }) {
 // toggle + embed snippet. Uses window.location.origin rather than a
 // hardcoded domain for the snippet, so this keeps working correctly
 // regardless of what domain Studio itself is ever served from.
-function EmbedChatbotControl({ client, usageCount }: { client: Client; usageCount: number }) {
+function EmbedChatbotControl({ client, usageCount, leads }: { client: Client; usageCount: number; leads: EmbedLead[] }) {
   const [enabled, setEnabled] = useState(client.chatbot_embed_enabled);
   const [origin, setOrigin] = useState(client.chatbot_embed_allowed_origin ?? "");
   const [pending, startTransition] = useTransition();
@@ -504,6 +505,30 @@ function EmbedChatbotControl({ client, usageCount }: { client: Client; usageCoun
         </li>
       </ol>
 
+      {/* Studio big-ticket #6 ("embedded chatbot has no lead-capture path")
+          — a visitor who the bot couldn't answer can now leave contact
+          info instead of the interaction just dropping on the floor.
+          Only rendered once there's actually one — no empty "0 leads"
+          noise on a client whose chatbot's never generated one. */}
+      {leads.length > 0 && (
+        <div className="mt-3 rounded-lg border border-border p-3">
+          <p className="flex items-center gap-1.5 text-xs font-semibold">
+            <Mail className="size-3.5 shrink-0 text-muted-foreground" /> {leads.length} lead{leads.length === 1 ? "" : "s"} captured
+          </p>
+          <ul className="mt-2 space-y-1.5">
+            {leads.slice(0, 5).map((lead) => (
+              <li key={lead.id} className="text-xs">
+                <span className="font-medium">{lead.email}</span>
+                <span className="ml-1.5 text-muted-foreground">
+                  {new Date(lead.created_at).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
+                </span>
+                {lead.message && <p className="mt-0.5 text-muted-foreground">{lead.message}</p>}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       {enabled && client.chatbot_embed_allowed_origin && (
         <div className="mt-3 rounded-lg border border-dashed border-border p-3">
           <div className="flex items-center justify-between gap-2">
@@ -530,12 +555,16 @@ function EmbedChatbotControl({ client, usageCount }: { client: Client; usageCoun
 
 type CompetitorIntel = { headline: string; detail: string; sourceUrl: string | null; createdAt: string };
 
+// Studio big-ticket #6 ("embedded chatbot has no lead-capture path").
+type EmbedLead = { id: string; email: string; message: string | null; created_at: string };
+
 function ClientCard({
   client,
   invoices,
   health,
   risk,
   embedUsage,
+  embedLeads,
   stripeReady,
   competitorIntel,
 }: {
@@ -544,6 +573,7 @@ function ClientCard({
   health: ClientHealth | undefined;
   risk: ClientEngagementRisk | undefined;
   embedUsage: number;
+  embedLeads: EmbedLead[];
   stripeReady: boolean;
   competitorIntel: CompetitorIntel[];
 }) {
@@ -658,7 +688,7 @@ function ClientCard({
 
             <GenerateReportControl clientId={client.id} />
 
-            <EmbedChatbotControl client={client} usageCount={embedUsage} />
+            <EmbedChatbotControl client={client} usageCount={embedUsage} leads={embedLeads} />
 
             <p className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
               <Receipt className="size-3.5 shrink-0" /> Invoices
@@ -731,6 +761,7 @@ export function ClientsPanel({
   healthByClient,
   riskByClient,
   embedUsageByClient,
+  embedLeadsByClient,
   competitorIntelByClient,
   stripeReady,
 }: {
@@ -739,6 +770,7 @@ export function ClientsPanel({
   healthByClient: Record<string, ClientHealth>;
   riskByClient: Record<string, ClientEngagementRisk>;
   embedUsageByClient: Record<string, number>;
+  embedLeadsByClient: Record<string, EmbedLead[]>;
   competitorIntelByClient: Record<string, CompetitorIntel[]>;
   stripeReady: boolean;
 }) {
@@ -811,6 +843,7 @@ export function ClientsPanel({
                   health={healthByClient[c.id]}
                   risk={riskByClient[c.id]}
                   embedUsage={embedUsageByClient[c.id] ?? 0}
+                  embedLeads={embedLeadsByClient[c.id] ?? []}
                   competitorIntel={competitorIntelByClient[c.id] ?? []}
                   stripeReady={stripeReady}
                 />

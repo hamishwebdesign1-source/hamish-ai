@@ -27,6 +27,8 @@ type RequestRow = { id: string; client_id: string; status: string; created_at: s
 type TaskRow = { id: string; request_id: string | null; status: string };
 type SiteCheckRow = { client_id: string; uptime_ok: boolean | null };
 type AuditLogRow = { client_id: string | null };
+// Studio big-ticket #6 ("embedded chatbot has no lead-capture path").
+type EmbedLeadRow = { id: string; client_id: string; email: string; message: string | null; created_at: string };
 
 // Pulled out of the component body — react-hooks/purity flags Date.now()
 // (or any current-time read) called directly during a component's own
@@ -74,7 +76,7 @@ export default async function StudioClientsPage() {
 
   const thirtyDaysAgo = thirtyDaysAgoIso();
   const clientIds = (clients ?? []).map((c) => c.id);
-  const [{ data: invoices }, { data: requests }, { data: siteChecks }, { data: embedChatEvents }] = clientIds.length
+  const [{ data: invoices }, { data: requests }, { data: siteChecks }, { data: embedChatEvents }, { data: embedLeads }] = clientIds.length
     ? await Promise.all([
         // reminder_sent_at added alongside the Command Centre's own
         // invoices query (Engagement Risk's "Send payment reminder" —
@@ -96,8 +98,23 @@ export default async function StudioClientsPage() {
           .eq("action", "embed_chat.message")
           .in("client_id", clientIds)
           .gte("created_at", thirtyDaysAgo),
+        // Studio big-ticket #6 — embed_leads_select_own_org RLS
+        // (schema-embed-leads.sql) enforces the org boundary
+        // independently of this .in() getting it right, same
+        // convention as every other read on this page.
+        supabase
+          .from("embed_leads")
+          .select("id, client_id, email, message, created_at")
+          .in("client_id", clientIds)
+          .order("created_at", { ascending: false }),
       ])
-    : [{ data: [] as InvoiceRow[] }, { data: [] as RequestRow[] }, { data: [] as SiteCheckRow[] }, { data: [] as AuditLogRow[] }];
+    : [
+        { data: [] as InvoiceRow[] },
+        { data: [] as RequestRow[] },
+        { data: [] as SiteCheckRow[] },
+        { data: [] as AuditLogRow[] },
+        { data: [] as EmbedLeadRow[] },
+      ];
 
   const requestIds = (requests ?? []).map((r) => r.id);
   const { data: tasks } = requestIds.length
@@ -133,6 +150,12 @@ export default async function StudioClientsPage() {
   for (const event of embedChatEvents ?? []) {
     if (!event.client_id) continue;
     embedUsageByClient[event.client_id] = (embedUsageByClient[event.client_id] ?? 0) + 1;
+  }
+
+  // Studio big-ticket #6 ("embedded chatbot has no lead-capture path").
+  const embedLeadsByClient: Record<string, EmbedLeadRow[]> = {};
+  for (const lead of embedLeads ?? []) {
+    (embedLeadsByClient[lead.client_id] ??= []).push(lead);
   }
 
   // Engagement risk (reused from the Command Centre, studio-engagement.ts)
@@ -175,6 +198,7 @@ export default async function StudioClientsPage() {
       clients={clients ?? []}
       invoicesByClient={invoicesByClient}
       embedUsageByClient={embedUsageByClient}
+      embedLeadsByClient={embedLeadsByClient}
       healthByClient={healthByClient}
       riskByClient={riskByClient}
       competitorIntelByClient={competitorIntelByClient}

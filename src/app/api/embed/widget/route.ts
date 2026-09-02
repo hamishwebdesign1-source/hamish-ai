@@ -14,6 +14,8 @@ const WIDGET_JS = `
 
   var origin = script.src ? new URL(script.src).origin : "";
   var endpoint = origin + "/api/embed/chat?client=" + encodeURIComponent(clientId);
+  // Studio big-ticket #6 ("embedded chatbot has no lead-capture path").
+  var leadEndpoint = origin + "/api/embed/lead?client=" + encodeURIComponent(clientId);
 
   var messages = [];
   var open = false;
@@ -80,9 +82,105 @@ const WIDGET_JS = `
 
   form.appendChild(input);
   form.appendChild(sendBtn);
+
+  // Studio big-ticket #6 ("embedded chatbot has no lead-capture path") —
+  // a visitor decides for themselves whether the bot's answered them
+  // well enough, not a model guessing at it (same reasoning
+  // answer-embed-chat.ts's own comment gives for staying FAQ-only) — so
+  // this is a plain, always-available link, not something the AI
+  // decides to surface.
+  var leadLink = document.createElement("button");
+  leadLink.type = "button";
+  leadLink.textContent = "Can't find what you need? Leave your details →";
+  leadLink.style.cssText =
+    "padding:6px 12px;background:none;border:none;color:#1f6f5c;font-size:12px;text-align:left;cursor:pointer;text-decoration:underline;";
+
+  var leadForm = document.createElement("form");
+  leadForm.style.cssText = "display:none;flex-direction:column;gap:6px;padding:10px;border-top:1px solid #e5e5e5;";
+
+  var leadEmail = document.createElement("input");
+  leadEmail.type = "email";
+  leadEmail.required = true;
+  leadEmail.placeholder = "Your email";
+  leadEmail.style.cssText = "padding:8px 10px;border:1px solid #ccc;border-radius:6px;font-size:14px;";
+
+  var leadMessage = document.createElement("textarea");
+  leadMessage.placeholder = "What can we help with? (optional)";
+  leadMessage.rows = 2;
+  leadMessage.style.cssText = "padding:8px 10px;border:1px solid #ccc;border-radius:6px;font-size:14px;resize:none;font-family:inherit;";
+
+  var leadRow = document.createElement("div");
+  leadRow.style.cssText = "display:flex;gap:6px;";
+  var leadSubmit = document.createElement("button");
+  leadSubmit.type = "submit";
+  leadSubmit.textContent = "Send";
+  leadSubmit.style.cssText = "flex:1;padding:8px 12px;background:#1f6f5c;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:14px;";
+  var leadCancel = document.createElement("button");
+  leadCancel.type = "button";
+  leadCancel.textContent = "Back to chat";
+  leadCancel.style.cssText = "padding:8px 10px;background:#f0f0f0;color:#141413;border:none;border-radius:6px;cursor:pointer;font-size:13px;";
+  leadRow.appendChild(leadSubmit);
+  leadRow.appendChild(leadCancel);
+
+  var leadStatus = document.createElement("div");
+  leadStatus.style.cssText = "font-size:12px;color:#141413;";
+
+  leadForm.appendChild(leadEmail);
+  leadForm.appendChild(leadMessage);
+  leadForm.appendChild(leadRow);
+  leadForm.appendChild(leadStatus);
+
+  function showLeadForm(show) {
+    leadForm.style.display = show ? "flex" : "none";
+    form.style.display = show ? "none" : "flex";
+    leadLink.style.display = show ? "none" : "block";
+    starters.style.display = show ? "none" : starters.style.display;
+  }
+
+  leadLink.addEventListener("click", function () {
+    showLeadForm(true);
+  });
+  leadCancel.addEventListener("click", function () {
+    showLeadForm(false);
+  });
+
+  leadForm.addEventListener("submit", function (e) {
+    e.preventDefault();
+    leadStatus.textContent = "Sending…";
+    leadSubmit.disabled = true;
+    fetch(leadEndpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: leadEmail.value, message: leadMessage.value }),
+    })
+      .then(function (res) {
+        return res.json().then(function (data) {
+          return { ok: res.ok, data: data };
+        });
+      })
+      .then(function (result) {
+        if (!result.ok) {
+          leadStatus.textContent = result.data.error || "Something went wrong — please try again.";
+          leadSubmit.disabled = false;
+          return;
+        }
+        leadForm.innerHTML = "";
+        var thanks = document.createElement("div");
+        thanks.style.cssText = "font-size:13px;color:#141413;";
+        thanks.textContent = "Thanks — we'll be in touch soon.";
+        leadForm.appendChild(thanks);
+      })
+      .catch(function () {
+        leadStatus.textContent = "Couldn't send — check your connection and try again.";
+        leadSubmit.disabled = false;
+      });
+  });
+
   panel.appendChild(header);
   panel.appendChild(log);
   panel.appendChild(starters);
+  panel.appendChild(leadLink);
+  panel.appendChild(leadForm);
   panel.appendChild(form);
 
   function addBubbleMsg(role, text) {
