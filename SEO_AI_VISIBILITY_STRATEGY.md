@@ -64,6 +64,7 @@ access to.
 | Homepage's "complete journey" section was entirely hand-built CSS/div mockups (`JourneyExplorer`), not real product screenshots — confirmed via source read, no `next/image` anywhere in it | Direct user feedback ("feels very amateur") + source read | **Fixed** — replaced with `StudioTour`, a real 6-step, clickable screenshot tour captured live from the actual signed-in Studio account |
 | Sitewide Organization JSON-LD `description` was Platform-only copy (`siteConfig.description`), rendered unchanged on `/agency` — an AI system or crawler reading `/agency` saw an entity description describing a different business than the page it was on | Live JSON-LD dump on `/agency` (`hamishai.org/agency`) | **Fixed** — description decoupled from `siteConfig.description`, now a page-agnostic description accurate on every page it renders on |
 | Homepage had no `og:image`/`twitter:image` at all (not just stale — completely absent) — it was the only `(site)` page relying on the root fallback, which `(site)/layout.tsx`'s own `openGraph` object (no `images` field) silently shadows | Live meta-tag dump on `/` — zero `og:image`/`twitter:image` tags present | **Fixed** — homepage got its own dedicated `opengraph-image.tsx`, matching every sibling page's existing pattern; root fallback's stale Edinburgh copy also updated (the accurate version moved to `/agency`'s own dedicated file) |
+| Product schema (`PlatformProductJsonLd`, homepage) had all 3 `Offer.url` fields pointing to `https://hamishai.org/platform`, which 301-redirects to `/` since the homepage swap | Live JSON-LD dump on `/` + `next.config.ts` redirect confirmed + live navigation confirmed the redirect | **Fixed** — now `https://hamishai.org/#pricing`, the real anchor, reusing the same URL `siteConfig.platformNav`'s own "Pricing" link already uses |
 | **Partially checked**: mobile usability — real device/viewport pass done on the homepage (no horizontal overflow, no WCAG 2.2 AA contrast failures, no tap-target violations once the AAA-only 44px bar is corrected to the actual AA 24px one) | Live DOM checks (overflow, contrast ratio, target size) via a real 375px viewport | **Not yet done**: the same pass on other key pages (services, about, portfolio); real screenshots inside the homepage's Studio Tour become small/hard-to-read at mobile width — a real UX observation, but out of this audit's technical-SEO scope to fix |
 | **Not yet checked**: Core Web Vitals / real page-speed numbers | — | Needs a real Lighthouse or PageSpeed Insights run against the live URL — not something verifiable from source alone |
 | **Not verified**: whether Google has actually crawled/indexed the new sitemap yet | — | Needs Search Console — submit the sitemap there (see 30-day plan) |
@@ -440,6 +441,18 @@ See the individual commits for full detail — summarized here:
     copy, and fixed a real highlight-matching bug caught along the way
     (a title's trailing period silently broke exact-word highlight
     matching in the shared `ogImageResponse` helper).
+15. Fixed `PlatformProductJsonLd`'s Product schema — all 3 `Offer.url`
+    fields pointed to `https://hamishai.org/platform`, verified live
+    (and via `next.config.ts`) to 301-redirect to `/` since the homepage
+    swap. Structured data was sending crawlers through a redirect hop
+    instead of the canonical destination. Now points at `/#pricing`
+    directly, reusing the same URL the real nav already uses.
+16. Not structured-data SEO, but same "real over fabricated" discipline:
+    added real Studio screenshots to the homepage's agency-type
+    selector (Analytics dashboard, and the embeddable-chatbot section
+    on a client already using it) per direct feedback, following the
+    Studio Tour's own real-screenshot precedent rather than stock/
+    illustrative imagery.
 
 ## What still needs to be done externally
 
