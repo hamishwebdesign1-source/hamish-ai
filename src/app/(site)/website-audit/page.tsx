@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { WebsiteAuditForm } from "@/components/website-audit-form";
 import { Eyebrow } from "@/components/eyebrow";
+import { WebsiteAuditJsonLd } from "@/components/seo/website-audit-json-ld";
 
 export const metadata: Metadata = {
   title: "Free Website Health Check | Hamish AI",
@@ -14,6 +15,7 @@ const trustPoints = ["Free, no obligation", "Real checks, not a generic score", 
 export default function WebsiteAuditPage() {
   return (
     <section className="mx-auto max-w-5xl px-6 pt-16 pb-24 md:pt-24">
+      <WebsiteAuditJsonLd />
       <div className="mx-auto max-w-2xl text-center">
         <Eyebrow className="mb-6">Free website health check</Eyebrow>
         <h1 className="font-heading text-4xl font-semibold tracking-tight text-balance md:text-5xl">
