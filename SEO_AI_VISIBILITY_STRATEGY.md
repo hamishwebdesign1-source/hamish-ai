@@ -63,8 +63,9 @@ access to.
 | `site-footer.tsx` never got the Platform-vs-consultancy contextual nav split `site-header.tsx` already had — kept showing the consultancy's 6-link nav on the new Platform-first homepage | Live DOM dump of both `<nav>` elements on `/` | **Fixed** — converted to a client component, same `isPlatformContext` split, extracted into a shared `usePlatformContext()` hook so header/footer can't drift again |
 | Homepage's "complete journey" section was entirely hand-built CSS/div mockups (`JourneyExplorer`), not real product screenshots — confirmed via source read, no `next/image` anywhere in it | Direct user feedback ("feels very amateur") + source read | **Fixed** — replaced with `StudioTour`, a real 6-step, clickable screenshot tour captured live from the actual signed-in Studio account |
 | Sitewide Organization JSON-LD `description` was Platform-only copy (`siteConfig.description`), rendered unchanged on `/agency` — an AI system or crawler reading `/agency` saw an entity description describing a different business than the page it was on | Live JSON-LD dump on `/agency` (`hamishai.org/agency`) | **Fixed** — description decoupled from `siteConfig.description`, now a page-agnostic description accurate on every page it renders on |
+| Homepage had no `og:image`/`twitter:image` at all (not just stale — completely absent) — it was the only `(site)` page relying on the root fallback, which `(site)/layout.tsx`'s own `openGraph` object (no `images` field) silently shadows | Live meta-tag dump on `/` — zero `og:image`/`twitter:image` tags present | **Fixed** — homepage got its own dedicated `opengraph-image.tsx`, matching every sibling page's existing pattern; root fallback's stale Edinburgh copy also updated (the accurate version moved to `/agency`'s own dedicated file) |
+| **Partially checked**: mobile usability — real device/viewport pass done on the homepage (no horizontal overflow, no WCAG 2.2 AA contrast failures, no tap-target violations once the AAA-only 44px bar is corrected to the actual AA 24px one) | Live DOM checks (overflow, contrast ratio, target size) via a real 375px viewport | **Not yet done**: the same pass on other key pages (services, about, portfolio); real screenshots inside the homepage's Studio Tour become small/hard-to-read at mobile width — a real UX observation, but out of this audit's technical-SEO scope to fix |
 | **Not yet checked**: Core Web Vitals / real page-speed numbers | — | Needs a real Lighthouse or PageSpeed Insights run against the live URL — not something verifiable from source alone |
-| **Not yet checked**: mobile usability audit beyond responsive-class review | — | Needs a real device/viewport pass |
 | **Not verified**: whether Google has actually crawled/indexed the new sitemap yet | — | Needs Search Console — submit the sitemap there (see 30-day plan) |
 
 ---
@@ -429,6 +430,16 @@ See the individual commits for full detail — summarized here:
     page's actual content. Now a page-agnostic description, true on
     every page it renders on rather than borrowed from either page's own
     pitch.
+14. Fixed a real, verified `og:image`/`twitter:image` gap on the
+    homepage — not stale, completely absent, because it was the only
+    `(site)` page without its own dedicated `opengraph-image.tsx` (every
+    sibling already had one) and the root fallback gets silently
+    shadowed by `(site)/layout.tsx`'s own `openGraph` object. Gave the
+    homepage its own file, moved the still-accurate Edinburgh version to
+    its own file under `/agency`, updated the root fallback's stale
+    copy, and fixed a real highlight-matching bug caught along the way
+    (a title's trailing period silently broke exact-word highlight
+    matching in the shared `ogImageResponse` helper).
 
 ## What still needs to be done externally
 
@@ -439,7 +450,9 @@ These are genuinely outside what a codebase-only session can do:
   yet.
 - **Run a real Lighthouse/PageSpeed Insights audit** against the live URL
   — Core Web Vitals weren't verified in this pass.
-- **A real mobile-device usability pass** — beyond responsive-class review.
+- **A real mobile-device usability pass on the remaining pages** — done for
+  the homepage this session (overflow, contrast, tap targets, all clean);
+  services/about/portfolio and the rest still need the same pass.
 - **Everything in Off-Page Authority Strategy** — LinkedIn presence,
   directory submissions, guest content, a Product Hunt launch, and the
   first real case study once a real Platform customer exists. None of
