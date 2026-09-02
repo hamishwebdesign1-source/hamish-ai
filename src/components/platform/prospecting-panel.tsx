@@ -35,6 +35,7 @@ import {
   Trash2,
   CheckCheck,
   PoundSterling,
+  CirclePlus,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -60,6 +61,7 @@ import {
   markProspectLost,
   updateProspectDealValue,
   deleteProspect,
+  addManualProspect,
 } from "@/app/studio/(authed)/prospects/actions";
 import { DiscoveryResultMessage, type DiscoveryResult } from "@/components/platform/discovery-result-message";
 import type { UsageStatus } from "@/lib/usage-limits";
@@ -1254,6 +1256,53 @@ export function ProspectingPanel({
     });
   }
 
+  // Add a lead manually — real gap, reported live: every prospect above
+  // this point comes from AI discovery only. Own state, own transition,
+  // same as Search now above — deliberately not layered onto any of the
+  // discovery state, since this doesn't call an AI search at all.
+  const [manualOpen, setManualOpen] = useState(false);
+  const [manualName, setManualName] = useState("");
+  const [manualEmail, setManualEmail] = useState("");
+  const [manualPhone, setManualPhone] = useState("");
+  const [manualCategory, setManualCategory] = useState("");
+  const [manualLocation, setManualLocation] = useState("");
+  const [manualWebsite, setManualWebsite] = useState("");
+  const [manualPending, startManual] = useTransition();
+  const [manualError, setManualError] = useState<string | null>(null);
+  const [manualJustAdded, setManualJustAdded] = useState(false);
+
+  function handleAddManual() {
+    if (!manualName.trim()) return;
+    setManualError(null);
+    setManualJustAdded(false);
+    startManual(async () => {
+      const result = await addManualProspect({
+        businessName: manualName,
+        email: manualEmail,
+        phone: manualPhone,
+        category: manualCategory,
+        neighbourhood: manualLocation,
+        website: manualWebsite,
+      });
+      if ("error" in result) {
+        setManualError(result.error ?? "Failed to add prospect.");
+        return;
+      }
+      setManualName("");
+      setManualEmail("");
+      setManualPhone("");
+      setManualCategory("");
+      setManualLocation("");
+      setManualWebsite("");
+      setManualJustAdded(true);
+      // Explicit, same reasoning as the bulk actions' own router.refresh()
+      // above — this is a brand new row with no per-row optimism of its
+      // own to show it instantly, so the real refresh has to be asked for
+      // rather than relied on implicitly.
+      router.refresh();
+    });
+  }
+
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<
     "all" | "needs_verification" | "qualified" | "contacted" | "needs_followup" | "converted" | "lost"
@@ -1607,6 +1656,134 @@ export function ProspectingPanel({
           {searchResult && (
             <div className="mt-3">
               <DiscoveryResultMessage result={searchResult} />
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Add a lead manually — real gap, reported live: everything above
+          this card only ever creates a prospect through AI discovery.
+          A tenant's own inbound enquiry, referral, or trade-show contact
+          had nowhere to go. Collapsed by default (nicheOpen's own
+          convention) — this is a secondary path, not the page's main
+          flow, and shouldn't permanently push the actual prospect list
+          down for every tenant who never uses it. */}
+      <Card>
+        <CardContent>
+          <button
+            type="button"
+            onClick={() => setManualOpen((v) => !v)}
+            className="flex w-full items-center justify-between gap-2 text-left"
+          >
+            <span className="flex items-center gap-1.5 font-heading text-sm font-semibold">
+              <CirclePlus className="size-4 text-accent" /> Add a lead manually
+            </span>
+            {manualOpen ? (
+              <ChevronUp className="size-4 text-muted-foreground" />
+            ) : (
+              <ChevronDown className="size-4 text-muted-foreground" />
+            )}
+          </button>
+          {!manualOpen && (
+            <p className="mt-1 text-xs text-muted-foreground">
+              Got a lead that didn&apos;t come from a search — a referral, an enquiry, someone you met? Add it here
+              and it joins the same pipeline as everything else.
+            </p>
+          )}
+          {manualOpen && (
+            <div className="mt-3 space-y-3">
+              <p className="text-xs text-muted-foreground">
+                Not researched or scored automatically — this is a lead you&apos;re vouching for yourself. You can
+                still run research on it afterwards from its card below.
+              </p>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="space-y-1.5 sm:col-span-2">
+                  <Label htmlFor="manual-name" className="text-xs">
+                    Business name
+                  </Label>
+                  <Input
+                    id="manual-name"
+                    value={manualName}
+                    onChange={(e) => setManualName(e.target.value)}
+                    placeholder="e.g. Riverside Cafe"
+                    className="h-9 text-sm"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="manual-email" className="text-xs">
+                    <Mail className="size-3" /> Email <span className="text-muted-foreground">(optional)</span>
+                  </Label>
+                  <Input
+                    id="manual-email"
+                    type="email"
+                    value={manualEmail}
+                    onChange={(e) => setManualEmail(e.target.value)}
+                    placeholder="name@business.com"
+                    className="h-9 text-sm"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="manual-phone" className="text-xs">
+                    <Phone className="size-3" /> Phone <span className="text-muted-foreground">(optional)</span>
+                  </Label>
+                  <Input
+                    id="manual-phone"
+                    value={manualPhone}
+                    onChange={(e) => setManualPhone(e.target.value)}
+                    placeholder="e.g. 0131 xxx xxxx"
+                    className="h-9 text-sm"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="manual-category" className="text-xs">
+                    <Tag className="size-3" /> Category <span className="text-muted-foreground">(optional)</span>
+                  </Label>
+                  <Input
+                    id="manual-category"
+                    value={manualCategory}
+                    onChange={(e) => setManualCategory(e.target.value)}
+                    placeholder="e.g. Gym"
+                    className="h-9 text-sm"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="manual-location" className="text-xs">
+                    <MapPin className="size-3" /> Location <span className="text-muted-foreground">(optional)</span>
+                  </Label>
+                  <Input
+                    id="manual-location"
+                    value={manualLocation}
+                    onChange={(e) => setManualLocation(e.target.value)}
+                    placeholder="e.g. Leith"
+                    className="h-9 text-sm"
+                  />
+                </div>
+                <div className="space-y-1.5 sm:col-span-2">
+                  <Label htmlFor="manual-website" className="text-xs">
+                    Website <span className="text-muted-foreground">(optional)</span>
+                  </Label>
+                  <Input
+                    id="manual-website"
+                    value={manualWebsite}
+                    onChange={(e) => setManualWebsite(e.target.value)}
+                    placeholder="https://…"
+                    className="h-9 text-sm"
+                  />
+                </div>
+              </div>
+              {manualError && <p className="text-xs text-destructive">{manualError}</p>}
+              {manualJustAdded && <p className="text-xs text-success">Added to your prospects below.</p>}
+              <Button onClick={handleAddManual} disabled={manualPending || !manualName.trim()} size="sm">
+                {manualPending ? (
+                  <>
+                    <LoaderCircle className="size-4 animate-spin" /> Adding…
+                  </>
+                ) : (
+                  <>
+                    <CirclePlus className="size-4" /> Add lead
+                  </>
+                )}
+              </Button>
             </div>
           )}
         </CardContent>

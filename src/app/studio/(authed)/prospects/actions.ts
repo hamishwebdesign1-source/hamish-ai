@@ -166,6 +166,58 @@ export async function searchProspects(location: string, category: string) {
   return result;
 }
 
+// Real gap, reported live: every prospect before this action existed came
+// from AI discovery only (discoverLeads()/searchProspectsNow() above) —
+// a tenant's own inbound enquiry, referral, or trade-show contact had
+// nowhere to go inside Studio at all. No AI call here, so no usage cap
+// or rate limit (compare runDiscovery()/searchProspects() above, both
+// gated on the same checks this deliberately skips) — this is a single
+// insert into the same prospects table discovery uses, so a manually
+// added lead gets the exact same downstream pipeline for free: status,
+// deal value, sales kit generation, conversion to client.
+//
+// discovery_source and score/score_breakdown are deliberately left null
+// — that's an honest reflection of "nothing AI-found or AI-scored this",
+// not a bug; the prospect list already renders a null score as no score
+// badge at all rather than a misleading 0 (same "real data or nothing"
+// discipline as the Business Health / Engagement Risk fixes this
+// session). status defaults to "qualified" rather than
+// "needs_verification" — that status means "AI found this, hasn't been
+// confirmed yet", which doesn't apply to a lead the tenant typed in and
+// is vouching for themselves. Optional research afterwards reuses the
+// existing researchProspect() action above, uncapped, exactly like
+// re-researching an old discovery-found prospect today.
+export async function addManualProspect(input: {
+  businessName: string;
+  email?: string;
+  phone?: string;
+  category?: string;
+  neighbourhood?: string;
+  website?: string;
+}) {
+  const orgId = await requireOrgId();
+  const admin = getSupabaseAdmin();
+  if (!admin) return { error: "Supabase is not configured." };
+
+  const businessName = input.businessName.trim();
+  if (!businessName) return { error: "Business name is required." };
+
+  const { error } = await admin.from("prospects").insert({
+    org_id: orgId,
+    business_name: businessName,
+    email: input.email?.trim() || null,
+    phone: input.phone?.trim() || null,
+    category: input.category?.trim() || null,
+    neighbourhood: input.neighbourhood?.trim() || null,
+    website: input.website?.trim() || null,
+    status: "qualified",
+  });
+  if (error) return { error: "Failed to add prospect." };
+
+  revalidatePath("/studio/prospects");
+  return { ok: true as const };
+}
+
 // Manual trigger for a prospect discovery ran without researching
 // (shouldn't happen going forward — discoverLeads() now researches every
 // prospect it finds — but real for anything found before that fix, or as
