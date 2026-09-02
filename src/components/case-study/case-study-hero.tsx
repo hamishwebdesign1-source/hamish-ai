@@ -2,6 +2,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Breadcrumbs } from "@/components/breadcrumbs";
 import type { CaseStudy } from "@/lib/case-studies-data";
 
 export function CaseStudyHero({ study }: { study: CaseStudy }) {
@@ -15,7 +16,14 @@ export function CaseStudyHero({ study }: { study: CaseStudy }) {
       />
 
       <div className="relative mx-auto max-w-6xl px-6 py-20 md:py-28">
-        <div className="flex items-center gap-2">
+        <Breadcrumbs
+          items={[
+            { label: "Home", href: "/" },
+            { label: "Portfolio", href: "/portfolio" },
+            { label: study.name },
+          ]}
+        />
+        <div className="mt-4 flex items-center gap-2">
           <span
             className="size-1.5 shrink-0 rounded-full"
             style={{ backgroundColor: study.accentFrom }}

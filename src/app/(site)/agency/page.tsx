@@ -343,6 +343,11 @@ export default function AgencyPage() {
             <p className="mt-2 max-w-lg text-muted-foreground">
               We&apos;re not describing automation from the outside — Hamish
               AI&apos;s own operations run on the same system we&apos;d build for you.
+              That system is also what we sell —{" "}
+              <Link href="/" className="text-accent underline underline-offset-2 hover:text-accent/80">
+                see the Agency Platform
+              </Link>
+              .
             </p>
           </Reveal>
 

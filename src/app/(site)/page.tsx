@@ -249,10 +249,15 @@ export default async function HomePage() {
                   Built and running internally first — HamishAI&apos;s own leads, outreach and client reporting run on this exact
                   system. Now opening access to outside agencies.
                 </p>
-                <Button variant="link" className="mt-3 px-0" render={<Link href="/analytics" />}>
-                  See AI Business Analytics
-                  <ArrowRight className="size-4" />
-                </Button>
+                <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-1">
+                  <Button variant="link" className="px-0" render={<Link href="/analytics" />}>
+                    See AI Business Analytics
+                    <ArrowRight className="size-4" />
+                  </Button>
+                  <Link href="/about" className="text-sm text-muted-foreground underline underline-offset-2 hover:text-foreground">
+                    Built by a Technology Business Analyst — read more
+                  </Link>
+                </div>
               </div>
             </div>
           </Reveal>
