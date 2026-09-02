@@ -67,7 +67,19 @@ function NavBadge({ count }: { count: number }) {
 export function StudioSidebar({ requestsBadgeCount }: { requestsBadgeCount?: number }) {
   const navSections = getNavSections();
   return (
-    <aside className="hidden w-52 shrink-0 flex-col gap-6 py-8 md:flex">
+    // Reported live: with 14 items across 5 groups, the nav is taller than
+    // most pages' own content on a normal viewport, and it was scrolling
+    // away with the page instead of staying put — every other app with a
+    // grouped sidebar this size keeps it fixed. sticky (not fixed) so it
+    // stays within its own flex column rather than needing separate
+    // width/offset math to match the centred max-w-6xl layout; self-start
+    // stops the flex row from stretching it to the main column's height
+    // (which would make "sticky" a no-op — nothing to scroll past inside
+    // its own box). max-h + overflow-y-auto is a real guard, not
+    // decorative: a short viewport (laptop at 100% zoom, browser chrome
+    // eating vertical space) is exactly where a tall nav would otherwise
+    // get clipped by the viewport edge with no way to reach Help below it.
+    <aside className="sticky top-8 hidden max-h-[calc(100vh-4rem)] w-52 shrink-0 flex-col gap-6 self-start overflow-y-auto py-8 md:flex">
       {navSections.map((section, i) => (
         <div key={section.label ?? `ungrouped-${i}`} className="flex flex-col gap-1">
           {section.label && <p className="text-eyebrow px-2.5 pb-1">{section.label}</p>}
