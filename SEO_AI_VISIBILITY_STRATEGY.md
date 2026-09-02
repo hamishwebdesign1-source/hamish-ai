@@ -171,10 +171,11 @@ assumed):
 ```
 / (Platform, homepage)
 ├─ links to: /analytics ("See it running HamishAI itself"), /platform/signup,
-│  /studio, /book
-├─ linked from: nav is absent here on purpose (the Platform isn't in
-│  siteConfig.nav — deliberately muted, see site-header.tsx's own comment)
-│  — reached via the header's contextual CTA/muted link, and now every
+│  /studio, /book, plus its own real in-page nav now (siteConfig.platformNav
+│  — How it works / Pricing / FAQ, anchors on this same page — fixed live,
+│  0e8f23a, after the main nav was reported still showing all 6 consultancy
+│  links here, a real IA mismatch)
+├─ linked from: the header's contextual CTA/muted link, and every
 │  external bookmark to the old /platform URL (301 redirect)
 
 /agency (archived homepage, still real)
