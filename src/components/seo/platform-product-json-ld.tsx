@@ -36,7 +36,15 @@ export function PlatformProductJsonLd() {
         price: plan.monthlyPence / 100,
         priceCurrency: "GBP",
         description: plan.tagline,
-        url: "https://hamishai.org/platform",
+        // Was "https://hamishai.org/platform" — verified live and in
+        // source (next.config.ts) that /platform 301-redirects to "/"
+        // as of the homepage swap, so every Offer here pointed structured
+        // data through a redirect instead of straight at the canonical
+        // destination. Points at the real pricing section's own anchor
+        // instead (siteConfig.platformNav's "Pricing" link uses the same
+        // "/#pricing" — this isn't a new URL, just reusing the one
+        // that's already real).
+        url: "https://hamishai.org/#pricing",
       })),
     },
   };
