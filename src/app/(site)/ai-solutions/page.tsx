@@ -10,8 +10,12 @@ import { aiSolutions } from "@/lib/ai-solutions-data";
 
 export const metadata: Metadata = {
   title: "AI Solutions | Hamish AI",
+  // Trimmed from 159 to 154 chars (SEO audit, 2 Sep 2026) — Google's
+  // search-result snippet reliably truncates meta descriptions around
+  // 155-160 characters depending on device/query; 159 was right at the
+  // edge. Same six real solutions named, none dropped.
   description:
-    "Six practical AI solutions for Edinburgh businesses — customer assistants, receptionists, sales assistants, knowledge bases, content automation, and analytics.",
+    "Six practical AI solutions for Edinburgh businesses: customer assistants, receptionists, sales assistants, knowledge bases, content automation, analytics.",
   alternates: { canonical: "/ai-solutions" },
 };
 

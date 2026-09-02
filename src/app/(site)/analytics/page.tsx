@@ -26,11 +26,16 @@ import {
   AccordionContent,
 } from "@/components/ui/accordion";
 import { dashboardKpis, analyticsIndustries, analyticsFaqs } from "@/lib/analytics-data";
+import { FaqJsonLd } from "@/components/seo/faq-json-ld";
 
 export const metadata: Metadata = {
   title: "AI Business Analytics | Hamish AI",
+  // Trimmed from 186 to 144 chars (SEO audit, 2 Sep 2026) — the original
+  // ran well past Google's ~155-160 char truncation point, silently
+  // cutting off "who understands the process behind the data" mid-
+  // sentence in real search results. Same real claim, shorter.
   description:
-    "Executive dashboards, automated AI reports, and business intelligence for Edinburgh businesses — built by a Technology Business Analyst who understands the process behind the data.",
+    "AI-powered executive dashboards and automated reports for Edinburgh businesses, built by a Technology Business Analyst who understands the data.",
   alternates: { canonical: "/analytics" },
 };
 
@@ -216,6 +221,7 @@ export default function AnalyticsPage() {
       <section className="border-t border-border/60 bg-secondary/40">
         <div className="mx-auto max-w-6xl px-6 py-16 md:py-20">
           <div className="max-w-3xl">
+            <FaqJsonLd faqs={analyticsFaqs} />
             <Reveal>
               <h2 className="font-heading text-2xl font-semibold md:text-3xl">
                 Analytics questions
