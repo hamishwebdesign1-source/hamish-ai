@@ -59,6 +59,10 @@ access to.
 | No `og:type`/`og:site_name`/`og:locale` anywhere — `openGraph` was never set in this codebase | Live meta-tag dump on `/about`; source-wide grep for `openGraph` | **Fixed** — set once in `(site)/layout.tsx`, applies sitewide |
 | `<html lang="en">` under-specified a consistently British-English site | Source read | **Fixed** — now `en-GB`, matching the new `og:locale` (`en_GB`) |
 | 2 more empty `alt=""` on `/portfolio`'s case-study preview images | Source read | **Fixed** |
+| 4 `<nav>` landmarks sitewide had no `aria-label`, only Breadcrumbs did | Source read across site-header.tsx, site-footer.tsx | **Fixed** — `aria-label="Primary"` / `"Footer"` added |
+| `site-footer.tsx` never got the Platform-vs-consultancy contextual nav split `site-header.tsx` already had — kept showing the consultancy's 6-link nav on the new Platform-first homepage | Live DOM dump of both `<nav>` elements on `/` | **Fixed** — converted to a client component, same `isPlatformContext` split, extracted into a shared `usePlatformContext()` hook so header/footer can't drift again |
+| Homepage's "complete journey" section was entirely hand-built CSS/div mockups (`JourneyExplorer`), not real product screenshots — confirmed via source read, no `next/image` anywhere in it | Direct user feedback ("feels very amateur") + source read | **Fixed** — replaced with `StudioTour`, a real 6-step, clickable screenshot tour captured live from the actual signed-in Studio account |
+| Sitewide Organization JSON-LD `description` was Platform-only copy (`siteConfig.description`), rendered unchanged on `/agency` — an AI system or crawler reading `/agency` saw an entity description describing a different business than the page it was on | Live JSON-LD dump on `/agency` (`hamishai.org/agency`) | **Fixed** — description decoupled from `siteConfig.description`, now a page-agnostic description accurate on every page it renders on |
 | **Not yet checked**: Core Web Vitals / real page-speed numbers | — | Needs a real Lighthouse or PageSpeed Insights run against the live URL — not something verifiable from source alone |
 | **Not yet checked**: mobile usability audit beyond responsive-class review | — | Needs a real device/viewport pass |
 | **Not verified**: whether Google has actually crawled/indexed the new sitemap yet | — | Needs Search Console — submit the sitemap there (see 30-day plan) |
@@ -409,6 +413,22 @@ See the individual commits for full detail — summarized here:
     so the two can't drift out of sync again. Added `aria-label`
     ("Primary" / "Footer") to every previously-unlabeled `<nav>`
     landmark on the site.
+12. Replaced the homepage's hand-built "complete journey" mockup
+    (`JourneyExplorer`, no real screenshots anywhere in it) with
+    `StudioTour` — a real, clickable 6-step tour built from actual
+    screenshots of a live, signed-in Studio account. Not structured-data
+    SEO, but directly answers the same "can an AI system — or a human —
+    tell what this product actually is" question the GEO audit exists
+    for; direct user feedback flagged the fake mockups as reading
+    "amateur."
+13. Fixed the sitewide Organization JSON-LD `description` — it was
+    reusing `siteConfig.description` (Platform-only copy) unchanged on
+    every page, including `/agency`, whose real content is the separate,
+    still-operating Edinburgh consultancy. Verified live that `/agency`'s
+    own structured data was misdescribing the entity relative to the
+    page's actual content. Now a page-agnostic description, true on
+    every page it renders on rather than borrowed from either page's own
+    pitch.
 
 ## What still needs to be done externally
 
