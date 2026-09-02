@@ -9,7 +9,7 @@ import { Reveal } from "@/components/reveal";
 import { Eyebrow } from "@/components/eyebrow";
 import { ParallaxLayer } from "@/components/parallax-layer";
 import { HeroProductPanel } from "@/components/platform-preview/hero-product-panel";
-import { JourneyExplorer } from "@/components/platform-preview/journey-explorer";
+import { StudioTour } from "@/components/platform-preview/studio-tour";
 import { AgencyTypeSelector } from "@/components/platform-preview/agency-type-selector";
 import {
   Accordion,
@@ -171,10 +171,12 @@ export default async function HomePage() {
             <h2 className="max-w-2xl font-heading text-2xl font-semibold text-balance md:text-3xl">
               From first prospect to paid client.
             </h2>
-            <p className="mt-3 max-w-xl text-muted-foreground">Click through each stage.</p>
+            <p className="mt-3 max-w-xl text-muted-foreground">
+              Real screenshots from a live Studio account — click through each stage.
+            </p>
           </Reveal>
           <Reveal delay={100} className="mt-10">
-            <JourneyExplorer />
+            <StudioTour />
           </Reveal>
         </div>
       </section>
