@@ -29,6 +29,8 @@ type SiteCheckRow = { client_id: string; uptime_ok: boolean | null };
 type AuditLogRow = { client_id: string | null };
 // Studio big-ticket #6 ("embedded chatbot has no lead-capture path").
 type EmbedLeadRow = { id: string; client_id: string; email: string; message: string | null; created_at: string };
+// Studio big-ticket ("client portal self-serve team management").
+type ClientMemberRow = { id: string; client_id: string; email: string; role: "owner" | "member"; accepted_at: string | null };
 
 // Pulled out of the component body — react-hooks/purity flags Date.now()
 // (or any current-time read) called directly during a component's own
@@ -76,7 +78,7 @@ export default async function StudioClientsPage() {
 
   const thirtyDaysAgo = thirtyDaysAgoIso();
   const clientIds = (clients ?? []).map((c) => c.id);
-  const [{ data: invoices }, { data: requests }, { data: siteChecks }, { data: embedChatEvents }, { data: embedLeads }] = clientIds.length
+  const [{ data: invoices }, { data: requests }, { data: siteChecks }, { data: embedChatEvents }, { data: embedLeads }, { data: clientMembers }] = clientIds.length
     ? await Promise.all([
         // reminder_sent_at added alongside the Command Centre's own
         // invoices query (Engagement Risk's "Send payment reminder" —
@@ -107,6 +109,15 @@ export default async function StudioClientsPage() {
           .select("id, client_id, email, message, created_at")
           .in("client_id", clientIds)
           .order("created_at", { ascending: false }),
+        // Studio big-ticket ("client portal self-serve team management")
+        // — client_members_select_own_org RLS
+        // (schema-rls-client-members-org-staff.sql) enforces the org
+        // boundary independently of this .in() getting it right, same
+        // convention as every other read on this page.
+        supabase
+          .from("client_members")
+          .select("id, client_id, email, role, accepted_at")
+          .in("client_id", clientIds),
       ])
     : [
         { data: [] as InvoiceRow[] },
@@ -114,6 +125,7 @@ export default async function StudioClientsPage() {
         { data: [] as SiteCheckRow[] },
         { data: [] as AuditLogRow[] },
         { data: [] as EmbedLeadRow[] },
+        { data: [] as ClientMemberRow[] },
       ];
 
   const requestIds = (requests ?? []).map((r) => r.id);
@@ -158,6 +170,12 @@ export default async function StudioClientsPage() {
     (embedLeadsByClient[lead.client_id] ??= []).push(lead);
   }
 
+  // Studio big-ticket ("client portal self-serve team management").
+  const membersByClient: Record<string, ClientMemberRow[]> = {};
+  for (const member of clientMembers ?? []) {
+    (membersByClient[member.client_id] ??= []).push(member);
+  }
+
   // Engagement risk (reused from the Command Centre, studio-engagement.ts)
   // — the dashboard's own Engagement risk card caps at 5 and points here
   // ("+N more at risk — see Clients for the full list"), but until now
@@ -199,6 +217,7 @@ export default async function StudioClientsPage() {
       invoicesByClient={invoicesByClient}
       embedUsageByClient={embedUsageByClient}
       embedLeadsByClient={embedLeadsByClient}
+      membersByClient={membersByClient}
       healthByClient={healthByClient}
       riskByClient={riskByClient}
       competitorIntelByClient={competitorIntelByClient}

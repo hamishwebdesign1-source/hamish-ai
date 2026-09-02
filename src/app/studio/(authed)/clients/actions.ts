@@ -14,6 +14,8 @@ import { answerClientsQuestion } from "@/lib/answer-clients-question";
 import { getUsageStatus, recordUsageEvent } from "@/lib/usage-limits";
 import { isRateLimited } from "@/lib/chat-rate-limit";
 import type { PlatformPlanSlug } from "@/lib/platform-plans";
+import { sendClientEmail } from "@/lib/send-client-email";
+import { sendOrgEmail } from "@/lib/send-org-email";
 
 // Same session-derivation as every other /studio actions.ts file.
 async function requireOrgId(): Promise<string> {
@@ -365,6 +367,98 @@ export async function updateChatbotEmbedConfig(clientId: string, enabled: boolea
     .update({ chatbot_embed_enabled: enabled, chatbot_embed_allowed_origin: trimmedOrigin || null })
     .eq("id", clientId);
   if (error) return { error: "Failed to save." };
+
+  revalidatePath("/studio/clients");
+  return { ok: true as const };
+}
+
+// Studio big-ticket ("client portal self-serve team management") — the
+// admin equivalent (inviteClientMember/removeClientMember, src/app/
+// admin/actions.ts) has existed since Phase 1, but only ever for
+// HamishAI's own clients; a tenant had no way to manage who has portal
+// access to their own client without asking Hamish to do it in /admin
+// on their behalf. Mirrors that logic (same one-email-one-client rule,
+// same unique-violation-isn't-really-a-failure handling), scoped by
+// requireOrgId() like every other write in this file.
+export async function inviteClientMemberAction(clientId: string, email: string, role: "owner" | "member") {
+  const orgId = await requireOrgId();
+  const admin = getSupabaseAdmin();
+  if (!admin) return { error: "Supabase is not configured." };
+
+  const normalisedEmail = email.trim().toLowerCase();
+  if (!normalisedEmail) return { error: "Enter an email address." };
+
+  const { data: client } = await admin.from("clients").select("id, business_name, org_id").eq("id", clientId).eq("org_id", orgId).maybeSingle();
+  if (!client) return { error: "Client not found." };
+
+  // Same "one email, one client's portal" rule admin's own
+  // inviteClientMember() already enforces — see that function's own
+  // comment (src/app/admin/actions.ts) for the real bug this closed.
+  const { data: existingElsewhere } = await admin
+    .from("client_members")
+    .select("client_id, clients(business_name)")
+    .eq("email", normalisedEmail)
+    .neq("client_id", clientId)
+    .limit(1)
+    .maybeSingle();
+  if (existingElsewhere) {
+    const otherBusinessName = (existingElsewhere.clients as { business_name?: string } | { business_name?: string }[] | null);
+    const name = (Array.isArray(otherBusinessName) ? otherBusinessName[0] : otherBusinessName)?.business_name ?? "another client";
+    return { error: `${normalisedEmail} already has portal access to ${name} — one email can only belong to one client's portal.` };
+  }
+
+  const { error } = await admin.from("client_members").insert({ client_id: clientId, email: normalisedEmail, role, invited_by: "studio" });
+  if (error) {
+    // 23505 = unique_violation (client_id, email) — already a member,
+    // not really a failure worth surfacing as one.
+    if (error.code === "23505") return { ok: true as const };
+    return { error: "Failed to invite that person." };
+  }
+
+  logAuditEvent({ actor: orgId, actorType: "admin", action: "client_member.invited", targetType: "client_member", clientId, orgId, metadata: { email: normalisedEmail, role } });
+
+  // Same org-type branch every other tenant-facing send this session
+  // added uses (monthly-report.ts, sendProposal(), convertProspectToClient()):
+  // HamishAI's own org sends under its own identity, a tenant sends
+  // under theirs (fail-closed — skipped if no reply-to configured yet)
+  // rather than misrepresenting who the invite actually came from.
+  const { data: org } = await admin.from("organisations").select("name, is_internal, brand").eq("id", orgId).single();
+  const inviteText = `Hi,\n\nYou now have access to ${client.business_name}'s client portal.\n\nSign in any time at https://hamishai.org/portal/login with this email address (${normalisedEmail}) — we'll send you a one-time login link, no password needed.`;
+  if (org?.is_internal) {
+    await sendClientEmail(normalisedEmail, `You've been added to ${client.business_name}'s portal`, `${inviteText}\n\n— Hamish AI`);
+  } else {
+    const replyToEmail = (org?.brand as { replyToEmail?: string } | null)?.replyToEmail;
+    if (org && replyToEmail) {
+      await sendOrgEmail({
+        orgId,
+        orgName: org.name,
+        replyToEmail,
+        to: normalisedEmail,
+        subject: `You've been added to ${client.business_name}'s portal`,
+        text: `${inviteText}\n\n— ${org.name}`,
+      });
+    }
+  }
+
+  revalidatePath("/studio/clients");
+  return { ok: true as const };
+}
+
+export async function removeClientMemberAction(memberId: string) {
+  const orgId = await requireOrgId();
+  const admin = getSupabaseAdmin();
+  if (!admin) return { error: "Supabase is not configured." };
+
+  // Ownership confirmed via the same clients-join shape as
+  // requestBelongsToOrg() (requests/actions.ts) — client_members has no
+  // org_id column of its own, only client_id.
+  const { data: member } = await admin.from("client_members").select("id, email, clients!inner(org_id)").eq("id", memberId).eq("clients.org_id", orgId).maybeSingle();
+  if (!member) return { error: "Not found." };
+
+  const { error } = await admin.from("client_members").delete().eq("id", memberId);
+  if (error) return { error: "Failed to remove that person." };
+
+  logAuditEvent({ actor: orgId, actorType: "admin", action: "client_member.removed", targetType: "client_member", targetId: memberId, orgId, metadata: { email: member.email } });
 
   revalidatePath("/studio/clients");
   return { ok: true as const };

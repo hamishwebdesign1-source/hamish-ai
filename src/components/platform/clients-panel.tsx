@@ -35,6 +35,8 @@ import {
   updateClientMaintenanceRate,
   startClientSubscription,
   cancelClientSubscription,
+  inviteClientMemberAction,
+  removeClientMemberAction,
 } from "@/app/studio/(authed)/clients/actions";
 import type { ClientHealth } from "@/lib/client-health";
 import type { ClientEngagementRisk } from "@/lib/studio-engagement";
@@ -53,6 +55,11 @@ type Client = {
   stripe_subscription_id: string | null;
   subscription_status: string | null;
 };
+
+// Same shared inline-<select> chrome as requests-panel.tsx/
+// projects-panel.tsx/prospecting-panel.tsx's own selectClasses.
+const selectClasses =
+  "h-8 rounded-lg border border-input bg-transparent px-2 text-xs outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50";
 
 type Invoice = {
   id: string;
@@ -397,6 +404,89 @@ function GenerateReportControl({ clientId }: { clientId: string }) {
 // toggle + embed snippet. Uses window.location.origin rather than a
 // hardcoded domain for the snippet, so this keeps working correctly
 // regardless of what domain Studio itself is ever served from.
+// Studio big-ticket ("client portal self-serve team management") — the
+// admin equivalent (/admin/(authed)/clients/[id]/page.tsx's own "Team"
+// section) has existed since Phase 1, for HamishAI's own clients only.
+// Same list-plus-invite-form shape, ported to a tenant's own clients.
+type ClientMember = { id: string; email: string; role: "owner" | "member"; accepted_at: string | null };
+
+function ClientMembersControl({ client, members }: { client: Client; members: ClientMember[] }) {
+  const [email, setEmail] = useState("");
+  const [role, setRole] = useState<"owner" | "member">("member");
+  const [invitePending, startInvite] = useTransition();
+  const [inviteError, setInviteError] = useState<string | null>(null);
+  const [removePending, startRemove] = useTransition();
+
+  function invite() {
+    setInviteError(null);
+    startInvite(async () => {
+      const r = await inviteClientMemberAction(client.id, email, role);
+      if (r && "error" in r) {
+        setInviteError(r.error ?? "Failed to invite that person.");
+        return;
+      }
+      setEmail("");
+    });
+  }
+
+  function remove(memberId: string) {
+    startRemove(async () => {
+      await removeClientMemberAction(memberId);
+    });
+  }
+
+  return (
+    <div className="rounded-lg border border-dashed border-border p-3">
+      <p className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
+        <Users className="size-3.5 shrink-0" /> Portal access
+      </p>
+      <p className="mt-1 text-xs text-muted-foreground">
+        Anyone listed here can sign in at{" "}
+        <Link href="/portal/login" className="text-accent underline underline-offset-2">
+          /portal/login
+        </Link>{" "}
+        with their own email — no shared password, no account to create.
+      </p>
+
+      {members.length > 0 && (
+        <ul className="mt-2.5 space-y-1.5">
+          {members.map((m) => (
+            <li key={m.id} className="flex items-center justify-between gap-2 rounded-lg border border-border px-2.5 py-1.5 text-xs">
+              <div>
+                <span className="font-medium">{m.email}</span>
+                <span className="ml-1.5 text-muted-foreground">
+                  {m.role === "owner" ? "Owner" : "Member"} · {m.accepted_at ? "Active" : "Invited"}
+                </span>
+              </div>
+              <Button size="xs" variant="ghost" disabled={removePending} onClick={() => remove(m.id)} aria-label={`Remove ${m.email}`}>
+                <Trash2 className="size-3" />
+              </Button>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <div className="mt-2.5 flex flex-wrap items-end gap-2">
+        <Input
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          type="email"
+          placeholder="name@business.com"
+          className="h-8 min-w-[160px] flex-1 text-sm"
+        />
+        <select value={role} onChange={(e) => setRole(e.target.value as "owner" | "member")} className={selectClasses}>
+          <option value="member">Member</option>
+          <option value="owner">Owner</option>
+        </select>
+        <Button size="sm" variant="outline" disabled={invitePending || !email.trim()} onClick={invite}>
+          Invite
+        </Button>
+      </div>
+      {inviteError && <p className="mt-1.5 text-xs text-destructive">{inviteError}</p>}
+    </div>
+  );
+}
+
 function EmbedChatbotControl({ client, usageCount, leads }: { client: Client; usageCount: number; leads: EmbedLead[] }) {
   const [enabled, setEnabled] = useState(client.chatbot_embed_enabled);
   const [origin, setOrigin] = useState(client.chatbot_embed_allowed_origin ?? "");
@@ -565,6 +655,7 @@ function ClientCard({
   risk,
   embedUsage,
   embedLeads,
+  members,
   stripeReady,
   competitorIntel,
 }: {
@@ -574,6 +665,7 @@ function ClientCard({
   risk: ClientEngagementRisk | undefined;
   embedUsage: number;
   embedLeads: EmbedLead[];
+  members: ClientMember[];
   stripeReady: boolean;
   competitorIntel: CompetitorIntel[];
 }) {
@@ -688,6 +780,8 @@ function ClientCard({
 
             <GenerateReportControl clientId={client.id} />
 
+            <ClientMembersControl client={client} members={members} />
+
             <EmbedChatbotControl client={client} usageCount={embedUsage} leads={embedLeads} />
 
             <p className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
@@ -762,6 +856,7 @@ export function ClientsPanel({
   riskByClient,
   embedUsageByClient,
   embedLeadsByClient,
+  membersByClient,
   competitorIntelByClient,
   stripeReady,
 }: {
@@ -771,6 +866,7 @@ export function ClientsPanel({
   riskByClient: Record<string, ClientEngagementRisk>;
   embedUsageByClient: Record<string, number>;
   embedLeadsByClient: Record<string, EmbedLead[]>;
+  membersByClient: Record<string, ClientMember[]>;
   competitorIntelByClient: Record<string, CompetitorIntel[]>;
   stripeReady: boolean;
 }) {
@@ -844,6 +940,7 @@ export function ClientsPanel({
                   risk={riskByClient[c.id]}
                   embedUsage={embedUsageByClient[c.id] ?? 0}
                   embedLeads={embedLeadsByClient[c.id] ?? []}
+                  members={membersByClient[c.id] ?? []}
                   competitorIntel={competitorIntelByClient[c.id] ?? []}
                   stripeReady={stripeReady}
                 />
