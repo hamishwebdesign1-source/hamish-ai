@@ -120,35 +120,45 @@ export default async function StudioHomePage() {
   const membership = await getOrgMembership(supabase, user.email);
   if (!membership) redirect("/platform/onboarding");
 
-  const { data: orgResult } = await supabase
-    .from("organisations")
-    .select("name, plan, prospecting_config, is_internal, brand, stripe_connect_charges_enabled, command_centre_layout, today_strip_stats")
-    .eq("id", membership.orgId)
-    .single();
+  // Bug fix — reported live twice: the greeting kept showing the literal
+  // fallback text "your agency" instead of a tenant's real org name, even
+  // though the exact same row's name renders correctly in the layout just
+  // above it (layout.tsx's own query — name, tour_completed_at,
+  // subscription_status, trial_ends_at, is_internal). A first attempt
+  // (retrying the identical wide query on a null result) didn't fix it —
+  // proof the failure is deterministic, not a transient hiccup, which
+  // points at the real cause: command_centre_layout, today_strip_stats,
+  // and stripe_connect_charges_enabled were all added by their own
+  // separate, later "run this once in the Supabase SQL editor" migrations
+  // (schema-command-centre-layout-v2.sql, schema-today-strip.sql,
+  // schema-stripe-connect.sql). If even one of those three was never run
+  // against this environment's actual database, PostgREST rejects the
+  // *entire* select — including name and plan — as a single all-or-
+  // nothing query, which exactly matches "name silently blank, nothing
+  // else on the page visibly breaks."
+  //
+  // Split into a core query (name, plan, is_internal — the same
+  // long-established columns layout.tsx's own working query already
+  // proves reliable) that the greeting and plan badge depend on, and a
+  // separate best-effort query for the newer optional fields. If the
+  // second one fails, this page degrades to default layout/branding
+  // rather than losing the org's own name along with it — and logs the
+  // real error so it's visible in server logs instead of silently eaten.
+  const { data: coreOrg } = await supabase.from("organisations").select("name, plan, is_internal").eq("id", membership.orgId).maybeSingle();
 
-  // Bug fix — reported live: the greeting showed the literal fallback
-  // text "your agency" instead of a tenant's real org name, even though
-  // the exact same row's name renders correctly in the layout just above
-  // it (layout.tsx's own, much narrower, org query — name,
-  // tour_completed_at, subscription_status, trial_ends_at, is_internal).
-  // Couldn't pin down a definitive root cause without live reproduction
-  // (the membership resolution is deterministic, every column in the
-  // wider select genuinely exists on organisations) — but `.single()`
-  // throws (data null) on any transient hiccup for this one row, where
-  // the rest of this page's UI just quietly renders with an empty org.
-  // Retry once with the identical column set — same shape, so nothing
-  // downstream needs to guard for a narrower fallback — rather than
-  // leaving the org's own name silently blank on a query that should
-  // succeed.
-  const org =
-    orgResult ??
-    (
-      await supabase
-        .from("organisations")
-        .select("name, plan, prospecting_config, is_internal, brand, stripe_connect_charges_enabled, command_centre_layout, today_strip_stats")
-        .eq("id", membership.orgId)
-        .maybeSingle()
-    ).data;
+  const { data: extraOrg, error: extraOrgError } = await supabase
+    .from("organisations")
+    .select("prospecting_config, brand, stripe_connect_charges_enabled, command_centre_layout, today_strip_stats")
+    .eq("id", membership.orgId)
+    .maybeSingle();
+  if (extraOrgError) {
+    console.error(
+      "Studio Command Centre: optional org fields failed to load (likely a column missing a migration — check command_centre_layout/today_strip_stats/stripe_connect_charges_enabled):",
+      extraOrgError
+    );
+  }
+
+  const org = { ...coreOrg, ...extraOrg };
   const blocks = resolveLayout(org?.command_centre_layout);
 
   const config = (org?.prospecting_config ?? {}) as { agencyType?: string; services?: string[] };
