@@ -71,7 +71,7 @@ export default async function StudioClientsPage() {
   // always-safe query; stripe_connect_charges_enabled stays best-effort
   // and defaults to false (not "internal") if it fails — the correct
   // fail-closed direction, since stripeReady below is an OR of the two.
-  const [{ data: clients }, { data: coreOrg }, { data: stripeOrg, error: stripeOrgError }] = await Promise.all([
+  const [{ data: clients, error: clientsError }, { data: coreOrg }, { data: stripeOrg, error: stripeOrgError }] = await Promise.all([
     supabase
       .from("clients")
       .select(
@@ -82,6 +82,17 @@ export default async function StudioClientsPage() {
     supabase.from("organisations").select("is_internal").eq("id", membership.orgId).maybeSingle(),
     supabase.from("organisations").select("stripe_connect_charges_enabled").eq("id", membership.orgId).maybeSingle(),
   ]);
+  // Found 2 Sep 2026 debugging a real report of "converted clients don't
+  // show up": this query's own `error` was never destructured, only
+  // `data` — a genuine failure here (RLS misconfiguration, a bad grant,
+  // anything) would silently render as the ordinary "no clients yet"
+  // empty state instead of surfacing anywhere, making exactly this kind
+  // of bug undiagnosable from the outside. Logged, not surfaced to the
+  // UI — same fail-quiet-but-not-silent convention as stripeOrgError
+  // just below, which this pattern was copied from.
+  if (clientsError) {
+    console.error("Studio Clients: clients query failed:", clientsError);
+  }
   if (stripeOrgError) {
     console.error("Studio Clients: stripe_connect_charges_enabled failed to load (likely a column missing a migration):", stripeOrgError);
   }
