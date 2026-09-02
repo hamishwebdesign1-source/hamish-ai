@@ -1,9 +1,20 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { CheckCircle2, CircleAlert, ArrowRight } from "lucide-react";
 import { readDigestActionToken, type DigestAction } from "@/lib/digest-action-tokens";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { confirmDigestAction } from "./actions";
+
+// SEO/metadata audit (2 Sep 2026) — verified live: this page showed the
+// root layout's own default title ("HamishAI Agency Platform...") in
+// the browser tab, same gap as /concepts (missing metadata falls back
+// to the root). Lower stakes here (no impersonation concern, already
+// robots.txt-disallowed as a genuine one-off token route), but still a
+// real, easy, honest fix — generic on purpose, since the specific
+// action (ACTION_VERB) is only known once the token is read further
+// down, after this static export already resolved.
+export const metadata: Metadata = { title: "Confirm action | Hamish AI" };
 
 // Roadmap item #4 — the confirmation page behind every one-click action
 // link in owner-digest.ts's weekly email. Deliberately a real page with a
