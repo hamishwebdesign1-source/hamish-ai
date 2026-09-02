@@ -35,6 +35,16 @@ export type CaseStudy = {
   name: string;
   industry: string;
   overview: string;
+  // Optional, only set where `overview` itself runs past Google's
+  // ~155-160 char truncation point (SEO audit, 2 Sep 2026) — `overview`
+  // is real, live hero-subtitle copy (case-study-hero.tsx) and portfolio
+  // grid-card text (portfolio/page.tsx) too, not just a meta tag, so
+  // trimming it directly would edit visible marketing copy for a purely
+  // technical reason. This is a condensed version of the exact same real
+  // facts already in `overview` — nothing added — used only for
+  // <meta name="description"> (portfolio/[slug]/page.tsx's own
+  // generateMetadata). Falls back to `overview` itself when unset.
+  metaDescription?: string;
   demoUrl: string;
   imageUrl: string;
   signatureImage?: string;
@@ -57,6 +67,11 @@ export const caseStudies: CaseStudy[] = [
     industry: "Restaurant · Leith",
     overview:
       "A moody, photography-led redesign for a Leith seafood restaurant, built around a booking-first layout and an AI assistant that never lets a hungry customer go unanswered.",
+    // 170 chars — past Google's ~155-160 truncation point. Condensed to
+    // the same real facts (booking-first layout, AI assistant, customer
+    // questions), see CaseStudy's own metaDescription comment.
+    metaDescription:
+      "A moody, photography-led redesign for a Leith seafood restaurant, with a booking-first layout and an AI assistant for customer questions.",
     demoUrl: "/demo/the-gannet",
     imageUrl: "/images/case-studies/the-gannet.jpg",
     signatureImage: "/images/case-studies/the-gannet-signature.png",
@@ -328,6 +343,11 @@ Tone: high-energy, encouraging, a bit bold and confident (matches a bright neon-
     industry: "Professional services · New Town",
     overview:
       "An understated, credibility-first rebuild for an Edinburgh accountancy practice, with an AI assistant that routes enquiries so billable time goes to the right clients.",
+    // 167 chars — past Google's ~155-160 truncation point. Condensed to
+    // the same real facts (understated rebuild, AI assistant, routes
+    // enquiries), see CaseStudy's own metaDescription comment.
+    metaDescription:
+      "An understated rebuild for an Edinburgh accountancy practice, with an AI assistant that routes enquiries to the right clients.",
     demoUrl: "/demo/lomond-and-grey",
     imageUrl: "/images/case-studies/lomond-and-grey.jpg",
     signatureImage: "/images/case-studies/lomond-and-grey-signature.png",

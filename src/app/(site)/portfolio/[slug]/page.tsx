@@ -28,7 +28,10 @@ export async function generateMetadata({
 
   return {
     title: `${study.name} Case Study | Hamish AI`,
-    description: study.overview,
+    // metaDescription (case-studies-data.ts) is only ever set where the
+    // real overview itself runs past Google's truncation point — falls
+    // back to overview unchanged for every other study.
+    description: study.metaDescription ?? study.overview,
     alternates: { canonical: `/portfolio/${study.slug}` },
   };
 }
