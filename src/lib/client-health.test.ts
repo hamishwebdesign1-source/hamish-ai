@@ -83,9 +83,25 @@ describe("computeAgencyHealth", () => {
   it("uses the exact same underlying math as computeClientHealth for the four shared components", () => {
     const siteChecks = [{ uptime_ok: true }, { uptime_ok: false }];
     const clientResult = computeClientHealth([], [], [], siteChecks);
-    const agencyResult = computeAgencyHealth({ requests: [], tasks: [], invoices: [], siteChecks, prospectCount: 0, clientCount: 0 });
+    // clientCount: 1, not 0 — real site_checks rows can't exist for an
+    // org with zero clients (they're always FK'd through a real client),
+    // and the clientCount: 0 case is now specifically guarded below.
+    const agencyResult = computeAgencyHealth({ requests: [], tasks: [], invoices: [], siteChecks, prospectCount: 0, clientCount: 1 });
     expect(agencyResult.components.find((c) => c.label === "Client sites uptime")?.value).toBe(
       clientResult.components.find((c) => c.label === "Site uptime")?.value
     );
+  });
+
+  // Bug fix — a brand-new org with real prospects but zero clients yet
+  // (the normal state for the first few days of prospecting) used to hit
+  // a real trap: every client-based component returns null from an
+  // empty roster, leaving "Pipeline conversion" (0 clients ÷ N
+  // prospects, a real, defined 0%) as the sole surviving component —
+  // a bare, alarming "0" health score for an org that's done nothing
+  // wrong at all.
+  it("shows 'not enough data' rather than a misleading 0 when there are prospects but no clients yet", () => {
+    const result = computeAgencyHealth({ requests: [], tasks: [], invoices: [], siteChecks: [], prospectCount: 20, clientCount: 0 });
+    expect(result.healthScore).toBeNull();
+    expect(result.components).toEqual([]);
   });
 });

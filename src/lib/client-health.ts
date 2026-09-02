@@ -87,6 +87,22 @@ export type AgencyHealthInput = {
 // this app doesn't have real data for those yet, and the same "only show
 // what has real data" rule applies here as everywhere else.
 export function computeAgencyHealth(input: AgencyHealthInput): ClientHealth {
+  // Bug fix — a brand-new org with prospects but zero clients yet (the
+  // normal state for the first few days of prospecting) hit a real trap
+  // here: all four client-based components return null (nothing to
+  // compute from an empty client roster), leaving "Pipeline conversion"
+  // as the *sole* surviving component. 0 clients ÷ N prospects rounds to
+  // a real, defined 0%, so the filter above never drops it — the score
+  // ends up as a bare, alarming "0" ring that reads as "everything's
+  // broken" when the honest story is "you haven't converted a client
+  // yet, which is expected." "Business Health" is fundamentally about
+  // how well an existing client roster is being served; with zero
+  // clients there's nothing yet to have a health score about, so this
+  // returns the same "not enough data" null the empty-components case
+  // already produces below, rather than a technically-real but
+  // misleading number.
+  if (input.clientCount === 0) return { healthScore: null, components: [] };
+
   const conversionPct = input.prospectCount > 0 ? Math.round((input.clientCount / input.prospectCount) * 100) : null;
 
   const components = [
