@@ -75,11 +75,14 @@ export function StudioSidebar({ requestsBadgeCount }: { requestsBadgeCount?: num
     // width/offset math to match the centred max-w-6xl layout; self-start
     // stops the flex row from stretching it to the main column's height
     // (which would make "sticky" a no-op — nothing to scroll past inside
-    // its own box). max-h + overflow-y-auto is a real guard, not
-    // decorative: a short viewport (laptop at 100% zoom, browser chrome
-    // eating vertical space) is exactly where a tall nav would otherwise
-    // get clipped by the viewport edge with no way to reach Help below it.
-    <aside className="sticky top-8 hidden max-h-[calc(100vh-4rem)] w-52 shrink-0 flex-col gap-6 self-start overflow-y-auto py-8 md:flex">
+    // its own box).
+    //
+    // First cut added max-h + overflow-y-auto here as a short-viewport
+    // guard — reported live as its own, unwanted scrollbar sitting next
+    // to the page's own, which reads as broken rather than helpful.
+    // Dropped: the nav's natural height fits a normal viewport fine, and
+    // "static, not another scroll region" was the actual ask.
+    <aside className="sticky top-8 hidden w-52 shrink-0 flex-col gap-6 self-start py-8 md:flex">
       {navSections.map((section, i) => (
         <div key={section.label ?? `ungrouped-${i}`} className="flex flex-col gap-1">
           {section.label && <p className="text-eyebrow px-2.5 pb-1">{section.label}</p>}
