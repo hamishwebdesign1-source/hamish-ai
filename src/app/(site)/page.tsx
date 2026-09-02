@@ -94,7 +94,7 @@ export default async function HomePage() {
   const signedIn = cta.href !== "/platform/signup";
 
   return (
-    <>
+    <div className="platform-typography">
       <PlatformProductJsonLd />
       {/* Same dark-video-hero DNA as the (now archived) Edinburgh homepage
           (agency/page.tsx) rather than the plain PageHero every other page
@@ -103,12 +103,29 @@ export default async function HomePage() {
           direct feedback it read as generic rather than premium. PageHero
           itself is untouched: it's shared by every other page (About,
           Terms, Privacy, Services...), so this hero is written out by
-          hand here instead, same as agency/page.tsx's own hero. */}
+          hand here instead, same as agency/page.tsx's own hero.
+
+          Video swapped 2 Sep 2026 — the Edinburgh cityscape (still used
+          on /agency, where it's genuinely on-topic) was a leftover from
+          before the homepage swap: appropriate for the Edinburgh
+          consultancy pitch, thematically mismatched behind a
+          geography-agnostic "infrastructure for AI agencies" pitch, and
+          direct feedback asked for something with the same futuristic/
+          techy vibe as the new heading font. Real, licensed stock footage
+          (Pexels, free for commercial use, no attribution required —
+          "Digital Projection of Abstract Geometrical Lines" by
+          Pressmaster), hue-shifted (~+35°) from its source teal-green
+          toward this site's own actual blue/cyan brand tokens
+          (--gradient-blue/-cyan, globals.css) so it reads as on-brand
+          rather than a generic stock clip, then re-encoded — the result
+          is smaller than the Edinburgh files despite similar length,
+          since abstract dark footage compresses far better than a real
+          cityscape. */}
       <section className="relative isolate overflow-hidden bg-[#0d1420]">
         <ParallaxLayer speed={0.12} className="absolute inset-x-0 -top-24 h-[calc(100%+12rem)]">
           <Image
-            src="/videos/hero-edinburgh-poster.jpg"
-            alt="Aerial view of Edinburgh's Old Town at golden hour, looking over the rooftops toward the Balmoral clock tower and the Castle"
+            src="/videos/hero-network-poster.jpg"
+            alt="Abstract network of glowing blue connections and data points against a dark background"
             fill
             priority
             sizes="100vw"
@@ -120,11 +137,11 @@ export default async function HomePage() {
             muted
             loop
             playsInline
-            poster="/videos/hero-edinburgh-poster.jpg"
+            poster="/videos/hero-network-poster.jpg"
             aria-hidden="true"
           >
-            <source src="/videos/hero-edinburgh-1080p.mp4" type="video/mp4" media="(min-width: 768px)" />
-            <source src="/videos/hero-edinburgh-540p.mp4" type="video/mp4" />
+            <source src="/videos/hero-network-1080p.mp4" type="video/mp4" media="(min-width: 768px)" />
+            <source src="/videos/hero-network-540p.mp4" type="video/mp4" />
           </video>
         </ParallaxLayer>
         <div className="absolute inset-0 bg-gradient-to-r from-[#0d1420] via-[#0d1420]/75 to-[#0d1420]/15" />
@@ -356,6 +373,6 @@ export default async function HomePage() {
           </Button>
         </div>
       </section>
-    </>
+    </div>
   );
 }

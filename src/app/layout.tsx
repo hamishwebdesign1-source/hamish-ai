@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { DM_Sans, IBM_Plex_Mono, Fraunces } from "next/font/google";
+import { DM_Sans, IBM_Plex_Mono, Fraunces, Chakra_Petch, Sora } from "next/font/google";
 import { AnalyticsProvider } from "@/components/analytics-provider";
 import "./globals.css";
 
@@ -18,6 +18,25 @@ const fraunces = Fraunces({
   variable: "--font-fraunces",
   subsets: ["latin"],
   axes: ["opsz", "SOFT", "WONK"],
+});
+
+// Added alongside (not replacing) the fonts above — direct feedback
+// asked for a more "futuristic, techy" typeface on the homepage, but
+// Fraunces/DM Sans stay the sitewide default everywhere else (Studio's
+// own product UI, /agency's consultancy pitch, /admin, /portal). /agency
+// especially leans on a warm, plain-English, trustworthy-local-business
+// voice that a sci-fi display face would actively undercut, so this is
+// scoped, not global — see globals.css's own .platform-typography class
+// for where it actually applies.
+const chakraPetch = Chakra_Petch({
+  variable: "--font-chakra-petch",
+  subsets: ["latin"],
+  weight: ["500", "600", "700"],
+});
+
+const sora = Sora({
+  variable: "--font-sora",
+  subsets: ["latin"],
 });
 
 export const metadata: Metadata = {
@@ -50,7 +69,7 @@ export default function RootLayout({
       // under-specifying which. A real, if small, signal for screen
       // readers and search engines, not just decorative.
       lang="en-GB"
-      className={`${dmSans.variable} ${plexMono.variable} ${fraunces.variable} h-full antialiased`}
+      className={`${dmSans.variable} ${plexMono.variable} ${fraunces.variable} ${chakraPetch.variable} ${sora.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
         <AnalyticsProvider />

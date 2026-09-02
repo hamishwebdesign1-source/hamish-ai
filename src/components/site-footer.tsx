@@ -19,7 +19,7 @@ export function SiteFooter() {
   const navItems = isPlatformContext ? siteConfig.platformNav : siteConfig.nav;
 
   return (
-    <footer className="border-t border-border/60">
+    <footer className={`border-t border-border/60 ${isPlatformContext ? "platform-typography" : ""}`}>
       <div className="mx-auto flex max-w-6xl flex-col gap-4 px-6 py-10 text-sm text-muted-foreground md:flex-row md:items-center md:justify-between">
         <div>
           <Logo className="text-base" />

@@ -67,7 +67,7 @@ export function SiteHeader() {
         scrolled
           ? "border-b border-border/60 bg-background/90 shadow-sm shadow-black/[0.02]"
           : "border-b border-transparent bg-background/40"
-      }`}
+      } ${isPlatformContext ? "platform-typography" : ""}`}
     >
       <div className="mx-auto flex h-[72px] max-w-6xl items-center justify-between px-6">
         <Link href="/" aria-label={siteConfig.name} className="shrink-0">

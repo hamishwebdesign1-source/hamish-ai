@@ -248,6 +248,38 @@
 }
 
 @layer utilities {
+  /* Scoped, not a change to --font-heading/--font-sans themselves: with
+     Tailwind v4's `@theme inline` above, those utilities get the actual
+     font-family (var(--font-fraunces) etc.) baked directly into the
+     generated CSS rather than left as an indirection through
+     --font-heading, so overriding that variable on a wrapper wouldn't
+     reliably cascade. Plain, explicit selectors instead — direct
+     feedback asked for a more "futuristic, techy" typeface on the
+     homepage specifically, not sitewide (Studio's own product UI,
+     /agency's consultancy pitch, and /admin/portal all keep the
+     original Fraunces/DM Sans pairing — see layout.tsx's own comment on
+     why /agency in particular shouldn't get a sci-fi display face).
+     Applied via this class on (site)/page.tsx's own root wrapper, and
+     conditionally on SiteHeader/SiteFooter when isPlatformContext is
+     true, so the nav+hero+rest of the homepage read as one consistent
+     identity rather than a techy hero bolted onto an otherwise-unchanged
+     nav bar. Placed inside @layer utilities, not left unlayered — an
+     unlayered version of this same rule was silently dropped from the
+     compiled CSS entirely (confirmed via a live stylesheet dump, zero
+     matching rules present), the same "Lightning CSS silently drops a
+     rule with no build error" class of issue this codebase's own
+     CLAUDE.md already warns about for color-mix(). */
+  .platform-typography h1,
+  .platform-typography h2,
+  .platform-typography h3,
+  .platform-typography h4,
+  .platform-typography .font-heading {
+    font-family: var(--font-chakra-petch), var(--font-fraunces), sans-serif;
+  }
+  .platform-typography {
+    font-family: var(--font-sora), var(--font-dm-sans), sans-serif;
+  }
+
   /* Admin type scale — every /admin page previously hand-picked its own
      heading size ad hoc (text-2xl font-semibold on one page, text-xl
      font-bold on another). These four cover every heading level actually
