@@ -6,6 +6,7 @@ export const metadata: Metadata = {
   title: "Free Website Health Check | Hamish AI",
   description:
     "A free, honest breakdown of how your website is doing — real technical checks plus specific, plain-English findings. No charge, no obligation.",
+  alternates: { canonical: "/website-audit" },
 };
 
 const trustPoints = ["Free, no obligation", "Real checks, not a generic score", "Results in under a minute"];

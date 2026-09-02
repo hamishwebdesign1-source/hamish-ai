@@ -29,6 +29,7 @@ export async function generateMetadata({
   return {
     title: `${study.name} Case Study | Hamish AI`,
     description: study.overview,
+    alternates: { canonical: `/portfolio/${study.slug}` },
   };
 }
 

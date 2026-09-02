@@ -5,6 +5,7 @@ import { siteConfig } from "@/lib/site-config";
 export const metadata: Metadata = {
   title: "Privacy Policy | Hamish AI",
   description: "How Hamish AI and the Agency Platform collect, use, and protect your data.",
+  alternates: { canonical: "/privacy" },
 };
 
 const lastUpdated = "20 August 2026";

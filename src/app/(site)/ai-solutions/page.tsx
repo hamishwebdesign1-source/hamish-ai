@@ -12,6 +12,7 @@ export const metadata: Metadata = {
   title: "AI Solutions | Hamish AI",
   description:
     "Six practical AI solutions for Edinburgh businesses — customer assistants, receptionists, sales assistants, knowledge bases, content automation, and analytics.",
+  alternates: { canonical: "/ai-solutions" },
 };
 
 export default function AISolutionsPage() {

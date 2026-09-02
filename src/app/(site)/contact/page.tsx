@@ -9,6 +9,7 @@ export const metadata: Metadata = {
   title: "Contact | Hamish AI",
   description:
     "Tell us about your business and get a free, honest breakdown of where AI could help — no charge, no obligation.",
+  alternates: { canonical: "/contact" },
 };
 
 const trustPoints = [

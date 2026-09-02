@@ -34,6 +34,7 @@ export const metadata: Metadata = {
   title: "Services & Pricing | Hamish AI",
   description:
     "Founding client pricing on three AI transformation packages for Edinburgh businesses — website, automation, and ongoing growth.",
+  alternates: { canonical: "/services" },
 };
 
 const packageIcons = [Globe, Workflow, TrendingUp];

@@ -8,6 +8,7 @@ export const metadata: Metadata = {
   title: "Book a consultation | Hamish AI",
   description:
     "Pick a time straight off the calendar for a free, no-obligation AI consultation call.",
+  alternates: { canonical: "/book" },
 };
 
 const trustPoints = [

@@ -31,6 +31,7 @@ export const metadata: Metadata = {
   title: "AI Business Analytics | Hamish AI",
   description:
     "Executive dashboards, automated AI reports, and business intelligence for Edinburgh businesses — built by a Technology Business Analyst who understands the process behind the data.",
+  alternates: { canonical: "/analytics" },
 };
 
 const problems = [

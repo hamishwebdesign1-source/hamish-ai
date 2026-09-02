@@ -27,6 +27,7 @@ export const metadata: Metadata = {
   title: "HamishAI Agency Platform — Launch Your Own AI Agency",
   description:
     "The platform behind HamishAI, now yours to run your own agency on. Prospecting, AI analysis, outreach and client delivery, in one workspace.",
+  alternates: { canonical: "/" },
 };
 
 // Moved here from (site)/platform/page.tsx 2 Sep 2026 — the Agency

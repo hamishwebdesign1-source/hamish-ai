@@ -11,6 +11,7 @@ export const metadata: Metadata = {
   title: "Portfolio | Hamish AI",
   description:
     "Case studies showing what AI-powered web design and automation looks like for Edinburgh restaurants, trades, hotels, gyms, and professional services.",
+  alternates: { canonical: "/portfolio" },
 };
 
 export default function PortfolioPage() {

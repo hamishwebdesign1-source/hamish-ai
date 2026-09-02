@@ -7,6 +7,7 @@ import { platformPlans, formatMonthlyPrice, PROSPECT_CREDIT_PACK } from "@/lib/p
 export const metadata: Metadata = {
   title: "Terms of Service | Hamish AI",
   description: "The terms for using hamishai.org, the Agency Platform, and the client portal.",
+  alternates: { canonical: "/terms" },
 };
 
 const lastUpdated = "24 August 2026";

@@ -49,6 +49,7 @@ export const metadata: Metadata = {
   title: "Hamish AI | Edinburgh's AI Transformation Partner for Small Businesses",
   description:
     "AI websites and automation for Edinburgh small businesses — see a free, working prototype before you pay anything. Plain English, no obligation.",
+  alternates: { canonical: "/agency" },
 };
 
 const industries = [

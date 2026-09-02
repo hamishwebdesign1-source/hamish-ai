@@ -5,11 +5,13 @@ import { Badge } from "@/components/ui/badge";
 import { PageHero } from "@/components/page-hero";
 import { Reveal } from "@/components/reveal";
 import { siteConfig } from "@/lib/site-config";
+import { PersonJsonLd } from "@/components/seo/person-json-ld";
 
 export const metadata: Metadata = {
   title: "About | Hamish AI",
   description:
     "Hamish McFarlane — 11 years as a business analyst in financial services, now bringing AI-powered delivery to small Edinburgh businesses.",
+  alternates: { canonical: "/about" },
 };
 
 const values = [
@@ -43,6 +45,7 @@ const background = [
 export default function AboutPage() {
   return (
     <>
+      <PersonJsonLd />
       <PageHero
         eyebrow="About"
         title="An analyst who ships, not just advises."
