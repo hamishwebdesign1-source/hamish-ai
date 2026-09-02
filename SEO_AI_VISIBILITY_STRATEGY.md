@@ -399,6 +399,16 @@ See the individual commits for full detail — summarized here:
     `en-GB`; added `/portfolio`'s ItemList schema and fixed 2 more
     empty `alt=""`; confirmed no duplicate `<title>` across any page
     and correct `priority` image usage (no LCP-hurting over-use).
+11. Fixed a real accessibility/IA gap found via a sitewide `<nav>`
+    aria-label sweep: `site-footer.tsx` had never picked up the
+    Platform-vs-consultancy contextual nav split that `site-header.tsx`
+    got when the homepage swap shipped, so it kept showing the wrong
+    6-link consultancy nav under the new Platform-first homepage's own
+    footer. Fixed, and the duplicated contextual-nav check in both
+    files extracted into one shared hook (`src/lib/use-platform-context.ts`)
+    so the two can't drift out of sync again. Added `aria-label`
+    ("Primary" / "Footer") to every previously-unlabeled `<nav>`
+    landmark on the site.
 
 ## What still needs to be done externally
 
