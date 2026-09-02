@@ -62,13 +62,40 @@ export default async function StudioSettingsPage({
 
   // organisations_select_own RLS (schema-organisations.sql) — same policy
   // every other /studio page's org read already relies on.
-  const { data: org } = await supabase
+  // Same split-query defensive pattern as the Command Centre's own fix
+  // (page.tsx, "your agency" greeting bug) — reported live, root cause
+  // was a wide, all-or-nothing .single() select combining core columns
+  // with newer, migration-dependent ones (command_centre_layout,
+  // today_strip_stats, stripe_connect_charges_enabled): if any one of
+  // those hadn't had its own migration run yet, PostgREST rejects the
+  // *entire* query, including name. This page's own select had the
+  // exact same shape (11 columns, the same 3 risky ones, .single()) —
+  // found via the same "check every other place this pattern could
+  // recur" scan that fix's own comment invited. Higher blast radius
+  // here than the Command Centre greeting: this page renders far more
+  // org-dependent UI in one place (branding, billing status, business
+  // model, team seats), so a silent all-or-nothing failure would have
+  // broken more than one line of text. Core query (name, plan,
+  // is_internal) is what canInviteMore/every !org?.is_internal gate
+  // depends on; the rest degrades to defaults if it fails, logging the
+  // real error instead of silently losing everything.
+  const { data: coreOrg } = await supabase.from("organisations").select("name, plan, is_internal").eq("id", membership.orgId).maybeSingle();
+
+  const { data: extraOrg, error: extraOrgError } = await supabase
     .from("organisations")
     .select(
-      "name, brand, is_internal, plan, stripe_connect_account_id, stripe_connect_charges_enabled, deletion_requested_at, command_centre_layout, owner_digest_enabled, today_strip_stats, prospecting_config"
+      "brand, stripe_connect_account_id, stripe_connect_charges_enabled, deletion_requested_at, command_centre_layout, owner_digest_enabled, today_strip_stats, prospecting_config"
     )
     .eq("id", membership.orgId)
-    .single();
+    .maybeSingle();
+  if (extraOrgError) {
+    console.error(
+      "Studio Settings: optional org fields failed to load (likely a column missing a migration):",
+      extraOrgError
+    );
+  }
+
+  const org = { ...coreOrg, ...extraOrg };
   const brand = (org?.brand ?? {}) as {
     accentColor?: string;
     replyToEmail?: string;

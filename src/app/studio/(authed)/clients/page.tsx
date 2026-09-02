@@ -61,7 +61,17 @@ export default async function StudioClientsPage() {
   const membership = await getOrgMembership(supabase, user.email);
   if (!membership) redirect("/platform/onboarding");
 
-  const [{ data: clients }, { data: org }] = await Promise.all([
+  // Same bug class as the Command Centre's own fix (page.tsx, "your
+  // agency" greeting) and Settings' own (settings/page.tsx) — a wide,
+  // all-or-nothing .single() select pairing a foundational column
+  // (is_internal) with a newer, migration-dependent one
+  // (stripe_connect_charges_enabled) means one missing migration takes
+  // the whole row down, including is_internal, which several checks on
+  // this page depend on. is_internal split into its own narrow,
+  // always-safe query; stripe_connect_charges_enabled stays best-effort
+  // and defaults to false (not "internal") if it fails — the correct
+  // fail-closed direction, since stripeReady below is an OR of the two.
+  const [{ data: clients }, { data: coreOrg }, { data: stripeOrg, error: stripeOrgError }] = await Promise.all([
     supabase
       .from("clients")
       .select(
@@ -69,12 +79,13 @@ export default async function StudioClientsPage() {
       )
       .eq("org_id", membership.orgId)
       .order("created_at", { ascending: false }),
-    supabase
-      .from("organisations")
-      .select("is_internal, stripe_connect_charges_enabled")
-      .eq("id", membership.orgId)
-      .single(),
+    supabase.from("organisations").select("is_internal").eq("id", membership.orgId).maybeSingle(),
+    supabase.from("organisations").select("stripe_connect_charges_enabled").eq("id", membership.orgId).maybeSingle(),
   ]);
+  if (stripeOrgError) {
+    console.error("Studio Clients: stripe_connect_charges_enabled failed to load (likely a column missing a migration):", stripeOrgError);
+  }
+  const org = { ...coreOrg, ...stripeOrg };
 
   const thirtyDaysAgo = thirtyDaysAgoIso();
   const clientIds = (clients ?? []).map((c) => c.id);
