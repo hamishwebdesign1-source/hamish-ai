@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Logo } from "@/components/logo";
 import { siteConfig } from "@/lib/site-config";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
+import { usePlatformContext } from "@/lib/use-platform-context";
 
 export function SiteHeader() {
   const [open, setOpen] = useState(false);
@@ -17,6 +18,10 @@ export function SiteHeader() {
   // null and false, so there's no flash from a wrong guess while this
   // resolves; it only ever changes what's shown by upgrading to true.
   const [signedIn, setSignedIn] = useState<boolean | null>(null);
+  // Still needed directly (not just via usePlatformContext() below) for
+  // the nav-item active-highlighting check further down
+  // (`pathname === item.href || pathname.startsWith(...)`), which is a
+  // completely separate concern from "am I on a Platform page".
   const pathname = usePathname();
 
   useEffect(() => {
@@ -26,15 +31,13 @@ export function SiteHeader() {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
-  // 2 Sep 2026 — the Agency Platform marketing page moved from /platform
-  // to / (the homepage), and the previous homepage moved to /agency (see
-  // (site)/page.tsx's own comment for the full reasoning). This header is
-  // shared by both worlds, so "am I on a Platform page" can no longer be
-  // a startsWith("/platform") check — that would now miss the homepage
-  // itself. Exact-match on "/" (not startsWith, which would wrongly match
-  // every route) plus the real /platform/* subroutes (signup, onboarding,
-  // callback — untouched, still under src/app/platform/) and /studio.
-  const isPlatformContext = pathname === "/" || pathname.startsWith("/platform/") || pathname.startsWith("/studio");
+  // 2 Sep 2026 — extracted into use-platform-context.ts after the exact
+  // same check was independently duplicated into site-footer.tsx and
+  // drifted out of sync with this file's own copy (the footer kept
+  // showing the consultancy's 6 nav links on the Platform-first homepage
+  // after this header was already fixed). See that hook's own comment for
+  // the full history and the "/" exact-match vs. startsWith reasoning.
+  const isPlatformContext = usePlatformContext();
 
   // Reported live, 2 Sep 2026: the main nav itself was still the
   // consultancy's 6 links (AI Solutions/Analytics/Services/Portfolio/
@@ -71,7 +74,7 @@ export function SiteHeader() {
           <Logo />
         </Link>
 
-        <nav className="hidden items-center gap-10 md:flex">
+        <nav aria-label="Primary" className="hidden items-center gap-10 md:flex">
           {navItems.map((item) => {
             const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
             return (
@@ -157,7 +160,7 @@ export function SiteHeader() {
       </div>
 
       {open && (
-        <nav className="animate-in fade-in slide-in-from-top-2 border-t border-border/60 bg-background px-6 py-4 duration-200 md:hidden">
+        <nav aria-label="Primary" className="animate-in fade-in slide-in-from-top-2 border-t border-border/60 bg-background px-6 py-4 duration-200 md:hidden">
           <div className="flex flex-col gap-4">
             {navItems.map((item) => (
               <Link

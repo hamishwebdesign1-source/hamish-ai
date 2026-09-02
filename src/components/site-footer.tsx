@@ -1,8 +1,23 @@
+"use client";
+
 import Link from "next/link";
 import { Logo } from "@/components/logo";
 import { siteConfig } from "@/lib/site-config";
+import { usePlatformContext } from "@/lib/use-platform-context";
 
+// SEO/GEO audit (2 Sep 2026) — same fix as site-header.tsx's own
+// isPlatformContext (0e8f23a): this footer was still rendering
+// siteConfig.nav's 6 consultancy links unconditionally, including on the
+// new Platform-first homepage, undermining that header fix — a visitor
+// scrolling to the bottom of "/" saw the same six wrong-product links
+// the header no longer shows. Converted to a client component (was a
+// plain server component) to get pathname, same contextual split — now via
+// the shared usePlatformContext() hook so this can't drift from the
+// header's own copy the way the original inline duplication just did.
 export function SiteFooter() {
+  const isPlatformContext = usePlatformContext();
+  const navItems = isPlatformContext ? siteConfig.platformNav : siteConfig.nav;
+
   return (
     <footer className="border-t border-border/60">
       <div className="mx-auto flex max-w-6xl flex-col gap-4 px-6 py-10 text-sm text-muted-foreground md:flex-row md:items-center md:justify-between">
@@ -11,8 +26,8 @@ export function SiteFooter() {
           <p className="mt-1">{siteConfig.location}</p>
         </div>
 
-        <nav className="flex flex-wrap gap-6">
-          {siteConfig.nav.map((item) => (
+        <nav aria-label="Footer" className="flex flex-wrap gap-6">
+          {navItems.map((item) => (
             <Link key={item.href} href={item.href} className="hover:text-foreground">
               {item.label}
             </Link>
