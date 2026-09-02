@@ -40,6 +40,72 @@ _(none yet)_
 
 ## Needs review
 
+### Wire the same outreach-kit action to Command Centre's Top Prospects list (fast-follow to the shipped topOpportunity action)
+
+- **Problem**: the single `topOpportunity` callout in the "Your briefing"
+  card already lets an owner one-click-generate a sales kit without leaving
+  Command Centre (`src/components/platform/top-opportunity-kit-action.tsx`,
+  shipped 2026-08-31). The `top_prospects` section card renders the
+  identical data shape — `briefing.topOpportunities`, a `TopOpportunity[]`
+  with the same real `id`/`hasSalesKit` fields (`src/lib/studio-briefing.ts`)
+  — for all 5 top-ranked prospects, but only the first one (folded into
+  "Your briefing") had the action wired; the other 4 rows (and the whole
+  card, for an org that's configured `top_prospects` as its own block) still
+  only linked out to `/studio/prospects`.
+- **Objective**: every row in the `top_prospects` section card gets the same
+  one-click "Generate outreach kit" / "Outreach kit ready" control the
+  `topOpportunity` callout already has, not just the card's single featured
+  row.
+- **User**: an agency owner scanning Command Centre who wants to act on any
+  of their top 5 real prospects without navigating to `/studio/prospects`
+  first.
+- **Priority**: P1 (next) — smallest possible increment on a pattern
+  already built, tested, and live; zero new pipeline, zero new usage type.
+- **Expected outcome**: an owner can generate (or see already-generated)
+  outreach kits for all 5 top prospects directly from Command Centre; they
+  only navigate to `/studio/prospects` to actually review/copy/send the
+  generated content, not to trigger generation itself.
+- **Acceptance criteria**: `TopOpportunityKitAction` (or an equivalent
+  thin wrapper) renders under each of the 5 `top_prospects` rows in
+  `command-centre-section-cards.tsx`, keyed off each row's own `id`/
+  `hasSalesKit`; `generateSalesKit()` called verbatim — no new pipeline, no
+  new usage-event type; resting/pending/success/error/usage-limit states
+  and `aria-live` region match the shipped precedent exactly; tests confirm
+  each row's pending/success/error state is independent (one row's click
+  doesn't affect its siblings); `npx tsc --noEmit`, `npx eslint`, full
+  `vitest` suite green.
+- **Relevant agent**: Lead Engineer (build, done); UX/UI Director should
+  confirm 5 independent action controls in one card doesn't read as
+  visually noisy before this ships more broadly.
+- **Dependencies**: none — reuses `TopOpportunityKitAction`,
+  `generateSalesKit()`, and `briefing.topOpportunities` as-is.
+- **Closure note (Lead Engineer, 2026-08-31)**: built as scoped.
+  `TopOpportunityKitAction` gained an opt-in `compact` prop (tighter
+  `xs`-size button, `mt-1.5` instead of `mt-2`) and every `top_prospects`
+  row now mounts its own instance keyed off `opp.id`/`opp.hasSalesKit`,
+  passing `compact`. `generateSalesKit()` is called verbatim, same
+  resting/pending/success/error/usage-limit states and `aria-live="polite"`
+  region as the shipped `topOpportunity` precedent — no new pipeline, no
+  new usage-event type. Row independence (one row's pending/error state
+  never affecting a sibling) is covered in both
+  `top-opportunity-kit-action.test.tsx` (2 sibling instances) and
+  `command-centre-section-cards.test.tsx` (all 5 real rows, keyed by id,
+  through `buildSectionContent`'s actual `top_prospects` output). Full
+  suite green: `npx tsc --noEmit -p .`, `npx eslint`, `npm run test`
+  (250/250). **Left open**: the backlog's own visual-density question.
+  I made the conservative call the backlog invited ("implement the most
+  conservative/compact reasonable option... flag it for UX/UI Director's
+  visual judgment") rather than guess confidently — `compact` shrinks the
+  button and margin but doesn't otherwise redesign the row (no accordion,
+  no icon-only collapse, no hover-reveal). Whether 4 real xs-buttons plus
+  1 "ready" link, stacked in one already-dense card, reads as noisy on a
+  live authenticated screen is a real call only UX/UI Director's visual
+  judgment can close — moving to Needs review rather than Complete for
+  that reason, not because any acceptance criterion is unmet.
+- **Status**: Needs review
+
+## Complete
+
 ### One-click "Send payment reminder" on Command Centre's Engagement Risk card, for rows with a real overdue invoice
 
 - **Problem**: `engagement_risk` rows (`studio-engagement.ts`) already
@@ -191,73 +257,31 @@ _(none yet)_
   `owner-digest.ts`) updated to select the one new `reminder_sent_at`
   column. `npx tsc --noEmit -p .` clean, `npx eslint` clean on every
   touched file, full `vitest` suite green (266 tests, up from 244).
-- **Status**: Needs review
-
-### Wire the same outreach-kit action to Command Centre's Top Prospects list (fast-follow to the shipped topOpportunity action)
-
-- **Problem**: the single `topOpportunity` callout in the "Your briefing"
-  card already lets an owner one-click-generate a sales kit without leaving
-  Command Centre (`src/components/platform/top-opportunity-kit-action.tsx`,
-  shipped 2026-08-31). The `top_prospects` section card renders the
-  identical data shape — `briefing.topOpportunities`, a `TopOpportunity[]`
-  with the same real `id`/`hasSalesKit` fields (`src/lib/studio-briefing.ts`)
-  — for all 5 top-ranked prospects, but only the first one (folded into
-  "Your briefing") had the action wired; the other 4 rows (and the whole
-  card, for an org that's configured `top_prospects` as its own block) still
-  only linked out to `/studio/prospects`.
-- **Objective**: every row in the `top_prospects` section card gets the same
-  one-click "Generate outreach kit" / "Outreach kit ready" control the
-  `topOpportunity` callout already has, not just the card's single featured
-  row.
-- **User**: an agency owner scanning Command Centre who wants to act on any
-  of their top 5 real prospects without navigating to `/studio/prospects`
-  first.
-- **Priority**: P1 (next) — smallest possible increment on a pattern
-  already built, tested, and live; zero new pipeline, zero new usage type.
-- **Expected outcome**: an owner can generate (or see already-generated)
-  outreach kits for all 5 top prospects directly from Command Centre; they
-  only navigate to `/studio/prospects` to actually review/copy/send the
-  generated content, not to trigger generation itself.
-- **Acceptance criteria**: `TopOpportunityKitAction` (or an equivalent
-  thin wrapper) renders under each of the 5 `top_prospects` rows in
-  `command-centre-section-cards.tsx`, keyed off each row's own `id`/
-  `hasSalesKit`; `generateSalesKit()` called verbatim — no new pipeline, no
-  new usage-event type; resting/pending/success/error/usage-limit states
-  and `aria-live` region match the shipped precedent exactly; tests confirm
-  each row's pending/success/error state is independent (one row's click
-  doesn't affect its siblings); `npx tsc --noEmit`, `npx eslint`, full
-  `vitest` suite green.
-- **Relevant agent**: Lead Engineer (build, done); UX/UI Director should
-  confirm 5 independent action controls in one card doesn't read as
-  visually noisy before this ships more broadly.
-- **Dependencies**: none — reuses `TopOpportunityKitAction`,
-  `generateSalesKit()`, and `briefing.topOpportunities` as-is.
-- **Closure note (Lead Engineer, 2026-08-31)**: built as scoped.
-  `TopOpportunityKitAction` gained an opt-in `compact` prop (tighter
-  `xs`-size button, `mt-1.5` instead of `mt-2`) and every `top_prospects`
-  row now mounts its own instance keyed off `opp.id`/`opp.hasSalesKit`,
-  passing `compact`. `generateSalesKit()` is called verbatim, same
-  resting/pending/success/error/usage-limit states and `aria-live="polite"`
-  region as the shipped `topOpportunity` precedent — no new pipeline, no
-  new usage-event type. Row independence (one row's pending/error state
-  never affecting a sibling) is covered in both
-  `top-opportunity-kit-action.test.tsx` (2 sibling instances) and
-  `command-centre-section-cards.test.tsx` (all 5 real rows, keyed by id,
-  through `buildSectionContent`'s actual `top_prospects` output). Full
-  suite green: `npx tsc --noEmit -p .`, `npx eslint`, `npm run test`
-  (250/250). **Left open**: the backlog's own visual-density question.
-  I made the conservative call the backlog invited ("implement the most
-  conservative/compact reasonable option... flag it for UX/UI Director's
-  visual judgment") rather than guess confidently — `compact` shrinks the
-  button and margin but doesn't otherwise redesign the row (no accordion,
-  no icon-only collapse, no hover-reveal). Whether 4 real xs-buttons plus
-  1 "ready" link, stacked in one already-dense card, reads as noisy on a
-  live authenticated screen is a real call only UX/UI Director's visual
-  judgment can close — moving to Needs review rather than Complete for
-  that reason, not because any acceptance criterion is unmet.
-- **Status**: Needs review
-
-## Complete
+- **Closure note 2 (2026-09-02)**: both open threads this item's own
+  "Needs review" status was waiting on are now resolved. (1) The
+  isInternalOrg-only scope limitation — a separate commit (`17cc359`,
+  "tenant-scoped outbound email") shipped `send-org-email.ts`, closing
+  the real per-tenant email-identity gap this item's own closure note
+  flagged. `sendInvoiceReminder()` now sends through it for any
+  non-internal org with a configured reply-to (Settings), and the
+  Command Centre gate is `canSendClientEmail`, not `isInternalOrg` —
+  the one-click control is now genuinely multi-tenant, not
+  HamishAI-only, without any further work needed here. (2) The
+  Security Auditor spot-check this item's own "Relevant agent" note
+  called for is now done: the ownership check
+  (`sendClientInvoiceReminderAction`) is solid — `requireOrgId()`
+  re-derives the caller's org server-side, the invoice lookup joins
+  through `clients!inner(org_id)` with `maybeSingle()`, so a
+  cross-tenant reminder send isn't reachable. One real, low-severity
+  gap found and fixed: `organisations.name` was only whitespace-trimmed
+  at signup, with no control-character stripping, and landed directly
+  in `sendOrgEmail()`'s From header — hardened in `send-org-email.ts`
+  (commit `d91d310`). Not a confirmed exploit (Resend's API almost
+  certainly already rejects header-injection attempts), pure defense
+  in depth, and no cross-tenant boundary was ever at risk (a tenant's
+  own org name only ever affects their own outgoing email). Both
+  original blockers closed — moving to Complete.
+- **Status**: Complete
 
 ### AI-assisted signed value — a real, computed "AI ROI" number on Billing
 
