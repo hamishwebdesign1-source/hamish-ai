@@ -14,7 +14,11 @@ import { caseStudies } from "@/lib/case-studies-data";
 // pages), and fabricating one would be a real claim to a date this
 // codebase can't actually back up — omitted rather than guessed.
 export default function sitemap(): MetadataRoute.Sitemap {
-  const base = "https://hamishai.org";
+  // www, not the apex — same fix as layout.tsx's own metadataBase (2 Sep
+  // 2026): the apex 308-redirects to www at the hosting layer, so every
+  // sitemap entry was sending crawlers through a redirect hop instead of
+  // straight to the page that actually returns 200.
+  const base = "https://www.hamishai.org";
 
   // Updated 2 Sep 2026 — the Agency Platform moved from /platform to /
   // (the homepage); /platform now 301-redirects here (next.config.ts),

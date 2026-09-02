@@ -13,12 +13,14 @@ export function PersonJsonLd() {
     jobTitle: "Founder, HamishAI",
     description:
       "Technology Business Analyst with 11 years' experience in financial services (NatWest Group), now building AI-powered delivery for small businesses and the HamishAI Agency Platform.",
-    url: "https://hamishai.org/about",
+    // www, not the apex (2 Sep 2026) — same fix as layout.tsx's own
+    // metadataBase: the apex 308-redirects to www at the hosting layer.
+    url: "https://www.hamishai.org/about",
     sameAs: [siteConfig.linkedin],
     worksFor: {
       "@type": "Organization",
       name: "HamishAI",
-      url: "https://hamishai.org",
+      url: "https://www.hamishai.org",
     },
   };
 

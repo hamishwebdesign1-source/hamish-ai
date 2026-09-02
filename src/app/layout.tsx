@@ -40,7 +40,15 @@ const sora = Sora({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://hamishai.org"),
+  // SEO audit (2 Sep 2026) — was the apex ("https://hamishai.org"), which
+  // 308-redirects to www at the DNS/hosting layer (Vercel's own domain
+  // config, not a code redirect — confirmed live, every apex request
+  // redirects, every www request is a direct 200). metadataBase resolves
+  // every relative canonical URL sitewide, so every canonical tag was
+  // pointing at a URL that immediately redirects rather than the final
+  // destination — a real, if minor, signal to avoid per Google's own
+  // guidance that canonical URLs should be reachable without a redirect.
+  metadataBase: new URL("https://www.hamishai.org"),
   // Updated 2 Sep 2026 — the Agency Platform is now the homepage (see
   // (site)/page.tsx's own comment), so this root default — used as the
   // fallback for any page that somehow renders with no metadata of its

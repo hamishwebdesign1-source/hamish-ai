@@ -20,7 +20,9 @@ export function Breadcrumbs({ items }: { items: BreadcrumbItem[] }) {
       "@type": "ListItem",
       position: i + 1,
       name: item.label,
-      ...(item.href ? { item: `https://hamishai.org${item.href}` } : {}),
+      // www, not the apex (2 Sep 2026) — same fix as layout.tsx's own
+      // metadataBase: the apex 308-redirects to www at the hosting layer.
+      ...(item.href ? { item: `https://www.hamishai.org${item.href}` } : {}),
     })),
   };
 

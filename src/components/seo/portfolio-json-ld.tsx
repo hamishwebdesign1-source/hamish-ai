@@ -14,7 +14,9 @@ export function PortfolioJsonLd() {
       "@type": "ListItem",
       position: i + 1,
       name: study.name,
-      url: `https://hamishai.org/portfolio/${study.slug}`,
+      // www, not the apex (2 Sep 2026) — same fix as layout.tsx's own
+      // metadataBase: the apex 308-redirects to www at the hosting layer.
+      url: `https://www.hamishai.org/portfolio/${study.slug}`,
     })),
   };
 

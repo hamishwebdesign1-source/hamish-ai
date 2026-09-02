@@ -51,7 +51,11 @@ export default function robots(): MetadataRoute.Robots {
       { userAgent: "PerplexityBot", allow: "/", disallow },
       { userAgent: "Google-Extended", allow: "/", disallow },
     ],
-    sitemap: "https://hamishai.org/sitemap.xml",
-    host: "https://hamishai.org",
+    // www, not the apex — same fix as layout.tsx/sitemap.ts (2 Sep 2026):
+    // the apex 308-redirects to www at the hosting layer, so both of
+    // these were pointing at a URL that redirects rather than the real
+    // sitemap/host.
+    sitemap: "https://www.hamishai.org/sitemap.xml",
+    host: "https://www.hamishai.org",
   };
 }

@@ -39,11 +39,14 @@ export function OrganizationJsonLd() {
     "@graph": [
       {
         "@type": "Organization",
-        "@id": "https://hamishai.org/#organization",
+        // www, not the apex (2 Sep 2026) — same fix as layout.tsx's own
+        // metadataBase: the apex 308-redirects to www at the hosting
+        // layer, so @id/url/logo were all pointing through a redirect.
+        "@id": "https://www.hamishai.org/#organization",
         name: siteConfig.name,
         alternateName: "HamishAI",
-        url: "https://hamishai.org",
-        logo: "https://hamishai.org/icon.svg",
+        url: "https://www.hamishai.org",
+        logo: "https://www.hamishai.org/icon.svg",
         description: ORGANIZATION_DESCRIPTION,
         email: siteConfig.email,
         areaServed: {
@@ -60,10 +63,10 @@ export function OrganizationJsonLd() {
       },
       {
         "@type": "WebSite",
-        "@id": "https://hamishai.org/#website",
-        url: "https://hamishai.org",
+        "@id": "https://www.hamishai.org/#website",
+        url: "https://www.hamishai.org",
         name: siteConfig.name,
-        publisher: { "@id": "https://hamishai.org/#organization" },
+        publisher: { "@id": "https://www.hamishai.org/#organization" },
         // Matches the root layout's own <html lang="en-GB"> (fixed in
         // the same audit pass) and (site)/layout.tsx's og:locale
         // (en_GB) — all three now agree, where this used to be the one

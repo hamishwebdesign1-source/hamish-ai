@@ -94,7 +94,7 @@ export default function AISolutionsPage() {
                 <div className="relative aspect-[16/10] w-full overflow-hidden rounded-xl border border-border bg-primary">
                   <Image
                     src={s.image}
-                    alt=""
+                    alt={`${s.name} — illustration`}
                     fill
                     sizes="(min-width: 768px) 50vw, 100vw"
                     className="object-cover"

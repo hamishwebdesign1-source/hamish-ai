@@ -12,7 +12,7 @@ export function Testimonial({ study }: { study: CaseStudy }) {
             <div className="relative h-36 w-full md:h-auto md:w-56 md:shrink-0">
               <Image
                 src={study.signatureImage}
-                alt=""
+                alt={`${study.name} — case study preview`}
                 fill
                 sizes="(min-width: 768px) 224px, 100vw"
                 className="object-cover"

@@ -43,8 +43,9 @@ export function PlatformProductJsonLd() {
         // destination. Points at the real pricing section's own anchor
         // instead (siteConfig.platformNav's "Pricing" link uses the same
         // "/#pricing" — this isn't a new URL, just reusing the one
-        // that's already real).
-        url: "https://hamishai.org/#pricing",
+        // that's already real). www, not the apex, per the same
+        // apex-redirects-to-www fix applied sitewide this same pass.
+        url: "https://www.hamishai.org/#pricing",
       })),
     },
   };
