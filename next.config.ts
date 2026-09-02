@@ -36,6 +36,32 @@ const nextConfig: NextConfig = {
   async redirects() {
     return [{ source: "/platform", destination: "/", permanent: true }];
   },
+  // SEO/Lighthouse-Best-Practices audit (2 Sep 2026) — verified live via
+  // curl that only Strict-Transport-Security was set (Vercel's own
+  // default); X-Content-Type-Options and Referrer-Policy were both
+  // absent. Both are checked by Lighthouse's Best Practices score, both
+  // are zero-risk (they can't break any real feature — nosniff only
+  // blocks MIME-type-confusion attacks, and this Referrer-Policy value
+  // is already Chrome's own default behaviour, just not explicit here).
+  // Deliberately NOT adding Permissions-Policy or Content-Security-Policy
+  // in the same pass: Permissions-Policy would need auditing whether
+  // Studio uses camera/microphone/geolocation anywhere before it's safe
+  // to restrict site-wide, and CSP needs an exhaustive, verified allowlist
+  // of every legitimate external source this app loads (Stripe, Sentry,
+  // Google Fonts, Supabase, the embed widget, Pexels images) — getting
+  // either wrong risks breaking a real feature, a worse outcome than the
+  // header being absent.
+  async headers() {
+    return [
+      {
+        source: "/:path*",
+        headers: [
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+        ],
+      },
+    ];
+  },
 };
 
 // withSentryConfig is safe to apply unconditionally — without SENTRY_ORG/
