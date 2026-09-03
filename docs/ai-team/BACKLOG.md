@@ -544,13 +544,33 @@ covers the whole row.
 - **Dependencies**: none blocking — every entity Phase A touches
   (`projects`, `tasks`, `clients`, `memberships`, `audit_log`) already
   exists in production; the `stage` column is additive.
-- **Status**: Built, 2026-09-03 — `npx tsc --noEmit -p .`, `npx eslint` on
-  every touched file, and the full `vitest` suite (456/456, including new
-  coverage for the stage/status derivation, every new Server Action's
-  ownership check, and the shared drag-and-drop optimistic+rollback state
-  machine) all green; `npm run build` succeeded. Not yet verified in an
-  authenticated live browser session. Not yet QA-reviewed. Phase B/C
-  intentionally not started, per this entry's own phasing.
+- **Status**: **Built and pushed to production; live-verification found
+  one real bug, fix written, pending Hamish running a second migration.**
+  `npx tsc --noEmit -p .`, `npx eslint`, and the full `vitest` suite
+  (456/456) all green, `npm run build` succeeded — but live verification
+  in a real authenticated Studio session (production, Hamish's own
+  account) found real gaps static checks couldn't catch:
+  - The board, drag-handle cards, and 5-stage columns all render
+    correctly; the existing "Onboarding" projects backfilled to
+    `in_progress` exactly as the migration intended.
+  - Stage changes genuinely persist (confirmed via a full page reload,
+    not just client state) and correctly log a `project.stage_changed`
+    audit event, visible on the detail page's Activity trail.
+  - **Real bug, confirmed root cause**: "Add a task" on
+    `/studio/projects/[id]` silently fails to ever show the created task
+    — traced to a stale RLS policy (`tasks_select_own_org`) that only
+    grants SELECT via a join through `requests`, which a project-only
+    task's `request_id: null` can never satisfy. The write itself
+    succeeds (service-role client bypasses RLS); the read is the gap.
+    Full writeup and fix in `docs/ai-team/DECISIONS.md`'s matching
+    2026-09-03 entry. Fix written: `supabase/schema-rls-tasks-via-project.sql`
+    (one additive permissive policy, doesn't touch the existing one) —
+    needs Hamish to run it before task creation is genuinely usable.
+  - Not yet re-verified live post-fix. Drag-and-drop itself not yet
+    confirmed via a real pointer gesture (automation tooling limitation,
+    not a known bug) — the underlying persistence mechanism it shares
+    with the stage-select control is confirmed working.
+  - Phase B/C intentionally not started, per this entry's own phasing.
 
 ### Projects Kanban Command Centre — Phase B: Files-on-a-project, invoice linkage, and the `projects` ↔ `website_projects` cross-link decision
 

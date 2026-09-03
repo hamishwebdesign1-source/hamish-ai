@@ -150,6 +150,47 @@ cut.
 
 ---
 
+## 2026-09-03 — Real bug found live in Phase A: project-only tasks were invisible to every session-scoped read (stale RLS policy)
+
+**What happened**: live-verifying the Kanban board on production, "Add a
+task" on `/studio/projects/[id]` appeared to succeed (form closed, no
+client-side error) but the task never showed up, even after a full page
+reload. Traced to a real, confirmed root cause, not a testing artifact:
+`createProjectTask()` (`projects/actions.ts`) writes via the service-role
+admin client (bypasses RLS, so the insert genuinely succeeds), but the
+detail page's own task list reads via the session-scoped client — subject
+to `tasks_select_own_org` (`schema-rls-requests-tasks-org-staff.sql`),
+which only grants visibility via a join through `requests`
+(`tasks.request_id -> requests.client_id -> clients.org_id`). A task
+created directly on a project has `request_id: null` by design (it has no
+parent request) — that join can never match a null `request_id`, so every
+project-only task is silently invisible to its own owner's session,
+forever, regardless of retries.
+
+**Why static review + tests didn't catch this**: `tsc`/`eslint`/`vitest`
+all passed clean because the bug is a pure RLS-policy gap, not a type or
+logic error — the write path, read path, and their respective ownership
+checks are each individually correct in isolation; the gap is that no
+SELECT policy exists for the *new* way a task can now exist. This is
+exactly the class of bug `docs/ARCHITECTURE.md`'s own documented
+RLS-vs-service-role discipline exists to catch, and it slipped through
+because the new task-creation capability was reviewed against the write
+side's ownership check, not the read side's RLS coverage.
+
+**Fix**: `supabase/schema-rls-tasks-via-project.sql` — one additional,
+additive permissive policy (same "Postgres ORs multiple permissive
+policies on the same table" pattern the existing policy's own comment
+documents), granting SELECT via `tasks.project_id -> projects.org_id`
+independent of `request_id`. Does not touch or replace
+`tasks_select_own_org` — a task with a real `request_id` stays covered by
+that policy exactly as before. Needs Hamish to run it (same as the
+`stage` column migration) before this is genuinely fixed in production,
+not just in code.
+
+**Not yet re-verified live** — pending the migration being run.
+
+---
+
 ## 2026-09-03 — Hamish signed off on the Kanban design's 5-stage pipeline and the `max-w-4xl` exception
 
 Per the Phase A acceptance criteria's own requirement (the stage-label/
