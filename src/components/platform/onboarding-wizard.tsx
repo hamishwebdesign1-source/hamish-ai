@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import posthog from "posthog-js";
 import { Check, Sparkles, CreditCard, ChevronDown, ChevronUp, Lock } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Eyebrow } from "@/components/eyebrow";
@@ -80,11 +81,24 @@ export function OnboardingWizard({ email, initialPlan }: { email: string; initia
   const rawSelectedIndex = rawSelectedType ? AGENCY_TYPES.indexOf(rawSelectedType) : -1;
   const selectedType = rawSelectedIndex >= 0 && rawSelectedIndex >= unlockedTypeCount ? undefined : rawSelectedType;
 
+  // Studio Design Audit Tier 5 item #15 — this wizard had zero client-side
+  // instrumentation, so pre-signup drop-off (which step a prospective
+  // tenant abandoned at) was invisible. Guarded the same way
+  // identify-org.tsx guards its own PostHog call, so this stays a no-op
+  // in any environment without the key configured.
   function next() {
-    if (stepIndex < STEPS.length - 1) setStep(STEPS[stepIndex + 1]);
+    if (stepIndex < STEPS.length - 1) {
+      const nextStep = STEPS[stepIndex + 1];
+      setStep(nextStep);
+      if (process.env.NEXT_PUBLIC_POSTHOG_KEY) posthog.capture("onboarding_step_viewed", { step: nextStep });
+    }
   }
   function back() {
-    if (stepIndex > 0) setStep(STEPS[stepIndex - 1]);
+    if (stepIndex > 0) {
+      const prevStep = STEPS[stepIndex - 1];
+      setStep(prevStep);
+      if (process.env.NEXT_PUBLIC_POSTHOG_KEY) posthog.capture("onboarding_step_viewed", { step: prevStep });
+    }
   }
   function toggleService(service: string) {
     setServices((prev) => (prev.includes(service) ? prev.filter((s) => s !== service) : [...prev, service]));
@@ -248,6 +262,7 @@ export function OnboardingWizard({ email, initialPlan }: { email: string; initia
                     <button
                       type="button"
                       onClick={() => setExpandedType((prev) => (prev === type.slug ? null : type.slug))}
+                      aria-expanded={expandedType === type.slug}
                       className="flex w-full items-center gap-1 px-4 pb-3 text-[11px] font-medium text-accent"
                     >
                       {expandedType === type.slug ? (
