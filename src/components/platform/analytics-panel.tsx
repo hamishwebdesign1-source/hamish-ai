@@ -9,6 +9,7 @@ import { HelpTip } from "@/components/platform/help-tip";
 import { AnalyticsChart } from "@/components/platform/analytics-chart";
 import { Reveal } from "@/components/reveal";
 import { CountUp } from "@/components/platform/count-up";
+import { StudioPageHeader } from "@/components/platform/studio-page-header";
 import type { AnalyticsData, AnalyticsRange, Kpi } from "@/lib/studio-analytics";
 import { RANGE_LABELS, percentChange } from "@/lib/studio-analytics";
 import { buildAnalyticsCsv } from "@/lib/analytics-csv";
@@ -77,31 +78,32 @@ function downloadCsv(data: AnalyticsData) {
 
 export function AnalyticsPanel({ data }: { data: AnalyticsData }) {
   return (
-    <div className="mx-auto max-w-5xl">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="font-heading text-2xl font-semibold md:text-3xl">Analytics</h1>
-          <p className="mt-1 text-sm text-muted-foreground">Real numbers from your own account — no illustrative data.</p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="flex gap-1 rounded-lg border border-border bg-secondary/40 p-1">
-            {RANGES.map((r) => (
-              <Link
-                key={r}
-                href={`/studio/analytics?range=${r}`}
-                className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
-                  r === data.range ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                {RANGE_LABELS[r]}
-              </Link>
-            ))}
-          </div>
-          <Button size="sm" variant="outline" onClick={() => downloadCsv(data)}>
-            <Download className="size-3.5" /> Download CSV
-          </Button>
-        </div>
-      </div>
+    <div className="mx-auto max-w-4xl">
+      <StudioPageHeader
+        eyebrow="Grow"
+        title="Analytics"
+        description="Real numbers from your own account — no illustrative data."
+        actions={
+          <>
+            <div className="flex gap-1 rounded-lg border border-border bg-secondary/40 p-1">
+              {RANGES.map((r) => (
+                <Link
+                  key={r}
+                  href={`/studio/analytics?range=${r}`}
+                  className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+                    r === data.range ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {RANGE_LABELS[r]}
+                </Link>
+              ))}
+            </div>
+            <Button size="sm" variant="outline" onClick={() => downloadCsv(data)}>
+              <Download className="size-3.5" /> Download CSV
+            </Button>
+          </>
+        }
+      />
 
       <Reveal className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {data.kpis.map((kpi) => (

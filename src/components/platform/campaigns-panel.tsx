@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { createCampaign, updateCampaignStatus, assignProspectToCampaign, deleteCampaign } from "@/app/studio/(authed)/campaigns/actions";
+import { StudioPageHeader } from "@/components/platform/studio-page-header";
 
 type Campaign = { id: string; name: string; objective: string | null; status: string; created_at: string };
 type Prospect = {
@@ -335,16 +336,21 @@ export function CampaignsPanel({ campaigns, prospects }: { campaigns: Campaign[]
     : campaigns;
 
   return (
-    <div className="mx-auto max-w-3xl">
-      <h1 className="font-heading text-2xl font-semibold md:text-3xl">Campaigns</h1>
-      <p className="mt-1 text-sm text-muted-foreground">
-        Group your prospecting under a named push and see real results — add prospects to a campaign right from its
-        card below. Find more in{" "}
-        <Link href="/studio/prospects" className="text-accent underline underline-offset-2">
-          Prospects
-        </Link>
-        .
-      </p>
+    <div className="mx-auto max-w-4xl">
+      <StudioPageHeader
+        eyebrow="Grow"
+        title="Campaigns"
+        description={
+          <>
+            Group your prospecting under a named push and see real results — add prospects to a campaign right from
+            its card below. Find more in{" "}
+            <Link href="/studio/prospects" className="text-accent underline underline-offset-2">
+              Prospects
+            </Link>
+            .
+          </>
+        }
+      />
 
       <div className="mt-6">
         <NewCampaignForm />

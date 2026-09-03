@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { createProject, updateProjectStatus, assignProject, deleteProject } from "@/app/studio/(authed)/projects/actions";
+import { StudioPageHeader } from "@/components/platform/studio-page-header";
 
 type Client = { id: string; business_name: string };
 type Project = { id: string; client_id: string; name: string; target_date: string | null; status: string; created_at: string; assigned_to: string | null };
@@ -436,17 +437,20 @@ export function ProjectsPanel({
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">
-      <div>
-        <h1 className="font-heading text-2xl font-semibold md:text-3xl">Projects</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          What you&apos;re delivering and by when, per client. A thin wrapper around your existing tasks — assign a
-          task to a project from the{" "}
-          <a href="/studio/requests" className="text-accent underline underline-offset-2">
-            Requests
-          </a>{" "}
-          page.
-        </p>
-      </div>
+      <StudioPageHeader
+        eyebrow="Deliver"
+        title="Projects"
+        description={
+          <>
+            What you&apos;re delivering and by when, per client. A thin wrapper around your existing tasks — assign
+            a task to a project from the{" "}
+            <a href="/studio/requests" className="text-accent underline underline-offset-2">
+              Requests
+            </a>{" "}
+            page.
+          </>
+        }
+      />
 
       {clients.length === 0 ? (
         <div className="rounded-xl border border-dashed border-border p-8 text-center">

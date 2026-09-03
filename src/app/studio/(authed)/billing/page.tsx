@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { HelpTip } from "@/components/platform/help-tip";
 import { Reveal } from "@/components/reveal";
 import { CountUp } from "@/components/platform/count-up";
+import { StudioPageHeader } from "@/components/platform/studio-page-header";
 import { startCheckout, openBillingPortal, buyCreditPack } from "./actions";
 
 // SEO/metadata audit (2 Sep 2026) — see studio/(authed)/page.tsx for the
@@ -140,10 +141,11 @@ export default async function StudioBillingPage({
     // Centered column, not left-aligned-and-capped — see prospecting-panel.tsx's
     // comment for why that distinction is the actual fix.
     <div className="mx-auto max-w-4xl space-y-6">
-      <div>
-        <h1 className="font-heading text-2xl font-semibold md:text-3xl">Billing</h1>
-        <p className="mt-1 text-sm text-muted-foreground">Your plan, your subscription, and where to manage the card behind it.</p>
-      </div>
+      <StudioPageHeader
+        eyebrow="Account"
+        title="Billing"
+        description="Your plan, your subscription, and where to manage the card behind it."
+      />
 
       {checkout === "success" && (
         <p className="rounded-lg border border-accent/40 bg-accent/5 px-4 py-3 text-sm text-accent">

@@ -16,6 +16,7 @@ import {
   extractKnowledgeFromDocument,
   importKnowledgeEntries,
 } from "@/app/studio/(authed)/knowledge/actions";
+import { StudioPageHeader } from "@/components/platform/studio-page-header";
 
 type Client = { id: string; business_name: string; source_lead_id?: string | null };
 type Entry = { id: string; client_id: string | null; title: string; content: string; created_at: string };
@@ -404,17 +405,22 @@ export function KnowledgePanel({
   });
 
   return (
-    <div className="mx-auto max-w-3xl">
-      <h1 className="font-heading text-2xl font-semibold md:text-3xl">Knowledge base</h1>
-      <p className="mt-1 text-sm text-muted-foreground">
-        What your clients&apos; AI Copilot and support agent draw on to answer questions instantly — leave a client
-        unset for answers that apply to everyone. This is also step one for putting a chatbot on a client&apos;s own
-        website — once they have facts here, turn it on from their card in{" "}
-        <Link href="/studio/clients" className="text-accent underline underline-offset-2">
-          Clients
-        </Link>
-        .
-      </p>
+    <div className="mx-auto max-w-4xl">
+      <StudioPageHeader
+        eyebrow="Deliver"
+        title="Knowledge base"
+        description={
+          <>
+            What your clients&apos; AI Copilot and support agent draw on to answer questions instantly — leave a
+            client unset for answers that apply to everyone. This is also step one for putting a chatbot on a
+            client&apos;s own website — once they have facts here, turn it on from their card in{" "}
+            <Link href="/studio/clients" className="text-accent underline underline-offset-2">
+              Clients
+            </Link>
+            .
+          </>
+        }
+      />
 
       {researchClients.length > 0 && (
         <div className="mt-6 space-y-2">

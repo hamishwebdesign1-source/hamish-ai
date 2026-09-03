@@ -32,6 +32,7 @@ import {
   addManualProspect,
 } from "@/app/studio/(authed)/prospects/actions";
 import { DiscoveryResultMessage, type DiscoveryResult } from "@/components/platform/discovery-result-message";
+import { StudioPageHeader } from "@/components/platform/studio-page-header";
 import type { UsageStatus } from "@/lib/usage-limits";
 import { leadNeedsFollowUp } from "@/lib/lead-status";
 import type { Prospect, ProposalToken, TeamMember } from "./types";
@@ -373,13 +374,11 @@ export function ProspectingPanel({
     // body narrow," it was "body narrow AND left-aligned instead of
     // centered."
     <div className="mx-auto max-w-4xl space-y-6">
-      <div>
-        <h1 className="font-heading text-2xl font-semibold md:text-3xl">Prospects</h1>
-        <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-          Set your niche and geography, then find real businesses matching it — the same engine HamishAI runs its
-          own weekly search on.
-        </p>
-      </div>
+      <StudioPageHeader
+        eyebrow="Grow"
+        title="Prospects"
+        description="Set your niche and geography, then find real businesses matching it — the same engine HamishAI runs its own weekly search on."
+      />
 
       {usage && (
         <Card>

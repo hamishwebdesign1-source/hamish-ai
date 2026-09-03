@@ -27,6 +27,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { findAgencyType } from "@/lib/agency-types";
+import { StudioPageHeader } from "@/components/platform/studio-page-header";
 
 // SEO/metadata audit (2 Sep 2026) — see studio/(authed)/page.tsx for the
 // full reasoning (every real page under here gets its own real title).
@@ -176,11 +177,12 @@ export default async function StudioSettingsPage({
   return (
     // Centered column, not left-aligned-and-capped — see prospecting-panel.tsx's
     // comment for why that distinction is the actual fix.
-    <div className="mx-auto max-w-2xl space-y-6">
-      <div>
-        <h1 className="font-heading text-2xl font-semibold md:text-3xl">Settings</h1>
-        <p className="mt-1 text-sm text-muted-foreground">Connect your own inbox to automate follow-up tracking.</p>
-      </div>
+    <div className="mx-auto max-w-4xl space-y-6">
+      <StudioPageHeader
+        eyebrow="Account"
+        title="Settings"
+        description="Connect your own inbox to automate follow-up tracking."
+      />
 
       {params.ms_connected && (
         <p className="flex items-center gap-1.5 text-sm text-accent">

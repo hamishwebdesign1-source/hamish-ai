@@ -623,6 +623,13 @@ export default async function StudioHomePage() {
   const activeTab = populatedTabs.includes(cookiedTab as CommandCentreTabId) ? (cookiedTab as CommandCentreTabId) : populatedTabs[0];
 
   return (
+    // Studio Design Audit, Tier 1 #1 — Command Centre is deliberately NOT
+    // built on StudioPageHeader (studio-page-header.tsx) or wrapped in
+    // the mx-auto max-w-4xl every other Studio route now standardizes on.
+    // It's a structurally different full-width hero page (its own
+    // greeting/h1 sizing — text-3xl/4xl, not the 2xl/3xl list-page
+    // scale — its own stat row, tabs, and block canvas), not a list-page
+    // header; don't "fix" it into conformity with the other 12 routes.
     <div>
       <Eyebrow>Command Centre</Eyebrow>
       <h1 className="mt-3 font-heading text-3xl font-semibold md:text-4xl">

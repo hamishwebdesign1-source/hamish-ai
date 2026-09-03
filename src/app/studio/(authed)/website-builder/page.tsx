@@ -6,7 +6,8 @@ import { createServerSupabaseClient, getUserWithRetry } from "@/lib/supabase-ser
 import { getOrgMembership } from "@/lib/org-membership";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Eyebrow } from "@/components/eyebrow";
+import { Button } from "@/components/ui/button";
+import { StudioPageHeader } from "@/components/platform/studio-page-header";
 import { AI_CODING_TOOLS } from "@/lib/ai-coding-tools";
 import { daysSince } from "@/lib/lead-meta";
 
@@ -118,23 +119,26 @@ export default async function WebsiteBuilderPage() {
     .order("created_at", { ascending: false });
 
   return (
-    <div className="mx-auto max-w-3xl">
-      <Eyebrow>Website Builder</Eyebrow>
-      <h1 className="mt-3 font-heading text-2xl font-semibold md:text-3xl">Build professional websites with AI</h1>
-      <p className="mt-2 max-w-xl text-muted-foreground">
-        HamishAI doesn&apos;t build or host websites — it gives you the complete system, brief, and step-by-step AI
-        instructions to build and manage professional websites yourself, using the world&apos;s leading agentic
-        coding tools: Claude Code, Codex, and Cursor. You stay in charge of the build; we make you dramatically more
-        capable of running it.
-      </p>
+    <div className="mx-auto max-w-4xl">
+      {/* Studio Design Audit, Tier 1 #4 — eyebrow inconsistency resolved
+          by keeping the eyebrow, not dropping it: every adopting page now
+          gets one (its real nav-section name, via StudioPageHeader),
+          instead of leaving Website Builder as the one page with an
+          unexplained one-off. */}
+      <StudioPageHeader
+        eyebrow="Build"
+        title="Build professional websites with AI"
+        description="HamishAI doesn't build or host websites — it gives you the complete system, brief, and step-by-step AI instructions to build and manage professional websites yourself, using the world's leading agentic coding tools: Claude Code, Codex, and Cursor. You stay in charge of the build; we make you dramatically more capable of running it."
+      />
 
       <div className="mt-8">
-        <Link
-          href="/studio/website-builder/new"
-          className="inline-flex items-center gap-2 rounded-lg bg-accent px-4 py-2.5 text-sm font-semibold text-accent-foreground transition-colors hover:bg-accent/90"
-        >
+        {/* Studio Design Audit, Tier 1 #4 — was a hand-rolled <Link>
+            styled as a button; now the established Button+render pattern
+            (see command-centre-section-cards.tsx), same icon/label/colour
+            intent kept. */}
+        <Button size="lg" className="gap-2 bg-accent px-4 font-semibold text-accent-foreground hover:bg-accent/90" render={<Link href="/studio/website-builder/new" />}>
           <Plus className="size-4" /> Create Website Project
-        </Link>
+        </Button>
       </div>
 
       {projects && projects.length > 0 ? (

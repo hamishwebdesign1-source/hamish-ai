@@ -104,9 +104,16 @@ export default async function StudioAuthedLayout({ children }: { children: React
         <StudioCommandPalette />
         <header className="relative border-b border-border/60 bg-background">
           <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-6 py-4">
-            <Link href="/studio" className="shrink-0 font-heading text-lg font-semibold">
-              {org?.name ?? "Your Agency"}
-              <span className="ml-2 font-mono text-xs font-normal tracking-wide text-muted-foreground uppercase">
+            {/* Studio Design Audit, Tier 1 #4 — a long org name had no
+                truncation and forced horizontal overflow at narrow
+                widths (no shrink-0/min-w-0 guard on this row at all).
+                min-w-0 on the Link (so this flex item is allowed to
+                shrink below its content size) + truncate on the name
+                itself; the "Studio" badge keeps shrink-0 so it's never
+                what gets clipped. */}
+            <Link href="/studio" className="flex min-w-0 items-baseline gap-2 font-heading text-lg font-semibold">
+              <span className="min-w-0 truncate">{org?.name ?? "Your Agency"}</span>
+              <span className="shrink-0 font-mono text-xs font-normal tracking-wide text-muted-foreground uppercase">
                 Studio
               </span>
             </Link>

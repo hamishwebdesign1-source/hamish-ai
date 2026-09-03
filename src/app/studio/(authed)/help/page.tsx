@@ -4,6 +4,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { RestartTourButton } from "@/components/platform/restart-tour-button";
 import { HelpFaqList } from "@/components/platform/help-faq-list";
+import { StudioPageHeader } from "@/components/platform/studio-page-header";
 import { STUDIO_FAQS } from "@/lib/studio-help-faqs";
 import { submitFeedback } from "./actions";
 
@@ -53,15 +54,20 @@ export default async function StudioHelpPage({
   const { sent, error } = await searchParams;
 
   return (
-    <div className="mx-auto max-w-3xl">
-      <h1 className="font-heading text-2xl font-semibold md:text-3xl">Help &amp; Feedback</h1>
-      <p className="mt-1 text-sm text-muted-foreground">
-        Common questions about running your agency on this platform. Something else? Email{" "}
-        <a href="mailto:hello@hamishai.org" className="text-accent underline underline-offset-2">
-          hello@hamishai.org
-        </a>
-        .
-      </p>
+    <div className="mx-auto max-w-4xl">
+      <StudioPageHeader
+        eyebrow="Account"
+        title="Help & Feedback"
+        description={
+          <>
+            Common questions about running your agency on this platform. Something else? Email{" "}
+            <a href="mailto:hello@hamishai.org" className="text-accent underline underline-offset-2">
+              hello@hamishai.org
+            </a>
+            .
+          </>
+        }
+      />
 
       <div className="mt-4">
         <RestartTourButton />

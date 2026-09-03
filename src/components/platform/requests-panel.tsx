@@ -34,6 +34,7 @@ import {
   assignRequest,
 } from "@/app/studio/(authed)/requests/actions";
 import { assignTaskToProject } from "@/app/studio/(authed)/projects/actions";
+import { StudioPageHeader } from "@/components/platform/studio-page-header";
 import type { TroubleshootingEntry } from "@/lib/website-troubleshooting";
 
 type Request = {
@@ -709,13 +710,11 @@ export function RequestsPanel({
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">
-      <div>
-        <h1 className="font-heading text-2xl font-semibold md:text-3xl">Requests</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          What your clients have raised through their portal — categorised and analysed automatically, drafted
-          replies included. Nothing is ever sent on its own; you review and reply yourself.
-        </p>
-      </div>
+      <StudioPageHeader
+        eyebrow="Deliver"
+        title="Requests"
+        description="What your clients have raised through their portal — categorised and analysed automatically, drafted replies included. Nothing is ever sent on its own; you review and reply yourself."
+      />
 
       {requests.length === 0 ? (
         <div className="rounded-xl border border-dashed border-border p-8 text-center">
