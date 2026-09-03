@@ -7,7 +7,6 @@ import {
   Search,
   Users,
   CheckCircle2,
-  Circle,
   Sparkles,
   BellRing,
   Inbox,
@@ -47,6 +46,7 @@ import { Reveal } from "@/components/reveal";
 import { CommandCentreTabs } from "@/components/platform/command-centre-tabs";
 import { buildStatContent } from "@/components/platform/command-centre-stat-cards";
 import { buildSectionContent } from "@/components/platform/command-centre-section-cards";
+import { OnboardingChecklist } from "@/components/platform/onboarding-checklist";
 
 // SEO/metadata audit (2 Sep 2026) — same gap as /admin and /portal
 // (found there first, see those layout.tsx files), but here it's the
@@ -682,31 +682,12 @@ export default async function StudioHomePage() {
           stat row and ahead of the tabs, in the professional-feel pass
           — it used to render after the whole tabbed area, meaning the
           org that most needs this (a brand-new one, nothing set up yet)
-          had to scroll past every populated tab to reach it. */}
-      {!checklistComplete && (
-        <Card className="mt-6 border-none bg-card text-card-foreground">
-          <CardContent className="p-5">
-            <p className="text-xs font-semibold text-muted-foreground">Getting set up</p>
-            <ul className="mt-4 space-y-2.5">
-              {checklist.map((item) => (
-                <li key={item.label}>
-                  <Link
-                    href={item.href}
-                    className={`flex items-center gap-2 text-sm ${item.done ? "text-muted-foreground" : "hover:text-accent"}`}
-                  >
-                    {item.done ? (
-                      <CheckCircle2 className="size-4 shrink-0 text-accent" />
-                    ) : (
-                      <Circle className="size-4 shrink-0 text-muted-foreground/40" />
-                    )}
-                    <span className={item.done ? "line-through" : ""}>{item.label}</span>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </CardContent>
-        </Card>
-      )}
+          had to scroll past every populated tab to reach it.
+          Studio UX pass (3 Sep 2026) — the actual card markup now lives
+          in onboarding-checklist.tsx, collapsed by default behind a
+          progress summary instead of always fully expanded; see that
+          file's own comment. */}
+      {!checklistComplete && <OnboardingChecklist items={checklist} />}
 
       {/* Actions required — always the first thing after the numbers,
           before any tab (see the fixed-position comment above
