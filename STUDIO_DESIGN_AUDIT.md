@@ -209,6 +209,46 @@ Ranked by convergence across specialists, real user/business value, and effort. 
   `/studio/feedback` 301s to `/studio/help` (`next.config.ts`) so no
   stale bookmark or nav reference dead-ends. tsc/lint/416-test baseline
   unaffected.
+- **Tier 1, items #1 and #4 — Shared `StudioPageHeader` + standard
+  `max-w-4xl` content width, plus the three cheap header-adjacent fixes.**
+  New `src/components/platform/studio-page-header.tsx` replaces the 12
+  independently hand-rolled `<h1>`/`<p>` header instances across
+  Prospects, Campaigns, Clients, Requests, Projects, Knowledge, Analytics,
+  Billing, Settings, Website Builder, and Help & Feedback — same exact
+  type scale (`text-2xl`/`md:text-3xl` h1, `mt-1 text-sm
+  text-muted-foreground` p), so no page's heading visually changed size.
+  Every one of those pages now wraps its content in `mx-auto max-w-4xl`
+  (previously a mix of `max-w-2xl/3xl/4xl/5xl`) — the reading column no
+  longer jumps width on every nav click. Analytics was the one page
+  checked for needing more room (its two-chart `lg:grid-cols-2` row);
+  `max-w-4xl` held up fine, no exception needed. Command Centre
+  (`studio/(authed)/page.tsx`) is explicitly excluded — a comment on its
+  own header explains why (full-width hero page, not a list-page header),
+  so a future contributor won't "fix" it into conformity by mistake.
+  Bundled in the same pass (item #4): Website Builder's hand-rolled
+  `<Link>` CTA now uses `Button`+`render` (the established
+  `command-centre-section-cards.tsx` pattern); the eyebrow inconsistency
+  (only Command Centre and Website Builder had one) was resolved by
+  extending it, not dropping it — every `StudioPageHeader` now takes a
+  real nav-section name (Grow/Build/Deliver/Account, per
+  `studio-nav.tsx`'s `getNavSections()`) as its eyebrow; and the global
+  header's org-name `Link` (`studio/(authed)/layout.tsx`) now has
+  `min-w-0 truncate` (with the "Studio" badge kept `shrink-0`) so a long
+  agency name truncates instead of forcing horizontal overflow at narrow
+  widths. `docs/ai-team/DESIGN-SYSTEM.md` has the full pattern writeup.
+  tsc/lint clean, 416/416 tests passing.
+- **Tier 1, item #2 — Backfilled `loading.tsx` on the 7 routes missing
+  one.** Analytics, Campaigns, Clients, Knowledge, Projects, Requests, and
+  Website Builder each got a route-specific skeleton (plain pulsing
+  `bg-secondary` blocks shaped like that page's real content — KPI/chart
+  grid, filter bar + list, grouped-by-stage list, etc.), following the
+  same pattern prospects/billing/settings' own `loading.tsx` already
+  established, rather than falling through to the generic Command-Centre-
+  shaped `(authed)/loading.tsx`. That shared fallback's own comment was
+  updated to reflect the smaller remaining set (Help & Feedback is now the
+  only route still relying on it). tsc/lint clean, full `eslint .` matches
+  the documented pre-existing baseline (68 errors/38 warnings, unrelated
+  files), 416/416 tests passing.
 
 ## 4. What was not built
 

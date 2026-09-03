@@ -80,6 +80,48 @@ real Browser pane (UX/UI Director) plus a real contrast-checker pass
 against actual rendered pixels — see `BACKLOG.md`'s entry, now in "Needs
 review," for the full implementation note.
 
+## Page structure — `StudioPageHeader` + one standard content width
+
+- **Every list-page header in Studio is now `StudioPageHeader`**
+  (`src/components/platform/studio-page-header.tsx`), not a hand-rolled
+  `<h1>`/`<p>` pair. Before the Studio Design Audit's Tier 1 build, this
+  pattern was independently duplicated 12 times, each with its own
+  content-unjustified max-width (`max-w-2xl`/`3xl`/`4xl`/`5xl`) — the
+  reading column visibly jumped width on every nav click, the single most
+  "assembled from parts" issue the audit found. `StudioPageHeader` takes
+  `title` (string), `description` (string/`ReactNode`, for a description
+  containing a link), optional `eyebrow` (string), and optional `actions`
+  (`ReactNode`, right-aligned, wraps under the title on narrow screens via
+  `flex flex-wrap items-start justify-between gap-4` — Analytics' own
+  pre-existing range-switcher/CSV-export row, kept as the reference shape
+  rather than reinvented). It renders the exact type scale every page
+  already used (`<h1 className="font-heading text-2xl font-semibold
+  md:text-3xl">` + `<p className="mt-1 text-sm text-muted-foreground">`)
+  so adopting it changed no page's heading size, only its wrapper.
+- **Content wrapper: `mx-auto max-w-4xl`, on every page using
+  `StudioPageHeader`.** Prospects, Campaigns, Clients, Requests, Projects,
+  Knowledge, Analytics, Billing, Settings, Website Builder, and Help &
+  Feedback all standardized on this one width — no more page-specific
+  `max-w-2xl/3xl/5xl` variant. Analytics was the one page evaluated for
+  needing more room (a two-chart `lg:grid-cols-2` row) and `max-w-4xl`
+  held up fine there too.
+- **Command Centre (`studio/(authed)/page.tsx`) is deliberately NOT built
+  on `StudioPageHeader` or `max-w-4xl`** — it's a structurally different
+  full-width hero page (its own `text-3xl`/`text-4xl` greeting, not the
+  list-page `text-2xl`/`text-3xl` scale; its own stat row, tabs, and
+  block canvas), not a list-page header. Its own header comment says so
+  explicitly — don't "fix" it into conformity with the other 12 routes.
+- **Eyebrow**: before this pass only Command Centre and Website Builder
+  rendered one; every other page's header had none, which read as an
+  unexplained one-off rather than a real pattern. Resolved by keeping and
+  extending it, not dropping it — every page using `StudioPageHeader` now
+  passes its real nav-section name (`Grow` for Analytics/Prospects/
+  Campaigns, `Build` for Website Builder, `Deliver` for Clients/Requests/
+  Projects/Knowledge, `Account` for Billing/Settings/Help & Feedback), per
+  `studio-nav.tsx`'s `getNavSections()` — reinforcing the sidebar grouping
+  on the page itself instead of leaving it invisible once you've clicked
+  in.
+
 ## Components
 
 - `src/components/ui/*` — shadcn/ui built on **Base UI**, not Radix.
