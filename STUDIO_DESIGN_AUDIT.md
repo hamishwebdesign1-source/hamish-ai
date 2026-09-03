@@ -480,16 +480,115 @@ Ranked by convergence across specialists, real user/business value, and effort. 
 
 ## 4. What was not built
 
-*(anything deliberately scoped out during build, beyond the Phase 1 rejections above)*
+Beyond the Phase 1 rejections in section 2 (coach-mark tour, Campaign budget/spend tracking,
+merging Website Builder into Projects — all still correctly not built), two shared-primitive
+refactors were scoped in Phase 1 as Medium priority but deliberately deferred rather than built in
+an already-large pass:
+
+- **`StudioEmptyState` and `ConfirmDeleteButton` shared primitives.** Phase 1 (Lead Engineer)
+  quantified 15 duplicated empty-state instances and 4+ duplicated confirm-delete
+  implementations. Phase 2 built and adopted the highest-priority duplication
+  (`StudioPageHeader`) but correctly judged that extracting these two on top of everything
+  else in the same pass was more risk than the mission's remaining time budget justified. The
+  post-build review (Lead Engineer) confirmed this was the right call to make explicitly, but
+  found the confirm-delete count had gone *up* in the meantime (the three new Tier 4 confirm
+  controls each correctly reused the existing *shape* by hand, not a shared component) — now a
+  real, named `BACKLOG.md` item rather than a silent gap.
+- **Assignee-select consolidation** (4 independent components, QA's original Low-priority
+  finding) — the actual bug (silent rollback) is fixed in all 4; consolidating them into one
+  component is real but lower value, now in `BACKLOG.md`.
+- **AI-artifact provenance line standardisation** ("Generated {date} · Regenerate" everywhere a
+  cached AI output shows) — cosmetic, correctly deferred, now in `BACKLOG.md`.
+- **A dormancy/re-engagement signal for inactive orgs** — Growth & Analytics flagged this in
+  Phase 1 as needing new instrumentation that doesn't exist yet, and close enough to the standing
+  pre-2026-11-09 no-outreach constraint that it explicitly needs Hamish's sign-off before any
+  email/digest is built, not a default. Left in `BACKLOG.md` with that constraint stated
+  explicitly, not built.
+- **A Command Centre density pass** (fewer of the 9 section-card types) — Phase 1 (UX/UI
+  Director) explicitly said this needs real usage data on which cards actually get looked at
+  before cutting any of them; no such data exists yet (`PRODUCT.md`'s own "current real status").
+  Not built, not backlogged as an action item — a real future opportunity once evidence exists.
 
 ## 5. Post-build review
 
-*(the same seven specialists, re-run against the built result)*
+The same seven specialists re-reviewed the actual shipped result against real current source (not
+this document's own prose), answering: *"Now that the proposed improvements have been
+implemented, what still feels weak, inconsistent, unfinished, or below a world-class SaaS
+standard?"*
+
+**Verdict, across all seven: every Phase 2 claim checked out under spot-check.** No specialist
+found an "implemented" item that wasn't actually implemented, and no specialist found the build
+had broken anything — `tsc` stayed clean, Studio/Platform stayed lint-clean, and the test suite
+stayed green throughout (416→415, one test correctly removed for a retired usage-event type).
+
+**Two real regressions were caught, both fixed in a final cleanup pass (commit `19bb349`):**
+- `ClientMembersControl.remove()` (`clients-panel.tsx`) — a Tier 4 control built in the same
+  commit as the fix for the *exact same bug class* (Tier 3 #7's 4-way silent assignee-select
+  rollback) discarded its own Server Action's error, an identical silent-failure bug reintroduced
+  by accident a few files away. Caught independently by both UX/UI Director and QA Engineer.
+- `studio-tour.tsx`'s "AI Business Analyst" step still told new users to ask questions "from the
+  Clients page" — the exact surface just retired by the AI-surface consolidation landing in the
+  same mission. Caught by Product Director.
+
+**Smaller loose ends found and fixed** (commit `19bb349` and a final pair of direct fixes,
+`03ebf38`): a button-size token mismatch (`xs` vs `icon-xs`) in the same Tier 4 commit; a third,
+unconsolidated "usage limit reached" message in Prospects' ambient usage card that the Tier 5 #17
+unification missed; Website Builder's primary CTA still sitting outside the new header's `actions`
+slot; a stale code comment on the Clients page describing pre-fix behaviour; a leftover
+`prospecting-panel.tsx` re-export shim, cleaned up by repointing its two importers directly;
+`DESIGN-SYSTEM.md`'s eyebrow rationale overclaiming a benefit that only actually holds on mobile
+(the desktop sidebar already shows the same label — real, harmless, and worth being honest about
+rather than silently leaving the doc wrong); a missing `aria-live` region on the command palette's
+Ask-flow transition; and the onboarding wizard's very first ("start") step never being captured by
+name in its own new instrumentation.
+
+**Confirmed clean, no findings:** Security Auditor found zero ownership-check regressions across
+every Server Action touched by the build, confirmed the three new confirm-step controls use the
+established pattern correctly with no native `confirm()` introduced, and confirmed the
+AI-consolidation didn't introduce a usage-cap gap. AI/Agent Architect confirmed zero dangling
+references anywhere to the retired `ClientsCopilot`/`clients_copilot_question`.
+
+**One process gap this document itself had to correct**: Lead Engineer's post-build pass found
+that `BACKLOG.md`/`AGENT-LOG.md` updates this document's own text claimed would happen hadn't
+actually happened. Fixed directly (commit `3bf3852`) rather than left as a known gap — see that
+commit and `docs/ai-team/BACKLOG.md`'s new entries for the genuinely-deferred items named above.
 
 ## 6. Remaining improvements
 
-*(real opportunities left for `BACKLOG.md`)*
+Everything genuinely worth doing next is now a real, findable `BACKLOG.md` entry rather than a
+line in this document that could quietly go stale — see the five entries added under "Not
+started": `StudioEmptyState`/`ConfirmDeleteButton` primitives, assignee-select consolidation, AI-
+artifact provenance-line standardisation, trial-status pill phrasing reconciliation (a new, minor
+count-up/count-down inconsistency the Phase 2 pill itself introduced, caught by Growth & Analytics
+in Phase 3), and the dormancy-signal instrumentation with its explicit outreach-constraint flag.
+Two known, pre-existing gaps this mission didn't touch remain accurately described in
+`PRODUCT-ROADMAP.md`'s own "Known real gaps" section (no campaign UI on the Prospects page;
+`docs/RUNBOOK.md` still describes 5 cron jobs instead of the real 13) — not new findings, not
+duplicated here.
+
+After the two rounds above, both post-build reviews converged on describing only minor,
+individually-cheap remaining items — the mission's own exit condition ("repeat until the agents
+identify only minor improvements") is met.
 
 ## 7. Final scores — before vs after
 
-*(completed once Phase 2/3 finishes)*
+Reconciled across all seven specialists' Phase 1 and Phase 3 scores (several dimensions were
+scored by more than one specialist post-build; where they differed, the number below is a
+justified reconciliation, not an arbitrary pick — see each specialist's own review file in
+`docs/ai-team/AGENT-LOG.md`'s entry for the individual numbers).
+
+| Dimension | Before | After | What moved it |
+|---|---|---|---|
+| Visual Design | 6.5 | 7.5 | The header/max-width standardisation removed the one thing every reviewer called the biggest "assembled from parts" signal. |
+| UX | 6 | 7 | AI-surface fragmentation and the tour/checklist redundancy — both real, both confirmed fixed — were this dimension's two biggest drags. |
+| Information Architecture | 6.5 | 7.5 | Feedback/Help merged into one coherent page; the tour now walks a new user to their actual first task. |
+| Consistency | 4.5 (avg of two Phase 1 scores) | 7 | The core quantified finding (12× header duplication) is verifiably gone; confirm-delete/empty-state duplication remains and is now a named `BACKLOG.md` item rather than an open question. |
+| Accessibility | 6.5 | 8.5 | Every originally-flagged gap (4 unlabeled controls, 3 missing `aria-expanded`, 2 overlays with no dialog semantics) is fixed and re-verified in Phase 3, not just claimed. |
+| Responsive Design | 6 | 6.5 | The one plausible header-overflow risk (long org name) is fixed; most of this dimension remains code-derived, not live-verified — genuine headroom left, honestly not overclaimed. |
+| Premium SaaS Feel | 6.5 | 7 | Direct product of the Visual Design/Consistency gains — the same bones, now visibly finished rather than undercut by drift. |
+| AI-Native Experience | 7.5 | 8.5 | The one real coherence drag (three AI surfaces, two meters) this dimension had is confirmed fully and cleanly resolved; already-strong AI depth (recommend→act, honest cost transparency) was undisturbed. |
+
+**Overall**: `/studio` is measurably, verifiably closer to "one cohesive premium AI-native
+product" than it was at the start of this mission — not because this document says so, but because
+every claim in it was independently spot-checked against real current source by the same
+specialists who found the original problems, twice.
