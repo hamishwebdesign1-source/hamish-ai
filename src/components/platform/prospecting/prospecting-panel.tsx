@@ -502,22 +502,45 @@ export function ProspectingPanel({
           </div>
             </>
           )}
+          {/* Studio UX pass (3 Sep 2026) — reported live as "clunky":
+              this button used to sit between the two cards, belonging
+              visually to neither, even though it runs on the niche
+              settings directly above it (handleRun saves them first,
+              same as "Save niche" does). Moved inside this card as a
+              persistent footer — outside the {nicheOpen &&} block, so
+              it stays visible even when the niche fields are collapsed
+              to their one-line summary. */}
+          <div className="mt-5 border-t border-border pt-4">
+            <Button onClick={handleRun} disabled={runPending || atLimit} className="w-full sm:w-auto">
+              {runPending ? (
+                <>
+                  <LoaderCircle className="size-4 animate-spin" /> Searching…
+                </>
+              ) : (
+                <>
+                  <Search className="size-4" /> Find prospects now
+                </>
+              )}
+            </Button>
+            {runResult && (
+              <div className="mt-3">
+                <DiscoveryResultMessage result={runResult} />
+              </div>
+            )}
+          </div>
         </CardContent>
       </Card>
 
-      <Button onClick={handleRun} disabled={runPending || atLimit} className="w-full sm:w-auto">
-        {runPending ? (
-          <>
-            <LoaderCircle className="size-4 animate-spin" /> Searching…
-          </>
-        ) : (
-          <>
-            <Search className="size-4" /> Find prospects now
-          </>
-        )}
-      </Button>
-
-      {runResult && <DiscoveryResultMessage result={runResult} />}
+      {/* Same live-feedback pass — the niche card above and Search now
+          below look like two more items in a list, not two alternative
+          paths (a saved, recurring niche vs. one immediate one-off
+          search). A plain "or" divider is a cheap, real signal that
+          they're alternatives, not sequential steps. */}
+      <div className="flex items-center gap-3 text-xs font-medium text-muted-foreground">
+        <div className="h-px flex-1 bg-border" />
+        or
+        <div className="h-px flex-1 bg-border" />
+      </div>
 
       {/* Search now — a real, immediate search for one location (category
           optional), separate from the niche above. "Find prospects now"
