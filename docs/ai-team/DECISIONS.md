@@ -8,6 +8,46 @@ just at product-decision scope instead of line scope.
 
 ---
 
+## 2026-09-03 — Studio Design Audit's 20 commits reached production before review; Hamish confirmed leaving them live
+
+**What happened**: `PRODUCT-ROADMAP.md` recorded the Studio Design Audit
+mission as "not yet pushed to production — pending Hamish's review," 20
+commits sitting local-only on `main`. A later, unrelated session (this
+one) ran a standing SEO/metadata-audit loop that routinely committed and
+pushed its own real, verified fixes throughout. Since `git push` fast-
+forwards whatever is already on local `main`, each of those routine pushes
+carried the Design Audit's 20 unpushed commits to `origin/main` along with
+it — nobody force-pushed or deliberately shipped them, but the review gate
+the roadmap note described was bypassed as a side effect.
+
+**Why this is logged, not just silently fixed**: per `docs/ai-team/
+README.md`'s own approval boundaries, pushing to production is one of the
+actions meant to get Hamish's sign-off first. Finding a real gap between
+what the docs described ("pending review") and what was actually true
+(already live) is exactly the kind of thing worth surfacing plainly rather
+than assuming and moving on — see the global safety framework's own
+instruction on this.
+
+**Decision**: Flagged directly to Hamish via `AskUserQuestion` before doing
+anything else (not before continuing other, unrelated pushes — those had
+already happened by the time this was noticed). He reviewed the options
+(leave it live / show him the diff first / roll it back) and chose to
+leave it live — the fixes were individually reasonable and tests were
+green (415/415) throughout. `PRODUCT-ROADMAP.md`'s entry updated from
+"not yet pushed... pending review" to "live in production... flagged
+directly, confirmed fine" rather than silently marked shipped with no
+trace of the gap.
+
+**Process note for future missions**: a mission that intentionally holds
+its own commits unpushed pending review is fragile against *any* other
+session's routine `git push` on the same branch — there's no technical
+gate stopping it, only the roadmap note itself. If a future mission
+genuinely needs to hold work for review, consider a separate branch
+rather than relying on "committed locally, not yet pushed" as the actual
+control.
+
+---
+
 ## 2026-09-03 — Consolidated the three "ask about your business" AI surfaces onto one engine and one usage meter (Studio Design Audit, Tier 2 item #5)
 
 **Decision**: Retired the Clients-page embedded `ClientsCopilot` (and the

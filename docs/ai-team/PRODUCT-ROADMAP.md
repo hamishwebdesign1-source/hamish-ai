@@ -22,8 +22,11 @@ of finishing a mission, not as a separate chore that falls behind.
   seven specialists caught and fixed two real regressions the build
   itself introduced. Test count held at 415/415 green throughout (one
   test correctly removed for a retired usage-event type); Studio/Platform
-  code stayed lint-clean. **Not yet pushed to production** — 20 commits,
-  all local on `main`, pending Hamish's review.
+  code stayed lint-clean. **Live in production** — the 20 commits reached
+  `origin/main` as a side effect of unrelated routine pushes during a
+  later session before Hamish had reviewed them; flagged to him directly
+  (2026-09-03) rather than silently marked shipped, and he confirmed
+  leaving it live is fine.
 - Agency Platform self-serve: Google sign-in, live Stripe billing, real
   signup CTAs, trial-ended email — confirmed working 2026-08-24.
 - Command Centre no-code block builder + AI Design Assistant (Phases 5a–5d) — live 2026-08-21.
