@@ -572,6 +572,20 @@ covers the whole row.
     limitation on the verifying side, not a known product bug) — the
     underlying persistence mechanism it shares with the stage-select
     control is confirmed working end to end.
+  - **Second real bug found live and fixed**: reported live (screenshot)
+    that "Client review" needed a horizontal scroll to see — the 5
+    columns were fixed at `w-72` (288px each, 1504px total), well past
+    the ~900-1100px actually available once the sidebar is subtracted
+    from the board's own `max-w-6xl` ceiling. Fixed via `flex-1`/
+    `min-w-[190px]` columns (`project-kanban-board.tsx`) so all columns
+    compress to share the available width. Re-verified live: the
+    default view (4 active-stage columns, "Show completed" off) now
+    fits with zero horizontal scroll. Toggling "Show completed" on to
+    add the 5th (Completed) column does still need a small scroll once
+    columns hit their 190px floor — a reasonable, expected trade-off
+    for a secondary/opt-in view, not a regression of the original
+    complaint (which was specifically about "Client review," one of
+    the 4 default-visible columns).
   - Phase B/C intentionally not started, per this entry's own phasing.
 
 ### Add a delete-task control to the Projects detail page
