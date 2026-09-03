@@ -109,17 +109,19 @@ describe("TopOpportunityKitAction", () => {
     expect(screen.queryByRole("link", { name: /view plan/i })).not.toBeInTheDocument();
   });
 
-  it("shows the usage-limit message plus a working 'View plan' link to billing, and doesn't mark done", async () => {
+  it("shows the shared usage-limit message plus a working billing link, and doesn't mark done", async () => {
     vi.mocked(generateSalesKit).mockResolvedValue({
       error: "Monthly limit reached (10 of 10) — try again next month.",
       reason: "usage_limit",
+      used: 10,
+      limit: 10,
     } as Awaited<ReturnType<typeof generateSalesKit>>);
 
     render(<TopOpportunityKitAction prospectId="p1" hasKitInitially={false} />);
     fireEvent.click(screen.getByRole("button", { name: /generate outreach kit/i }));
 
-    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent(/monthly limit reached/i));
-    const planLink = screen.getByRole("link", { name: /view plan/i });
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent(/monthly limit reached \(10 of 10\)/i));
+    const planLink = screen.getByRole("link", { name: /top up credits or upgrade your plan/i });
     expect(planLink).toHaveAttribute("href", "/studio/billing");
     expect(screen.queryByText(/outreach kit ready/i)).not.toBeInTheDocument();
     expect(refresh).not.toHaveBeenCalled();

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { CircleAlert } from "lucide-react";
 import type { runDiscovery } from "@/app/studio/(authed)/prospects/actions";
+import { UsageLimitMessage } from "@/components/platform/usage-limit-message";
 
 export type DiscoveryResult = Awaited<ReturnType<typeof runDiscovery>>;
 
@@ -43,11 +44,11 @@ export function DiscoveryResultMessage({ result }: { result: DiscoveryResult }) 
   }
   if ("limitReached" in result && result.limitReached) {
     return (
-      <p className="flex items-center gap-1.5 text-sm text-destructive">
-        <CircleAlert className="size-4 shrink-0" />
-        Monthly limit reached ({result.limitReached.used} of {result.limitReached.limit}) — nothing new searched this
-        run.
-      </p>
+      <UsageLimitMessage
+        used={result.limitReached.used}
+        limit={result.limitReached.limit}
+        suffix="nothing new searched this run"
+      />
     );
   }
   if ("inserted" in result) {

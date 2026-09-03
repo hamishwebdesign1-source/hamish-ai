@@ -299,9 +299,13 @@ export async function generateWebsiteMockup(prospectId: string) {
 // own already-discriminated result, nothing new computed. SalesKitSection
 // (prospecting-panel.tsx), the existing caller, only ever reads `.error`
 // and is unaffected; the new Command Centre call site is the only reader
-// of `.reason`.
+// of `.reason`. `used`/`limit` (Studio Design Audit Tier 5 item #17) are
+// the same additive shape — only populated alongside reason === "usage_limit"
+// — so TopOpportunityKitAction can render the shared UsageLimitMessage
+// component instead of the pre-formatted string.
 export async function generateSalesKit(prospectId: string): Promise<
-  { kit: SalesKit; generatedAt: string } | { error: string; reason?: "usage_limit" | "rate_limited" }
+  | { kit: SalesKit; generatedAt: string }
+  | { error: string; reason?: "usage_limit" | "rate_limited"; used?: number; limit?: number }
 > {
   const orgId = await requireOrgId();
   const admin = getSupabaseAdmin();
@@ -317,7 +321,11 @@ export async function generateSalesKit(prospectId: string): Promise<
 
   const usageCheck = await checkUsage(orgId, "sales_kit_generated");
   if (!usageCheck.allowed) {
-    return { error: usageCheckErrorMessage(usageCheck), reason: usageCheck.rateLimited ? "rate_limited" : "usage_limit" };
+    return {
+      error: usageCheckErrorMessage(usageCheck),
+      reason: usageCheck.rateLimited ? "rate_limited" : "usage_limit",
+      ...(!usageCheck.rateLimited ? { used: usageCheck.used, limit: usageCheck.limit } : {}),
+    };
   }
 
   const { data: org } = await admin.from("organisations").select("name, is_internal, prospecting_config").eq("id", orgId).single();

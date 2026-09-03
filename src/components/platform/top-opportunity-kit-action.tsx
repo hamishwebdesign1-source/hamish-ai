@@ -6,6 +6,7 @@ import Link from "next/link";
 import { ClipboardList, LoaderCircle, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { generateSalesKit } from "@/app/studio/(authed)/prospects/actions";
+import { UsageLimitMessage } from "@/components/platform/usage-limit-message";
 
 // Command Centre "recommend -> act" v1 (backlog: "Wire a one-click action
 // to Command Centre's AI recommendations") — a second, "use client" leaf
@@ -40,15 +41,20 @@ export function TopOpportunityKitAction({
   const [done, setDone] = useState(hasKitInitially);
   const [error, setError] = useState<string | null>(null);
   const [reason, setReason] = useState<"usage_limit" | "rate_limited" | undefined>(undefined);
+  const [usage, setUsage] = useState<{ used: number; limit: number } | undefined>(undefined);
 
   function onGenerate() {
     startTransition(async () => {
       setError(null);
       setReason(undefined);
+      setUsage(undefined);
       const result = await generateSalesKit(prospectId);
       if (result && "error" in result) {
         setError(result.error ?? "Sales kit generation failed.");
         setReason(result.reason);
+        if (result.reason === "usage_limit" && result.used !== undefined && result.limit !== undefined) {
+          setUsage({ used: result.used, limit: result.limit });
+        }
         return;
       }
       setDone(true);
@@ -82,19 +88,16 @@ export function TopOpportunityKitAction({
           )}
         </Button>
       )}
-      {error && (
-        <p role="alert" className="mt-2 text-xs text-destructive">
-          {error}
-          {reason === "usage_limit" && (
-            <>
-              {" "}
-              <Link href="/studio/billing" className="text-accent underline underline-offset-2">
-                View plan
-              </Link>
-            </>
-          )}
-        </p>
-      )}
+      {error &&
+        (reason === "usage_limit" && usage ? (
+          <div className="mt-2">
+            <UsageLimitMessage used={usage.used} limit={usage.limit} suffix="try again next month" />
+          </div>
+        ) : (
+          <p role="alert" className="mt-2 text-xs text-destructive">
+            {error}
+          </p>
+        ))}
     </div>
   );
 }
