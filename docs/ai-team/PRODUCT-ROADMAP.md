@@ -58,9 +58,15 @@ of finishing a mission, not as a separate chore that falls behind.
 
 ## Strategic initiatives (in progress or queued — Product Director owns sequencing)
 
-Nothing queued here yet as of this file's creation — this section starts
-empty on purpose rather than pre-filled with invented priorities. The first
-real `/mission` run should populate it.
+- **Projects Kanban Command Centre** (queued 2026-09-03) — Hamish's own
+  mission to rebuild `/studio/projects` from a flat per-client list into a
+  connected Kanban command centre. Phase 1 (Audit) + Phase 2 (Architecture)
+  complete — see `BACKLOG.md`'s three matching entries (Phase A: Ready,
+  build-worthy now; Phase B: Researching, sequenced after Phase A ships;
+  Phase C: Not started, needs net-new subsystems and in two cases Hamish's
+  explicit sign-off before detailed scoping) and `DECISIONS.md`'s matching
+  2026-09-03 entry for the full phasing reasoning. Next: UX/UI Director,
+  Phase 3 (Design) on Phase A's scope only.
 
 ## How this file gets used
 

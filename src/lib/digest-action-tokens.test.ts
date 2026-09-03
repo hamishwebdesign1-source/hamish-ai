@@ -267,7 +267,10 @@ describe("consumeDigestActionToken", () => {
 
     expect(result).toEqual({ ok: true, label: "x" });
     expect(writes[0].table).toBe("projects");
-    expect(writes[0].patch).toEqual({ status: "done" });
+    // Projects Kanban Command Centre, Phase A — stage is kept in sync
+    // alongside status, so the project doesn't stay stuck in its old
+    // Kanban column while reading as "done" everywhere else.
+    expect(writes[0].patch).toEqual({ status: "done", stage: "completed" });
   });
 
   it("surfaces the underlying write failure instead of claiming success", async () => {

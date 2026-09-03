@@ -29,7 +29,7 @@ export default async function StudioProjectsPage() {
     supabase.from("clients").select("id, business_name").eq("org_id", membership.orgId).order("business_name"),
     supabase
       .from("projects")
-      .select("id, client_id, name, target_date, status, created_at, assigned_to")
+      .select("id, client_id, name, target_date, status, stage, created_at, assigned_to")
       .eq("org_id", membership.orgId)
       .order("created_at", { ascending: false }),
     // Studio big-ticket ("team collaboration") — same session-scoped

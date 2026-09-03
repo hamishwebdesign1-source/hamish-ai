@@ -21,6 +21,24 @@ import type { ToolId, ToolQuizAnswers } from "@/lib/ai-coding-tools";
 import type { TroubleshootingEntry } from "@/lib/website-troubleshooting";
 import { getSignedFileUrl } from "@/lib/website-project-files";
 
+// AI Website Creation Guide, WB3 — §16's "where the client/agency is"
+// tracker, kept to the same 6 real stages the rest of the pipeline
+// already tracks on website_projects.stage — not an illustrative
+// 7-stage example, since inventing extra stages this project doesn't
+// actually distinguish would be a tracker that lies. Moved from
+// ProjectStageTracker's own hardcoded STAGES constant to a local one
+// here (Projects Kanban Command Centre, Phase A — ProjectStageTracker
+// now takes a `stages` prop so it can also render the projects table's
+// own, unrelated 5-stage pipeline).
+const WEBSITE_PROJECT_STAGES: { id: string; label: string }[] = [
+  { id: "discovery", label: "Discovery" },
+  { id: "brief", label: "Brief" },
+  { id: "tool", label: "Tool" },
+  { id: "build", label: "Build" },
+  { id: "qa", label: "QA" },
+  { id: "launched", label: "Launch" },
+];
+
 // SEO/metadata audit (2 Sep 2026) — see studio/(authed)/page.tsx for the
 // full reasoning (every real page under here gets its own real title).
 // Real per-project title (the client's actual business name, same field
@@ -116,7 +134,7 @@ export default async function WebsiteProjectDetailPage({ params }: { params: Pro
         </div>
       </div>
       <div className="mt-4">
-        <ProjectStageTracker stage={project.stage} />
+        <ProjectStageTracker stage={project.stage} stages={WEBSITE_PROJECT_STAGES} />
       </div>
 
       <div className="mt-8">

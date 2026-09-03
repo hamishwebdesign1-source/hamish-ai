@@ -94,8 +94,13 @@ async function performDigestAction(admin: SupabaseClient, action: DigestAction, 
     return error ? { error: "Failed to update the request." } : {};
   }
 
-  // mark_project_done
-  const { error } = await admin.from("projects").update({ status: "done" }).eq("id", targetId).eq("org_id", orgId);
+  // mark_project_done — Projects Kanban Command Centre, Phase A: `stage`
+  // is now the real source of truth ('completed' -> status 'done', see
+  // project-stages.ts's deriveProjectStatus()); this one-click digest
+  // action writes both together rather than leaving `stage` stale while
+  // `status` says done, which would show the project stuck in its old
+  // Kanban column forever despite reading as finished everywhere else.
+  const { error } = await admin.from("projects").update({ status: "done", stage: "completed" }).eq("id", targetId).eq("org_id", orgId);
   return error ? { error: "Failed to update the project." } : {};
 }
 

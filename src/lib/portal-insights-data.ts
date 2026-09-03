@@ -113,9 +113,15 @@ export async function buildPortalInsights(supabase: SupabaseClient, clientId: st
   // (schema-rls-projects-client-portal.sql) - projects only ever had an
   // org-staff SELECT policy before, so a client's own portal session
   // would silently see nothing here without it.
+  // Projects Kanban Command Centre, Phase A — `stage` added to surface
+  // the richer 5-stage pipeline instead of the old binary "In progress"/
+  // "Done" pill. `status` stays selected too — still used by this file's
+  // own grouping logic elsewhere and by any other reader of this row
+  // shape. Read-only, no RLS change: the existing policy already covers
+  // the whole row.
   const { data: projectsData } = await supabase
     .from("projects")
-    .select("id, name, status, target_date")
+    .select("id, name, status, stage, target_date")
     .eq("client_id", clientId)
     .order("created_at", { ascending: false });
   const projects = projectsData ?? [];

@@ -1,4 +1,5 @@
 import { Badge } from "@/components/ui/badge";
+import { getProjectStageMeta } from "@/lib/project-stages";
 
 const priorityVariant: Record<string, "destructive" | "warning" | "accent" | "secondary"> = {
   urgent: "destructive",
@@ -35,4 +36,14 @@ const taskStatusMeta: Record<string, { label: string; variant: "secondary" | "ac
 export function TaskStatusBadge({ status }: { status: string }) {
   const meta = taskStatusMeta[status] ?? { label: status, variant: "secondary" as const };
   return <Badge variant={meta.variant}>{meta.label}</Badge>;
+}
+
+// Projects Kanban Command Centre, Phase A — same shape as the two badges
+// above, reading from project-stages.ts's single stage-metadata table
+// (DESIGN-SYSTEM.md's "Kanban board pattern": one source of truth,
+// imported everywhere a stage is rendered) rather than a fifth local
+// label map.
+export function ProjectStageBadge({ stage }: { stage: string }) {
+  const meta = getProjectStageMeta(stage);
+  return <Badge variant={meta.badgeVariant}>{meta.label}</Badge>;
 }

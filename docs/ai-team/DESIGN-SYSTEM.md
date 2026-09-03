@@ -111,6 +111,31 @@ review," for the full implementation note.
   list-page `text-2xl`/`text-3xl` scale; its own stat row, tabs, and
   block canvas), not a list-page header. Its own header comment says so
   explicitly — don't "fix" it into conformity with the other 12 routes.
+- **Projects (`studio/projects/page.tsx`) is the second documented
+  exception to `max-w-4xl`** (Projects Kanban Command Centre, Phase 3
+  Design — `BACKLOG.md`'s Phase A entry, `DECISIONS.md`'s matching
+  2026-09-03 entry). A 5-column Kanban board needs real horizontal room —
+  inside 896px each column has ~150px, too cramped for a card carrying a
+  project name, client name, a progress bar, and two chips. `StudioPageHeader`
+  + the filter bar + the board all share one wider container instead
+  (still inside the shell's own gutter padding, not full-bleed) so the
+  page doesn't reproduce the exact "header width doesn't match the
+  content below it" problem `StudioPageHeader` exists to prevent on every
+  other page. The project's own `/studio/projects/[id]` detail page is
+  **not** part of this exception — it follows the `max-w-3xl` detail-page
+  convention below, same as every other single-record workspace.
+- **Detail/workspace pages (one record, not a list) use `max-w-3xl`, one
+  step narrower than list pages' `max-w-4xl`.** Established by
+  `website-builder/[id]/page.tsx` (the first of these), confirmed as a
+  real pattern rather than a one-off by `/studio/projects/[id]` adopting
+  the exact same shape: back-link (`ArrowLeft` + the parent list page's
+  name) → `Eyebrow` (the record's *type*, e.g. "Website Project"/
+  "Project" — not the nav-section eyebrow list pages use) → `h1` (the
+  record's own identity) → a right-aligned actions row (assignee/delete/
+  etc. controls) → stacked content sections at `mt-8` spacing. A detail
+  page reads as one document; a list page reads as a scannable grid —
+  the width difference is deliberate, not an inconsistency to "fix" by
+  matching list pages.
 - **Eyebrow**: before this pass only Command Centre and Website Builder
   rendered one; every other page's header had none, which read as an
   unexplained one-off rather than a real pattern. Resolved by keeping and
@@ -194,6 +219,52 @@ review," for the full implementation note.
     blank, same as starting from scratch") belongs once at the top of the
     form, not repeated per field — the per-field tags only need to say
     "Prefilled"/"Needs review," not re-explain the source every time.
+
+## Kanban board pattern (Projects Kanban Command Centre, Phase 3 Design — first instance, likely to recur)
+
+Established for `/studio/projects` (`BACKLOG.md`'s Phase A entry, full
+spec) as this codebase's first real drag-and-drop board — the shape to
+reuse for any future Kanban-style surface rather than reinventing it:
+
+- **Stage metadata lives in one shared, plain (non-`"use client"`)
+  module** (`src/lib/project-stages.ts` for Projects: the stage id/label/
+  badge-variant table plus a pure `deriveProjectStatus(stage)` function),
+  imported by the Server Action that writes it, the board that renders
+  it, the detail page, and any read-only surface (e.g. the client
+  portal) that displays it — never four independent copies of the same
+  label map drifting apart.
+- **Colour only on the columns that encode a real distinction.** A
+  5-6-colour rainbow board (one hue per column, Trello-template style) is
+  noise, not signal. Reserve colour for the one or two stages that mean
+  something actionable — "waiting on someone outside the agency"
+  (`warning`) and "done" (`success`) for Projects — everything else stays
+  neutral.
+- **Card drag activation lives on a dedicated grip handle
+  (`GripVertical`), never the whole card.** The card itself stays a
+  plain `<Link>` to its detail page (click/Enter opens it); the handle
+  alone carries dnd-kit's `listeners`/`attributes`. This is what makes
+  "click to open" and "drag to move" unambiguous for both pointer and
+  keyboard users, without an activation-distance hack on the whole card.
+  Register `KeyboardSensor` alongside `PointerSensor` — a board that only
+  works by mouse fails this file's own accessibility baseline.
+- **Optimistic drag-and-drop reuses this codebase's real `useOptimistic`
+  pattern** (see below), lifted to whatever list-of-records the board
+  renders (one `useOptimistic` at the board root patching the moved
+  record's stage), not a bespoke per-card state machine. Rollback uses
+  the exact same `bg-destructive/10` transient highlight + inline
+  `text-destructive` line + 1.5s `setTimeout` already shipped for
+  `ContactTrackingControl` — a card snapping back to its old column gets
+  the identical treatment a row reverting in place already gets
+  elsewhere.
+- **Mobile: per-stage `Accordion`, not horizontal scroll, and drag is not
+  attempted there.** Touch drag-and-drop across a collapsing/scrolling
+  list is unreliable and a known accessibility dead end; side-scroll
+  gestures also fight touch-drag gestures directly. Below `md`, columns
+  become `Accordion`/`AccordionItem`s (Base UI,
+  `src/components/ui/accordion.tsx`) and each card gets a plain stage
+  `<select>` instead — the same mechanism a keyboard/quick-change control
+  already needs on the record's own detail page, reused rather than
+  inventing a second "change stage" affordance for one breakpoint.
 
 ## Interaction patterns actually in use
 

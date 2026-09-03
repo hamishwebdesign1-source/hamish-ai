@@ -1,26 +1,18 @@
 import { CheckCircle2, Circle, CircleDot } from "lucide-react";
 
-// AI Website Creation Guide, WB3 — §16's "where the client/agency is"
-// tracker, kept to the same 6 real stages the rest of the pipeline
-// already tracks on website_projects.stage — not the brief's own
-// illustrative 7-stage example (Discovery/Strategy/Design/Development/
-// Testing/Client Review/Launch), since inventing extra stages this
-// project doesn't actually distinguish would be a tracker that lies.
-const STAGES: { id: string; label: string }[] = [
-  { id: "discovery", label: "Discovery" },
-  { id: "brief", label: "Brief" },
-  { id: "tool", label: "Tool" },
-  { id: "build", label: "Build" },
-  { id: "qa", label: "QA" },
-  { id: "launched", label: "Launch" },
-];
-
-export function ProjectStageTracker({ stage }: { stage: string }) {
-  const currentIndex = STAGES.findIndex((s) => s.id === stage);
+// Projects Kanban Command Centre, Phase A — generalised from a
+// hardcoded website_projects-only tracker to accept a `stages` prop, per
+// DECISIONS.md's matching 2026-09-03 entry: one reusable tracker
+// component, two real stage lists (website-builder/[id]/page.tsx's own
+// 6-stage pipeline, and the new /studio/projects/[id]'s 5-stage
+// PROJECT_STAGES from project-stages.ts), not a duplicated visual
+// pattern.
+export function ProjectStageTracker({ stage, stages }: { stage: string; stages: { id: string; label: string }[] }) {
+  const currentIndex = stages.findIndex((s) => s.id === stage);
 
   return (
     <div className="flex flex-wrap items-center gap-x-1 gap-y-2">
-      {STAGES.map((s, index) => {
+      {stages.map((s, index) => {
         const done = currentIndex >= 0 && index < currentIndex;
         const active = index === currentIndex;
         return (

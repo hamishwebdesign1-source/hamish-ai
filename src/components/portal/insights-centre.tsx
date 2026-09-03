@@ -17,6 +17,7 @@ import {
 import { HealthRing } from "@/components/analytics/health-ring";
 import { VerticalBarChart, UptimeBar } from "@/components/portal/insight-charts";
 import type { PortalInsights } from "@/lib/portal-insights-data";
+import { PORTAL_PROJECT_STAGE_META, isProjectStage } from "@/lib/project-stages";
 
 // Client portal redesign Phase 3 — the "AI Copilot" tab that used to live
 // here moved to its own page (/portal/ask, see ai-copilot.tsx) as the
@@ -103,6 +104,18 @@ function OverviewTab({ data }: { data: PortalInsights }) {
           <div className="mt-4 space-y-3">
             {data.projects.map((p) => {
               const days = p.target_date && p.status !== "done" ? daysUntil(p.target_date) : null;
+              // Projects Kanban Command Centre, Phase A — the real
+              // 5-stage pipeline, in client-facing copy (never the
+              // internal enum label — see DECISIONS.md's matching
+              // entry). Falls back to the old binary pill only for a
+              // stage value this client-facing map doesn't recognise
+              // (shouldn't happen once the migration backfills every
+              // row, but never renders raw internal text either way).
+              const stageMeta = isProjectStage(p.stage)
+                ? PORTAL_PROJECT_STAGE_META[p.stage]
+                : p.status === "done"
+                  ? { label: "Completed", className: "bg-[var(--chart-2)]/15 text-[var(--chart-2)]" }
+                  : { label: "In progress", className: "bg-accent/15 text-accent" };
               return (
                 <div key={p.id} className="flex items-center justify-between gap-3 text-sm">
                   <div className="min-w-0">
@@ -117,12 +130,8 @@ function OverviewTab({ data }: { data: PortalInsights }) {
                       </p>
                     )}
                   </div>
-                  <span
-                    className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold tracking-wide uppercase ${
-                      p.status === "done" ? "bg-[var(--chart-2)]/15 text-[var(--chart-2)]" : "bg-accent/15 text-accent"
-                    }`}
-                  >
-                    {p.status === "done" ? "Done" : "In progress"}
+                  <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold tracking-wide uppercase ${stageMeta.className}`}>
+                    {stageMeta.label}
                   </span>
                 </div>
               );

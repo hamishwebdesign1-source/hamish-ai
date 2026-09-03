@@ -231,14 +231,326 @@ three real tiers, not one build:
   metered AI action. It does need his sign-off on the Direction pick this
   entry hands to UX/UI Director (stage labels/board visual direction),
   same as any other design-taste call in this codebase's precedent.
-- **Relevant agent**: UX/UI Director next (Phase 3 — full card design,
-  stage-column visual language, detail-workspace layout, responsive
-  behaviour) → Lead Engineer (Phase 4 build) → QA (Phase 6) → Product
-  Director (Phase 7/8 review against this original problem statement).
+
+**PHASE 3 DESIGN (UX/UI Director, 2026-09-03)** — full spec below, built
+directly against the real codebase (`projects-panel.tsx`,
+`projects/actions.ts`, `project-stage-tracker.tsx`,
+`website-builder/[id]/page.tsx`, `status-badges.tsx`, `audit-log.ts`,
+`portal-insights-data.ts`, `insights-centre.tsx`, `globals.css`'s token
+set, `schema-projects.sql`). Reasoning for the three biggest calls
+(stage count, board page width, detail-page shape) is in `DECISIONS.md`'s
+matching 2026-09-03 entry — this section is the buildable spec itself.
+
+**1. Stage set — 5, not Hamish's suggested 7.** `not_started` →
+`in_progress` → `internal_review` → `client_review` → `completed`.
+
+| `stage` value | Studio-internal label | Badge variant | Column accent | `status` derivation |
+|---|---|---|---|---|
+| `not_started` | Not started | `secondary` | neutral | `active` |
+| `in_progress` | In progress | `accent` | neutral | `active` |
+| `internal_review` | Internal review | `secondary` | neutral | `active` |
+| `client_review` | Client review | `warning` | `border-t-2 border-warning` + small warning-coloured dot in the column header (plain, not `Eyebrow`'s pulsing dot — nothing here updates live, a pulse would be dishonest) | `active` |
+| `completed` | Completed | `success` | `border-t-2 border-success` | `done` |
+
+Only `client_review` (waiting on someone outside the agency — the one
+state worth a visual flag, same "external dependency" logic
+`requestStatusMeta`'s `awaiting_info: "warning"` already uses for
+requests) and `completed` get colour treatment. The other three stay
+neutral — a 5-colour rainbow board is the generic-Kanban-template look
+this mission explicitly wants to avoid, and colour that doesn't encode a
+real distinction is noise. Add `deriveProjectStatus(stage): "active" |
+"done"` as a small pure function (new `src/lib/project-stages.ts`,
+exporting the table above as `PROJECT_STAGES: {id, label, badgeVariant}[]`
+plus the derive function) — imported by `projects/actions.ts` (every
+write that sets `stage` sets `status` from this function, not by hand),
+`projects-panel.tsx`, the new detail page, and `status-badges.tsx`'s new
+`ProjectStageBadge` (same shape as the file's existing
+`TaskStatusBadge`/`RequestStatusBadge`). One source of truth for stage
+metadata, not four copies drifting.
+
+**2. The board container — deliberately breaks `max-w-4xl`.** 5 columns
+of real card content inside an 896px column leaves ~150px per column —
+too cramped to read a card, let alone drag one accurately. `StudioPageHeader`
++ the filter bar + the board itself all move to one shared wider
+container (still inside the shell's own gutter padding, not full-bleed)
+instead of forcing the board into the list-page standard. This is the
+second documented exception to `max-w-4xl` after Command Centre — record
+it in `DESIGN-SYSTEM.md`'s page-structure section, don't let it read as
+drift.
+
+**3. Kanban card anatomy** (`<Card size="sm">`, the denser `--card-spacing`
+tier already defined in `card.tsx`, not the default list-page padding):
+
+- **Project name** — `text-sm font-medium`, `line-clamp-2` (project names
+  are short in practice, but must not silently truncate to nothing on a
+  narrow column).
+- **Client name** — `text-xs text-muted-foreground truncate`, directly
+  under the name. Required on the card (unlike the old list, which
+  grouped by client and so never needed to say it per-row) — the board is
+  grouped by stage now, so client identity has nowhere else to live.
+- **Task progress** — reuse `projects-panel.tsx`'s existing
+  `{done}/{tasks.length} tasks done` line + the thin `bg-accent`-fill
+  progress bar (`ProjectCard`'s existing `pct` logic), unchanged. Omitted
+  entirely when the project has zero tasks (a real "0 of N" would be
+  wrong here — 0 of 0 tasks isn't a signal, it's the absence of one).
+- **Assignee** — a small 20px (`size-5`) circular monogram
+  (`bg-secondary text-secondary-foreground text-[10px] font-semibold`,
+  two-letter initials from the email's local part), only rendered when
+  `teamMembers.length > 1` (same established gate as every other
+  assignee control in this codebase) and `assigned_to` is set. Give it a
+  real accessible label (`aria-label="Assigned to {email}"}` on the
+  wrapping span) — initials alone aren't a real label for a screen reader.
+  No fallback avatar image system — this codebase has no `Avatar`
+  component and no per-user photo data; don't invent one for this.
+- **Target date** — reuse `projects-panel.tsx`'s existing
+  `isOverdue`/`isDueSoon`/`dueDateNote` helpers verbatim (move them to a
+  new shared `src/lib/project-dates.ts` since the board card and the new
+  detail page both need them now — two real call sites is the trigger to
+  stop duplicating, matching this codebase's own precedent for when a
+  helper earns a shared module). Same colour logic as today: `text-destructive`
+  overdue, `text-warning` due-soon (`DUE_SOON_DAYS = 5`, unchanged),
+  otherwise `text-muted-foreground`. Omitted when no `target_date` is set
+  — never show a placeholder date.
+- **Explicitly left off the compact card**: the request(s) that spawned
+  its tasks. Available per the acceptance criteria, but a request-count
+  chip next to a task-count chip on an already-dense card is redundant
+  information density for a glance-level board surface — it belongs on
+  the detail page, where each task shows its actual parent request
+  inline (below). This is a deliberate omission, not an oversight — the
+  brief for this review explicitly warns against "add more to the card"
+  as a default; this is the one place in this design that says no.
+
+**4. Drag-and-drop.**
+
+- Library: `@dnd-kit/core` + `@dnd-kit/sortable` (per the acceptance
+  criteria — confirmed not in `package.json` today).
+- **Activation via a dedicated grip handle, not the whole card.** The
+  card itself is a `<Link href="/studio/projects/[id]">` (click/Enter
+  opens the detail workspace); a separate small `GripVertical` handle
+  (visible on hover/focus for pointer users, always visible on touch,
+  `aria-label="Drag to move {project name}"`) carries `useSortable`'s
+  `listeners`/`attributes`. This avoids the classic "can't tell a click
+  from a drag" problem without an activation-distance hack on the whole
+  card, and — more importantly — gives keyboard users an unambiguous
+  target: Tab reaches the card's Link (Enter opens it) and separately
+  reaches the handle (Space picks up, arrow keys move between columns,
+  Space drops, Escape cancels — dnd-kit's `KeyboardSensor` default
+  behaviour, which must actually be registered alongside `PointerSensor`,
+  not pointer-only). Bulk-select mode's checkbox (below) sits before the
+  Link as a sibling, same reason — no interactive control nests inside
+  another.
+- **Custom screen-reader announcements**, not dnd-kit's generic
+  index-based defaults (which announce nothing meaningful without real
+  project/stage names): "Picked up {project name}" on drag start,
+  "{project name} over the {stage label} column" on drag over a new
+  container, "{project name} moved to {stage label}" on drop.
+- **Optimistic update via `useOptimistic`, this codebase's real
+  established pattern** (`ContactTrackingControl`,
+  `prospecting/contact-tracking-control.tsx` — the reference
+  implementation), lifted to the board level since the mutated state
+  (which column a card sits in) is board-wide, not per-card: one
+  `useOptimistic(projects, (state, {id, stage}) => state.map(p => p.id
+  === id ? {...p, stage} : p))` in `projects-panel.tsx`'s board root. On
+  drop: `startTransition(async () => { setOptimisticProjects({id,
+  stage}); const r = await updateProjectStage(id, stage); if (r &&
+  "error" in r) { setDragError(r.error); flagRollback(id); } })`.
+  `updateProjectStage()` (new Server Action, `projects/actions.ts`, same
+  ownership-check + `revalidatePath` shape as `updateProjectStatus`) is
+  what lets the optimistic guess settle back to the real value
+  automatically on success (revalidation refreshes the base `projects`
+  prop to match) or snap back on failure (no revalidation happened, base
+  prop is unchanged, `useOptimistic` reverts once the transition
+  settles) — the same mechanism already shipped for prospect status,
+  not a bespoke one.
+- **Pending state**: while the transition is in flight, the card renders
+  at `opacity-70` with a small `LoaderCircle animate-spin` (`size-3`) in
+  its top-right corner — the established "one-shot action, no chat
+  bubble to render dots into" treatment
+  (`prospecting-panel.tsx`'s Research/Generate-mockup buttons), applied
+  here since a card move isn't a chat exchange either.
+- **Rollback state**: per the exact spec already shipped for
+  `ContactTrackingControl` — a transient `bg-destructive/10` highlight on
+  the card (now back in its original column), cleared after 1.5s via the
+  same `setTimeout` mechanism, plus an inline `text-destructive text-xs`
+  line under the card ("Couldn't move — try again.") shown for the same
+  1.5s window. No toast — this codebase has none, and the existing
+  inline-error convention already reads fine attached to a card that's
+  visibly back where it started.
+- **Empty column state**: `border border-dashed border-border` drop
+  zone with `text-xs text-muted-foreground` "No projects in this stage" —
+  and a real interaction state, not just a static empty box:
+  `useDroppable`'s `isOver` flips it to `bg-accent/5 ring-2 ring-accent/30`
+  while a dragged card is hovering over it, so an empty column is
+  actually visible as a valid drop target while dragging, not just an
+  inert gap.
+
+**5. `/studio/projects/[id]` detail workspace** — follows
+`website-builder/[id]/page.tsx`'s existing shape exactly (the one real
+precedent for a Studio detail page), not a new layout language:
+
+- `mx-auto max-w-3xl` (detail pages read as one document, narrower than
+  the board's own wide container above — a real, deliberate difference
+  between the two Projects surfaces, not an inconsistency).
+- Back-link (`ArrowLeft` + "Projects", same treatment as
+  `website-builder/[id]`'s back-link).
+- `<Eyebrow>Project</Eyebrow>`, then `h1` = the **project name** (not the
+  client name — unlike `website-builder/[id]`, one client can have
+  several `projects` rows here, so the project itself is the unique
+  identity), with the client's name as a plain `mt-1 text-sm
+  text-muted-foreground` line underneath (not a link — no
+  `/studio/clients/[id]` route exists to link to, confirmed in Phase 1's
+  audit; don't invent a dead link).
+- Header-right actions row (same slot as
+  `WebsiteProjectAssigneeControl`/`DeleteWebsiteProjectControl`): a
+  compact stage `<select aria-label="Change project stage">` (quick
+  change without opening the board — also the *only* way to change stage
+  on mobile, see below), the existing assignee control
+  (`assignProject`, unchanged), and a delete control extracted into its
+  own small component (`DeleteProjectControl`, mirroring
+  `DeleteWebsiteProjectControl`'s exact confirm-then-delete shape) rather
+  than staying inlined the way it is in today's `ProjectCard`.
+- Generalised `ProjectStageTracker` (`project-stage-tracker.tsx` gains a
+  `stages: {id: string; label: string}[]` prop instead of its current
+  hardcoded `STAGES` constant; `website-builder/[id]` passes its own
+  existing 6-stage list, the new projects detail page passes
+  `PROJECT_STAGES` from `project-stages.ts`) directly under the header —
+  one reusable tracker component, two real stage lists, not a duplicated
+  visual pattern.
+- **Tasks section**: every task with `project_id` = this project, each
+  row reusing `requests-panel.tsx`'s `TaskRow` status-button trio (To
+  do/In progress/Done) but replacing its "assign to project" `<select>`
+  (redundant — already scoped to this project) with, when the task has a
+  `request_id`, a small quoted context line ("From: '{first ~80 chars of
+  request.raw_text}…'" with a link to that request on `/studio/requests`)
+  — the acceptance criteria's "each task's parent request shown for
+  context." When `request_id` is null (a manually-added task, see next
+  point), that line is simply omitted — never fabricate a request
+  association that doesn't exist.
+- **"Add a task directly to this project"** — a new Server Action
+  (`createProjectTask(projectId, title, description)`  in
+  `projects/actions.ts`, same ownership-check pattern as `createProject`)
+  and a small inline expand-in-place form (same dashed-border shape as
+  the existing `NewProjectForm`), since today the *only* way a task is
+  ever created is via AI triage (`triageRequest()`'s `suggested_task`) —
+  a real, new capability this phase is adding, not just UI for something
+  that already existed. These tasks have `request_id = null`.
+- **Activity trail** — new, scoped read of `audit_log` where
+  `target_type = 'project' AND target_id = {id}`, ordered by
+  `created_at desc`, rendered as a compact list matching
+  `/admin/activity-log`'s row shape (action label + actor badge + relative
+  time via `timeAgo()`) but in Studio's own card/badge styling (`bg-card`
+  rows, not the admin page's flat list) — no search bar, it's already
+  scoped to one project. Covers the audit events already logged
+  (`project.assigned`/`project.unassigned`/deletion) plus two additions
+  this phase makes real: `project.stage_changed` (logged by
+  `updateProjectStage()`, `metadata: {from, to}`, same shape as
+  `client.status_changed`'s existing metadata convention) and
+  `project.created` (currently **not logged at all** —
+  `createProject()` never calls `logAuditEvent`; without it, a project's
+  own activity trail would start mid-story on every project that predates
+  this phase's first stage change, which reads as broken, not just
+  incomplete — add this now, it's the same one-line call every sibling
+  action already makes).
+
+**6. Filters/views — reimplemented Kanban-native, nothing dropped:**
+
+- **Active/all toggle → "Show completed" toggle.** The board's 4
+  active-equivalent columns render by default (parity with the old
+  default `active` filter); a `Button` toggle in the filter row reveals
+  the 5th `completed` column on demand — Kanban already segregates done
+  work into its own column, so the old flat-list reason for hiding it
+  (avoiding done/active mixing in one list) doesn't apply the same way,
+  but keeping it opt-in by default still avoids a long-lived agency's
+  Completed column dominating the first screen.
+- **"Assigned to me"** — unchanged behaviour and gate
+  (`teamMembers.length > 1`), now filtering cards within every visible
+  column rather than filtering list rows.
+- **Client search** — unchanged client-side filter, now matching against
+  every visible card's client name across all columns.
+- **Bulk actions → multi-select + "Move N to…".** A `SquareCheck`
+  icon-button toggle (`aria-pressed`, `aria-label="Select projects"`)
+  enters select mode, showing the existing checkbox affordance (unchanged
+  `size-4`, positioned before the card's Link, not inside it — see
+  drag-and-drop's handle note above for why) on every card. ≥1 selected
+  shows a sticky bar (bottom of viewport on mobile, inline row on desktop
+  — same position `campaigns-panel.tsx`'s own selected-count row already
+  uses) with a stage `<select aria-label="Move selected projects to…">`
+  that runs `updateProjectStage` for each selected id via `Promise.all`,
+  same "N of M failed, try again for those" error copy as today's
+  `bulkMarkDone`. This is a strict generalisation of the old "mark N
+  done" action (any stage, not just done), not a regression.
+- **"+ New project"** — moves from `NewProjectForm`'s current per-client
+  placement (the board isn't grouped by client any more) to a single
+  instance in the page's filter row, same inline dashed-border
+  expand-in-place shape, with one added required field: a client
+  `<select>` (previously implicit from which client group the form was
+  under). New projects always start at `not_started` — no reason to
+  offer picking a starting stage for a project that, by definition, just
+  began.
+
+**7. Responsive behaviour — per-stage accordion below `md`, not
+horizontal scroll.** Horizontal-scroll Kanban is the well-known mobile
+failure mode: side-scroll gestures fight touch-drag gestures, and you
+lose the "what's the next stage" at-a-glance view that's the entire point
+of a board. Below `md` (matching every other Studio breakpoint, e.g.
+`StudioSidebar`'s `md:flex`), the 5 columns become 5 `Accordion`/
+`AccordionItem`s (Base UI, `src/components/ui/accordion.tsx` — already a
+real, in-use component, `help-faq-list.tsx`/portal help page, not a new
+dependency), each `AccordionTrigger` showing the stage label + card
+count, each `AccordionContent` holding that stage's cards stacked
+vertically. **Drag-and-drop is not attempted between accordion
+sections** — touch drag-and-drop across a collapsing/scrolling list is
+unreliable and a known accessibility dead end, and a stacked-section
+model is a materially different interaction shape than side-by-side
+columns anyway. Instead, each card on mobile shows the same stage
+`<select>` already built for the detail page's header — one honest
+mechanism reused twice, not a crippled version of drag hidden behind a
+media query. Default-expanded sections: `in_progress` and
+`client_review` (the two "day-to-day, needs a look" stages for an agency
+owner checking the board on their phone); the other three start
+collapsed but their counts stay visible in the trigger.
+
+**8. Portal-side surfacing (`insights-centre.tsx`'s `OverviewTab`,
+`portal-insights-data.ts`)** — replace the current binary "In
+progress"/"Done" pill with the real stage, **using client-facing
+copy, not the internal enum labels**:
+
+| `stage` | Portal-facing label | Portal colour (existing file's own token usage) |
+|---|---|---|
+| `not_started` | Not started yet | `text-primary-foreground/50` (muted, matching the file's existing de-emphasis convention) |
+| `in_progress` | In progress | `bg-accent/15 text-accent` (unchanged from today) |
+| `internal_review` | In review | `bg-accent/15 text-accent` (same tier as in-progress from the client's side — "review" without "internal" reads as just another normal step, not something to act on) |
+| `client_review` | Ready for your review | `bg-amber-400/15 text-amber-400` (reusing this same file's own existing amber-for-attention convention, `CATEGORY_META.risk`'s `border-l-amber-400` — genuinely the one state that wants the client to notice and act) |
+| `completed` | Completed | `bg-[var(--chart-2)]/15 text-[var(--chart-2)]` (unchanged from today's "done" treatment) |
+
+A client should never see "Internal review" verbatim — meaningless and
+mildly alarming to an outsider. `portal-insights-data.ts`'s existing
+`projects` select just needs `stage` added to its column list (`status`
+can stay, still needed for the "In progress"/"Completed" grouping logic
+elsewhere if any exists) — read-only, no RLS change, the policy already
+covers the whole row.
+
+- **Relevant agent**: ~~Lead Engineer next (Phase 4 build, against this
+  spec)~~ done, 2026-09-03 — see `DECISIONS.md`'s matching entry for the
+  full implementation list, the two real gaps found and fixed along the
+  way (`deleteProject()` never logged `project.deleted`;
+  `digest-action-tokens.ts`'s `mark_project_done` didn't keep the new
+  `stage` column in sync), and the one flagged implementation
+  simplification (plain `useDraggable`/`useDroppable` instead of
+  `@dnd-kit/sortable`'s `useSortable`, since no order is persisted within
+  a column). → **QA Engineer next** (Phase 6, verify against this spec in
+  an authenticated live session — not yet done) → Product Director
+  (Phase 7/8 review against this entry's original problem statement).
 - **Dependencies**: none blocking — every entity Phase A touches
   (`projects`, `tasks`, `clients`, `memberships`, `audit_log`) already
   exists in production; the `stage` column is additive.
-- **Status**: Ready.
+- **Status**: Built, 2026-09-03 — `npx tsc --noEmit -p .`, `npx eslint` on
+  every touched file, and the full `vitest` suite (456/456, including new
+  coverage for the stage/status derivation, every new Server Action's
+  ownership check, and the shared drag-and-drop optimistic+rollback state
+  machine) all green; `npm run build` succeeded. Not yet verified in an
+  authenticated live browser session. Not yet QA-reviewed. Phase B/C
+  intentionally not started, per this entry's own phasing.
 
 ### Projects Kanban Command Centre — Phase B: Files-on-a-project, invoice linkage, and the `projects` ↔ `website_projects` cross-link decision
 

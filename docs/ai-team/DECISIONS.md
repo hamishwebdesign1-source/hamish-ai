@@ -8,6 +8,237 @@ just at product-decision scope instead of line scope.
 
 ---
 
+## 2026-09-03 — Projects Kanban Command Centre, Phase A built: real board, drag-and-drop, detail workspace; two real gaps found and fixed along the way, one deliberate implementation simplification
+
+**Decision**: Built Phase A exactly against `BACKLOG.md`'s "PHASE 3 DESIGN"
+spec and the two prior 2026-09-03 entries above (sign-off + design
+reasoning), with one deliberate implementation simplification (flagged
+below) and two real, small gaps found and fixed while building rather than
+worked around.
+
+**Implementation**:
+- `supabase/schema-projects-stage.sql` — additive `stage text not null
+  default 'not_started'` column + backfill (`done` → `completed`, `active`
+  → `in_progress` — see the migration's own comment for why an existing
+  active project backfills to "in progress" rather than "not started":
+  defaulting every already-live project to the first pipeline stage would
+  misrepresent it as unstarted the moment this ships).
+- `src/lib/project-stages.ts` — the single stage-metadata source of truth
+  (`PROJECT_STAGES`, `deriveProjectStatus()`, `isProjectStage()`,
+  `PORTAL_PROJECT_STAGE_META`), imported by every write and every render
+  surface, per `DESIGN-SYSTEM.md`'s Kanban board pattern.
+  `src/lib/project-dates.ts` — the shared date helpers, lifted verbatim out
+  of `projects-panel.tsx`.
+- `projects/actions.ts` — new `updateProjectStage()` (ownership check +
+  `deriveProjectStatus()` + `project.stage_changed` audit event),
+  `createProjectTask()` (the new "add a task directly to a project"
+  capability), `createProject()` now logs `project.created` (previously
+  never logged, per the design's own flagged gap) and starts every project
+  at `not_started`.
+- **New Server Action not named in the spec, added because it was
+  genuinely required, not optional polish**: `updateProjectTaskStatus()`.
+  The detail page's task status buttons initially reused
+  `requests/actions.ts`'s existing `updateTaskStatus()`, which verifies
+  ownership via `task.request_id → requests.client_id → clients.org_id`
+  (`requestBelongsToOrg()`). A task created by the new `createProjectTask()`
+  has `request_id: null` by design (it has no parent request) — calling
+  `requestBelongsToOrg(admin, null, orgId)` runs `.eq("id", null)`, which
+  Postgres never matches, so every manually-added task's status button
+  would have failed with "Task not found." 100% of the time. Added a
+  project-scoped equivalent instead (`task.project_id → projects.org_id`),
+  which is actually the more correct check for this page anyway (every
+  task shown there is scoped to the project being viewed, regardless of
+  whether it originated from AI triage + `assignTaskToProject()` or was
+  added directly). Covered by 3 new ownership-check tests in
+  `projects/actions.test.ts`.
+- **Real gap found and fixed, one line**: `deleteProject()` never actually
+  called `logAuditEvent()` — the design spec's own text assumed deletion
+  was "already logged" alongside `project.assigned`/`unassigned`, which
+  turned out to be wrong on inspection (grepped for it, confirmed absent).
+  Added `project.deleted`, same shape as every sibling action in the file.
+- **Real gap found and fixed, one line**: `digest-action-tokens.ts`'s
+  `mark_project_done` (the weekly digest's one-click "mark done" email
+  action) wrote `{ status: "done" }` directly, bypassing the new
+  `stage`-is-the-source-of-truth contract entirely — after this phase, a
+  project marked done this way would have `status: "done"` but a stale
+  `stage` (e.g. still `in_progress`), meaning it would never appear in the
+  Kanban board's Completed column despite reading as finished everywhere
+  else that checks `status`. Fixed to write `{ status: "done", stage:
+  "completed" }` together. Updated the one existing test that asserted the
+  old single-field payload (`digest-action-tokens.test.ts`).
+- `project-stage-tracker.tsx` generalised to accept a `stages` prop
+  (`website-builder/[id]/page.tsx` now passes its own local 6-stage
+  `WEBSITE_PROJECT_STAGES` constant; the new projects detail page passes
+  `PROJECT_STAGES`) — one component, two real stage lists, per the
+  acceptance criteria.
+- Kanban board: `project-kanban-board.tsx` (desktop, `@dnd-kit/core` +
+  `@dnd-kit/utilities`), `project-kanban-card.tsx` (shared presentational
+  card, no dnd-kit hooks of its own — the board and the mobile accordion
+  each wrap it differently rather than duplicating its markup),
+  `project-stage-accordion.tsx` (mobile, Base UI `Accordion`),
+  `project-stage-select.tsx` (the one dumb `<select>` reused by the mobile
+  card, the detail page's quick-change control, and the bulk "Move N to…"
+  bar). `projects-panel.tsx` rewritten as the board root: one
+  `useOptimistic` + `moveProject()`, shared by the desktop board's
+  `onDragEnd` and the mobile accordion's `<select>` — genuinely the same
+  state machine both call, not two independent copies (see the new
+  `projects-panel.test.tsx`, which exercises this exact function through
+  the mobile `<select>` since real dnd-kit pointer drags aren't practically
+  simulatable in jsdom).
+- `/studio/projects/[id]/page.tsx` (new route) + `project-assignee-control.tsx`,
+  `delete-project-control.tsx`, `project-stage-quick-change.tsx`,
+  `project-task-list.tsx` (task list + "Add a task" inline form +
+  request-context line), `project-activity-trail.tsx` (scoped `audit_log`
+  read, `/admin/activity-log`'s row shape in Studio's own card styling).
+- Portal: `portal-insights-data.ts` selects `stage` now;
+  `insights-centre.tsx`'s `OverviewTab` renders the real 5-stage pipeline
+  in client-facing copy (`PORTAL_PROJECT_STAGE_META` — "Ready for your
+  review," never "Internal review" verbatim) instead of the old binary
+  pill, falling back to the old pill only for a stage value the portal map
+  doesn't recognise (shouldn't happen post-backfill, but never renders raw
+  internal text either way).
+
+**One deliberate implementation simplification, flagged rather than
+silently landed**: built the board on plain `useDraggable`/`useDroppable`
+(`@dnd-kit/core`) rather than `@dnd-kit/sortable`'s `useSortable`/
+`SortableContext`, which the design spec's exact wording ("carries
+useSortable's listeners/attributes") implied. Reasoning: there is no
+persisted order *within* a column — a project's position inside its stage
+isn't data this app tracks — so `@dnd-kit/sortable`'s extra reordering/
+animation layer would add real complexity for a purely cosmetic effect
+this app doesn't need. `useDraggable`'s `listeners`/`attributes` are the
+same shape `useSortable` exposes (it's built on top of `useDraggable`/
+`useDroppable` internally), so every real requirement — grip-handle-only
+activation (not the whole card), `KeyboardSensor` registered alongside
+`PointerSensor`, custom screen-reader announcements, `useOptimistic` +
+rollback — is satisfied without it. Also simplified the grip handle's
+visibility: the spec asked for "visible on hover/focus for pointer users,
+always visible on touch"; shipped as always-visible-but-muted
+(`text-muted-foreground/60`, full colour on hover) instead, to avoid an
+opacity-0-by-default control that's easy to miss/never discover on a
+board that's brand new to every user. Both are real, bounded
+simplifications, not corner-cutting on the acceptance criteria itself —
+worth a UX/UI Director look if the exact hover-reveal treatment matters
+enough to revisit.
+
+**Verification**: `npx tsc --noEmit -p .` clean; `npx eslint` clean on
+every touched file; `npx vitest run` 456/456 green, including new coverage
+this phase added — `project-stages.test.ts` (13 tests, the stage/status
+derivation contract), `projects/actions.test.ts` (15 tests, every new
+Server Action's ownership check + the two real gaps' fixes), and
+`projects-panel.test.tsx` (4 tests, the shared optimistic-update +
+1.5s-rollback state machine, exercised through the mobile `<select>` per
+the note above); `npm run build` succeeded (`/studio/projects/[id]` builds
+as a real dynamic route; only pre-existing, unrelated warning — the same
+"Big Shoulders" font-override warning already flagged in this file's
+Prospects→Website Builder prefill entry). Not yet verified in an
+authenticated live browser session — no test Studio credentials were
+available in this session; a real click-through (drag a card between
+columns, confirm the rollback highlight on a forced failure, open the
+detail page, add a task, change stage from the header select, check the
+portal's own project pill) is worth doing before/shortly after this
+reaches production, same caveat this file's other build entries already
+carry.
+
+**Deferred, not built — Phase B/C per `BACKLOG.md`'s own phasing, not a
+scope cut made here**: files-on-a-project, `invoices.project_id`, the
+`projects` ↔ `website_projects` cross-link decision (Phase B); meetings,
+formal deliverables/approval, an AI project assistant, portal visibility
+splitting (Phase C, two items of which need Hamish's sign-off before even
+being scoped in detail). Nothing in Phase A's own acceptance criteria was
+cut.
+
+---
+
+## 2026-09-03 — Hamish signed off on the Kanban design's 5-stage pipeline and the `max-w-4xl` exception
+
+Per the Phase A acceptance criteria's own requirement (the stage-label/
+board-visual-direction pick needs his sign-off before Phase 4 build
+starts, unlike everything else in Phase A which doesn't), presented
+plainly: 5 stages (Not Started → In Progress → Internal Review → Client
+Review → Completed) instead of his own originally-suggested 7, and the
+board deliberately breaking out of the standard `max-w-4xl` Studio
+list-page width. Confirmed via `AskUserQuestion` — approved as designed.
+Lead Engineer cleared to build Phase 4.
+
+---
+
+## 2026-09-03 — Projects Kanban Command Centre, Phase 3 (Design): 5-stage pipeline (not Hamish's suggested 7), board breaks out of `max-w-4xl`, detail workspace matches the `website-builder/[id]` precedent
+
+**Decision**: Designed Phase A (`BACKLOG.md`'s "Projects Kanban Command
+Centre — Phase A" entry) against the real codebase rather than Hamish's
+seed 7-stage suggestion. Full spec written into that same `BACKLOG.md`
+entry (new "PHASE 3 DESIGN" section) — this entry records the reasoning
+for the three calls that most needed to be argued, not just stated.
+
+**Stage set: 5, not 7** — `not_started` → `in_progress` →
+`internal_review` → `client_review` → `completed`. Hamish's own brief
+explicitly left this open ("don't blindly use these exact stages if the
+architecture suggests otherwise"). Rejected BACKLOG→PLANNED (no real
+backlog-grooming/prioritisation semantics exists anywhere in this
+product — `tasks.status`, the entity `projects` is a thin wrapper around,
+has a single `todo` starting state, not two) and APPROVED-as-distinct-from-
+COMPLETED (no `deliverables`/approval-flag entity exists per Phase 1's own
+audit — a manual "Approved" column with nothing behind it but a card's
+position is a stage that *implies* a sign-off mechanism this product
+doesn't have, the "no invented functionality to look more finished" rule
+applied to a workflow label, not just a stat). `schema-projects.sql`'s own
+comment — "deliberately thin... not a Jira competitor, just enough to
+answer 'what are we delivering and by when'" — is direct, pre-existing
+evidence for staying restrained rather than matching Hamish's full
+7-stage suggestion. Kept `internal_review` distinct from `client_review`
+(the one real split worth adding beyond a minimal 4-stage set) because it
+answers a genuinely different question — "is the ball in the agency's
+court or the client's" — which is the single most actionable thing an
+agency owner needs a board to tell them at a glance, and Studio's team
+collaboration (real `assigned_to` on `projects`) makes an internal
+hand-off step real, not decorative, for the Professional/Agency-tier
+multi-seat orgs this scales to. `status` derivation: `completed` →
+`"done"`, all four others → `"active"` — satisfies the 7 existing
+two-value call sites Phase 1's audit found exactly as well as a 7-value
+set would have; the acceptance-criteria's "7-value pipeline" phrasing was
+restating Hamish's own suggestion at spec time, not a technical
+requirement of the migration itself.
+
+**The board breaks `max-w-4xl`, the one list-page-width standard
+`DESIGN-SYSTEM.md` documents** — 5 columns of real card content
+(project name, client, progress bar, assignee, date) inside 896px leaves
+~150px/column, too cramped to read. Rather than force-fit the board into
+the standard width (the generic-SaaS-Kanban failure mode — a board so
+narrow every card truncates), Projects becomes the second page after
+Command Centre with a documented, deliberate exception: header + filter
+bar + board all share one wider container so the page doesn't reproduce
+the exact "reading column visibly jumps width" problem `StudioPageHeader`
+was built to kill on every *other* page. Not full-bleed edge-to-edge —
+kept inside the shell's own gutter padding, same as every other page,
+just not the 4xl cap.
+
+**The detail workspace (`/studio/projects/[id]`) follows
+`website-builder/[id]`'s existing shape, not a new one** — back-link +
+`Eyebrow` + h1 + right-aligned action controls + `max-w-3xl` (the one
+existing detail-page precedent in this codebase, narrower than list
+pages' 4xl — a real, if only-once-instantiated-until-now, pattern:
+detail/workspace pages read as a single document, list pages read as a
+scannable grid). `ProjectStageTracker` (currently hardcoded to
+`website_projects`' own 6-stage set) gets generalised to accept a
+`stages` prop rather than duplicating its exact visual language in a
+second component — one reusable tracker, two real stage lists.
+
+**Portal-side stage labels are not the internal enum values** — a client
+should never see "Internal review" (meaningless/mildly alarming to an
+outsider — review of what, by whom, why does it matter to them). Mapped
+separately for the client-facing surface: `client_review` reads as "Ready
+for your review" (actionable, tells the client what to do), `internal_review`
+collapses to "In review" from their side. This is a real content decision,
+not just a component reuse — flagged explicitly so Lead Engineer doesn't
+just print the internal label.
+
+**Full spec** (exact stage table, card anatomy, drag-and-drop/rollback
+mechanics, filters, responsive behaviour): `BACKLOG.md`'s Phase A entry,
+"PHASE 3 DESIGN" section, this same date.
+
+---
+
 ## 2026-09-03 — Prospects mockup → Website Builder prefill built, per the Product/UX-approved spec, no deviations
 
 **Decision**: Built exactly what the two 2026-09-03 entries above and
