@@ -129,8 +129,22 @@ function KanbanColumn({
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: stage.id, data: { type: "column" } });
 
+  // Reported live (screenshot): 5 fixed-width columns (was w-72, 288px
+  // each — 1504px total across the row) meant the last one or two
+  // stages always sat past the fold, needing a horizontal scroll just
+  // to see "Client review" on an ordinary desktop width. The board
+  // already breaks out to max-w-6xl (the studio shell's own outer
+  // ceiling, same room Command Centre gets — there's no more to give
+  // without changing the sidebar layout itself), and that still isn't
+  // wide enough for 5 fixed 288px columns once the sidebar and its gap
+  // are subtracted. flex-1 lets all 5 share whatever width is actually
+  // available and compress together instead of forcing scroll;
+  // min-w-[190px] is the floor before a card's own content (name,
+  // client, task progress, date) gets uncomfortably cramped — the
+  // outer row's overflow-x-auto (ProjectKanbanBoard, below) stays as a
+  // genuine fallback for a narrow window, not the primary mechanism.
   return (
-    <div className="flex w-72 shrink-0 flex-col gap-2">
+    <div className="flex min-w-[190px] flex-1 flex-col gap-2">
       <div className={`flex items-center gap-1.5 border-b border-border px-1 pb-2 ${stage.columnAccentClassName ?? ""}`}>
         {stage.columnDot && <span className="size-1.5 shrink-0 rounded-full bg-warning" aria-hidden />}
         <h2 className="text-sm font-semibold">{stage.label}</h2>
