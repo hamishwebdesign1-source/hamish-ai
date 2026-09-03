@@ -286,6 +286,148 @@ describe("createProject", () => {
   });
 });
 
+describe("createDeliverable", () => {
+  it("rejects a blank title before any query runs", async () => {
+    const from = vi.fn();
+    getSupabaseAdminMock.mockReturnValue({ from });
+    const { createDeliverable } = await import("./actions");
+
+    const result = await createDeliverable("project-1", "   ", null, null);
+
+    expect(result).toEqual({ error: "Give the deliverable a title." });
+    expect(from).not.toHaveBeenCalled();
+  });
+
+  it("rejects a non-https link before any query runs", async () => {
+    const from = vi.fn();
+    getSupabaseAdminMock.mockReturnValue({ from });
+    const { createDeliverable } = await import("./actions");
+
+    const result = await createDeliverable("project-1", "Homepage build", null, "javascript:alert(1)");
+
+    expect(result).toEqual({ error: "Link must be a real https:// URL." });
+    expect(from).not.toHaveBeenCalled();
+  });
+
+  it("rejects a bare http:// downgrade", async () => {
+    const from = vi.fn();
+    getSupabaseAdminMock.mockReturnValue({ from });
+    const { createDeliverable } = await import("./actions");
+
+    const result = await createDeliverable("project-1", "Homepage build", null, "http://staging.example.com");
+
+    expect(result).toEqual({ error: "Link must be a real https:// URL." });
+    expect(from).not.toHaveBeenCalled();
+  });
+
+  it("rejects a protocol-relative link", async () => {
+    const from = vi.fn();
+    getSupabaseAdminMock.mockReturnValue({ from });
+    const { createDeliverable } = await import("./actions");
+
+    const result = await createDeliverable("project-1", "Homepage build", null, "//evil.example.com");
+
+    expect(result).toEqual({ error: "Link must be a real https:// URL." });
+    expect(from).not.toHaveBeenCalled();
+  });
+
+  it("rejects a project belonging to another org, and never inserts", async () => {
+    const insert = vi.fn();
+    getSupabaseAdminMock.mockReturnValue({
+      from: (table: string) =>
+        table === "projects"
+          ? { select: () => ({ eq: () => ({ eq: () => ({ maybeSingle: () => Promise.resolve({ data: null, error: null }) }) }) }) }
+          : { insert },
+    });
+    const { createDeliverable } = await import("./actions");
+
+    const result = await createDeliverable("project-owned-by-org-b", "Homepage build", null, null);
+
+    expect(result).toEqual({ error: "Project not found." });
+    expect(insert).not.toHaveBeenCalled();
+  });
+
+  it("inserts with submitted_by set server-side from the acting session, and logs deliverable.submitted", async () => {
+    const insert = vi.fn().mockResolvedValue({ error: null });
+    getSupabaseAdminMock.mockReturnValue({
+      from: (table: string) =>
+        table === "projects"
+          ? { select: () => ({ eq: () => ({ eq: () => ({ maybeSingle: () => Promise.resolve({ data: { id: "project-1" }, error: null }) }) }) }) }
+          : { insert },
+    });
+    const { createDeliverable } = await import("./actions");
+
+    const result = await createDeliverable("project-1", "Homepage build", "First pass", "https://staging.example.com");
+
+    expect(result).toEqual({ ok: true });
+    expect(insert).toHaveBeenCalledWith({
+      org_id: "org-a",
+      project_id: "project-1",
+      title: "Homepage build",
+      description: "First pass",
+      link_url: "https://staging.example.com",
+      submitted_by: "owner@org-a.example.com",
+    });
+    expect(auditLogMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: "deliverable.submitted",
+        targetType: "project",
+        targetId: "project-1",
+        orgId: "org-a",
+        metadata: { title: "Homepage build" },
+      })
+    );
+  });
+});
+
+describe("deleteDeliverable", () => {
+  it("rejects a deliverable belonging to another org, and never deletes", async () => {
+    const deleteFn = vi.fn();
+    getSupabaseAdminMock.mockReturnValue({
+      from: () => ({
+        select: () => ({ eq: () => ({ eq: () => ({ maybeSingle: () => Promise.resolve({ data: null, error: null }) }) }) }),
+        delete: deleteFn,
+      }),
+    });
+    const { deleteDeliverable } = await import("./actions");
+
+    const result = await deleteDeliverable("deliverable-owned-by-org-b");
+
+    expect(result).toEqual({ error: "Deliverable not found." });
+    expect(deleteFn).not.toHaveBeenCalled();
+    expect(auditLogMock).not.toHaveBeenCalled();
+  });
+
+  it("deletes once ownership is confirmed and logs deliverable.deleted against the parent project", async () => {
+    const deleteEq = vi.fn().mockResolvedValue({ error: null });
+    getSupabaseAdminMock.mockReturnValue({
+      from: () => ({
+        select: () => ({
+          eq: () => ({
+            eq: () => ({ maybeSingle: () => Promise.resolve({ data: { id: "deliverable-1", project_id: "project-1", title: "Homepage build" }, error: null }) }),
+          }),
+        }),
+        delete: () => ({ eq: deleteEq }),
+      }),
+    });
+    const { deleteDeliverable } = await import("./actions");
+
+    const result = await deleteDeliverable("deliverable-1");
+
+    expect(result).toEqual({ ok: true });
+    expect(deleteEq).toHaveBeenCalledWith("id", "deliverable-1");
+    expect(auditLogMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: "deliverable.deleted",
+        targetType: "project",
+        targetId: "project-1",
+        orgId: "org-a",
+        metadata: { title: "Homepage build" },
+      })
+    );
+  });
+});
+
 describe("deleteProject", () => {
   it("rejects a project belonging to another org, and never deletes or unassigns its tasks", async () => {
     const deleteFn = vi.fn();

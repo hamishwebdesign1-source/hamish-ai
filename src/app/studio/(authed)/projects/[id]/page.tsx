@@ -13,6 +13,7 @@ import { ProjectStageQuickChange } from "@/components/platform/project-stage-qui
 import { ProjectAssigneeControl } from "@/components/platform/project-assignee-control";
 import { DeleteProjectControl } from "@/components/platform/delete-project-control";
 import { ProjectTaskList } from "@/components/platform/project-task-list";
+import { ProjectDeliverableList } from "@/components/platform/project-deliverable-list";
 import { ProjectActivityTrail } from "@/components/platform/project-activity-trail";
 import { PROJECT_STAGES } from "@/lib/project-stages";
 import { formatDate, isOverdue, isDueSoon, dueDateNote } from "@/lib/project-dates";
@@ -79,6 +80,16 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
     : { data: [] };
   const requestsById = new Map((requestsData ?? []).map((r) => [r.id, r]));
 
+  // Projects Kanban Command Centre, Phase C1 -- deliverables_select_own_org
+  // RLS (schema-deliverables.sql) enforces the same org boundary
+  // independently of this .eq(), same shape as the tasks read above.
+  const { data: deliverablesData } = await supabase
+    .from("deliverables")
+    .select("id, title, description, link_url, submitted_by, submitted_at")
+    .eq("project_id", project.id)
+    .order("submitted_at", { ascending: true });
+  const deliverables = deliverablesData ?? [];
+
   // Read via the admin client, same as /admin/activity-log — audit_log
   // has no client-portal-facing RLS policy at all (org staff only), and
   // this file already runs entirely behind the org-membership check
@@ -129,6 +140,10 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
 
       <div className="mt-8">
         <ProjectTaskList projectId={project.id} tasks={tasks} requestsById={requestsById} />
+      </div>
+
+      <div className="mt-8">
+        <ProjectDeliverableList projectId={project.id} projectStage={project.stage} deliverables={deliverables} />
       </div>
 
       <div className="mt-8">

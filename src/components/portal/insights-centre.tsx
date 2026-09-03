@@ -13,6 +13,7 @@ import {
   HeartPulse,
   CheckCircle2,
   FolderKanban,
+  ChevronRight,
 } from "lucide-react";
 import { HealthRing } from "@/components/analytics/health-ring";
 import { VerticalBarChart, UptimeBar } from "@/components/portal/insight-charts";
@@ -117,7 +118,16 @@ function OverviewTab({ data }: { data: PortalInsights }) {
                   ? { label: "Completed", className: "bg-[var(--chart-2)]/15 text-[var(--chart-2)]" }
                   : { label: "In progress", className: "bg-accent/15 text-accent" };
               return (
-                <div key={p.id} className="flex items-center justify-between gap-3 text-sm">
+                // Projects Kanban Command Centre, Phase C1 — this row was
+                // a plain <div> with no click-through at all before the
+                // portal's first-ever per-project detail page
+                // (/portal/projects/[id]) existed. Same hover treatment
+                // as the "Ask" CTA row below, not a new one.
+                <Link
+                  key={p.id}
+                  href={`/portal/projects/${p.id}`}
+                  className="flex items-center justify-between gap-3 rounded-lg px-1.5 py-1 text-sm transition-colors hover:bg-primary-foreground/10"
+                >
                   <div className="min-w-0">
                     <p className="truncate font-medium text-primary-foreground">{p.name}</p>
                     {days !== null && (
@@ -130,10 +140,13 @@ function OverviewTab({ data }: { data: PortalInsights }) {
                       </p>
                     )}
                   </div>
-                  <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold tracking-wide uppercase ${stageMeta.className}`}>
-                    {stageMeta.label}
-                  </span>
-                </div>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold tracking-wide uppercase ${stageMeta.className}`}>
+                      {stageMeta.label}
+                    </span>
+                    <ChevronRight className="size-4 text-primary-foreground/30" aria-hidden="true" />
+                  </div>
+                </Link>
               );
             })}
           </div>

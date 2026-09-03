@@ -277,6 +277,102 @@ export async function assignTaskToProject(taskId: string, projectId: string | nu
   return { ok: true as const };
 }
 
+// Projects Kanban Command Centre, Phase C1 -- the same allowlist bar
+// sanitizeBlocksForWrite()'s isSafeHref() already enforces for Command
+// Centre CTA hrefs (command-centre-layout.ts): a second real place user
+// input becomes a rendered <a href>, both in Studio and, once the
+// project reaches client_review, the client portal. Reject outright
+// rather than half-trust -- no javascript:/data:/vbscript:/
+// protocol-relative, and no bare http:// downgrade; a staging link/doc
+// only ever needs to be a real https:// URL.
+function isSafeDeliverableLink(value: string): boolean {
+  return value.length <= 300 && /^https:\/\/[^\s]+$/i.test(value);
+}
+
+// Projects Kanban Command Centre, Phase C1 -- "Agency completes
+// Deliverable" in Hamish's own delivery-chain wording: the staff submit
+// flow behind /studio/projects/[id]'s new Deliverables section. Same
+// ownership-check shape as createProjectTask above, plus the link_url
+// allowlist. submitted_by is never user-entered -- set server-side from
+// the acting session's own email, the same "attribution is the system's
+// job, not a form field" shape audit_log.actor already uses everywhere
+// else.
+export async function createDeliverable(projectId: string, title: string, description: string | null, linkUrl: string | null) {
+  const { orgId, email: actorEmail } = await requireOrgIdAndEmail();
+  const admin = getSupabaseAdmin();
+  if (!admin) return { error: "Supabase is not configured." };
+
+  const trimmedTitle = title.trim();
+  if (!trimmedTitle) return { error: "Give the deliverable a title." };
+
+  const trimmedLink = linkUrl?.trim() || null;
+  if (trimmedLink && !isSafeDeliverableLink(trimmedLink)) return { error: "Link must be a real https:// URL." };
+
+  const { data: project } = await admin.from("projects").select("id").eq("id", projectId).eq("org_id", orgId).maybeSingle();
+  if (!project) return { error: "Project not found." };
+
+  const { error } = await admin.from("deliverables").insert({
+    org_id: orgId,
+    project_id: projectId,
+    title: trimmedTitle,
+    description: description?.trim() || null,
+    link_url: trimmedLink,
+    submitted_by: actorEmail,
+  });
+  if (error) return { error: "Failed to submit the deliverable." };
+
+  logAuditEvent({
+    actor: actorEmail,
+    actorType: "admin",
+    action: "deliverable.submitted",
+    targetType: "project",
+    targetId: projectId,
+    orgId,
+    metadata: { title: trimmedTitle },
+  });
+
+  revalidatePath(`/studio/projects/${projectId}`);
+  return { ok: true as const };
+}
+
+// Projects Kanban Command Centre, Phase C1 -- a small, deliberate addition
+// beyond the original C1 ask (flagged in DECISIONS.md's matching design-
+// pass entry): C1's own RLS already grants org-staff DELETE, and with no
+// edit form in this phase (matching Tasks' own "no edit, just recreate"
+// precedent), delete is the only real corrective path for a typo'd link
+// or a wrong submission. Ownership verified via deliverables.org_id
+// directly (set at insert time above), same one-query shape as
+// deleteProject's own check.
+export async function deleteDeliverable(deliverableId: string) {
+  const { orgId, email: actorEmail } = await requireOrgIdAndEmail();
+  const admin = getSupabaseAdmin();
+  if (!admin) return { error: "Supabase is not configured." };
+
+  const { data: deliverable } = await admin
+    .from("deliverables")
+    .select("id, project_id, title")
+    .eq("id", deliverableId)
+    .eq("org_id", orgId)
+    .maybeSingle();
+  if (!deliverable) return { error: "Deliverable not found." };
+
+  const { error } = await admin.from("deliverables").delete().eq("id", deliverableId);
+  if (error) return { error: "Failed to delete the deliverable." };
+
+  logAuditEvent({
+    actor: actorEmail,
+    actorType: "admin",
+    action: "deliverable.deleted",
+    targetType: "project",
+    targetId: deliverable.project_id,
+    orgId,
+    metadata: { title: deliverable.title },
+  });
+
+  revalidatePath(`/studio/projects/${deliverable.project_id}`);
+  return { ok: true as const };
+}
+
 // Studio big-ticket ("no delete for projects/website-builder projects")
 // — the exact "a typo'd name or duplicate stuck around forever" bug
 // this session already fixed for campaigns (deleteCampaign(),

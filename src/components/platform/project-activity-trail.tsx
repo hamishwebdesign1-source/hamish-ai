@@ -26,6 +26,12 @@ const ACTION_LABEL: Record<string, string> = {
   "project.unassigned": "Unassigned",
   "project.stage_changed": "Stage changed",
   "project.deleted": "Project deleted",
+  // Projects Kanban Command Centre, Phase C1 -- "Agency completes
+  // Deliverable" onward, in Hamish's own delivery-chain wording, showing
+  // up as a real timeline entry for free since this trail is already
+  // rendered on this exact page.
+  "deliverable.submitted": "Deliverable submitted",
+  "deliverable.deleted": "Deliverable removed",
 };
 
 const actorTypeVariant: Record<string, "secondary" | "outline" | "warning"> = {
@@ -47,6 +53,9 @@ function describeEntry(entry: ActivityEntry): string {
       const to = typeof m.to === "string" ? getProjectStageMeta(m.to).label : "—";
       return `${from} → ${to}`;
     }
+    case "deliverable.submitted":
+    case "deliverable.deleted":
+      return typeof m.title === "string" ? m.title : "";
     default:
       return "";
   }
