@@ -8,7 +8,7 @@ import { useFocusTrap } from "@/lib/use-focus-trap";
 
 // Scoped in chat 2026-09-02 before any code was written (see
 // answer-studio-question.ts's own comment for the full reasoning) — a
-// global floating widget, bottom-left on every /studio page, so it's the
+// global floating widget, bottom-right on every /studio page, so it's the
 // personalised in-app assistant the marketing site already has for
 // visitors, but for the tenant running their own agency instead. Visual
 // shape borrowed from chat-widget.tsx (the marketing site's own widget)
@@ -22,9 +22,9 @@ import { useFocusTrap } from "@/lib/use-focus-trap";
 // Studio Design Audit's AI-surface consolidation, docs/ai-team/DECISIONS.md,
 // once askStudioAssistant() was confirmed a strict superset of its data.)
 //
-// bottom-LEFT specifically (explicit ask) — the marketing widget is
-// bottom-right; nothing else in the authed Studio shell is anchored
-// bottom-left (confirmed before building this).
+// bottom-RIGHT (moved here 3 Sep 2026, live feedback — the original
+// bottom-left placement sat right against the Studio sidebar nav,
+// which is also anchored to the left edge; right is genuinely clear).
 
 type Message = { role: "user" | "assistant"; content: string };
 
@@ -86,7 +86,7 @@ export function StudioAssistantWidget({ orgName }: { orgName: string }) {
   return (
     <>
       {open && (
-        <div className="fixed inset-0 z-[60] flex items-end justify-start p-0 sm:inset-auto sm:bottom-24 sm:left-6 sm:p-0">
+        <div className="fixed inset-0 z-[60] flex items-end justify-end p-0 sm:inset-auto sm:bottom-24 sm:right-6 sm:p-0">
           <div
             ref={panelRef}
             role="dialog"
@@ -183,7 +183,7 @@ export function StudioAssistantWidget({ orgName }: { orgName: string }) {
       <Button
         size="icon-lg"
         variant="ai"
-        className="fixed bottom-6 left-6 z-50 size-14 rounded-full shadow-lg"
+        className="fixed bottom-6 right-6 z-50 size-14 rounded-full shadow-lg"
         aria-label={open ? "Close Studio AI Assistant" : "Open Studio AI Assistant"}
         onClick={() => setOpen((o) => !o)}
       >

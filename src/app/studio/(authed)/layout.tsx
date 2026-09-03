@@ -109,15 +109,31 @@ export default async function StudioAuthedLayout({ children }: { children: React
           is for the rest of the site.
 
           aurora-bg activates the dormant ambient-mesh utility from
-          globals.css for the first time, re-tuned for this dark shell by
-          the .studio-shell.aurora-bg::before override in globals.css
-          (see its own comment there) rather than the light-marketing-hero
+          globals.css, re-tuned for this dark shell by the
+          .studio-shell.aurora-bg::before override in globals.css (see
+          its own comment there) rather than the light-marketing-hero
           defaults — dropped violet, much lower alpha, blobs biased to the
           outer gutters outside the centred max-w-6xl column below, slower
-          drift. Applied here (the outer full-bleed div) rather than on
-          the inner max-w-6xl wrapper so the glow isn't clipped to that
-          column's own width. */}
-      <div className="dark studio-shell aurora-bg min-h-screen bg-background text-foreground">
+          drift.
+
+          Reported live (3 Sep 2026): the sidebar's own `sticky top-8`
+          (studio-nav.tsx) wasn't actually staying in view on scroll —
+          confirmed by checking its rendered position at scrollY 1000 vs
+          0, moving in lockstep with the page instead of sticking. Root
+          cause was aurora-bg's own `overflow: hidden` (needed to clip
+          the ::before glow's oversized -20% inset bleed) sitting on this
+          same div the sidebar is a descendant of — an ancestor's
+          overflow:hidden breaks position:sticky for everything inside
+          it, a real, easy-to-miss CSS interaction, not a styling choice
+          anyone made on purpose. Fix: the glow is now its own decorative
+          sibling div (absolute, negative z-index, non-interactive) with
+          its own isolated overflow:hidden, instead of wrapping the real
+          content — same visual result (still full-bleed, still behind
+          everything), but the sidebar's containing-block chain up to
+          the actual page scroller no longer passes through an
+          overflow:hidden box, so sticky works as originally intended. */}
+      <div className="dark studio-shell relative isolate min-h-screen bg-background text-foreground">
+        <div className="studio-shell aurora-bg pointer-events-none inset-0 -z-10" style={{ position: "absolute" }} aria-hidden="true" />
         <StudioCommandPalette />
         <header className="relative border-b border-border/60 bg-background">
           <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-6 py-4">
