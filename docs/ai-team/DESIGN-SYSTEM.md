@@ -146,6 +146,54 @@ review," for the full implementation note.
   (`node_modules/lucide-react/dynamicIconImports.d.ts`) — several expected
   names don't exist in the installed version (no `Concierge`, use
   `ConciergeBell`; no `BarChart3`, use `ChartColumn`).
+- **"Read as a page, not a form response" — browser-chrome framing for
+  AI-generated page content**: `WebsiteMockupPreview`
+  (`website-mockup-section.tsx`) renders a prospect's AI-drafted homepage
+  copy — text only, no images, no bespoke design, per that file's own
+  comment on why (it must never be confused with HamishAI's real
+  hand-built concept pages). UX/UI Director pass (2026-09): a three-dot +
+  centred-pill bar (the same shape as a real browser tab strip) plus
+  distinct hero/body/closing-CTA bands gives it real visual hierarchy
+  without inventing any bespoke design. The pill's text is the same
+  honest "Homepage preview" label the old flat header bar had — never a
+  fabricated domain/URL, which a viewer could screenshot and mistake for
+  something real. An `ai` Badge ("AI-drafted") sits in the chrome bar and
+  a `text-muted-foreground` caption stays underneath the frame at all
+  times ("AI-written homepage copy, shown as a page preview — not a
+  designed page") — the honesty label is not something the visual
+  upgrade gets to remove. Reuse this browser-chrome shape (dots + a pill
+  holding real, honest text, never an invented URL) for any future
+  "preview of AI-written page content" surface.
+- **Field-provenance tags on a prefilled form** — established for the
+  Prospects → Website Builder prefill (`WebsiteProjectWizard`,
+  `BACKLOG.md`'s "Prefill the Website Builder discovery form…" entry):
+  when a field's starting value came from somewhere other than the user's
+  own typing, tag it at the `<Label>`, not the input, using the tier the
+  data actually earned rather than one blanket "prefilled" style —
+  - **Hard, verified 1:1 data** (a literal DB column carried over, e.g.
+    `prospects.business_name`/`category`/`neighbourhood`, or AI-observed-
+    from-real-content-and-treated-as-reliable, e.g. `research.services`):
+    `<Badge variant="secondary" className="gap-1 text-[10px] font-normal">`
+    with a small `Link2` icon, label "Prefilled." Same shrunk-badge
+    treatment `onboarding-wizard.tsx`'s locked-plan badge already
+    established (`text-[10px] font-normal` on a `secondary` Badge) — reuse
+    it, don't invent a new size.
+  - **Soft/approximate AI judgement** (e.g. `research.strengths` standing
+    in for USPs — a real signal, but an approximation, not a verified
+    fact): the `ai` Badge variant (badge.tsx's own "AI Recommendation" /
+    "Needs Review" language), label "Needs review." This is the one
+    tier where the visual language should look meaningfully different
+    from the hard tier, not just reworded — a user should be able to tell
+    "trust this" from "please check this" without reading the label.
+  - **Nothing upstream covers it**: no tag, no placeholder text implying
+    it was considered — renders exactly as it would for a from-scratch
+    entry. Never invent a middle state for these.
+  - A one-time explanatory banner (`border-accent/30 bg-accent/5`, an icon
+    + one line, e.g. "Started from [X]'s prospecting research — fields
+    marked Prefilled came from real data on file; everything else is
+    blank, same as starting from scratch") belongs once at the top of the
+    form, not repeated per field — the per-field tags only need to say
+    "Prefilled"/"Needs review," not re-explain the source every time.
 
 ## Interaction patterns actually in use
 

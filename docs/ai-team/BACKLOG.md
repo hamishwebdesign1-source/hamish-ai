@@ -28,7 +28,144 @@ _(none yet)_
 
 ## Ready
 
-_(none yet)_
+### Prefill the Website Builder discovery form from a converted prospect's mockup/research (close the Prospects → Website Builder gap)
+
+- **Problem**: a prospect's "Website mockup" (`draft-website-mockup.ts`,
+  homepage copy generated during outreach) and cached `research`
+  (`research-lead.ts`) are a real dead end today — once the prospect
+  converts to a `clients` row (`convertProspectToClient`,
+  `prospects/actions.ts`), starting a Website Builder project
+  (`WebsiteProjectWizard` → `createWebsiteProject`) means retyping
+  business name, industry, location, services, etc. from scratch, even
+  though genuinely accurate answers to several of those questions already
+  exist and were paid for (an AI call) during prospecting.
+- **Objective**: when a website_project is started for a client that has
+  a traceable source prospect, the discovery form opens pre-filled with
+  every field that has a real, non-invented upstream source, visibly
+  marked as pre-filled, fully editable, and never silently definitive.
+- **User**: an agency owner (or their staff) starting a Website Builder
+  project immediately after converting a prospect who already has a
+  mockup/research on file — the exact continuation of a workflow that
+  today just throws that work away.
+- **Priority**: P1 — thin, additive, no new AI pipeline, no schema
+  migration (see finding below), directly serves this product's own
+  "AI does the parts that don't need to be theirs" positioning
+  (`PRODUCT.md`).
+- **Verified, not assumed — the trace-back already exists, no migration
+  needed**: `clients.source_lead_id` (`schema-client-source-lead.sql`)
+  already exists and is already set on every conversion
+  (`convertProspectToClient` inserts `source_lead_id: prospectId`
+  verbatim). `website_projects.client_id` references `clients.id`. So the
+  full chain — `website_projects` → `clients.source_lead_id` →
+  `prospects.{website_mockup, research, business_name, category,
+  neighbourhood, website}` — is already real and queryable today. **No
+  migration of any kind is required for this feature; nothing here
+  crosses the destructive-migration or schema-change approval boundary.**
+- **Where the prefill happens — explicit opt-in, not silent autofill**:
+  given this product's "thin and honest over impressive and fake"
+  principle and that a user must always be able to tell what's pre-filled
+  vs. what they typed, this must not be the wizard silently populating
+  itself whenever it can trace a `source_lead_id` — a returning user
+  filling in a blank form for a manually-added client would have no way
+  to know whether silent prefill happened or not, and stale prospect data
+  (mockup/research generated weeks before conversion) auto-appearing
+  without any user action reads as the tool guessing on their behalf.
+  Instead: a real, visible entry point specific to a client with a source
+  prospect that has a mockup or research on file — e.g. on the client
+  detail page (`/studio/clients/[id]`) or from the prospect itself
+  post-conversion, a "Start website build from this prospect" button
+  distinct from the existing generic "New project" flow
+  (`/studio/website-builder/new`, currently reachable only from the
+  Website Builder list page with zero prefill support of any kind — no
+  query param, no client preselection even). Clicking it is the
+  explicit, one-time user action that triggers prefill; the resulting
+  form must visually distinguish prefilled fields (e.g. a small "from
+  [prospect]'s research" tag per field or per section) from fields the
+  user types themselves, and every prefilled field stays a normal editable
+  input, not a locked/read-only value.
+- **Field-by-field mapping — verified against real schema/types, not
+  guessed**:
+  - `businessName` — real, direct: `prospects.business_name`.
+  - `industry` — real, direct: `prospects.category`.
+  - `location` — real, reasonable proxy: `prospects.neighbourhood`
+    (coarser than a full address, but the same granularity `research-lead.ts`
+    itself treats as "location" throughout).
+  - `servicesProducts` — real: `research.services` (the AI's observed
+    services from the prospect's actual site content) when `research` is
+    present, which is now the common case (`research-lead.ts`'s
+    `researchLead()` runs automatically on every discovered prospect per
+    the AI ROI backlog entry's own finding) — prefer this over
+    `website_mockup.services`, whose 2-4 entries are restyled marketing
+    copy for a homepage preview, one AI pass further from ground truth.
+    Fall back to `website_mockup.services` names only if no `research` is
+    on file at all.
+  - `usps` — soft/approximate, flag as such in the UI (not a hard
+    1:1 field match like the four above): `research.strengths` ("what the
+    current site/business does well") is the closest real signal to "what
+    makes them different," but it's an approximation, not a verified USP
+    list — worth prefilling since it's real observed data, not invented,
+    but this is the one text field where the "prefilled, please review"
+    framing matters most.
+  - `existingWebsiteUrl` — **real, direct, and the mission brief's own
+    assumption that nothing prefills this was wrong, verified against the
+    actual schema**: `prospects.website` exists and is already carried
+    forward to `clients.website_url` at conversion
+    (`convertProspectToClient` sets `website_url: prospect.website || null`
+    verbatim) — so this is actually one of the *most* reliable prefills
+    available, sourced from the client row itself rather than the mockup
+    or research at all.
+  - **Honestly left blank, confirmed nothing upstream covers them**:
+    `targetAudience` (no research field states an audience, only what the
+    business does and its weaknesses — don't repurpose `business_summary`
+    as a stand-in), `objectives` and `sitemapPages` (small fixed
+    categorical/checkbox sets — nothing upstream tags a prospect against
+    the six-option objectives list or the sitemap-page checklist, and
+    inferring one from `ai_opportunities` text would be inventing a
+    categorisation the AI never made), `designStyle`, `designColours`,
+    `designFonts`, `designExamples` (no visual-design signal exists
+    anywhere in the mockup or research pipeline — confirmed by reading
+    both schemas in full), `contentNotes` (free text meant for the
+    agency's own notes, not something to auto-populate from AI output).
+- **Acceptance criteria**:
+  - `createWebsiteProject`'s wizard has a second real entry point (button/
+    link) reachable from a client that has a `source_lead_id` whose
+    prospect has `website_mockup` and/or `research` set, distinct from the
+    existing blank-state `/studio/website-builder/new` flow used today.
+  - The prefill is a one-time, user-triggered population of the discovery
+    form's local state — not a server-side default baked into
+    `createWebsiteProject` itself, so a user can freely edit or clear any
+    field before submitting, same as if they'd typed it.
+  - Every prefilled field is visually distinguishable from a manually
+    typed one at the moment the form opens (exact treatment is a UX/UI
+    Director call, not decided here).
+  - Fields with no real upstream source (`targetAudience`, `objectives`,
+    `sitemapPages`, all four design fields, `contentNotes`) are never
+    auto-populated with invented content.
+  - No new database migration; `clients.source_lead_id` and
+    `prospects.{website_mockup, research, business_name, category,
+    neighbourhood, website}` are the only data sources, all already in
+    production.
+  - Ownership check: the source prospect/client lookup is scoped to the
+    caller's own `org_id`, same pattern every other Server Action in this
+    codebase uses — this is a read of another tenant's data if done wrong.
+  - Tests cover: prefill population from a full mockup+research prospect;
+    partial prefill when only one of mockup/research exists; no prefill
+    offered at all for a client with no `source_lead_id` (manually-added
+    client); the `research`-present-vs-absent branch for `servicesProducts`
+    (prefer `research.services`, fall back to mockup service names).
+  - `npx tsc --noEmit`, `npx eslint`, full `vitest` suite green.
+- **Relevant agent**: ~~UX/UI Director (exact entry-point placement and the
+  prefilled-field visual treatment)~~ done, 2026-09-03 — see
+  `DECISIONS.md`'s matching entry for the placement/mechanism decisions
+  and the UX/UI Director's handoff to Lead Engineer for the full
+  field-by-field `WizardPrefill` spec, exact query changes, and search-
+  param contract. → **Lead Engineer next** (build).
+- **Dependencies**: none — every data source and column already exists in
+  production; no approval-boundary item in this scope (see Product
+  Director's handoff for the explicit statement that no migration, no
+  payments, no destructive change, and no major architecture change is
+  involved).
+- **Status**: Ready.
 
 ## Researching
 

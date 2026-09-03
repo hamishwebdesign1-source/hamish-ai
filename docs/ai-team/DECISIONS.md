@@ -8,6 +8,120 @@ just at product-decision scope instead of line scope.
 
 ---
 
+## 2026-09-03 — Prospects mockup → Website Builder prefill: no migration needed, opt-in not silent, one brief assumption corrected
+
+**Decision**: scoped as a read-only, additive prefill of the Website
+Builder discovery form from a converted prospect's existing
+`website_mockup`/`research`, gated behind an explicit new entry point
+(a "start build from this prospect" action), not a silent autofill that
+fires whenever the wizard happens to be able to trace a `source_lead_id`.
+Full scope in `BACKLOG.md` under "Prefill the Website Builder discovery
+form from a converted prospect's mockup/research."
+
+**Why explicit opt-in, not silent**: `PRODUCT.md`'s "thin and honest over
+impressive and fake" principle plus a concrete failure mode — a user
+opening the generic wizard for a manually-added client (no prospect at
+all) would have no reliable way to distinguish "this form is blank
+because nothing exists" from "this form is blank because prefill quietly
+failed," and stale mockup/research data (possibly generated weeks before
+conversion) appearing with no user action attached reads as the tool
+guessing on the user's behalf, not assisting them.
+
+**Two things verified, not assumed, that change the shape of this task**:
+1. **No migration required at all.** The mission brief asked me to
+   determine whether `clients`/`website_projects` can already trace back
+   to the originating prospect. It can — `clients.source_lead_id`
+   (`schema-client-source-lead.sql`) already exists and is already set on
+   every conversion by `convertProspectToClient`. This isn't a "safe,
+   additive migration to approve," it's zero migration, so nothing in
+   this scope touches the destructive-migration approval boundary at all.
+2. **The mission brief's own assumption about `existingWebsiteUrl` having
+   "likely nothing real to prefill from" was wrong, and I corrected it
+   rather than repeating it.** `prospects.website` exists and is already
+   carried forward verbatim to `clients.website_url` at conversion time
+   (confirmed by reading `convertProspectToClient`'s own insert). It's
+   actually one of the more reliable prefills available, sourced from the
+   `clients` row itself. The three genuinely design-blind fields
+   (`designStyle`, `designColours`, `designFonts`) plus `designExamples`
+   stay correctly unprefillable — nothing in the mockup/research pipeline
+   ever discusses visual design.
+
+**Not built yet** — this is a backlog scope, status "Ready," handed to
+UX/UI Director (entry-point placement, prefilled-field visual treatment)
+then Lead Engineer.
+
+---
+
+## 2026-09-03 — Website mockup preview visual upgrade shipped; Website Builder prefill entry point designed, not built
+
+**Decision (Task 1, shipped)**: `WebsiteMockupPreview`
+(`website-mockup-section.tsx`) now renders inside a browser-chrome frame
+(three dots + a centred pill reading "Homepage preview," never a
+fabricated domain) with three visually distinct bands (hero / body /
+closing CTA) instead of one flat stack. An `ai`-variant Badge
+("AI-drafted") sits in the chrome bar; the file's existing honesty
+caption stays, now permanently visible under the frame rather than only
+in the empty state. No content changed, no new AI call, no schema touch
+— purely presentational. `npx tsc --noEmit` and `npx eslint` both clean.
+Not verified in an authenticated live browser session — no test Studio
+credentials were available in this session; recommend a real visual check
+before/shortly after this reaches production, same as the "Toned Ink"
+background entry above.
+
+**Decision (Task 2, designed only — handed to Lead Engineer)**: the
+primary entry point for "start a Website Builder project pre-filled from
+a converted prospect" is the expanded `ClientCard`
+(`clients-panel.tsx`), not the prospect's own post-conversion moment.
+**No `/studio/clients/[id]` route exists** — checked, not assumed; the
+"client detail page" `BACKLOG.md`/the brief pointed at is this
+expand-in-place card, the actual client-detail surface in this codebase
+today. Chose it over the prospect-side moment because it's persistent
+(discoverable any time the owner comes back to Clients, not just in the
+few seconds after clicking "Confirm" on conversion, after which
+`ConvertToClientControl` collapses to a static "Client" badge with no
+room left to act) and it sits naturally alongside this client's other
+real actions (`GenerateReportControl`, invoicing, portal access).
+Recommended (not required) a small secondary pointer on the prospect side
+too: `ConvertToClientControl`'s post-conversion "Client" badge state gets
+one line of `text-accent underline` text ("Start website build in
+Clients") when the source prospect has a mockup/research, using the same
+"no toast, inline text" convention as everywhere else — reinforces
+discoverability from the other direction without adding a second
+competing entry point.
+
+**Mechanism**: reuses the existing `/studio/website-builder/new` route
+rather than a new page — adds two optional search params, `client` (just
+preselects the client dropdown, always safe) and `prefill=1` (the actual
+explicit-opt-in signal; only present because the user clicked "Start
+website build from this prospect," never implied by `client` alone). The
+server component re-derives the source prospect from the given
+`clientId`'s own `source_lead_id`, scoped to the caller's `org_id` both
+times (client lookup and prospect lookup) — never trusts a raw prospect
+id from the URL, so a tampered `prefill=1` on someone else's client can't
+leak cross-tenant data.
+
+**Field-tag tiering**: per `BACKLOG.md`'s own three-tier breakdown (hard
+1:1 / soft-approximate / honestly blank), used two visually distinct
+Badge treatments, not one blanket "prefilled" style — see
+`DESIGN-SYSTEM.md`'s new "Field-provenance tags on a prefilled form"
+entry for the exact classes. Grouped `servicesProducts` (technically
+AI-observed, from `research.services`) with the hard/neutral tier rather
+than the soft/`ai`-styled one, matching `BACKLOG.md`'s own classification
+of it as "real, direct" rather than approximate — flagged here in case a
+future reviewer wants a finer split, not treated as settled beyond what
+the backlog entry already decided.
+
+Full field-by-field mapping, `WizardPrefill` shape, exact query changes
+to `clients/page.tsx` and the new `/new/page.tsx` search-param handling,
+and the `buildWizardPrefill()` pure-function spec (for
+`src/lib/website-brief.ts`, unit-testable per the backlog's acceptance
+criteria) are in the UX/UI Director's handoff to Lead Engineer — nothing
+in this task was implemented yet, by design, given the cross-file data
+plumbing and required test coverage make it a build task, not a design
+one.
+
+---
+
 ## 2026-09-03 — Studio Design Audit's 20 commits reached production before review; Hamish confirmed leaving them live
 
 **What happened**: `PRODUCT-ROADMAP.md` recorded the Studio Design Audit
