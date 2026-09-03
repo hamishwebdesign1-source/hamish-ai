@@ -21,6 +21,7 @@ import {
   Radar,
   Repeat,
   Mail,
+  X,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -238,6 +239,11 @@ function MaintenanceSubscriptionControl({ client }: { client: Client }) {
   const [rateInput, setRateInput] = useState(client.maintenance_monthly_pence ? (client.maintenance_monthly_pence / 100).toFixed(2) : "");
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  // Tier 4 item #12 — same two-step inline confirm pattern as everywhere
+  // else in this codebase (knowledge-panel.tsx's EntryCard delete,
+  // campaigns-panel.tsx's campaign delete): a real-money control that
+  // previously fired immediately on one click.
+  const [confirmingCancel, setConfirmingCancel] = useState(false);
 
   function saveRate() {
     setError(null);
@@ -259,7 +265,11 @@ function MaintenanceSubscriptionControl({ client }: { client: Client }) {
     setError(null);
     startTransition(async () => {
       const r = await cancelClientSubscription(client.id);
-      if (r && "error" in r) setError(r.error ?? "Failed to cancel the subscription.");
+      if (r && "error" in r) {
+        setError(r.error ?? "Failed to cancel the subscription.");
+        return;
+      }
+      setConfirmingCancel(false);
     });
   }
 
@@ -293,15 +303,29 @@ function MaintenanceSubscriptionControl({ client }: { client: Client }) {
           Save rate
         </Button>
         {client.stripe_subscription_id ? (
-          <Button size="sm" variant="ghost" disabled={pending} onClick={cancel} className="text-destructive">
-            Cancel subscription
-          </Button>
+          confirmingCancel ? (
+            <>
+              <Button size="sm" variant="destructive" disabled={pending} onClick={cancel}>
+                {pending ? "Cancelling…" : "Confirm"}
+              </Button>
+              <Button size="icon" variant="ghost" aria-label="Keep subscription" onClick={() => setConfirmingCancel(false)}>
+                <X className="size-3.5" />
+              </Button>
+            </>
+          ) : (
+            <Button size="sm" variant="ghost" disabled={pending} onClick={() => setConfirmingCancel(true)} className="text-destructive">
+              Cancel subscription
+            </Button>
+          )
         ) : (
           <Button size="sm" disabled={pending || !client.maintenance_monthly_pence} onClick={start}>
             Start subscription
           </Button>
         )}
       </div>
+      {confirmingCancel && (
+        <p className="mt-2 text-xs text-muted-foreground">This client will stop being billed after the current period.</p>
+      )}
       {error && (
         <p className="mt-2 flex items-center gap-1.5 text-xs text-destructive">
           <CircleAlert className="size-3.5 shrink-0" /> {error}
@@ -416,6 +440,10 @@ function ClientMembersControl({ client, members }: { client: Client; members: Cl
   const [invitePending, startInvite] = useTransition();
   const [inviteError, setInviteError] = useState<string | null>(null);
   const [removePending, startRemove] = useTransition();
+  // Tier 4 item #12 — same lightweight two-step confirm as
+  // team-panel.tsx's own remove control; only one row can be mid-confirm
+  // at a time, same as this file's other single-id confirm states.
+  const [confirmingRemoveId, setConfirmingRemoveId] = useState<string | null>(null);
 
   function invite() {
     setInviteError(null);
@@ -432,6 +460,7 @@ function ClientMembersControl({ client, members }: { client: Client; members: Cl
   function remove(memberId: string) {
     startRemove(async () => {
       await removeClientMemberAction(memberId);
+      setConfirmingRemoveId(null);
     });
   }
 
@@ -458,9 +487,26 @@ function ClientMembersControl({ client, members }: { client: Client; members: Cl
                   {m.role === "owner" ? "Owner" : "Member"} · {m.accepted_at ? "Active" : "Invited"}
                 </span>
               </div>
-              <Button size="xs" variant="ghost" disabled={removePending} onClick={() => remove(m.id)} aria-label={`Remove ${m.email}`}>
-                <Trash2 className="size-3" />
-              </Button>
+              {confirmingRemoveId === m.id ? (
+                <div className="flex shrink-0 items-center gap-1">
+                  <Button size="xs" variant="destructive" disabled={removePending} onClick={() => remove(m.id)}>
+                    {removePending ? "…" : "Confirm"}
+                  </Button>
+                  <Button size="icon-xs" variant="ghost" aria-label="Cancel remove" onClick={() => setConfirmingRemoveId(null)}>
+                    <X className="size-3" />
+                  </Button>
+                </div>
+              ) : (
+                <Button
+                  size="xs"
+                  variant="ghost"
+                  disabled={removePending}
+                  onClick={() => setConfirmingRemoveId(m.id)}
+                  aria-label={`Remove ${m.email}`}
+                >
+                  <Trash2 className="size-3" />
+                </Button>
+              )}
             </li>
           ))}
         </ul>
@@ -472,9 +518,15 @@ function ClientMembersControl({ client, members }: { client: Client; members: Cl
           onChange={(e) => setEmail(e.target.value)}
           type="email"
           placeholder="name@business.com"
+          aria-label="Email address to invite to this client's portal access"
           className="h-8 min-w-[160px] flex-1 text-sm"
         />
-        <select value={role} onChange={(e) => setRole(e.target.value as "owner" | "member")} className={selectClasses}>
+        <select
+          value={role}
+          onChange={(e) => setRole(e.target.value as "owner" | "member")}
+          aria-label="Role for the invited portal member"
+          className={selectClasses}
+        >
           <option value="member">Member</option>
           <option value="owner">Owner</option>
         </select>
@@ -859,6 +911,7 @@ export function ClientsPanel({
   membersByClient,
   competitorIntelByClient,
   stripeReady,
+  hasLoadError,
 }: {
   clients: Client[];
   invoicesByClient: Record<string, Invoice[]>;
@@ -869,6 +922,11 @@ export function ClientsPanel({
   membersByClient: Record<string, ClientMember[]>;
   competitorIntelByClient: Record<string, CompetitorIntel[]>;
   stripeReady: boolean;
+  // Tier 3 item #11 — page.tsx's own clients query error, additive to its
+  // existing console.error (not a replacement): distinguishes a real
+  // backend failure from a genuine "no clients yet" empty state, which
+  // previously rendered identically.
+  hasLoadError: boolean;
 }) {
   const riskCount = Object.keys(riskByClient).length;
   const sortedClients = [...clients].sort(
@@ -896,6 +954,13 @@ export function ClientsPanel({
           </>
         }
       />
+
+      {hasLoadError && (
+        <div className="mt-4 flex items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2">
+          <CircleAlert className="size-4 shrink-0 text-destructive" />
+          <p className="text-sm text-destructive">Something didn&apos;t load correctly — try refreshing.</p>
+        </div>
+      )}
 
       {clients.length === 0 ? (
         <div className="mt-6 rounded-xl border border-dashed border-border p-8 text-center">

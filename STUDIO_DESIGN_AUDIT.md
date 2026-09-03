@@ -386,6 +386,55 @@ Ranked by convergence across specialists, real user/business value, and effort. 
   re-ran `tsc`/`eslint`/`npm run test`, and committed on the agent's behalf
   once satisfied nothing was broken or incomplete — see commit `e253fe0`.
 
+- **Tier 4, item #12 — Added the two-step inline confirm pattern to the
+  three real-money/real-access controls that previously fired immediately.**
+  `clients-panel.tsx`'s `MaintenanceSubscriptionControl` ("Cancel
+  subscription") now arms a `confirmingCancel` state on first click before
+  showing a destructive "Confirm" button plus an `X` "Keep subscription"
+  icon-button, with a one-line consequence statement ("This client will
+  stop being billed after the current period.") shown only in the armed
+  state, exactly matching `knowledge-panel.tsx`'s `EntryCard`/
+  `campaigns-panel.tsx`'s `CampaignCard` shape. `ClientMembersControl`'s
+  "Remove client member" and `team-panel.tsx`'s "Remove team member" both
+  got the lighter version of the same pattern (a `confirmingRemoveId`/
+  `confirmingRemove` state keyed by id/email since either list can have
+  more than one row, destructive "Confirm" + `X` "Cancel remove", no
+  separate consequence line — task scope explicitly called for the
+  lightweight version here). Invoice-reminder and proposal-resend sends
+  were explicitly left untouched, per Security Auditor's own finding that
+  their existing sent/viewed state labels already do this job.
+- **Tier 3, item #10 (remaining part) — the last two accessibility fixes
+  left over from the prior pass.** `clients-panel.tsx`'s
+  `ClientMembersControl` invite-email `Input` and role `<select>` now carry
+  `aria-label="Email address to invite to this client's portal access"` /
+  `aria-label="Role for the invited portal member"`; `team-panel.tsx`'s
+  invite-email `input` — the one this control's own code comment says was
+  "ported" from — now carries the matching
+  `aria-label="Email address to invite to the team"`. Both were previously
+  placeholder-only, same regression class `knowledge-panel.tsx:80-83`'s
+  labelled controls establish the convention for. This closes out item #10
+  in full (the two collapsibles/one select from the original finding not
+  covered by the prior pass's own note were already fixed there).
+- **Tier 3, item #11 — Surfaced the Clients-page query failure instead of
+  letting it render as "no clients yet."** `clients/page.tsx` now passes a
+  new `hasLoadError={Boolean(clientsError)}` prop to `ClientsPanel`
+  (additive — the existing `console.error` is untouched); `ClientsPanel`
+  renders a small inline notice ("Something didn't load correctly — try
+  refreshing.") above the existing empty-state block whenever a real query
+  failure occurred, styled with the same `border-destructive/30
+  bg-destructive/5` treatment this file's own `DeleteClientControl` already
+  uses for a destructive/error state — so a genuine backend failure no
+  longer looks identical to a legitimate zero-clients org.
+
+  tsc clean, scoped `eslint` on all three touched files
+  (`clients-panel.tsx`, `team-panel.tsx`, `clients/page.tsx`) clean, full
+  `eslint .` still matches the documented pre-existing baseline (68
+  errors/38 warnings, unrelated files), and `npm run test` is 415/415 —
+  restored from the prior pass's 415/416 note (that one pre-existing
+  failure was itself a test-file update left over from the concurrent
+  Tier 2 item #5 work, already resolved in this shared tree by the time
+  this pass ran).
+
 ## 4. What was not built
 
 *(anything deliberately scoped out during build, beyond the Phase 1 rejections above)*

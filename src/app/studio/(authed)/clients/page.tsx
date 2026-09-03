@@ -249,6 +249,7 @@ export default async function StudioClientsPage() {
       riskByClient={riskByClient}
       competitorIntelByClient={competitorIntelByClient}
       stripeReady={stripeReady}
+      hasLoadError={Boolean(clientsError)}
     />
   );
 }

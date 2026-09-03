@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Users, UserPlus, X } from "lucide-react";
+import { Users, UserPlus, Trash2, X } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -33,6 +33,11 @@ export function TeamPanel({
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [removingEmail, setRemovingEmail] = useState<string | null>(null);
+  // Tier 4 item #12 — same two-step inline confirm pattern as everywhere
+  // else in this codebase (knowledge-panel.tsx's EntryCard delete,
+  // campaigns-panel.tsx's campaign delete): this previously fired
+  // immediately on one click.
+  const [confirmingRemove, setConfirmingRemove] = useState<string | null>(null);
 
   function invite() {
     setError(null);
@@ -53,6 +58,7 @@ export function TeamPanel({
       const r = await removeTeamMemberAction(memberEmail);
       if (r && "error" in r) setError(r.error ?? "Failed to remove.");
       setRemovingEmail(null);
+      setConfirmingRemove(null);
     });
   }
 
@@ -80,17 +86,28 @@ export function TeamPanel({
                   {m.role === "owner" ? "Owner" : "Member"} · {m.acceptedAt ? "Active" : "Invited"}
                 </p>
               </div>
-              {isOwner && m.role !== "owner" && (
-                <Button
-                  size="icon-xs"
-                  variant="ghost"
-                  disabled={pending && removingEmail === m.email}
-                  onClick={() => remove(m.email)}
-                  aria-label={`Remove ${m.email}`}
-                >
-                  <X className="size-3.5" />
-                </Button>
-              )}
+              {isOwner &&
+                m.role !== "owner" &&
+                (confirmingRemove === m.email ? (
+                  <div className="flex shrink-0 items-center gap-1">
+                    <Button size="xs" variant="destructive" disabled={pending && removingEmail === m.email} onClick={() => remove(m.email)}>
+                      {pending && removingEmail === m.email ? "…" : "Confirm"}
+                    </Button>
+                    <Button size="icon-xs" variant="ghost" aria-label="Cancel remove" onClick={() => setConfirmingRemove(null)}>
+                      <X className="size-3.5" />
+                    </Button>
+                  </div>
+                ) : (
+                  <Button
+                    size="icon-xs"
+                    variant="ghost"
+                    disabled={pending && removingEmail === m.email}
+                    onClick={() => setConfirmingRemove(m.email)}
+                    aria-label={`Remove ${m.email}`}
+                  >
+                    <Trash2 className="size-3.5" />
+                  </Button>
+                ))}
             </li>
           ))}
         </ul>
@@ -104,6 +121,7 @@ export function TeamPanel({
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="teammate@yourbusiness.com"
+                  aria-label="Email address to invite to the team"
                   className="min-w-0 flex-1 rounded-lg border border-border bg-background px-3 py-1.5 text-sm"
                 />
                 <Button size="sm" disabled={pending || !email.trim()} onClick={invite}>
