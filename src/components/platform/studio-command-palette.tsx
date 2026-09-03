@@ -357,7 +357,14 @@ export function StudioCommandPalette() {
 
         {showingAnswer ? (
           <div className="max-h-96 overflow-y-auto p-4">
-            <div className="flex flex-col gap-2.5">
+            {/* Post-build review (QA Engineer) — the palette's Ask transition
+                had no aria-live region, unlike the discovery block just below
+                (aria-live="polite" on that block's own wrapper) and the two
+                chat-style widgets' equivalent conversation containers. A
+                screen-reader user submitting a question had no announcement
+                of the mode switch into this answer view, nor of a new reply
+                or the "Thinking…" state landing. */}
+            <div className="flex flex-col gap-2.5" aria-live="polite">
               {conversation.map((m, i) => (
                 <div
                   key={i}

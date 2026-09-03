@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import posthog from "posthog-js";
 import { Check, Sparkles, CreditCard, ChevronDown, ChevronUp, Lock } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -86,6 +86,17 @@ export function OnboardingWizard({ email, initialPlan }: { email: string; initia
   // tenant abandoned at) was invisible. Guarded the same way
   // identify-org.tsx guards its own PostHog call, so this stays a no-op
   // in any environment without the key configured.
+  //
+  // Post-build review (Growth & Analytics) — next()/back() only capture a
+  // *transition*, so the very first step ("start") was never itself
+  // recorded by name — a tenant who lands on the wizard and abandons
+  // before ever clicking anything left no event at all. This one-time
+  // mount effect closes that gap without duplicating next()/back()'s own
+  // capture on every subsequent step.
+  useEffect(() => {
+    if (process.env.NEXT_PUBLIC_POSTHOG_KEY) posthog.capture("onboarding_step_viewed", { step: "start" });
+  }, []);
+
   function next() {
     if (stepIndex < STEPS.length - 1) {
       const nextStep = STEPS[stepIndex + 1];
