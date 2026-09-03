@@ -56,7 +56,24 @@ export default async function StudioAuthedLayout({ children }: { children: React
     .single();
 
   const trialDaysLeft = org?.trial_ends_at ? daysUntilTrialEnds(org.trial_ends_at) : null;
-  const showTrialBanner = !org?.is_internal && org?.subscription_status === "trialing" && trialDaysLeft !== null && trialDaysLeft <= 3;
+  const isTrialing = !org?.is_internal && org?.subscription_status === "trialing" && trialDaysLeft !== null;
+  // Studio Design Audit Tier 5 item #16 — showTrialBanner used to be the
+  // *only* trial indicator anywhere in Studio, and it only lit up at
+  // trialDaysLeft <= 3, meaning a trialing org had zero ambient sense of
+  // being on a trial (let alone how long was left) for the first 4 of 7
+  // trial days. Split into two states now: a small, low-key header pill
+  // for days 4-7 remaining (showTrialPill) that just orients the org
+  // without urgency, escalating to this exact same warning banner
+  // (copy/styling/link untouched) once trialDaysLeft drops to <= 3 — the
+  // escalation itself is preserved, just no longer the only signal.
+  const showTrialBanner = isTrialing && trialDaysLeft !== null && trialDaysLeft <= 3;
+  const showTrialPill = isTrialing && trialDaysLeft !== null && trialDaysLeft > 3;
+  // 7-day trial (onboarding-wizard.tsx's own "7-day free trial" copy,
+  // trial-reminders.ts's schedule) — Day X counts up from 1, not down
+  // from trialDaysLeft, since "Day 6 of 7" reads as progress while
+  // "1 day left" (already covered by the warning banner below) reads as
+  // urgency; two different jobs for two different remaining-time ranges.
+  const trialDayNumber = trialDaysLeft !== null ? Math.min(7, Math.max(1, 8 - trialDaysLeft)) : null;
 
   // Studio improvement — the Requests nav badge. Same embedded-resource
   // filter (clients!inner(org_id)) requestBelongsToOrg() (requests/actions.ts)
@@ -111,12 +128,24 @@ export default async function StudioAuthedLayout({ children }: { children: React
                 shrink below its content size) + truncate on the name
                 itself; the "Studio" badge keeps shrink-0 so it's never
                 what gets clipped. */}
-            <Link href="/studio" className="flex min-w-0 items-baseline gap-2 font-heading text-lg font-semibold">
-              <span className="min-w-0 truncate">{org?.name ?? "Your Agency"}</span>
-              <span className="shrink-0 font-mono text-xs font-normal tracking-wide text-muted-foreground uppercase">
-                Studio
-              </span>
-            </Link>
+            <div className="flex min-w-0 items-center gap-2">
+              <Link href="/studio" className="flex min-w-0 items-baseline gap-2 font-heading text-lg font-semibold">
+                <span className="min-w-0 truncate">{org?.name ?? "Your Agency"}</span>
+                <span className="shrink-0 font-mono text-xs font-normal tracking-wide text-muted-foreground uppercase">
+                  Studio
+                </span>
+              </Link>
+              {/* Studio Design Audit Tier 5 item #16 — low-key, always-on
+                  trial indicator for days 4-7 remaining (see showTrialPill's
+                  own comment above); deliberately muted (bg-secondary, no
+                  warning colour) since this is just orientation, not the
+                  "act now" moment the banner below is for. */}
+              {showTrialPill && trialDayNumber !== null && (
+                <span className="shrink-0 rounded-full border border-border bg-secondary/60 px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+                  Trial · Day {trialDayNumber} of 7
+                </span>
+              )}
+            </div>
             <div className="flex min-w-0 items-center gap-2">
               <div className="w-full max-w-40 sm:max-w-56">
                 <StudioCommandPaletteTrigger />
