@@ -6,15 +6,17 @@
 //
 // This is Command Centre's own shape (stat-card row + chart), and it
 // remains the fallback for every route that doesn't have a more specific
-// skeleton of its own. Settings, Billing, Prospects, and Feedback now
-// have their own route-specific loading.tsx (their real shapes diverge
-// most from this one — form sections, usage cards, a filter bar, a
-// single textarea respectively); the remaining routes (Clients, Requests,
-// Projects, Campaigns, Website Builder, Knowledge, Help) are still close
-// enough in shape (header + card/list content) that this generic skeleton
-// doesn't read as visibly wrong for them. Renders as `children` inside
-// the authed layout's own <main>, so no header/sidebar/padding of its
-// own to add.
+// skeleton of its own. Settings, Billing, and Prospects had their own
+// route-specific loading.tsx first; Studio Design Audit Tier 1 item #2
+// backfilled the rest — Analytics, Campaigns, Clients, Knowledge,
+// Projects, Requests, and Website Builder all now have one too (their
+// real shapes diverge from this one — KPI/chart grid, filter bars,
+// grouped-by-stage lists). Feedback's own loading.tsx was retired along
+// with the rest of that route when it was merged into Help (Tier 5 item
+// #13). Help & Feedback is the one remaining route still close enough in
+// shape (header + card/list content) to this generic skeleton not to
+// need its own. Renders as `children` inside the authed layout's own
+// <main>, so no header/sidebar/padding of its own to add.
 export default function StudioLoading() {
   return (
     <div className="animate-pulse space-y-6">
