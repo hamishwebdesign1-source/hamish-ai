@@ -5,6 +5,22 @@ of finishing a mission, not as a separate chore that falls behind.
 
 ## Recently completed (real, shipped, verified live)
 
+- "Prospects → Website Builder" mission (2026-09-03, `a752851`..`78d3678`):
+  the AI-generated "Website mockup" a prospect gets during outreach no
+  longer dead-ends once they convert. Two real pieces, both live-verified
+  in a real Studio session: (1) `WebsiteMockupPreview` now reads as an
+  actual page preview (browser-chrome framing, real hero hierarchy)
+  instead of a flat text card, staying honest about what it is — never a
+  fabricated URL, an "AI-drafted" badge and honesty caption both
+  permanent; (2) a new, explicit "Start website build from prospect"
+  entry point on the Clients page pre-fills the Website Builder discovery
+  wizard from that prospect's real mockup/research data, each field
+  tagged by real provenance (a neutral "Prefilled" tag for hard 1:1 data,
+  a visually distinct purple "Needs review" tag for the one soft/
+  approximate field, no tag at all for genuinely-nothing-upstream
+  fields), every field still fully editable, opt-in only (never silent
+  autofill). No database migration needed — the trace-back column
+  already existed. 424/424 tests passing.
 - "Studio Design Audit" mission (2026-09-03, `50aba86`..`ae9dc808` — see
   `STUDIO_DESIGN_AUDIT.md` for the full review-build-review record): full
   seven-specialist review of `/studio`, 18 prioritised fixes built across

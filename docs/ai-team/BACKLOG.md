@@ -790,9 +790,21 @@ covers the whole row.
   Director's handoff for the explicit statement that no migration, no
   payments, no destructive change, and no major architecture change is
   involved).
-- **Status**: Built, 2026-09-03 — `npx tsc --noEmit`, `npx eslint` on every
-  touched file, and the full `vitest` suite (424/424) all green; not yet
-  verified in an authenticated live browser session. Not yet QA-reviewed.
+- **Status**: **Shipped and live-verified**, 2026-09-03 (commit `78d3678`,
+  pushed and deployed) — `npx tsc --noEmit`, `npx eslint`, and the full
+  `vitest` suite (424/424) all green, independently re-verified before
+  push. Live-checked in a real authenticated Studio session (production,
+  Claude-in-Chrome, no test/mock data): clicked "Start website build from
+  prospect" on W Fitness's `ClientCard`, confirmed the URL carries
+  `?client=...&prefill=1`, the accent banner reads the exact designed
+  copy, `businessName`/`industry`/`location`/`existingWebsiteUrl`/
+  `servicesProducts` all show the neutral "Prefilled" tag with real data
+  (W Fitness / Gyms / Leeds / www.wfitness.co.uk / the real research
+  services list), `usps` shows the visually distinct purple "Needs
+  review" tag with real `research.strengths` content, `targetAudience`
+  and the objectives checklist render honestly blank with no fake tag,
+  every prefilled field confirmed genuinely editable (typed into
+  Business name, value updated normally), zero console errors.
 
 ## Researching
 
