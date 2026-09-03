@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, Sparkles } from "lucide-react";
@@ -19,6 +20,39 @@ import type { BuildPhase } from "@/lib/website-build-phases";
 import type { ToolId, ToolQuizAnswers } from "@/lib/ai-coding-tools";
 import type { TroubleshootingEntry } from "@/lib/website-troubleshooting";
 import { getSignedFileUrl } from "@/lib/website-project-files";
+
+// SEO/metadata audit (2 Sep 2026) — see studio/(authed)/page.tsx for the
+// full reasoning (every real page under here gets its own real title).
+// Real per-project title (the client's actual business name, same field
+// the page body reads below) rather than a generic fallback — genuinely
+// useful here, since this is exactly the page an agency keeps several
+// tabs of open at once, one per client build. A second, minimal query
+// (just clients.business_name, not the full project fetch the page body
+// does) rather than sharing one read — generateMetadata and the page
+// component aren't guaranteed the same request-memoized client here, and
+// this select is cheap enough that duplicating it beats the complexity
+// of wiring a shared cache() just for a title.
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
+  const { id } = await params;
+  const supabase = await createServerSupabaseClient();
+  const {
+    data: { user },
+  } = await getUserWithRetry(supabase);
+  if (!user?.email) return { title: "Website project | Studio" };
+
+  const membership = await getOrgMembership(supabase, user.email);
+  if (!membership) return { title: "Website project | Studio" };
+
+  const { data: project } = await supabase
+    .from("website_projects")
+    .select("clients(business_name)")
+    .eq("id", id)
+    .eq("org_id", membership.orgId)
+    .single();
+
+  const clientName = (project as unknown as { clients: { business_name: string } | null } | null)?.clients?.business_name;
+  return { title: clientName ? `${clientName} | Studio` : "Website project | Studio" };
+}
 
 export default async function WebsiteProjectDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;

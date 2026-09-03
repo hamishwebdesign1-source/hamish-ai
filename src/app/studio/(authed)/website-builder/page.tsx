@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Globe, Plus, ArrowRight, BookOpen, Sparkles, Clock } from "lucide-react";
@@ -8,6 +9,10 @@ import { Badge } from "@/components/ui/badge";
 import { Eyebrow } from "@/components/eyebrow";
 import { AI_CODING_TOOLS } from "@/lib/ai-coding-tools";
 import { daysSince } from "@/lib/lead-meta";
+
+// SEO/metadata audit (2 Sep 2026) — see studio/(authed)/page.tsx for the
+// full reasoning (every real page under here gets its own real title).
+export const metadata: Metadata = { title: "Website Builder | Studio" };
 
 const STAGE_LABELS: Record<string, string> = {
   discovery: "Discovery",

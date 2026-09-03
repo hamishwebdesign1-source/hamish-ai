@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, Wrench, MessageSquare, Sparkles, AlertTriangle, CheckCircle2 } from "lucide-react";
@@ -8,6 +9,16 @@ import { AI_CODING_TOOL_GUIDES } from "@/lib/ai-coding-tool-guides";
 
 function isToolId(value: string): value is ToolId {
   return value in AI_CODING_TOOLS;
+}
+
+// SEO/metadata audit (2 Sep 2026) — see studio/(authed)/page.tsx for the
+// full reasoning (every real page under here gets its own real title).
+// Real per-tool title, not a generic fallback: no DB call needed, the
+// same static AI_CODING_TOOLS lookup the page body already uses below.
+export async function generateMetadata({ params }: { params: Promise<{ tool: string }> }): Promise<Metadata> {
+  const { tool } = await params;
+  if (!isToolId(tool)) return { title: "Tool guide | Studio" };
+  return { title: `${AI_CODING_TOOLS[tool].name} guide | Studio` };
 }
 
 function GuideSection({ icon: Icon, title, paragraphs }: { icon: typeof Wrench; title: string; paragraphs: string[] }) {

@@ -1,7 +1,12 @@
+import type { Metadata } from "next";
 import { MessageSquare } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { submitFeedback } from "./actions";
+
+// SEO/metadata audit (2 Sep 2026) — see studio/(authed)/page.tsx for the
+// full reasoning (every real page under here gets its own real title).
+export const metadata: Metadata = { title: "Feedback | Studio" };
 
 // P1 platform readiness item — a feedback channel that isn't buried in
 // Help (studio/help/page.tsx's mailto link still exists for "something's

@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { CircleAlert, CheckCircle2, CreditCard, ExternalLink, Clock, Activity, Bot, Briefcase } from "lucide-react";
 import { createServerSupabaseClient } from "@/lib/supabase-server-auth";
@@ -26,6 +27,10 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { findAgencyType } from "@/lib/agency-types";
+
+// SEO/metadata audit (2 Sep 2026) — see studio/(authed)/page.tsx for the
+// full reasoning (every real page under here gets its own real title).
+export const metadata: Metadata = { title: "Settings | Studio" };
 
 // Server-side data assembly only, same split as /studio/prospects — the
 // connect/disconnect/check actions live in settings/actions.ts and

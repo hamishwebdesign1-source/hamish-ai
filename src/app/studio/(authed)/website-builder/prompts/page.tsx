@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
@@ -6,6 +7,10 @@ import { getOrgMembership } from "@/lib/org-membership";
 import { Eyebrow } from "@/components/eyebrow";
 import { PromptLibraryBrowser, type PromptLibraryPrefill } from "@/components/platform/prompt-library-browser";
 import type { WebsiteBrief, WebsiteDiscovery } from "@/lib/website-brief";
+
+// SEO/metadata audit (2 Sep 2026) — see studio/(authed)/page.tsx for the
+// full reasoning (every real page under here gets its own real title).
+export const metadata: Metadata = { title: "Prompt library | Studio" };
 
 // AI Website Creation Guide, WB6 — the "make it better" prompt library
 // (plan doc §14). Browseable standalone (no AI call, no project needed)

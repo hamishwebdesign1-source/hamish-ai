@@ -1,9 +1,14 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { createServerSupabaseClient } from "@/lib/supabase-server-auth";
 import { getOrgMembership } from "@/lib/org-membership";
 import { ClientsPanel } from "@/components/platform/clients-panel";
 import { computeClientHealth, type ClientHealth } from "@/lib/client-health";
 import { computeClientEngagementRisk, type ClientEngagementRisk } from "@/lib/studio-engagement";
+
+// SEO/metadata audit (2 Sep 2026) — see studio/(authed)/page.tsx for the
+// full reasoning (every real page under here gets its own real title).
+export const metadata: Metadata = { title: "Clients | Studio" };
 
 // reminder_sent_at added for Engagement Risk's "Send payment reminder"
 // action (studio-engagement.ts) — every other column here was already

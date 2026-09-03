@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { Check, Clock, CreditCard, Rocket, Zap, Building2, Sparkles, Gauge, CircleAlert, TrendingUp } from "lucide-react";
 import { createServerSupabaseClient } from "@/lib/supabase-server-auth";
@@ -12,6 +13,10 @@ import { HelpTip } from "@/components/platform/help-tip";
 import { Reveal } from "@/components/reveal";
 import { CountUp } from "@/components/platform/count-up";
 import { startCheckout, openBillingPortal, buyCreditPack } from "./actions";
+
+// SEO/metadata audit (2 Sep 2026) — see studio/(authed)/page.tsx for the
+// full reasoning (every real page under here gets its own real title).
+export const metadata: Metadata = { title: "Billing | Studio" };
 
 // Real-improvement pass — usage-limits.ts has always tracked 10 real,
 // individually plan-limited actions (getUsageStatus, one real ceiling

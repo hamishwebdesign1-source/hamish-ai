@@ -1,7 +1,12 @@
+import type { Metadata } from "next";
 import { HelpCircle } from "lucide-react";
 import { RestartTourButton } from "@/components/platform/restart-tour-button";
 import { HelpFaqList } from "@/components/platform/help-faq-list";
 import { STUDIO_FAQS } from "@/lib/studio-help-faqs";
+
+// SEO/metadata audit (2 Sep 2026) — see studio/(authed)/page.tsx for the
+// full reasoning (every real page under here gets its own real title).
+export const metadata: Metadata = { title: "Help | Studio" };
 
 // Studio-side help (P1 platform readiness item) — the client portal has
 // had a Help/FAQ page since Week 3; Studio, the agency owner's own side,

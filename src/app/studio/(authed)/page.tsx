@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
@@ -46,6 +47,24 @@ import { Reveal } from "@/components/reveal";
 import { CommandCentreTabs } from "@/components/platform/command-centre-tabs";
 import { buildStatContent } from "@/components/platform/command-centre-stat-cards";
 import { buildSectionContent } from "@/components/platform/command-centre-section-cards";
+
+// SEO/metadata audit (2 Sep 2026) — same gap as /admin and /portal
+// (found there first, see those layout.tsx files), but here it's the
+// paid product itself: all 17 real pages under studio/(authed)/* had no
+// metadata of their own and the shared layout provided no fallback, so
+// every one of them showed the root layout's default "HamishAI Agency
+// Platform..." title in the tab — indistinguishable from the marketing
+// site and from each other, which matters more here than anywhere else
+// on the site since a working agency genuinely keeps several of these
+// tabbed open at once (Prospects, Clients, Analytics...). Unlike
+// /admin and /portal, every page here is a real server component (none
+// use "use client"), so each gets its own real, distinct title directly
+// rather than a single shared layout-level fallback — titled "<Page> |
+// Studio" to match the app's own internal name for itself (StudioSidebar,
+// studio-nav.ts, StudioTour — "Studio" throughout this codebase; "HamishAI
+// Agency Platform" is the formal marketing name used for the product,
+// not what the in-app sidebar or its own component names call it).
+export const metadata: Metadata = { title: "Command Centre | Studio" };
 
 // Pulled out of the component body, same reasoning as clients/page.tsx's
 // thirtyDaysAgoIso() — react-hooks/purity flags a current-time read

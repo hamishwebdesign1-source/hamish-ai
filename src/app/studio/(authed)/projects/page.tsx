@@ -1,8 +1,13 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { createServerSupabaseClient } from "@/lib/supabase-server-auth";
 import { getOrgMembership } from "@/lib/org-membership";
 import { listTeamMembers } from "@/lib/team-members";
 import { ProjectsPanel } from "@/components/platform/projects-panel";
+
+// SEO/metadata audit (2 Sep 2026) — see studio/(authed)/page.tsx for the
+// full reasoning (every real page under here gets its own real title).
+export const metadata: Metadata = { title: "Projects | Studio" };
 
 // Same split as every other /studio page — data assembly here, actions in
 // projects/actions.ts, called from ProjectsPanel below.

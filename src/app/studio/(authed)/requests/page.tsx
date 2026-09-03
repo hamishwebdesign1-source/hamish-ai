@@ -1,8 +1,13 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { createServerSupabaseClient, getUserWithRetry } from "@/lib/supabase-server-auth";
 import { getOrgMembership } from "@/lib/org-membership";
 import { listTeamMembers } from "@/lib/team-members";
 import { RequestsPanel } from "@/components/platform/requests-panel";
+
+// SEO/metadata audit (2 Sep 2026) — see studio/(authed)/page.tsx for the
+// full reasoning (every real page under here gets its own real title).
+export const metadata: Metadata = { title: "Requests | Studio" };
 
 // Server-side data assembly only, same split as every other /studio page —
 // actions live in requests/actions.ts, called from RequestsPanel below.

@@ -1,8 +1,13 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { createServerSupabaseClient } from "@/lib/supabase-server-auth";
 import { getOrgMembership } from "@/lib/org-membership";
 import { getStudioAnalytics, type AnalyticsRange } from "@/lib/studio-analytics";
 import { AnalyticsPanel } from "@/components/platform/analytics-panel";
+
+// SEO/metadata audit (2 Sep 2026) — see studio/(authed)/page.tsx for the
+// full reasoning (every real page under here gets its own real title).
+export const metadata: Metadata = { title: "Analytics | Studio" };
 
 const VALID_RANGES: AnalyticsRange[] = ["7d", "30d", "90d", "12m"];
 

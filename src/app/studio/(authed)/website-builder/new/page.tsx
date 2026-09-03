@@ -1,8 +1,13 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { createServerSupabaseClient } from "@/lib/supabase-server-auth";
 import { getOrgMembership } from "@/lib/org-membership";
 import { WebsiteProjectWizard } from "@/components/platform/website-project-wizard";
 import { Eyebrow } from "@/components/eyebrow";
+
+// SEO/metadata audit (2 Sep 2026) — see studio/(authed)/page.tsx for the
+// full reasoning (every real page under here gets its own real title).
+export const metadata: Metadata = { title: "New website project | Studio" };
 
 export default async function NewWebsiteProjectPage() {
   const supabase = await createServerSupabaseClient();

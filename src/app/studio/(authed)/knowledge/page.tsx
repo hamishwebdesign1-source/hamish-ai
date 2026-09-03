@@ -1,7 +1,12 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { createServerSupabaseClient } from "@/lib/supabase-server-auth";
 import { getOrgMembership } from "@/lib/org-membership";
 import { KnowledgePanel } from "@/components/platform/knowledge-panel";
+
+// SEO/metadata audit (2 Sep 2026) — see studio/(authed)/page.tsx for the
+// full reasoning (every real page under here gets its own real title).
+export const metadata: Metadata = { title: "Knowledge | Studio" };
 
 // Session-scoped client throughout — RLS (knowledge_base_select_own_org,
 // schema-rls-knowledge-base-org-staff.sql) enforces the same org boundary
