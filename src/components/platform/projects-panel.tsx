@@ -76,6 +76,7 @@ function ProjectCard({
   const [status, setStatus] = useState(project.status);
   const [assignee, setAssignee] = useState(project.assigned_to ?? "");
   const [assignPending, startAssign] = useTransition();
+  const [assignError, setAssignError] = useState<string | null>(null);
   // Studio big-ticket ("no delete for projects/website-builder
   // projects") — same confirm-then-delete shape as campaigns-panel.tsx's
   // own CampaignCard.
@@ -96,10 +97,14 @@ function ProjectCard({
 
   function setProjectAssignee(next: string) {
     const prev = assignee;
+    setAssignError(null);
     setAssignee(next);
     startAssign(async () => {
       const r = await assignProject(project.id, next || null);
-      if (r && "error" in r) setAssignee(prev);
+      if (r && "error" in r) {
+        setAssignee(prev);
+        setAssignError(r.error ?? "Failed to update — try again.");
+      }
     });
   }
 
@@ -162,20 +167,23 @@ function ProjectCard({
                 here, unlike those two — this card's header is a plain
                 div, not a click-to-expand button. */}
             {teamMembers.length > 1 && (
-              <select
-                value={assignee}
-                onChange={(e) => setProjectAssignee(e.target.value)}
-                disabled={assignPending}
-                aria-label={`Assign ${project.name}`}
-                className={selectClasses}
-              >
-                <option value="">Unassigned</option>
-                {teamMembers.map((m) => (
-                  <option key={m.email} value={m.email}>
-                    {m.email}
-                  </option>
-                ))}
-              </select>
+              <div className="flex flex-col gap-1">
+                <select
+                  value={assignee}
+                  onChange={(e) => setProjectAssignee(e.target.value)}
+                  disabled={assignPending}
+                  aria-label={`Assign ${project.name}`}
+                  className={selectClasses}
+                >
+                  <option value="">Unassigned</option>
+                  {teamMembers.map((m) => (
+                    <option key={m.email} value={m.email}>
+                      {m.email}
+                    </option>
+                  ))}
+                </select>
+                {assignError && <p className="text-[11px] text-destructive">{assignError}</p>}
+              </div>
             )}
             {status === "done" ? (
               <Badge variant="success">Done</Badge>

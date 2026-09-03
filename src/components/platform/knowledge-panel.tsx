@@ -459,7 +459,12 @@ export function KnowledgePanel({
               className="pl-8"
             />
           </div>
-          <select value={clientFilter} onChange={(e) => setClientFilter(e.target.value)} className={`${selectClasses} sm:w-56`}>
+          <select
+            value={clientFilter}
+            onChange={(e) => setClientFilter(e.target.value)}
+            aria-label="Filter knowledge base entries by client"
+            className={`${selectClasses} sm:w-56`}
+          >
             <option value="">All entries</option>
             <option value="__general__">General (all clients)</option>
             {clients.map((c) => (

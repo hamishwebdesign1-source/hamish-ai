@@ -47,7 +47,7 @@ function PromptCard({ prompt, prefill }: { prompt: PromptTemplate; prefill: Prom
   return (
     <Card>
       <CardContent className="py-3.5">
-        <button type="button" onClick={() => setOpen((v) => !v)} className="flex w-full items-start justify-between gap-3 text-left">
+        <button type="button" onClick={() => setOpen((v) => !v)} aria-expanded={open} className="flex w-full items-start justify-between gap-3 text-left">
           <div>
             <p className="text-sm font-medium">{prompt.title}</p>
             <p className="mt-0.5 text-xs text-muted-foreground">{prompt.whenToUse}</p>

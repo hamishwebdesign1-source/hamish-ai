@@ -312,13 +312,18 @@ function RequestCard({
   const [open, setOpen] = useState(false);
   const [assignee, setAssignee] = useState(request.assigned_to ?? "");
   const [assignPending, startAssign] = useTransition();
+  const [assignError, setAssignError] = useState<string | null>(null);
 
   function setRequestAssignee(next: string) {
     const prev = assignee;
+    setAssignError(null);
     setAssignee(next);
     startAssign(async () => {
       const r = await assignRequest(request.id, next || null);
-      if (r && "error" in r) setAssignee(prev);
+      if (r && "error" in r) {
+        setAssignee(prev);
+        setAssignError(r.error ?? "Failed to update — try again.");
+      }
     });
   }
   const [draft, setDraft] = useState(request.draft_response ?? "");
@@ -424,20 +429,23 @@ function RequestCard({
               rendered once there's actually more than one person to
               assign to — a solo owner has no one else to hand this to. */}
           {teamMembers.length > 1 && (
-            <select
-              value={assignee}
-              onChange={(e) => setRequestAssignee(e.target.value)}
-              disabled={assignPending}
-              aria-label={`Assign request from ${clientName(request)}`}
-              className={`${selectClasses} shrink-0`}
-            >
-              <option value="">Unassigned</option>
-              {teamMembers.map((m) => (
-                <option key={m.email} value={m.email}>
-                  {m.email}
-                </option>
-              ))}
-            </select>
+            <div className="flex shrink-0 flex-col gap-1">
+              <select
+                value={assignee}
+                onChange={(e) => setRequestAssignee(e.target.value)}
+                disabled={assignPending}
+                aria-label={`Assign request from ${clientName(request)}`}
+                className={selectClasses}
+              >
+                <option value="">Unassigned</option>
+                {teamMembers.map((m) => (
+                  <option key={m.email} value={m.email}>
+                    {m.email}
+                  </option>
+                ))}
+              </select>
+              {assignError && <p className="text-[11px] text-destructive">{assignError}</p>}
+            </div>
           )}
           <button
             type="button"

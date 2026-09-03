@@ -41,13 +41,18 @@ export function ProspectCard({
   const hasContact = prospect.phone || prospect.email;
   const [assignee, setAssignee] = useState(prospect.assigned_to ?? "");
   const [assignPending, startAssign] = useTransition();
+  const [assignError, setAssignError] = useState<string | null>(null);
 
   function setProspectAssignee(next: string) {
     const prev = assignee;
+    setAssignError(null);
     setAssignee(next);
     startAssign(async () => {
       const r = await assignProspect(prospect.id, next || null);
-      if (r && "error" in r) setAssignee(prev);
+      if (r && "error" in r) {
+        setAssignee(prev);
+        setAssignError(r.error ?? "Failed to update — try again.");
+      }
     });
   }
 
@@ -75,20 +80,23 @@ export function ProspectCard({
               meaningful once there's more than one person to hand this
               to. */}
           {teamMembers.length > 1 && (
-            <select
-              value={assignee}
-              onChange={(e) => setProspectAssignee(e.target.value)}
-              disabled={assignPending}
-              aria-label={`Assign ${prospect.business_name}`}
-              className={`${selectClasses} shrink-0`}
-            >
-              <option value="">Unassigned</option>
-              {teamMembers.map((m) => (
-                <option key={m.email} value={m.email}>
-                  {m.email}
-                </option>
-              ))}
-            </select>
+            <div className="flex shrink-0 flex-col gap-1">
+              <select
+                value={assignee}
+                onChange={(e) => setProspectAssignee(e.target.value)}
+                disabled={assignPending}
+                aria-label={`Assign ${prospect.business_name}`}
+                className={selectClasses}
+              >
+                <option value="">Unassigned</option>
+                {teamMembers.map((m) => (
+                  <option key={m.email} value={m.email}>
+                    {m.email}
+                  </option>
+                ))}
+              </select>
+              {assignError && <p className="text-[11px] text-destructive">{assignError}</p>}
+            </div>
           )}
           <button
             type="button"

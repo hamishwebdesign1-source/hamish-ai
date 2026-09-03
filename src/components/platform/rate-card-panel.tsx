@@ -85,6 +85,7 @@ export function RateCardPanel({ initialItems }: { initialItems: RateCardItem[] }
             value={label}
             onChange={(e) => setLabel(e.target.value)}
             placeholder="Website build"
+            aria-label="New rate card item name"
             className="min-w-0 flex-1 rounded-lg border border-border bg-background px-3 py-1.5 text-sm"
           />
           <input
@@ -94,11 +95,13 @@ export function RateCardPanel({ initialItems }: { initialItems: RateCardItem[] }
             value={price}
             onChange={(e) => setPrice(e.target.value)}
             placeholder="1500"
+            aria-label="New rate card item price in pounds"
             className="w-24 rounded-lg border border-border bg-background px-3 py-1.5 text-sm"
           />
           <select
             value={unit}
             onChange={(e) => setUnit(e.target.value === "monthly" ? "monthly" : "one-off")}
+            aria-label="New rate card item billing unit"
             className="rounded-lg border border-border bg-background px-2 py-1.5 text-sm"
           >
             <option value="one-off">one-off</option>

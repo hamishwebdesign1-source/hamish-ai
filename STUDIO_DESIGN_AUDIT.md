@@ -249,6 +249,107 @@ Ranked by convergence across specialists, real user/business value, and effort. 
   only route still relying on it). tsc/lint clean, full `eslint .` matches
   the documented pre-existing baseline (68 errors/38 warnings, unrelated
   files), 416/416 tests passing.
+- **Tier 3, item #8 — Billing link on the prospect-discovery limit-reached
+  message.** `discovery-result-message.tsx`'s `limitReached` case (the
+  single highest-intent conversion moment in the product per Growth &
+  Analytics) now links to `/studio/billing` — "Top up credits or upgrade
+  your plan" — matching the styling already used by that same file's
+  `billingRequired` case, instead of dead-ending on plain text.
+- **Tier 5, item #17 — Unified the two "usage limit hit" UI treatments.**
+  New shared `src/components/platform/usage-limit-message.tsx`
+  (`UsageLimitMessage`) is now the one place "Monthly limit reached (X of
+  Y)" plus its optional Billing link is rendered; `discovery-result-
+  message.tsx`'s `limitReached` case (Task above) and
+  `top-opportunity-kit-action.tsx`'s `reason === "usage_limit"` case both
+  call it now instead of independently hand-rolling their own version
+  with different levels of help shown. `generateSalesKit()`
+  (`prospects/actions.ts`) additively returns `used`/`limit` numbers
+  alongside its existing `reason` field so `TopOpportunityKitAction` can
+  pass real numbers into the shared component rather than re-parsing its
+  own pre-formatted error string; `SalesKitSection`, the pre-existing
+  caller that only ever read `.error`, is unaffected. Each call site still
+  supplies its own `suffix` (the specific consequence of hitting the cap
+  in that context) since that copy is genuinely different per caller.
+  `top-opportunity-kit-action.test.tsx`'s usage-limit test updated to
+  match (now asserts the shared component's "Top up credits or upgrade
+  your plan" link and passes `used`/`limit` through the mock).
+- **Tier 3, item #9 — Reconciled the onboarding tour with the Command
+  Centre checklist.** `studio-tour.tsx`'s `STEPS` gained a Prospects step
+  (Search icon, matching `studio-nav.tsx`), placed right after the Command
+  Centre intro and before Analytics — finding prospects is a brand-new
+  org's actual first real task, per Command Centre's own "Getting set up"
+  checklist starting with "Run your first discovery search." The final
+  step's copy (Knowledge) now closes with "Your first concrete steps are
+  in the 'Getting set up' checklist on this page" instead of ending on an
+  unrelated topic, so the tour and the checklist now tell one coherent
+  "what to do first" story instead of two disjoint ones.
+- **Tier 5, item #15 — Instrumented onboarding-wizard step views.**
+  `onboarding-wizard.tsx`'s `next()`/`back()` now call
+  `posthog.capture("onboarding_step_viewed", { step })` on every step
+  transition, guarded with the exact same `if (!process.env
+  .NEXT_PUBLIC_POSTHOG_KEY) return` pattern `identify-org.tsx` already
+  uses — a no-op in any environment without the key configured, so
+  pre-signup drop-off in this one activation funnel is finally visible.
+  Also fixed a QA-confirmed accessibility regression while in this file:
+  the "How does this work?" per-agency-type collapsible trigger (`type`
+  step) was missing `aria-expanded`; it now carries
+  `aria-expanded={expandedType === type.slug}`.
+- **Tier 5, item #16 — Made trial status persistently visible.**
+  `studio/(authed)/layout.tsx`'s `showTrialBanner` (renamed conceptually,
+  not in code, to "the ≤3-day escalation") used to be the only trial
+  indicator anywhere in Studio, invisible for the first 4 of 7 trial days.
+  A new low-key `showTrialPill` now renders a small "Trial · Day X of 7"
+  pill next to the org name in the header for days 4-7 remaining (muted
+  `bg-secondary` styling, no urgency colour — Studio's header has no
+  pre-existing "plan badge" to sit next to, so this is the calm-banner-
+  variant alternative the spec allowed for). The existing ≤3-day warning
+  banner's exact copy, styling, and Billing link are untouched — the
+  escalation itself is preserved, the pill only widens *when some*
+  indicator shows.
+- **Tier 3, item #7 — Fixed the 4-way silent assignee-select rollback.**
+  The Prospects assignee `<select>` (`prospecting/prospect-card.tsx`,
+  relocated from the old `prospecting-panel.tsx` by the intervening
+  `prospecting/` split), `requests-panel.tsx`'s `RequestCard`,
+  `projects-panel.tsx`'s `ProjectCard`, and
+  `website-project-assignee-control.tsx` all previously reverted the
+  optimistic value on a rejected `assignProspect`/`assignRequest`/
+  `assignProject`/`assignWebsiteProject` Server Action with zero
+  user-visible message. All four now keep the same revert but also set a
+  local `assignError`/`error` string (`r.error ?? "Failed to update —
+  try again."`) rendered as `<p className="text-xs text-destructive">`
+  (or `text-[11px]` for the two tighter inline rows), matching the exact
+  inline-error convention every other Server-Action call in these same
+  files already used (e.g. `deal-value-control.tsx`,
+  `pipeline-stage-control.tsx`). Each select was wrapped in a small
+  `flex flex-col gap-1` so the error sits directly under the control
+  without disturbing its row's existing flex layout. Ownership checks on
+  all four actions were re-confirmed intact (`.eq("org_id", orgId)`/
+  `requestBelongsToOrg()`) while touching these files.
+- **Tier 3, item #10 (partial) — Restored the accessibility baseline.**
+  `rate-card-panel.tsx`'s "add item" row now has `aria-label`s ("New
+  rate card item name" / "…price in pounds" / "…billing unit") on its
+  label input, price input, and unit select, which previously relied on
+  placeholder text alone. `knowledge-panel.tsx`'s entries-toolbar
+  `clientFilter` select gained `aria-label="Filter knowledge base
+  entries by client"`, matching the already-labelled `id="kb-client"`
+  select earlier in the same file. `prompt-library-browser.tsx`'s
+  per-prompt collapsible trigger and `troubleshooting-composer.tsx`'s
+  "Show/Hide N earlier questions" trigger both gained
+  `aria-expanded={open}`/`aria-expanded={historyOpen}`. (Two other
+  controls from the original finding — `clients-panel.tsx`'s
+  `ClientMembersControl` and `team-panel.tsx`'s invite-email input —
+  and one other collapsible — `onboarding-wizard.tsx`'s toggle, fixed
+  separately as part of Tier 5 item #15 above — were intentionally left
+  out of this pass; see that item's own note.) tsc clean, scoped
+  `eslint` on all eight touched files clean, full `eslint .` still
+  matches the documented pre-existing baseline (68 errors/38 warnings,
+  unrelated files), and `npm run test` is 415/416 — the one failure
+  (`usage-limits.test.ts`'s `clients_copilot_question` case) is a
+  pre-existing regression from the concurrent Tier 2 item #5 AI-surface-
+  consolidation work already in this shared tree (that event type was
+  retired from `usage-limits.ts` without yet updating its own test),
+  not caused by this pass — none of these eight files touch
+  `usage-limits.ts` or the AI-surface-consolidation files.
 
 ## 4. What was not built
 

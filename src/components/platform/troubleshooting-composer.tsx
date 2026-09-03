@@ -112,6 +112,7 @@ export function TroubleshootingComposer({ projectId, initialLog }: { projectId: 
             <button
               type="button"
               onClick={() => setHistoryOpen((v) => !v)}
+              aria-expanded={historyOpen}
               className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-accent"
             >
               {historyOpen ? <ChevronUp className="size-3.5" /> : <ChevronDown className="size-3.5" />}
