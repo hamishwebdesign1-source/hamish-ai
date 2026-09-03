@@ -510,9 +510,23 @@ export function CommandCentreLayoutPanel({
               aria-label="Describe a layout change"
             />
             <Button size="sm" variant="outline" disabled={aiPending || !aiInstruction.trim()} onClick={runDesignAssistant}>
-              {aiPending ? "Thinking…" : "Suggest changes"}
+              Suggest changes
             </Button>
           </div>
+
+          {/* Canonical "AI is working" pending state (see DESIGN-SYSTEM.md) —
+              same bouncing-dots treatment as studio-assistant-widget.tsx and
+              clients-copilot.tsx, not a plain text swap. */}
+          {aiPending && (
+            <div className="mt-2 flex w-fit items-center gap-2 rounded-2xl rounded-bl-sm bg-secondary px-3 py-2 text-xs text-muted-foreground">
+              <span className="flex gap-1">
+                <span className="size-1.5 animate-bounce rounded-full bg-muted-foreground [animation-delay:-0.3s]" />
+                <span className="size-1.5 animate-bounce rounded-full bg-muted-foreground [animation-delay:-0.15s]" />
+                <span className="size-1.5 animate-bounce rounded-full bg-muted-foreground" />
+              </span>
+              Thinking…
+            </div>
+          )}
 
           {aiResult?.kind === "proposal" && (
             <div className="mt-3 rounded-lg border border-accent/30 bg-accent/5 p-3">

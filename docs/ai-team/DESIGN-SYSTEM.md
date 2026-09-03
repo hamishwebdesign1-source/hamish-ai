@@ -111,6 +111,28 @@ review," for the full implementation note.
   `knowledge-panel.tsx`'s `EntryCard`, reused since in `campaigns-panel.tsx`.
   Use this exact shape rather than a browser `confirm()` dialog or a new
   pattern.
+- **"AI is working" pending state**: a small `mr-auto`/`w-fit` bubble
+  (`rounded-2xl rounded-bl-sm bg-secondary`) containing three
+  `size-1.5 animate-bounce rounded-full bg-muted-foreground` dots (staggered
+  with `[animation-delay:-0.3s]` / `[animation-delay:-0.15s]` / none) next to
+  a `text-xs text-muted-foreground` "Thinking…" label. Established in the
+  two chat-style surfaces — `studio-assistant-widget.tsx` and
+  `clients-copilot.tsx` — as the reply bubble shown while the underlying
+  Anthropic call is in flight, and it's the more polished, more widely-used
+  of the treatments that existed before this was written down, so it's now
+  the one canonical pattern for "an AI action the user just triggered hasn't
+  come back yet." `command-centre-layout-panel.tsx`'s AI Design Assistant
+  previously used a plain "Thinking…" text swap on its button label instead
+  — it now renders this same bouncing-dots bubble beneath the input while
+  `aiPending` is true. Use this, not a disabled-button text swap or a bare
+  "Thinking…" string, for any new AI-triggered pending state. (Two narrower
+  exceptions remain, deliberately not migrated: `studio-command-palette.tsx`'s
+  Ask flow shows a `LoaderCircle animate-spin` + "Thinking…" row inside its
+  reply bubble instead of dots, and `prospecting-panel.tsx`'s per-row action
+  buttons — Research/Generate mockup/Generate sales kit — use
+  `LoaderCircle animate-spin` plus an in-progress verb, e.g. "Researching…",
+  because those are one-shot button actions with no reply bubble to render
+  the dots into, not a chat exchange.)
 - **Optimistic local state on a toggle** (e.g. campaign status, task
   status): update local state immediately, call the Server Action inside
   `useTransition`, roll back local state if it returns an error. Used

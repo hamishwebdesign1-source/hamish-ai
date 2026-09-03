@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
-import { Sparkles, CheckCircle2, BookOpen } from "lucide-react";
+import { CheckCircle2, BookOpen } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { chooseWebsiteTool, confirmWebsiteTool } from "@/app/studio/(authed)/website-builder/actions";
@@ -134,8 +134,15 @@ export function ToolRecommendationPanel({
                   <div className="flex items-center justify-between gap-2">
                     <p className="font-heading text-sm font-semibold">{tool.name}</p>
                     {isRecommended && (
+                      // Deliberately no Sparkles icon here — chooseWebsiteTool()
+                      // (website-builder/actions.ts) is a deterministic decision
+                      // tree, not an AI call, and Sparkles is this codebase's
+                      // reserved signal for real Anthropic-backed features
+                      // elsewhere in Studio. CheckCircle2 (already Studio's
+                      // "connected/matched" icon — see settings-panel.tsx,
+                      // launch-panel.tsx) reads as "matched," not "AI-generated."
                       <span className="flex items-center gap-1 rounded-full bg-accent/10 px-2 py-0.5 font-mono text-[10px] font-semibold text-accent uppercase">
-                        <Sparkles className="size-3" /> Recommended
+                        <CheckCircle2 className="size-3" /> Recommended
                       </span>
                     )}
                   </div>
