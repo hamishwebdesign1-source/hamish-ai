@@ -8,13 +8,24 @@ import { getPlatformPlan, type PlatformPlanSlug } from "@/lib/platform-plans";
 // real gap found in the platform readiness audit: a single tenant could
 // generate unlimited Anthropic calls through any of these with nothing
 // stopping them, regardless of plan.
+// clients_copilot_question was retired here in the Studio Design Audit,
+// Tier 2 item #5 (2026-09) — the Clients-page AI copilot it metered
+// (askClientsCopilot(), calling answer-clients-question.ts) was a
+// confirmed strict subset of the global Studio AI Assistant
+// (studio_assistant_question, below), so all "ask about your business"
+// traffic now counts against that one meter regardless of which page or
+// surface (Clients page, command palette, global widget) it's asked
+// from. getUsageStatus() below only ever sums usage_events from the
+// current calendar month (startOfMonth()) — historical rows already
+// recorded with event_type = 'clients_copilot_question' simply stop
+// being queried by anything going forward, they aren't migrated or
+// deleted. See docs/ai-team/DECISIONS.md.
 export type UsageEventType =
   | "prospect_researched"
   | "sales_kit_generated"
   | "website_mockup_generated"
   | "icp_built"
   | "request_triaged"
-  | "clients_copilot_question"
   | "layout_redesign_proposed"
   | "website_brief_generated"
   | "website_build_prompt_generated"
@@ -52,11 +63,10 @@ const USAGE_MULTIPLIER: Record<Exclude<UsageEventType, "prospect_researched">, n
   // one-off generation action, but each individual call is cheap (same
   // Haiku model, a short prompt, no per-question research/API cost) —
   // generous headroom for a real working session, still a real ceiling
-  // against a runaway loop.
-  clients_copilot_question: 10,
-  // Same reasoning as clients_copilot_question — a real editing session
-  // means several instructions before the layout looks right, and each
-  // call is the same cheap Haiku model with no per-call research cost.
+  // against a runaway loop. (This reasoning originally justified a
+  // clients_copilot_question entry here too, retired in the Studio
+  // Design Audit's AI-surface consolidation — see the type's own comment
+  // above.)
   layout_redesign_proposed: 10,
   // A real website project revises its brief or build phases a handful
   // of times as discovery answers change, not dozens — same headroom
@@ -65,7 +75,7 @@ const USAGE_MULTIPLIER: Record<Exclude<UsageEventType, "prospect_researched">, n
   website_build_prompt_generated: 3,
   // A real working session hits a genuine snag more than a couple of
   // times, and each call is cheap (Haiku, short prompt, no per-call
-  // research cost) — same headroom class as clients_copilot_question,
+  // research cost) — same headroom class as studio_assistant_question,
   // not the 3x ceiling a full brief/build-phase regeneration gets.
   website_troubleshooting_generated: 10,
   // Studio big-ticket ("Knowledge Base AI document import") — a real
@@ -79,21 +89,22 @@ const USAGE_MULTIPLIER: Record<Exclude<UsageEventType, "prospect_researched">, n
   // not the tenant's own staff) rather than the org's own team, so the
   // highest-exposure surface of all of them: a tenant doesn't control
   // who their own clients are as tightly as they control their own
-  // staff. Same 10x headroom class as clients_copilot_question (its
-  // staff-facing counterpart, askClientsCopilot()) — a real chat
+  // staff. Same 10x headroom class as studio_assistant_question (its
+  // staff-facing counterpart, askStudioAssistant()) — a real chat
   // session runs more questions than a one-off generation action, but
   // each call is cheap (same Haiku model, no per-call research cost).
   portal_copilot_question: 10,
-  // Studio AI Assistant (global floating widget, every /studio page) —
-  // same 10x chat-session headroom class as clients_copilot_question,
-  // its narrower predecessor: same cheap Haiku model, no per-call
-  // research cost, and a real session asks several questions in a row.
-  // A separate event type rather than reusing clients_copilot_question:
-  // this is a distinct, broader surface (also answers "how do I…"
-  // product questions from the Help FAQs), and keeping them separate
-  // means each can be tuned independently later without conflating "how
-  // often do you ask about your own business" with "how often do you
-  // ask how Studio works."
+  // Studio AI Assistant (global floating widget, every /studio page, the
+  // Clients page's own embedded ask-box, and the command palette's Ask
+  // flow — all three call sites share this one meter since the Studio
+  // Design Audit's AI-surface consolidation, 2026-09) — 10x headroom for
+  // the same reason as every other chat-style surface here: same cheap
+  // Haiku model, no per-call research cost, and a real session asks
+  // several questions in a row. Kept as its own event type rather than
+  // folded into portal_copilot_question because that one is reachable by
+  // an outside party (a tenant's own client) and this one only by the
+  // org's own staff — different exposure profiles worth tuning
+  // independently.
   studio_assistant_question: 10,
 };
 
@@ -109,7 +120,6 @@ export const USAGE_LABELS: Record<UsageEventType, string> = {
   website_mockup_generated: "Website mockups generated",
   icp_built: "ICPs built",
   request_triaged: "Client requests triaged",
-  clients_copilot_question: "AI Business Analyst questions",
   layout_redesign_proposed: "AI Design Assistant edits",
   website_brief_generated: "Website briefs generated",
   website_build_prompt_generated: "Website build prompts generated",
@@ -119,17 +129,18 @@ export const USAGE_LABELS: Record<UsageEventType, string> = {
   studio_assistant_question: "Studio AI Assistant questions",
 };
 
-// All 13 real metered types, in the same order USAGE_MULTIPLIER lists
-// the 12 secondary ones (prospect_researched first, the one marketed
+// All 12 real metered types, in the same order USAGE_MULTIPLIER lists
+// the 11 secondary ones (prospect_researched first, the one marketed
 // plan feature) — the one place both billing/page.tsx and
-// usage-warnings.ts can loop over "every real usage type" from.
+// usage-warnings.ts can loop over "every real usage type" from. Was 13
+// until the Studio Design Audit's AI-surface consolidation retired
+// clients_copilot_question (see this file's UsageEventType comment).
 export const ALL_USAGE_EVENT_TYPES: UsageEventType[] = [
   "prospect_researched",
   "sales_kit_generated",
   "website_mockup_generated",
   "icp_built",
   "request_triaged",
-  "clients_copilot_question",
   "layout_redesign_proposed",
   "website_brief_generated",
   "website_build_prompt_generated",

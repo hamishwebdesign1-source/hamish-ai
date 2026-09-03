@@ -141,9 +141,10 @@ review," for the full implementation note.
 
 ## Interaction patterns actually in use
 
-- **Collapsible panel** (used in 6+ places — `CommandCentreLayoutPanel`,
-  `ClientsCopilot`, `ProspectCard`, `ClientCard`, a `requests-panel.tsx`
-  card, the Prospects niche-form toggle): local `useState` open/closed,
+- **Collapsible panel** (used in 5+ places — `CommandCentreLayoutPanel`,
+  `ProspectCard`, `ClientCard`, a `requests-panel.tsx` card, the Prospects
+  niche-form toggle; also used by the now-retired `ClientsCopilot`, see
+  `DECISIONS.md`'s AI-surface-consolidation entry): local `useState` open/closed,
   `aria-expanded={open}` on the trigger, CSS-only hiding (`{open && (...)}`)
   — never unmount-based, so an in-progress draft inside isn't lost when
   collapsed.
@@ -158,12 +159,15 @@ review," for the full implementation note.
   `size-1.5 animate-bounce rounded-full bg-muted-foreground` dots (staggered
   with `[animation-delay:-0.3s]` / `[animation-delay:-0.15s]` / none) next to
   a `text-xs text-muted-foreground` "Thinking…" label. Established in the
-  two chat-style surfaces — `studio-assistant-widget.tsx` and
-  `clients-copilot.tsx` — as the reply bubble shown while the underlying
-  Anthropic call is in flight, and it's the more polished, more widely-used
-  of the treatments that existed before this was written down, so it's now
-  the one canonical pattern for "an AI action the user just triggered hasn't
-  come back yet." `command-centre-layout-panel.tsx`'s AI Design Assistant
+  two chat-style surfaces that originally existed — `studio-assistant-widget.tsx`
+  and the now-retired `clients-copilot.tsx` (see `DECISIONS.md`'s
+  AI-surface-consolidation entry) — as the reply bubble shown while the
+  underlying Anthropic call is in flight, and it's the more polished, more
+  widely-used of the treatments that existed before this was written down,
+  so it's now the one canonical pattern for "an AI action the user just
+  triggered hasn't come back yet." `studio-assistant-widget.tsx` is now the
+  only surface rendering it directly (`clients-copilot.tsx` is gone), still
+  the reference implementation to copy. `command-centre-layout-panel.tsx`'s AI Design Assistant
   previously used a plain "Thinking…" text swap on its button label instead
   — it now renders this same bouncing-dots bubble beneath the input while
   `aiPending` is true. Use this, not a disabled-button text swap or a bare
@@ -243,7 +247,7 @@ solution.
   relying on visible text that might not always be visible.
 - `read_page`'s interactive-element scan is not reliable for auditing
   accessible names — it reported buttons with real, correct visible text
-  (e.g. `ClientsCopilot`'s toggle) as unlabelled. Verify a suspected
+  (e.g. the now-retired `ClientsCopilot`'s toggle) as unlabelled. Verify a suspected
   missing-label finding with direct DOM inspection
   (`getComputedStyle`/`aria-label`/`textContent` on the actual element)
   before treating it as confirmed.

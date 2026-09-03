@@ -2,18 +2,18 @@
 
 import { useEffect, useRef, useState, useCallback, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { Search, CornerDownLeft, Users, Loader2, Sparkles, ArrowLeft, Send, BookOpen, Megaphone, FolderKanban, Inbox, Zap } from "lucide-react";
 import { getNavSections } from "@/components/platform/studio-nav";
 import { searchStudio, type StudioSearchResult } from "@/app/studio/(authed)/command-search-actions";
-import { askClientsCopilot } from "@/app/studio/(authed)/clients/actions";
+import { askStudioAssistant } from "@/app/studio/(authed)/assistant-actions";
 import { runDiscovery } from "@/app/studio/(authed)/prospects/actions";
 import { DiscoveryResultMessage, type DiscoveryResult } from "@/components/platform/discovery-result-message";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useFocusTrap } from "@/lib/use-focus-trap";
 
-// Same local shape as clients-copilot.tsx's own Message type — no
-// exported type from actions.ts to share, and askClientsCopilot()
+// Same local shape as studio-assistant-widget.tsx's own Message type — no
+// exported type from assistant-actions.ts to share, and askStudioAssistant()
 // itself just takes { role, content }[] inline.
 type Message = { role: "user" | "assistant"; content: string };
 
@@ -68,23 +68,37 @@ const ASK_HREF = "__ask_mission_control__";
 // Command Centre Phase 6e — "Ask Mission Control." The concept this was
 // pitched from assumed a new Claude tool-use engine would be needed,
 // sibling to command-centre-design-assistant.ts. It already existed:
-// answer-clients-question.ts (the AI Business Analyst) already answers
+// answer-clients-question.ts (the AI Business Analyst) already answered
 // exactly this kind of question against real Studio data — it was just
 // buried on the Clients page (clients-copilot.tsx), reachable nowhere
-// else. This phase is wiring, not a new engine: the palette calls the
-// exact same askClientsCopilot() Server Action the Clients-page chat
-// calls, so it shares its rate limit and monthly quota rather than
+// else. This phase was wiring, not a new engine: the palette originally
+// called the same askClientsCopilot() Server Action the Clients-page chat
+// called, so it shared its rate limit and monthly quota rather than
 // getting a second, uncounted one.
+//
+// Studio Design Audit, Tier 2 item #5 (2026-09) — repointed from
+// askClientsCopilot() to askStudioAssistant(). Three "ask about your
+// business" surfaces (this palette, the embedded ClientsCopilot, the
+// global StudioAssistantWidget) had converged on two separate engines and
+// two separate 10/month usage caps for what was confirmed the same
+// feature — answerStudioQuestion() is a strict superset of
+// answerClientsQuestion()'s data (it also reuses that file's own
+// buildClientsSummary/buildAnalyticsSummary, plus the Help FAQs), so all
+// "ask about your business" traffic now counts against
+// studio_assistant_question only. See docs/ai-team/DECISIONS.md.
+// ClientsCopilot itself is retired as a standalone rendered surface (no
+// longer mounted on the Clients page) — the global StudioAssistantWidget
+// already covers every page including Clients.
 //
 // Command Centre improvement #7 — the palette's own conversation had no
 // memory: every question sent exactly one message, so a follow-up
 // ("and what about last month?") had no idea what "and" referred to,
-// even though askClientsCopilot() was always designed to take the full
-// running history (clients-copilot.tsx's ClientsCopilot already does
-// exactly that). Fixed by accumulating a real `conversation` array
-// here, same shape and same "send the whole thing back each turn"
-// pattern as that component — not a new engine, again just wiring the
-// existing one up properly.
+// even though the underlying Server Action was always designed to take
+// the full running history (the same shape studio-assistant-widget.tsx
+// itself sends). Fixed by accumulating a real `conversation` array here,
+// same shape and same "send the whole thing back each turn" pattern as
+// that component — not a new engine, again just wiring the existing one
+// up properly.
 export function StudioCommandPalette() {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -94,6 +108,7 @@ export function StudioCommandPalette() {
   const [activeIndex, setActiveIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const panelRef = useRef<HTMLDivElement>(null);
 
   const [conversation, setConversation] = useState<Message[]>([]);
   const [followUp, setFollowUp] = useState("");
@@ -149,6 +164,11 @@ export function StudioCommandPalette() {
       document.body.style.overflow = "";
     };
   }, [open]);
+
+  // Studio Design Audit, Tier 5 item #14 — a keyboard user could Tab out
+  // of this overlay into the page behind it; this cycles focus back to
+  // the panel's own first/last focusable element instead.
+  useFocusTrap(panelRef, open);
 
   // Same react-hooks/set-state-in-effect shape as the admin palette: below
   // 2 characters the effect returns without touching state, so
@@ -247,9 +267,9 @@ export function StudioCommandPalette() {
     setAskError(null);
     startAsking(async () => {
       // The whole running conversation, not just this question — same
-      // shape ClientsCopilot sends, and the same reason: a follow-up
-      // needs the prior turns to know what it's a follow-up to.
-      const result = await askClientsCopilot(next);
+      // shape studio-assistant-widget.tsx sends, and the same reason: a
+      // follow-up needs the prior turns to know what it's a follow-up to.
+      const result = await askStudioAssistant(next);
       if ("error" in result) setAskError(result.error ?? "Something went wrong — please try again.");
       else setConversation([...next, { role: "assistant", content: result.reply }]);
     });
@@ -306,11 +326,14 @@ export function StudioCommandPalette() {
 
   let lastGroup: string | null = null;
   const showingAnswer = conversation.length > 0;
-  const hasReply = conversation.some((m) => m.role === "assistant");
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center bg-background/60 pt-[12vh] backdrop-blur-sm" onClick={close}>
       <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Command palette"
         className="w-full max-w-lg overflow-hidden rounded-xl border border-border bg-card shadow-lg"
         onClick={(e) => e.stopPropagation()}
       >
@@ -379,7 +402,7 @@ export function StudioCommandPalette() {
               </Button>
             </form>
 
-            <div className="mt-3 flex items-center justify-between gap-2">
+            <div className="mt-3 flex items-center gap-2">
               <button
                 type="button"
                 onClick={backToSearch}
@@ -387,11 +410,6 @@ export function StudioCommandPalette() {
               >
                 <ArrowLeft className="size-3.5" /> Back to search
               </button>
-              {hasReply && !asking && (
-                <Link href="/studio/clients" onClick={close} className="text-xs text-accent underline underline-offset-2">
-                  Keep asking in AI Business Analyst
-                </Link>
-              )}
             </div>
           </div>
         ) : (

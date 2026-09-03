@@ -9,16 +9,23 @@ import { logAiCall } from "@/lib/ai-call-log";
 // The Studio AI Assistant — a global floating widget (bottom-left, every
 // /studio page), scoped 2026-09-02 in chat before any code was written.
 // Deliberately NOT a new AI surface built from scratch: it reuses the
-// exact same real client/analytics computation answerClientsQuestion()
-// already uses (buildClientsSummary/buildAnalyticsSummary, exported from
-// there for exactly this reason), broadened with the Help page's own 22
-// FAQs (studio-help-faqs.ts) so it can also answer genuine "how do I…"
+// exact same real client/analytics computation answer-clients-question.ts
+// already computed (buildClientsSummary/buildAnalyticsSummary, exported
+// from there for exactly this reason), broadened with the Help page's own
+// 22 FAQs (studio-help-faqs.ts) so it can also answer genuine "how do I…"
 // product questions — a real, confirmed gap: the narrower Clients-page
 // copilot correctly said "I don't have that" to a question the Help page
-// already answered two clicks away. answerClientsQuestion() itself is
-// left untouched — this is a sibling, not a replacement, per the scoping
-// decision to leave the existing embedded ClientsCopilot exactly as it
-// is for now.
+// already answered two clicks away.
+//
+// Studio Design Audit, Tier 2 item #5 (2026-09) — originally a sibling to
+// the Clients-page ClientsCopilot/answerClientsQuestion(), left untouched
+// alongside it per the scoping decision at the time. Confirmed afterward
+// (per this comment's own claim, now load-bearing) that this function is
+// a strict superset of that one's data, so the audit retired
+// ClientsCopilot/answerClientsQuestion()/askClientsCopilot() entirely —
+// this is now the only "ask about your business" engine in Studio,
+// reached from the global widget, the Clients page, and the command
+// palette's Ask flow alike. See docs/ai-team/DECISIONS.md.
 function buildFaqBlock(): string {
   return STUDIO_FAQS.map((f) => `Q: ${f.q}\nA: ${f.a}`).join("\n\n");
 }

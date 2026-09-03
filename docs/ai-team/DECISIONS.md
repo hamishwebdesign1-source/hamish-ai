@@ -8,6 +8,69 @@ just at product-decision scope instead of line scope.
 
 ---
 
+## 2026-09-03 — Consolidated the three "ask about your business" AI surfaces onto one engine and one usage meter (Studio Design Audit, Tier 2 item #5)
+
+**Decision**: Retired the Clients-page embedded `ClientsCopilot` (and the
+`askClientsCopilot()` Server Action / `answerClientsQuestion()` wrapper it
+called) entirely, and repointed the two remaining call sites — the command
+palette's Ask flow (`studio-command-palette.tsx`) and the Clients page
+itself — onto the global `StudioAssistantWidget`'s `askStudioAssistant()` /
+`answerStudioQuestion()`. Before this, three surfaces that looked like one
+feature (global widget, embedded Clients copilot, command palette) ran two
+separate engines and two separate 10/month usage caps
+(`studio_assistant_question`, `clients_copilot_question`) for the same
+underlying capability — confirmed redundant by `answer-studio-question.ts`'s
+own pre-existing code comment, not a new finding: `answerStudioQuestion()`
+already reused `answer-clients-question.ts`'s own `buildClientsSummary()`/
+`buildAnalyticsSummary()` and was a strict superset (it also answers
+"how do I…" product questions from the Help FAQs) of what
+`answerClientsQuestion()` could do.
+
+**What was removed**: `src/components/platform/clients-copilot.tsx` (the
+component, deleted outright — not mounted anywhere else after its removal
+from `clients-panel.tsx`); `askClientsCopilot()`
+(`src/app/studio/(authed)/clients/actions.ts`); `answerClientsQuestion()`
+and its `buildSystemPrompt()` helper (`src/lib/answer-clients-question.ts`);
+`clients_copilot_question` as a `UsageEventType`
+(`src/lib/usage-limits.ts`) — `ALL_USAGE_EVENT_TYPES` drops from 13 to 12
+entries, `USAGE_LABELS` loses its entry, `usage-limits.test.ts` updated to
+match (also removed the now-nonexistent event type from its multiplier
+`it.each` table).
+
+**What was kept, deliberately**: `buildClientsSummary()`,
+`buildAnalyticsSummary()`, and the exported `ClientSummary` type in
+`answer-clients-question.ts` — confirmed via grep these are still
+genuinely imported and used by `answer-studio-question.ts`, not dead code
+riding along with the deletion.
+
+**Historical `usage_events` rows**: rows already recorded with
+`event_type = 'clients_copilot_question'` are left exactly as they are —
+no migration, no backfill, no deletion (none of which are safely doable
+from this environment against production data regardless). Confirmed
+directly against `getUsageStatus()`'s own implementation
+(`src/lib/usage-limits.ts`) that this is inert, not a lurking bug: it
+computes usage with `.eq("event_type", eventType).gte("created_at",
+startOfMonth())` — a fixed `eventType` string match, scoped to the current
+calendar month only, never a UNION or fallback across event types. Since
+nothing calls `getUsageStatus()` (or `recordUsageEvent()`) with
+`"clients_copilot_question"` anymore after this change, those historical
+rows simply stop being queried by anything going forward. They remain in
+the table as an accurate historical record of real past usage, just under
+a retired label — the same "sever the link, don't touch historical data"
+instinct `docs/ARCHITECTURE.md` documents elsewhere for nullable-FK
+deletes, applied here to a retired enum value instead of a deleted row.
+
+**Not touched, out of scope**: `ai_call_log`'s own `"business_analyst"`
+feature type (`src/lib/ai-call-log.ts`, `src/lib/studio-model-performance.ts`)
+is a separate, older log of AI *cost/latency* (not usage-cap) data that
+`answerClientsQuestion()` used to write to. It's left as-is — a future
+`ai_call_log` row will simply never be logged under `"business_analyst"`
+again, the same "retired label, real history preserved" shape as the
+usage-events decision above, but that enum wasn't in this task's scope and
+touching it wasn't necessary to close the AI-surface consolidation.
+
+---
+
 ## 2026-08-31 — Scoping "AI ROI" as an attribution rule over existing prospect timestamps, not a new metering/analytics system
 
 **Decision**: Scoped the mission's "AI ROI" goal into one buildable

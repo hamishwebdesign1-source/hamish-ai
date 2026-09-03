@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import { Send, Sparkles, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { askStudioAssistant } from "@/app/studio/(authed)/assistant-actions";
+import { useFocusTrap } from "@/lib/use-focus-trap";
 
 // Scoped in chat 2026-09-02 before any code was written (see
 // answer-studio-question.ts's own comment for the full reasoning) — a
@@ -15,8 +16,11 @@ import { askStudioAssistant } from "@/app/studio/(authed)/assistant-actions";
 // unauthenticated /api/chat, which has zero org-context handling; mixing
 // tenant-scoped data into that route would be a real cross-tenant risk.
 // This one calls askStudioAssistant() directly (useTransition), the same
-// Server-Action-not-fetch convention every other Studio interaction uses
-// (see clients-copilot.tsx for the closest sibling).
+// Server-Action-not-fetch convention every other Studio interaction uses.
+// (Its closest sibling used to be the Clients page's own embedded
+// ClientsCopilot, calling a narrower askClientsCopilot() — retired in the
+// Studio Design Audit's AI-surface consolidation, docs/ai-team/DECISIONS.md,
+// once askStudioAssistant() was confirmed a strict superset of its data.)
 //
 // bottom-LEFT specifically (explicit ask) — the marketing widget is
 // bottom-right; nothing else in the authed Studio shell is anchored
@@ -37,10 +41,28 @@ export function StudioAssistantWidget({ orgName }: { orgName: string }) {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (open) scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages, pending, open]);
+
+  // Studio Design Audit, Tier 5 item #14 — this overlay had a visible
+  // close button but no Escape handler at all (unlike
+  // studio-command-palette.tsx, which already had one), and no focus
+  // trap, so a keyboard user could Tab straight out of it into the page
+  // behind. Escape-to-close plus the same shared Tab-wrap trap the
+  // palette now uses.
+  useEffect(() => {
+    if (!open) return;
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") setOpen(false);
+    }
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [open]);
+
+  useFocusTrap(panelRef, open);
 
   function sendMessage(overrideText?: string) {
     const text = (overrideText ?? input).trim();
@@ -65,7 +87,13 @@ export function StudioAssistantWidget({ orgName }: { orgName: string }) {
     <>
       {open && (
         <div className="fixed inset-0 z-[60] flex items-end justify-start p-0 sm:inset-auto sm:bottom-24 sm:left-6 sm:p-0">
-          <div className="flex h-full w-full flex-col border border-border bg-card shadow-2xl sm:h-[560px] sm:w-96 sm:rounded-xl">
+          <div
+            ref={panelRef}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Studio AI Assistant"
+            className="flex h-full w-full flex-col border border-border bg-card shadow-2xl sm:h-[560px] sm:w-96 sm:rounded-xl"
+          >
             <div className="flex items-center justify-between gap-3 border-b border-border bg-primary px-4 py-3 text-primary-foreground sm:rounded-t-xl">
               <div className="flex items-center gap-2">
                 <span className="flex size-8 items-center justify-center rounded-full bg-primary-foreground/15">

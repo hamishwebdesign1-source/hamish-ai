@@ -97,7 +97,8 @@ export function ProspectingPanel({
   // it once and never needs to see the full form again. Open by
   // default only while nothing's actually saved yet; collapsed once a
   // real niche exists, same established convention as
-  // CommandCentreLayoutPanel and ClientsCopilot.
+  // CommandCentreLayoutPanel (and the Clients page's own AI copilot used
+  // to before it was retired — see docs/ai-team/DECISIONS.md).
   const [nicheOpen, setNicheOpen] = useState(initialCategories.length === 0 || initialAreas.length === 0);
 
   const [icpDescription, setIcpDescription] = useState("");

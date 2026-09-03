@@ -40,7 +40,6 @@ import {
 } from "@/app/studio/(authed)/clients/actions";
 import type { ClientHealth } from "@/lib/client-health";
 import type { ClientEngagementRisk } from "@/lib/studio-engagement";
-import { ClientsCopilot } from "@/components/platform/clients-copilot";
 import { StudioPageHeader } from "@/components/platform/studio-page-header";
 
 type Client = {
@@ -922,9 +921,6 @@ export function ClientsPanel({
               </>
             )}
           </p>
-          <div className="mt-3">
-            <ClientsCopilot />
-          </div>
           {clients.length > 4 && (
             <div className="relative mt-3">
               <Search className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />

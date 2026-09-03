@@ -40,8 +40,8 @@ export async function POST(request: Request) {
   // (chat-rate-limit.ts's own doc comment), not a replacement for one;
   // this is the one real Anthropic-calling surface reachable by an
   // outside party (a tenant's own client) that had no cap underneath
-  // it at all. Same gate shape as askClientsCopilot()'s own (its
-  // staff-facing counterpart, clients/actions.ts) — the admin client,
+  // it at all. Same gate shape as askStudioAssistant()'s own (its
+  // staff-facing counterpart, assistant-actions.ts) — the admin client,
   // not the session-scoped one, for this lookup: a portal client's own
   // session can read its org's row via RLS (schema-rls-organisations-
   // via-client.sql), but that policy's own comment is explicit this is

@@ -1,9 +1,6 @@
-import Anthropic from "@anthropic-ai/sdk";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { computeClientHealth } from "@/lib/client-health";
-import { stripMarkdownEmphasis } from "@/lib/strip-markdown-emphasis";
 import { getStudioAnalytics } from "@/lib/studio-analytics";
-import { logAiCall } from "@/lib/ai-call-log";
 
 // Studio's own equivalent of the portal's AI Copilot (answer-account-question.ts)
 // — same "only ever talk about real numbers in the prompt" discipline, but
@@ -19,6 +16,16 @@ import { logAiCall } from "@/lib/ai-call-log";
 // one fixed 30-day window, no drill-down — but a genuine step: it can now
 // actually answer "why did revenue change" instead of the old prompt's
 // explicit "I don't have that."
+//
+// Studio Design Audit, Tier 2 item #5 (2026-09) — this file's own
+// question-answering wrapper (answerClientsQuestion(), and the
+// askClientsCopilot() Server Action that called it) is retired; the
+// global Studio AI Assistant (answer-studio-question.ts) now answers
+// every "ask about your business" question everywhere in Studio,
+// including on the Clients page. What's left below —
+// buildClientsSummary()/buildAnalyticsSummary() — is genuinely still
+// used: answer-studio-question.ts imports both rather than duplicating
+// this real-data computation. See docs/ai-team/DECISIONS.md.
 
 export type ClientSummary = {
   businessName: string;
@@ -29,12 +36,13 @@ export type ClientSummary = {
   overdueProjectCount: number;
 };
 
-// Exported for answer-studio-question.ts (the global Studio AI Assistant)
-// to reuse the exact same real-data computation rather than a second copy
-// that could drift — that assistant's own system prompt is broader (also
-// grounded in the Help FAQs), but the underlying client/analytics numbers
-// it reasons over should be identical to what this file's own
-// answerClientsQuestion() already computes.
+// Exported for answer-studio-question.ts (the global Studio AI Assistant,
+// the only remaining caller of this "ask about your business" data since
+// the Studio Design Audit's AI-surface consolidation) to reuse the exact
+// same real-data computation rather than a second copy that could drift —
+// that assistant's own system prompt is broader (also grounded in the
+// Help FAQs), but the underlying client/analytics numbers it reasons over
+// are identical to what this file computes.
 export async function buildClientsSummary(orgId: string): Promise<ClientSummary[]> {
   const admin = getSupabaseAdmin();
   if (!admin) return [];
@@ -96,74 +104,3 @@ export function buildAnalyticsSummary(analytics: Awaited<ReturnType<typeof getSt
   return lines.join("\n");
 }
 
-function buildSystemPrompt(orgName: string, clients: ClientSummary[], analyticsSummary: string) {
-  const clientLines = clients.length
-    ? clients
-        .map((c) => {
-          const parts = [
-            `health ${c.healthScore === null ? "no data yet" : `${c.healthScore}%`}`,
-            `${c.openRequests} open request${c.openRequests === 1 ? "" : "s"}`,
-            c.unpaidInvoiceCount > 0 ? `£${(c.unpaidPence / 100).toFixed(2)} unpaid across ${c.unpaidInvoiceCount} invoice${c.unpaidInvoiceCount === 1 ? "" : "s"}` : "no unpaid invoices",
-            c.overdueProjectCount > 0 ? `${c.overdueProjectCount} overdue project${c.overdueProjectCount === 1 ? "" : "s"}` : null,
-          ].filter(Boolean);
-          return `- ${c.businessName}: ${parts.join(", ")}`;
-        })
-        .join("\n")
-    : "(no clients yet)";
-
-  return `You are the AI Business Analyst inside ${orgName}'s Studio — you help the agency owner (not their clients) understand their own business and quickly see who needs attention across their whole client roster. You answer questions using only the exact figures below. Never invent, round loosely, or infer a number that isn't stated here. If asked something none of this data can answer, say plainly you don't have that, rather than guessing.
-
-Your business, last 30 days vs the 30 days before that:
-${analyticsSummary}
-
-Your clients:
-${clientLines}
-
-Plain English, direct, no markdown formatting, no jargon. Keep answers short — a sentence or two unless asked for detail. If several clients match a question (e.g. "who hasn't paid"), list them by name. If asked "why" something changed and the data doesn't explain the cause (it rarely will — these are what-changed numbers, not why-it-changed reasons), say what changed and suggest where to look, rather than inventing a cause.`;
-}
-
-export async function answerClientsQuestion(orgId: string, orgName: string, messages: { role: "user" | "assistant"; content: string }[]) {
-  const admin = getSupabaseAdmin();
-  const [clients, analytics] = await Promise.all([
-    buildClientsSummary(orgId),
-    admin ? getStudioAnalytics(admin, orgId, "30d") : Promise.resolve(null),
-  ]);
-  const analyticsSummary = analytics ? buildAnalyticsSummary(analytics) : "(not available)";
-
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) return { error: "ANTHROPIC_API_KEY is not configured." as const };
-
-  const anthropic = new Anthropic({ apiKey });
-  const model = process.env.ANTHROPIC_MODEL || "claude-haiku-4-5-20251001";
-
-  // Same single-log-point reasoning as proposeCommandCentreLayout()'s own
-  // comment: measured from just before the real API call, logged once
-  // regardless of which branch below produced the result.
-  const startedAt = Date.now();
-  let result: { reply: string } | { error: string };
-  let usage: Anthropic.Usage | undefined;
-
-  try {
-    const response = await anthropic.messages.create({
-      model,
-      max_tokens: 400,
-      system: buildSystemPrompt(orgName, clients, analyticsSummary),
-      messages: messages.map((m) => ({ role: m.role, content: m.content })),
-    });
-    usage = response.usage;
-
-    const textBlock = response.content.find((block): block is Anthropic.TextBlock => block.type === "text");
-    result = textBlock ? { reply: stripMarkdownEmphasis(textBlock.text) } : { error: "The copilot did not return an answer." };
-  } catch (error) {
-    console.error("Clients copilot question failed:", error);
-    result = { error: "The copilot is temporarily unavailable." };
-  }
-
-  await logAiCall(orgId, "business_analyst", {
-    success: "reply" in result,
-    latencyMs: Date.now() - startedAt,
-    inputTokens: usage?.input_tokens,
-    outputTokens: usage?.output_tokens,
-  });
-  return result;
-}

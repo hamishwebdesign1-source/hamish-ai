@@ -27,11 +27,15 @@ async function requireOrgId(): Promise<string> {
 }
 
 // Backs the global Studio AI Assistant widget (studio-assistant-widget.tsx,
-// rendered once in (authed)/layout.tsx). Same rate-limit + usage-cap shape
-// as askClientsCopilot() (clients/actions.ts) — its own separate bucket
-// and usage event type (studio-assistant:${orgId}, studio_assistant_
-// question) rather than sharing that one, since this is a distinct,
-// broader surface reachable from every page, not just Clients.
+// rendered once in (authed)/layout.tsx), the command palette's Ask flow
+// (studio-command-palette.tsx), and — since the Clients page's own
+// embedded ClientsCopilot was retired (Studio Design Audit, Tier 2 item
+// #5) — the Clients page too. One rate limit bucket
+// (`studio-assistant:${orgId}`) and one usage event type
+// (studio_assistant_question) for all three call sites; the narrower
+// clients_copilot_question meter that used to exist alongside this one
+// was retired in the same pass rather than kept as a second, redundant
+// cap on the same underlying feature. See docs/ai-team/DECISIONS.md.
 export async function askStudioAssistant(messages: { role: "user" | "assistant"; content: string }[]) {
   const orgId = await requireOrgId();
   const admin = getSupabaseAdmin();

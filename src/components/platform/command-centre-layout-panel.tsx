@@ -87,9 +87,11 @@ export function CommandCentreLayoutPanel({
   // densest thing on the Settings page, forcing every visitor to scroll
   // past all of it to reach Branding/Data & Privacy below regardless of
   // whether they came here to touch it. Collapsed by default, same
-  // established convention as ClientsCopilot on the Clients page (a
-  // tool that shares its page with other content shouldn't be the
-  // first thing pushing it down before anyone's asked for it) — CSS-
+  // established convention as the Clients page's own AI copilot used to
+  // (ClientsCopilot, retired in the Studio Design Audit's AI-surface
+  // consolidation — see docs/ai-team/DECISIONS.md): a tool that shares
+  // its page with other content shouldn't be the first thing pushing it
+  // down before anyone's asked for it — CSS-
   // only hiding, not unmounting, so no draft edit is ever lost by
   // toggling this closed and back open.
   const [open, setOpen] = useState(false);
@@ -515,8 +517,8 @@ export function CommandCentreLayoutPanel({
           </div>
 
           {/* Canonical "AI is working" pending state (see DESIGN-SYSTEM.md) —
-              same bouncing-dots treatment as studio-assistant-widget.tsx and
-              clients-copilot.tsx, not a plain text swap. */}
+              same bouncing-dots treatment as studio-assistant-widget.tsx,
+              not a plain text swap. */}
           {aiPending && (
             <div className="mt-2 flex w-fit items-center gap-2 rounded-2xl rounded-bl-sm bg-secondary px-3 py-2 text-xs text-muted-foreground">
               <span className="flex gap-1">
