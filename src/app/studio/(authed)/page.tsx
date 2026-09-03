@@ -47,6 +47,7 @@ import { CommandCentreTabs } from "@/components/platform/command-centre-tabs";
 import { buildStatContent } from "@/components/platform/command-centre-stat-cards";
 import { buildSectionContent } from "@/components/platform/command-centre-section-cards";
 import { OnboardingChecklist } from "@/components/platform/onboarding-checklist";
+import { CommandCentreHealthBadge } from "@/components/platform/command-centre-health-badge";
 
 // SEO/metadata audit (2 Sep 2026) — same gap as /admin and /portal
 // (found there first, see those layout.tsx files), but here it's the
@@ -425,6 +426,18 @@ export default async function StudioHomePage() {
   ];
   const checklistComplete = checklist.every((item) => item.done);
 
+  // Business Health moved from the stat row into the header (see
+  // command-centre-health-badge.tsx's own comment) — still reads the
+  // org's real Command Centre layout config, so hiding "health" via
+  // Settings → Command Centre layout hides the header badge too, not
+  // just a now-nonexistent grid slot. Known follow-up, not a bug: that
+  // same settings panel still lets an org reorder/resize the "health"
+  // block among the other stat cards, which no longer has any visible
+  // effect now that it's always fixed top-right — harmless (the toggle
+  // still turns it on/off correctly), just a dead control worth
+  // cleaning up in its own pass.
+  const healthBlock = blocks.find((b): b is Extract<Block, { type: "stat" }> => b.type === "stat" && b.cardId === "health");
+
   // Command Centre Phase 5b/5c — which blocks render, their order, and
   // (for stat cards) their width is now per-org (Settings → Command
   // Centre layout), not fixed. Keyed by the same StatCardId the settings
@@ -631,13 +644,23 @@ export default async function StudioHomePage() {
     // scale — its own stat row, tabs, and block canvas), not a list-page
     // header; don't "fix" it into conformity with the other 12 routes.
     <div>
-      <Eyebrow>Command Centre</Eyebrow>
-      <h1 className="mt-3 font-heading text-3xl font-semibold md:text-4xl">
-        {timeOfDayGreeting()}, {org?.name ?? "your agency"}.
-      </h1>
-      <p className="mt-2 max-w-xl text-muted-foreground">
-        {pickHeadlineSignal({ actionsTotal, readyToContact: briefing.readyToContact, pipelineValuePence })}
-      </p>
+      {/* Studio UX pass (3 Sep 2026) — Business Health moved up here,
+          top-right of the greeting, per live feedback (screenshot) that
+          it was the reason the stat row below looked uneven: everything
+          else there was sized to accommodate it. See
+          command-centre-health-badge.tsx's own comment. */}
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <Eyebrow>Command Centre</Eyebrow>
+          <h1 className="mt-3 font-heading text-3xl font-semibold md:text-4xl">
+            {timeOfDayGreeting()}, {org?.name ?? "your agency"}.
+          </h1>
+          <p className="mt-2 max-w-xl text-muted-foreground">
+            {pickHeadlineSignal({ actionsTotal, readyToContact: briefing.readyToContact, pipelineValuePence })}
+          </p>
+        </div>
+        {healthBlock && <CommandCentreHealthBadge agencyHealth={agencyHealth} healthTrend={healthTrend} />}
+      </div>
 
       <div className="mt-6 flex flex-wrap gap-2">
         <Badge variant="secondary">{config.agencyType ?? "Agency"}</Badge>
@@ -652,25 +675,15 @@ export default async function StudioHomePage() {
           Centre layout for show/hide/reorder/width). Always visible,
           never tab-scoped — same "the org's own headline numbers
           shouldn't be behind a click" reasoning as the TODAY masthead
-          above. 5 columns, every default stat card at span 1: genuinely
-          uniform width, not just close — see command-centre-layout.ts's
-          own comment on why health gave up its old span-2 default.
-          Grid default (stretch), not items-start — reported live
-          (screenshot): the previous reasoning here assumed the plain
-          stat cards would render at one uniform height with only the
-          Business Health hero card taller by a "small, real" amount.
-          Real content broke that assumption two ways at once — "Business
-          Health" plus its inline help icon doesn't fit this column's
-          text width on one line and wraps, and among the plain cards
-          themselves, a one-word label (Clients) sits at a different
-          height than a two-word one that also wraps (Prospects found,
-          Conversion rate, Pipeline value) — so the row read as jaggedly
-          uneven, not "a small hero-card difference." Every card here
-          already sets h-full for exactly this stretch behavior; this is
-          just no longer overriding it with items-start. */}
-      <Reveal delay={80} className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+          above. health excluded here on purpose — it now renders as
+          CommandCentreHealthBadge up in the header instead (see that
+          component's own comment); the remaining 4 stat cards share the
+          exact same icon+number+label shape, so no stretch/items-start
+          juggling is needed to make them look consistent — they already
+          do. */}
+      <Reveal delay={80} className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {blocks
-          .filter((b): b is Extract<Block, { type: "stat" }> => b.type === "stat")
+          .filter((b): b is Extract<Block, { type: "stat" }> => b.type === "stat" && b.cardId !== "health")
           .map((block) => (
             <div key={block.id} className={block.span === 2 ? "sm:col-span-2" : undefined}>
               {statContent[block.cardId]}
