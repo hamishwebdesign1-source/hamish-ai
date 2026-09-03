@@ -647,61 +647,487 @@ covers the whole row.
 - **Dependencies**: Phase A shipped and live.
 - **Status**: Researching.
 
-### Projects Kanban Command Centre — Phase C: Meetings, formal Deliverables/approval workflow, AI project assistant, client-portal visibility splitting
+### Projects Kanban Command Centre — Phase C1: a real Deliverable entity + client-visible review (the literal bottleneck in Hamish's own delivery chain)
 
-- **Problem**: the remaining items in Hamish's 27-point spec — a
-  client-facing meetings record on a project, a formal deliverable
-  approval workflow, an AI project assistant, and per-item client-portal
-  visibility control — each require a net-new entity or subsystem that
-  doesn't exist today for a *converted client*, as distinct from the
-  pre-conversion prospect-scoped versions that do exist
-  (`lead_meetings`, `proposal_tokens`). These are real ideas, not rejected
-  ones, but each is a materially bigger, separately-scoped build than
-  "extend the Kanban board," and two of them cross this team's own
-  documented approval boundaries.
-- **Objective**: not to build now. To record honestly, so a future
-  dispatch doesn't have to re-derive the audit, what each of these would
-  actually require:
-  - **Meetings on a client/project**: `lead_meetings` is prospect-scoped
-    and itself only Phase 1 of a larger documented plan (no AI briefing/
-    analysis columns yet). A client/project-scoped equivalent is a new
-    table plus a decision on whether it reuses the same MS Graph
-    integration `lead_meetings` uses.
-  - **Formal Deliverables + client approval**: no `deliverables` table
-    exists. `proposal_tokens`' public-token, viewed-then-accepted pattern
-    is a real, promising precedent to adapt — but doing so means exposing
-    a new client-facing accept/reject action, a genuinely new write
-    surface for a client's portal session, which is the kind of thing
-    this team's own precedent (the payment-reminder one-click send) flags
-    for Security Auditor review before shipping, not something to wave
-    through because the UI pattern exists elsewhere.
-  - **AI project assistant**: `src/lib/project-report.ts` is real,
-    working precedent — but it's single-tenant `/admin`-only
-    (`getSupabaseAdmin()`, no org scoping, no usage metering). Porting it
-    to multi-tenant Studio means a new metered `UsageEventType`
-    (`usage-limits.ts`), real ongoing Anthropic API cost per generation,
-    and — per `PRODUCT.md`'s own "genuinely early-stage, no significant
-    real usage history yet" — no evidence yet that this gets used enough
-    to justify the build, the same reasoning that already deferred two
-    adjacent AI-agentic ideas in the 2026-08-27 "best in market" mission
-    (see `DECISIONS.md`).
-  - **Client-portal visibility splitting**: `client_members.role` is
-    binary (owner/member) today; per-item visibility control is a
-    genuinely new permission dimension on the client portal — explicitly
-    "a new tenancy boundary" per `docs/ai-team/README.md`'s approval-
-    boundary list, needing Hamish's sign-off before it's even scoped in
-    detail, not just before it's built.
-- **Priority**: P3 (someday) for all four — real, not rejected, but none
-  are build-worthy now.
-- **Relevant agent**: Product Director (re-scope once real usage data
-  from Phase A/B exists, or Hamish explicitly asks to prioritise one of
-  these) → AI/Agent Architect (the assistant item specifically) →
-  Security Auditor (the deliverable-approval item specifically, given the
-  new client-write-action risk shape).
-- **Dependencies**: Phase A and B shipped; for the visibility-splitting
-  and AI-assistant items specifically, Hamish's explicit sign-off before
-  detailed scoping, per the approval-boundary reasoning above.
+Supersedes part of the old, vaguer "Phase C" entry below (now split, not
+just renamed) — see `DECISIONS.md`'s matching 2026-09-03 entry for why.
+Hamish reframed this mission in his own words:
+
+> "Client sends Request → Request becomes Task → Task gets attached to
+> Project → Project moves to In Progress → Agency completes Deliverable →
+> Internal Review → Client Review → Client approves → Project progresses
+> → Results feed Analytics → Results feed Client Report → Report
+> demonstrates ROI → Agency sends next proposal ... That's when your
+> Projects system becomes genuinely differentiated. You're not building
+> another project management tool. You're building the delivery layer of
+> an AI agency in a box."
+
+The first four links are real and shipped (Phase A). Everything from
+"Agency completes Deliverable" onward is currently either nonexistent or,
+for "Internal Review"/"Client Review," just a Kanban column label with
+nothing concrete attached to it. This entry is the one piece of that gap
+that's genuinely buildable now — it's also the load-bearing one: every
+link further down the chain (Analytics, the Client Report, "demonstrates
+ROI," the next proposal) is data that doesn't exist yet and can't be
+honestly built against zero real rows (`PRODUCT.md`'s "real data or
+nothing" / "build the next layer only once real data justifies it").
+Building this first is what actually unlocks the rest, rather than
+building five parallel half-connected pieces at once.
+
+- **Problem**: `projects.stage` (Phase A) already has `internal_review`
+  and `client_review` values, but nothing is ever attached to a project
+  when it sits in either — no `deliverables` table exists anywhere
+  (confirmed via a full schema grep, both in the original Phase 1 audit
+  and re-confirmed here), so a project "in client review" shows a client
+  the exact same read-only stage pill as a project "not started." There's
+  nothing to actually review.
+- **Objective**: a `deliverables` table scoped to a project, a staff-side
+  submit flow on `/studio/projects/[id]`, and read-only client-portal
+  surfacing gated on the project's own existing `stage` — no new
+  approval/write action yet (that's C2 below, which needs sign-off before
+  it's built). This alone makes "Internal Review" and "Client Review"
+  real states with real content, using a mechanism that's already fully
+  additive and crosses no approval boundary.
+- **User**: an agency owner/team member submitting real delivered work for
+  review (staff side); a client in the portal, for the first time able to
+  see *what* is being reviewed rather than just a stage label (client
+  side) — genuinely new value for a persona this mission hasn't served at
+  all yet.
+- **Priority**: P1 — Hamish's own current priority, and the literal
+  bottleneck: nothing else in his chain can be honestly built without
+  this existing first.
+
+**Data model** — deliberately minimal, not front-loading C2's decision
+columns before C2 is real (matching `lead_meetings`' own established
+precedent of shipping only the current phase's columns, per its own
+schema comment, not speculatively adding a future phase's fields):
+
+```sql
+create table deliverables (
+  id uuid primary key default gen_random_uuid(),
+  created_at timestamptz not null default now(),
+  org_id uuid not null references organisations(id) on delete cascade,
+  project_id uuid not null references projects(id) on delete cascade,
+  title text not null,
+  description text,
+  link_url text,        -- optional (staging link, doc, etc.)
+  submitted_by text,    -- email, same loose-string convention as assigned_to
+  submitted_at timestamptz not null default now()
+);
+```
+
+No file attachment in this phase — defer to Phase B's `project_files`
+table (already scoped, not yet built) once it exists, rather than
+inventing a second storage pattern in parallel. No `status`/approval
+columns yet — every deliverable in C1 is implicitly "submitted, not yet
+decided," since there's no decision mechanism until C2. C2's own
+migration adds `status`/`client_decision_at`/`client_decision_by`/
+`client_comment` onto this same table when it ships — a second small
+additive migration, not a rebuild.
+
+**RLS — an extension of the existing boundary, not a new one:**
+- Org-staff SELECT/INSERT/UPDATE/DELETE via `memberships`, identical
+  shape to `schema-rls-projects-org-staff.sql`.
+- Client-portal SELECT only, via a join through `projects` requiring both
+  the existing `client_members` ownership check (same shape as
+  `schema-rls-projects-client-portal.sql`) **and** `projects.stage in
+  ('client_review','completed')`. This stage gate is the entire mechanism
+  that makes "Internal Review" real: while a project sits in
+  `not_started`/`in_progress`/`internal_review`, any deliverables on it
+  are invisible to the client by construction — no separate visibility
+  flag to remember to flip, no second state machine, just the project's
+  own existing stage. The moment staff moves the project into
+  `client_review`, its deliverables become visible — that transition *is*
+  the real "we're ready for you to look at this" moment. No new write
+  ability for the client session in this phase, only a wider read.
+
+**Open design question, not resolved here** — the portal currently has
+**no per-project detail page at all** (`insights-centre.tsx`'s
+`OverviewTab` shows a flat stage pill only, per Phase A's own audit).
+Surfacing deliverables client-side means either building a minimal
+`/portal/projects/[id]` or embedding an expandable section into the
+existing overview list — a real UX/UI Director call, not assumed here,
+the same way the `projects`↔`website_projects` cross-link was left to
+Phase B rather than guessed at in Phase A's audit.
+
+- **Acceptance criteria**: additive migration only (new table); org-staff
+  write via the existing Server-Action-ownership-check pattern
+  (`projects/actions.ts`'s established shape); client read access is an
+  extension of the client's existing session boundary (a wider read on
+  data already inside their tenancy, not a new tenancy boundary); no
+  billing change, no destructive migration, no new metered AI action.
+  Studio-side: a "Deliverables" section on `/studio/projects/[id]`,
+  same list + inline "Add a deliverable" shape as the existing Tasks
+  section. Portal-side: resolved below by the UX/UI Director — a new
+  `/portal/projects/[id]` detail page, the portal's first per-project
+  surface.
+- **Relevant agent**: Lead Engineer next (build, per the design pass
+  below) → QA → Product Director.
+- **Dependencies**: none blocking — `projects.stage`, `client_members`,
+  `memberships` all already exist in production from Phase A. Explicitly
+  does **not** depend on Phase B (files are deferred, not required).
+- **Status**: Ready — design pass below complete, build not started.
+
+**UX/UI Director design pass (2026-09-03)** — resolves both open items
+above (portal placement, per-deliverable states) and corrects one
+mismatch: the dispatch that requested this design pass described C1's
+data model as covering "status/owner/due date/files/approval-status/
+client-visibility." The real, already-written C1 schema above has none
+of those columns — no `status`, no per-deliverable owner (only
+`submitted_by`, set automatically, not chosen), no due date, no files
+(explicitly deferred to Phase B), no `approval_status` (explicitly C2).
+Designing UI for fields that don't exist would be exactly the
+"dishonest UI ahead of real capability" this codebase already holds the
+line against elsewhere — every state below is derived only from the
+columns that are actually real in the migration above, plus
+`projects.stage`, which already exists.
+
+*Portal placement — `/portal/projects/[id]`, not an inline expansion.*
+The portal currently has zero per-project detail surface — confirmed by
+reading `insights-centre.tsx`'s `OverviewTab`, which renders each
+project as a flat summary row (name, stage pill via
+`PORTAL_PROJECT_STAGE_META`, a day-count line) with no click-through at
+all today. A real `/portal/projects/[id]` page beats an inline
+accordion inside that row for three concrete reasons: (1) content
+volume — several deliverables × (title, description, link, submitted
+date) doesn't fit cleanly inline without truncating real content, and
+truncation here means hiding something the client is specifically meant
+to review; (2) forward compatibility — C2 adds an actual approve/reject
+decision with a comment field, which needs real page space to grow
+into; building the accordion now only to redesign it into a full page
+for C2 is wasted work; (3) consistency — this is exactly the "one
+record, not a list" shape `DESIGN-SYSTEM.md`'s detail-page convention
+already exists for (`/studio/projects/[id]`, `website-builder/[id]`),
+just newly instantiated on the portal side of the app for the first
+time. The existing summary row in `OverviewTab` doesn't need a
+redesign — it needs a click-through: wrap it in
+`<Link href={`/portal/projects/${p.id}`}>` (was a plain `<div>`), add a
+trailing `ChevronRight` (`size-4 text-primary-foreground/30`,
+decorative/`aria-hidden`) so it reads as clickable, and add
+`transition-colors hover:bg-primary-foreground/10` — the same hover
+treatment this file already uses on its "Ask" CTA row lower down, not a
+new one.
+
+`/portal/projects/[id]` itself does **not** copy `/studio/projects/[id]`'s
+literal styling — it copies its *structure* (back-link → title → stacked
+sections), rendered in the portal's own already-established idiom:
+`text-page-title`/`text-page-subtitle` (not Studio's `Eyebrow`/
+`font-heading` pair — no portal page uses `Eyebrow` today, so importing
+it here would be a one-off graft, not a real portal pattern), and no
+extra `max-w-3xl` wrapper — `portal/(authed)/layout.tsx` already
+constrains `main` to `max-w-6xl` minus the sidebar, so every existing
+portal page (`requests/page.tsx`, `insights/page.tsx`) renders straight
+inside that, and this page should match them, not Studio's separate
+per-page width discipline.
+  - Back-link: `<Link href="/portal/insights" className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"><ArrowLeft className="size-3.5" /> Back to Insights</Link>`.
+  - `<h1 className="text-page-title mt-4">{project.name}</h1>`, then a
+    `text-page-subtitle` line reusing the exact same
+    `PORTAL_PROJECT_STAGE_META[stage]` pill plus the day-count line
+    `OverviewTab` already computes — the same visual language the client
+    just clicked through from, not a second stage vocabulary. Import
+    `daysUntil`/`dueDateNote`/`formatDate` from `src/lib/project-dates.ts`
+    directly (a plain, non-`"use client"` module, already Studio's
+    third real call site) rather than re-copying the local `daysUntil`
+    `insights-centre.tsx` currently hand-rolls.
+  - **Never render `ProjectStageTracker`/`PROJECT_STAGES` here** —
+    `project-stages.ts`'s own comment is explicit that a client should
+    never see an internal stage label like "Internal review" verbatim.
+    The single portal-safe pill is the only stage UI this page gets.
+  - Below that: one section, "Deliverables" (no Tasks, no
+    `ProjectActivityTrail` — both stay staff-only; nothing in this
+    dispatch asks for client task visibility and `PRODUCT.md`'s "thin
+    and honest" principle argues against adding it speculatively).
+
+*Deliverable states — resolved honestly against the real schema, not
+invented.* C1's `deliverables` table has no `status` column, so there is
+no per-deliverable "not yet submitted" vs "in review" state to design —
+every row that exists is, by the schema comment's own words, "submitted,
+not yet decided." The states that are real:
+  1. **Zero deliverables on a project** — not a deliverable state, a
+     section-empty state. Studio: `<p className="mt-2 text-xs
+     text-muted-foreground">No deliverables submitted yet.</p>`, same
+     shape as `ProjectTaskList`'s "No tasks yet." Portal: gated by RLS
+     before it's even a UI question — see below.
+  2. **≥1 deliverable exists, and visibility** — the one real "state" a
+     deliverable has in C1, and it belongs to the *project*, not the
+     deliverable (every deliverable on one project shares it, since it's
+     C1's RLS stage-gate, not a per-row flag). Render it **once**, as a
+     section-level banner above the list — reusing the exact "one banner
+     at the top, not repeated per row" shape already established for
+     field-provenance tags (`DESIGN-SYSTEM.md`) — never a per-card badge
+     repeating the same fact `N` times:
+     - `stage` in `not_started`/`in_progress`/`internal_review`:
+       `border-border bg-secondary/40` + `EyeOff` icon
+       (`text-muted-foreground`) + "Not visible in the client portal
+       yet. Deliverables appear there once this project moves to Client
+       review."
+     - `stage === "client_review"`: `border-warning/30 bg-warning/5` +
+       `Eye` icon (`text-warning`) + "Visible to the client now —
+       everything below appears in their portal."
+     - `stage === "completed"`: `border-success/30 bg-success/5` + `Eye`
+       icon (`text-success`) + "Visible to the client — this project is
+       complete."
+     Colours are pulled straight from `project-stages.ts`'s own
+     `badgeVariant` for `client_review`/`completed` (warning/success) —
+     the banner agrees with the `ProjectStageBadge` already shown above
+     it on the same page, not a new colour vocabulary.
+  3. **"Approved" (C2, not built)** — render nothing. No checkmark, no
+     "Approved"/"Pending decision" badge, no disabled "Approve" button.
+     A per-deliverable `status` column doesn't exist yet; showing any
+     decision-shaped UI ahead of it is the fabricated-capability problem
+     `HANDOFF-FORMAT.md`/`PRODUCT.md` already forbid elsewhere in this
+     codebase (see the AI-solutions chat-demo precedent). C2's migration
+     is what turns this into a real state, not a design placeholder now.
+
+  Portal-side, the RLS stage-gate produces two genuinely different
+  empty states, not one — conflating them would misrepresent *why*
+  nothing shows, the same "a real zero still needs honest, specific
+  copy" instinct as `DESIGN-SYSTEM.md`'s existing "0 of N" note:
+  - `stage` not yet `client_review`/`completed` (deliverables invisible
+    by RLS construction): "We'll share what we're working on here once
+    this project moves to review."
+  - `stage` is `client_review`/`completed` but zero rows exist (staff
+    moved the stage before submitting anything): "Nothing shared for
+    review yet — check back soon." A client can already see `stage`
+    itself (existing RLS policy, unrelated to this table), so the page
+    always has enough information to pick the right one of these two
+    messages.
+
+*Field-level, not just row-level, client visibility — `submitted_by` is
+staff-only even on a client-visible row.* No portal surface today shows
+a raw staff email to a client (`ProjectActivityTrail`'s `audit_log` read
+is explicitly org-staff-only, confirmed via its own comment), and this
+codebase has no display-name resolution layer — `assigned_to`,
+`audit_log.actor`, and every other "who did this" field render as bare
+emails, staff-facing only. Don't newly expose one to a client just
+because the row itself became readable. Studio's `DeliverableRow`:
+"Submitted by {submitted_by} · {formatDate(submitted_at)}" (raw email,
+consistent with `ProjectAssigneeControl`'s own convention). Portal's
+row: "Shared with you on {formatDate(submitted_at)}" — `submitted_at`
+only, reframed in second person, no email.
+
+*Studio-side component and Server Actions* (mirrors
+`project-task-list.tsx`/`ProjectTaskList` exactly — same file
+location convention, same internal-component split):
+  - New `src/components/platform/project-deliverable-list.tsx` exporting
+    `ProjectDeliverableList`, with `DeliverableRow` and
+    `NewDeliverableForm` as internal components, same relationship as
+    `TaskRow`/`NewTaskForm` in the sibling file. Rendered directly below
+    the Tasks section on `/studio/projects/[id]/page.tsx` (`mt-8`, same
+    rhythm as the Tasks→Activity gap already there).
+  - `DeliverableRow`: title + description (optional) + link (optional,
+    `<a target="_blank" rel="noopener noreferrer">` with an
+    `ExternalLink` icon and visible text "View link" — not icon-only, so
+    it needs no `aria-label`) + the "Submitted by… ·…" meta line + a
+    delete control using this codebase's one established confirm-delete
+    shape verbatim (`knowledge-panel.tsx`'s `EntryCard`): resting state
+    `<Button size="icon" variant="ghost" aria-label="Delete"><Trash2 /></Button>`,
+    armed state swaps to `<Button size="xs" variant="destructive">Confirm</Button>`
+    + `<Button size="icon" variant="ghost" aria-label="Cancel delete"><X /></Button>`.
+    This is a small, deliberate addition beyond the dispatch's literal
+    ask (which didn't mention delete) — flagged here rather than done
+    silently: C1's own RLS already grants org-staff DELETE, and with no
+    edit form in this phase (matching Tasks' own precedent of "no edit,
+    just recreate" — `ProjectTaskList` has no title/description edit
+    either), delete is the only real corrective path for a typo'd link
+    or a wrong submission. No edit form — don't build one; that's a
+    real scope addition beyond what C1 needs, not a small polish.
+  - `NewDeliverableForm`: identical dashed-border expand-in-place shape
+    to `NewTaskForm` — Title (required Input), Description (optional
+    Textarea, rows=2), Link (optional `Input type="url"`, placeholder
+    `https://staging.example.com`, helper text "Staging link, doc, or
+    file location"). No `submitted_by` field — it is never user-entered,
+    set server-side from the acting session's email (see below), the
+    same "attribution is the system's job, not a form field" shape
+    `audit_log.actor` already uses everywhere else.
+  - Server Actions in `projects/actions.ts`: `createDeliverable(projectId,
+    title, description, linkUrl)` and `deleteDeliverable(deliverableId)`,
+    same ownership-check shape as `createProjectTask`/
+    `updateProjectTaskStatus`. `createDeliverable` uses
+    `requireOrgIdAndEmail()` (already exists, used by
+    `createProject`/`assignProject`/`deleteProject`) — writes
+    `submitted_by: actorEmail`, and **must reject any `linkUrl` that
+    isn't `https://`**, same allowlist bar
+    `sanitizeBlocksForWrite()` already enforces for Command Centre CTA
+    `href`s (`DESIGN-SYSTEM.md`'s accessibility-baseline note) — this is
+    a second real place user input becomes a rendered `<a href>`, both
+    in Studio and, once visible, the client portal, and it needs the
+    same bar, not a weaker one.
+  - Both actions log to `audit_log` (`target_type: "project"`,
+    `target_id: projectId`, `actor: actorEmail`, `actorType: "admin"`,
+    action `"deliverable.submitted"` / `"deliverable.deleted"`,
+    metadata `{ title }`) — a two-line addition to
+    `project-activity-trail.tsx`'s existing `ACTION_LABEL` map
+    ("Deliverable submitted"/"Deliverable removed") and `describeEntry()`
+    switch (return `m.title`), since `ProjectActivityTrail` is already
+    imported and rendered on this exact page. This makes "Agency
+    completes Deliverable" show up as a real timeline entry for free,
+    not a new component.
+
+### Projects Kanban Command Centre — Phase C2–C5: client approval, results feeding Analytics/the Client Report, an AI project assistant, and a completed-project → next-proposal link (supersedes the old "Phase C" entry)
+
+The rest of Hamish's chain past Phase C1, above. Each sub-item has a
+genuinely different real-world shape and a different approval-boundary
+status — the previous version of this entry bundled all of it into one
+undifferentiated P3 "someday" bucket, which obscured that some of this
+is real near-term work and some genuinely still needs Hamish's sign-off
+before it's even scoped further. This rewrite splits them out explicitly
+rather than quietly loosening any of the original discipline just because
+Hamish is now more enthusiastic about the destination.
+
+**C2 — "Client approves" (the literal missing link)**
+- What's missing: nothing lets a client actually approve or request
+  changes on a deliverable today — the portal is entirely read-only.
+  `proposal_tokens`' send→view→accept pattern (timestamped `viewed_at`/
+  `accepted_at`, idempotent accept, a notification fired only on the
+  interesting event) is real, working precedent for the *shape* of this
+  — but adapting it *literally* would be the wrong fit: `proposal_tokens`
+  uses a public, unauthenticated token specifically because a prospect
+  has no account to log into. A client reviewing a deliverable already
+  has a real authenticated portal session (`client_members`) with
+  existing RLS-scoped read access — bolting an unauthenticated token flow
+  onto data a client can already reach via a real login would be a
+  regression of the existing boundary, not a reuse of the pattern. The
+  right adaptation is the *pattern* (submit → notify → view → decide,
+  each a real timestamp, idempotent, notifies the agency on the
+  interesting event), implemented as an authenticated Server Action
+  reachable from `/portal`, gated by the client's existing session, not a
+  bare token.
+- Data model: extends C1's `deliverables` table — `alter table
+  deliverables add column status text not null default 'submitted' check
+  (status in ('submitted','approved','changes_requested')), add column
+  client_decision_at timestamptz, add column client_decision_by text, add
+  column client_comment text;`
+- **Why this needs Hamish's explicit sign-off before it's *built*** (the
+  scoping above is fine to exist now, same as it was for Phase A before
+  Phase 3 design): this is a new client-writable RLS policy — the
+  `client_members` session gains a real write it doesn't have today.
+  `docs/ai-team/README.md`'s approval boundaries require Hamish's
+  explicit approval for any RLS policy change regardless of size, and the
+  original Phase C entry already separately flagged this exact item for
+  Security Auditor review before shipping — this rewrite preserves that
+  bar, it does not loosen it. Concretely: Security Auditor reviews the
+  new policy + Server Action's ownership check; Hamish signs off on the
+  policy itself, same bar as any other RLS change in this codebase. This
+  is a narrower category than a full new *tenancy* boundary (it's one new
+  write action on data the client can already see, not new visibility) —
+  worth stating precisely rather than either over- or under-escalating it.
+- **Priority**: P2 — real and wanted, blocked on sign-off.
+- **Dependencies**: C1 shipped and in real use.
+- **Status**: Not started — needs Hamish's sign-off on the RLS write
+  policy before Lead Engineer starts; Security Auditor can review the
+  design in parallel with awaiting that sign-off.
+
+**C3 — Results feed Analytics + the Client Report ("Results feed
+Analytics" / "Results feed Client Report" / "Report demonstrates ROI")**
+- What's missing: `/studio/analytics` is org-wide only, never
+  project-scoped; `monthly_reports`' `computeSnapshot()`
+  (`src/lib/monthly-report.ts`) queries `requests` and derives `tasks`
+  from them — it has zero awareness that `projects`/`deliverables` exist,
+  confirmed by reading the function directly.
+- What this actually is once C2 produces real approved-deliverable rows:
+  extend `computeSnapshot()` and `monthly-report-pdf.tsx` with a small,
+  purely additive read — "N deliverables approved this period," their
+  titles/dates — plus an equivalent rollup card on `/studio/analytics`.
+  No new AI call, no new metered usage event, no schema change beyond
+  what C1/C2 already added — pure aggregation over data that already
+  exists by the time this is built.
+- **"Report demonstrates ROI," corrected rather than built as literally
+  stated**: this product has no access to a client's own revenue or
+  business outcomes, so a real £-value "ROI" figure cannot be honestly
+  computed here — inventing one would violate `PRODUCT.md`'s "real data
+  or nothing" the same way a fabricated stat would. What this product can
+  honestly show is evidence of delivered value — a dated list of what was
+  actually built and client-approved. That is the ROI story available
+  here; it must not be relabelled or dressed up as a numeric ROI
+  percentage when it's eventually built. Recorded explicitly now so a
+  future build doesn't quietly reintroduce a fabricated number under
+  this label.
+- **Priority**: P2 — no approval-boundary issue at all (pure additive
+  read, no AI cost, no new write, no RLS change), but sequenced after C2
+  specifically because there is no real approved-deliverable data to
+  aggregate until then — building this against zero real rows would be a
+  fancier zero-state, not real value, the same "build the next layer once
+  real data justifies it" reasoning that already sequenced Phase B after
+  Phase A.
+- **Dependencies**: C2 shipped and in real use.
 - **Status**: Not started.
+
+**C4 — AI project assistant (carried forward unchanged, not loosened)**
+- Real precedent: `src/lib/project-report.ts` — single-tenant `/admin`-
+  only (`getSupabaseAdmin()`), no org scoping, no usage metering, output
+  not persisted. Porting a narrated version of C3's numbers to
+  multi-tenant Studio means a new metered `UsageEventType`
+  (`usage-limits.ts`) and real ongoing per-generation Anthropic API cost.
+  Per `PRODUCT.md`'s "genuinely early-stage... no significant real usage
+  history yet," there's no evidence this gets used enough to justify
+  building it — the same reasoning that already deferred two adjacent
+  AI-agentic ideas in the 2026-08-27 "best in market" mission.
+- Still needs Hamish's explicit sign-off **before it's even scoped in
+  detail**, not just before building — unchanged from the original Phase
+  C entry. Explicitly preserved, not loosened, per this rewrite's own
+  brief.
+- **Priority**: P3 (someday). **Status**: Not started.
+
+**C5 — Completed project → next proposal ("Agency sends next proposal")**
+- What's missing: `sendProposal()`/`proposal_tokens` is real and working,
+  but `proposal_tokens.prospect_id` is `not null` — it only ever targets
+  a pre-conversion prospect. Nothing connects a completed `projects` row
+  (a converted client) back to `sendProposal()` at all today.
+- **On the standing no-outreach-before-2026-11-09 constraint — reasoned
+  explicitly, not assumed either way, per this dispatch's own
+  instruction**: that constraint is about *Hamish's own outbound sales
+  activity for HamishAI/the Agency Platform itself*, while he's still
+  employed elsewhere. It is not about a feature that lets a *tenant
+  agency* send *their own client* a proposal for *their own* follow-on
+  work. The Studio platform already ships real prospect-outreach
+  automation for tenants today (prospecting, sales-kit generation,
+  `sendProposal()` itself) and none of it has ever been gated by the
+  Nov-9 constraint, because it isn't Hamish's own outreach — it's the
+  product's job. **This link does not trip that constraint.** Stated
+  explicitly here so a future mission doesn't apply the Nov-9 rule to a
+  tenant-facing product feature by reflex.
+- **What does still need care, for a different reason**: any version of
+  this that auto-sends a real proposal to a real client the instant a
+  project's stage flips to `completed`, with no human in the loop, is an
+  unsupervised action with real relationship/business consequences for a
+  tenant's real client — the same class of risk `PRODUCT.md`'s "fail open
+  on soft checks, fail closed on money" already treats cautiously, and
+  nothing in this codebase today auto-sends a proposal without an
+  explicit staff click. The first real version of this link should be a
+  one-click *suggestion* on a newly-completed project — "Suggest a
+  follow-up proposal" — mirroring the Command Centre's existing
+  "Generate outreach kit" one-click precedent, never a silent auto-fire.
+  This framing doesn't need Hamish's sign-off before scoping (it's
+  human-triggered, and it's tenant-facing, not Hamish's own outreach) but
+  should still get a normal design/build review given it touches the
+  proposal-send path.
+- Real scope this requires: `proposal_tokens.prospect_id` becomes
+  nullable with a `client_id` alternative (small additive migration +
+  `check (prospect_id is not null or client_id is not null)`),
+  `sendProposal()` gains a client-target branch, `readProposalToken`'s
+  public unauthenticated view needs to work for a client-target row too
+  (still fine to stay a public token *here*, unlike C2 — a proposal is
+  explicitly meant to be viewable/forwardable outside a login, same as it
+  already is for prospects).
+- **Priority**: P3 (someday) — real, but explicitly sequenced last: it
+  depends on real completed projects with real approved deliverables to
+  point to (C1–C3), and is the smallest-value link in the chain until
+  then — a "send another proposal" button with nothing real to show for
+  the last project is just a generic upsell nag, not the differentiated
+  "look what we just delivered" moment Hamish's own framing describes.
+- **Dependencies**: C1–C3 shipped and in real use. **Status**: Not
+  started.
+
+- **Relevant agent**: Product Director (this entry) → UX/UI Director (C1
+  design pass first) → Lead Engineer (C1 build) → Security Auditor (C2
+  design review, in parallel with awaiting Hamish's sign-off) → Product
+  Director (re-scope C3 once C2 ships) → AI/Agent Architect (C4, only
+  once Hamish signs off on scoping it) → Product Director (C5, once
+  C1–C3 are real).
+- **Dependencies**: see each sub-item above.
+- **Status**: Not started as a whole — C1 (above) is the one piece of
+  this area that's genuinely Ready now.
 
 ### Prefill the Website Builder discovery form from a converted prospect's mockup/research (close the Prospects → Website Builder gap)
 

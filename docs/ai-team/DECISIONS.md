@@ -8,6 +8,170 @@ just at product-decision scope instead of line scope.
 
 ---
 
+## 2026-09-03 — Phase C1 Deliverables: a new `/portal/projects/[id]` page, not an inline expansion; per-deliverable "states" are mostly not real yet
+
+**Context**: Phase C1's own backlog entry left two things open —
+whether client-visible deliverables get a new portal detail route or an
+expandable section inside `insights-centre.tsx`'s `OverviewTab`, and how
+a deliverable should look different across "not yet submitted"/"in
+review"/(future) "approved." The dispatch that requested this design
+pass also described C1's data model as including
+"status/owner/due date/files/approval-status/client-visibility" — none
+of which are real columns in the migration `BACKLOG.md`'s C1 entry
+already specifies (title, description, link_url, submitted_by,
+submitted_at only; no status until C2, no files until Phase B).
+
+**Decision 1 — `/portal/projects/[id]`, a new page, not an accordion.**
+The portal has zero per-project detail surface today (`OverviewTab`
+renders a flat summary row only). A new detail page beats an inline
+expansion for three reasons: real content volume (several deliverables
+× title/description/link/date doesn't fit inline without truncating
+something the client is specifically meant to review), forward
+compatibility (C2's approve/reject + comment needs real page space an
+accordion inside an analytics hero panel can't grow into without a
+later redesign), and consistency (this is exactly the "one record, not
+a list" shape the existing Studio/Website-Builder detail-page
+convention already exists for). It follows that convention's
+*structure* only — back-link → title → stacked sections — rendered in
+the portal's own established visual idiom
+(`text-page-title`/`text-page-subtitle`, portal's own `max-w-6xl`
+layout width), not a copy-paste of Studio's `Eyebrow`/`max-w-3xl`
+styling. Full design in `BACKLOG.md`'s C1 entry;
+`DESIGN-SYSTEM.md` records the reusable shape.
+
+**Decision 2 — most of the requested "states" aren't real in C1, so
+none are designed.** C1's `deliverables` table has no `status` column.
+"Not yet submitted" is a section-empty-state, not a per-row state.
+"Approved" is C2 and gets zero UI now — no checkmark, no disabled
+"Approve" button, no "Pending decision" badge — building any of that
+ahead of a real `status` column would be exactly the "dishonest UI
+ahead of real capability" this codebase already holds the line against
+elsewhere (`HANDOFF-FORMAT.md` rule 7). The one real, honest state that
+exists is **visibility**, and it belongs to the *project* (via
+`projects.stage`), not the deliverable — rendered once as a
+section-level banner above the list, never repeated per row. Full
+banner copy/colour spec in `BACKLOG.md`'s C1 entry.
+
+**Decision 3 — `submitted_by` is staff-only even on a client-visible
+row.** No portal surface today shows a raw staff email to a client, and
+this codebase has no display-name resolution layer (every "who did
+this" field — `assigned_to`, `audit_log.actor` — renders as a bare
+email, staff-facing only). A deliverable becoming client-visible
+shouldn't newly expose a field like this by default; the portal shows
+`submitted_at` alone, reframed ("Shared with you on…").
+
+**Flagged, not yet built**: the design pass adds one small item beyond
+the original C1 ask — a delete control on each Studio-side deliverable
+row (confirm-delete pattern, reused verbatim from `knowledge-panel.tsx`),
+since C1's RLS already grants org-staff DELETE and there's no edit form
+in this phase (matching Tasks' own no-edit precedent) — without it, a
+typo'd link has no correction path. No edit form was added — that
+would be real scope beyond what C1 needs.
+
+---
+
+## 2026-09-03 — Hamish reframed "Projects Kanban" around a full delivery chain; split the old Phase C into a Ready "Deliverables" increment (C1) plus four differently-gated sub-items (C2–C5), correcting one over-application of the no-outreach constraint along the way
+
+**Context**: after Phase A shipped, Hamish gave a sharper articulation of
+why this mission matters than the "Phase C" scoping already in
+`BACKLOG.md` — a full chain, in his own words: "Client sends Request →
+Request becomes Task → Task gets attached to Project → Project moves to
+In Progress → Agency completes Deliverable → Internal Review → Client
+Review → Client approves → Project progresses → Results feed Analytics →
+Results feed Client Report → Report demonstrates ROI → Agency sends next
+proposal... You're not building another project management tool. You're
+building the delivery layer of an AI agency in a box." The first four
+links are real (Phase A). This entry records what changed in response.
+
+**Decision**: superseded the single, undifferentiated old "Phase C"
+`BACKLOG.md` entry with two: a new **Phase C1 ("Ready")** — a real
+`deliverables` table + staff submit flow + client-portal read visibility
+gated on the project's existing `stage` — and a rewritten **Phase
+C2–C5** entry that keeps the remaining four links (client approval,
+results reaching Analytics/the Client Report, an AI project assistant, a
+completed-project → next-proposal link) as four separately-gated items
+rather than one flat P3 bucket. Full detail in `BACKLOG.md`.
+
+**Why C1 is the one piece worth building now, not the whole chain at
+once**: it's the literal bottleneck. Analytics, the Client Report, "ROI,"
+and the next-proposal link are all downstream of real approved-deliverable
+data existing — none of them can be honestly built yet (`PRODUCT.md`'s
+"real data or nothing" / "build the next layer only once real data
+justifies it") because there is currently zero real deliverable data to
+report on. Building C1 first — even without the client-approval action
+that C2 adds — already makes "Internal Review" and "Client Review" real
+states with real content attached (today they're bare Kanban labels),
+which is itself a genuine, shippable improvement, not a stepping stone
+with no standalone value.
+
+**Why `proposal_tokens` is real precedent for C2's *pattern*, but the
+wrong thing to literally reuse**: `proposal_tokens` uses a public,
+unauthenticated token specifically because a prospect has no account —
+that's the right shape for a pre-sale audience with no login. A client
+approving a deliverable already has a real authenticated `/portal`
+session (`client_members`) with existing RLS-scoped read access; bolting
+an unauthenticated token flow onto data reachable via a real login would
+be a regression of an existing boundary, not a reuse of a pattern. C2 is
+scoped instead as an authenticated Server Action gated by the client's
+existing session — adopting `proposal_tokens`' *shape* (submit → notify →
+view → decide, timestamped, idempotent, notifies on the interesting
+event only) without its *mechanism*.
+
+**Approval-boundary discipline preserved, not loosened, and one item
+newly and more precisely categorised**: the brief for this dispatch was
+explicit that Hamish being more enthusiastic about the destination isn't
+license to loosen the standing approval boundaries. C4 (AI project
+assistant, real ongoing Anthropic cost) still needs Hamish's sign-off
+before it's even scoped in detail, carried forward unchanged. C2 (client
+approve/reject) is a new client-writable RLS policy — per
+`docs/ai-team/README.md`'s boundary list, any RLS change needs Hamish's
+explicit sign-off regardless of size — so it's scoped in full now but
+explicitly blocked from *building* until he signs off on the policy,
+with Security Auditor reviewing the design in parallel. Distinguished
+this from a full new *tenancy* boundary (client-portal visibility
+splitting, a separate, bigger ask not reintroduced by this rewrite) —
+C2 is one new write action on data a client can already see, not new
+visibility, and conflating the two would either over- or
+under-escalate it.
+
+**One over-application of the no-outreach-before-2026-11-09 constraint,
+corrected rather than assumed either way**: C5 ("Agency sends next
+proposal" off a completed project) raised the question of whether this
+trips `PRODUCT.md`'s standing "no active outreach or solicitation for
+HamishAI" rule. Reasoned explicitly: that constraint is about Hamish's
+own outbound sales activity for HamishAI/the Agency Platform itself,
+while he remains employed elsewhere — not about a feature that lets a
+*tenant agency* send *their own client* a proposal for the tenant's own
+follow-on work. The platform already ships real prospect-outreach
+automation for tenants today (prospecting, sales-kit generation,
+`sendProposal()` itself), none of it gated by the Nov-9 constraint,
+because none of it is Hamish's own outreach — it's the product's job.
+So C5 does not trip that constraint. It does still warrant care for a
+different, real reason: an unsupervised auto-send off a stage change is
+a real-consequence action for a tenant's real client relationship, the
+same class of caution `PRODUCT.md`'s "fail open on soft checks, fail
+closed on money" already applies elsewhere — so C5 is scoped as a
+human-triggered "suggest a follow-up proposal" one-click, never a silent
+auto-fire, mirroring the Command Centre's existing "Generate outreach
+kit" precedent, but that framing itself needs no Hamish sign-off (it's
+not automatic and it's tenant-facing, not Hamish's own outreach).
+
+**Build order, stated plainly**: C1 (Ready now) → C2 (blocked on
+sign-off, scope in parallel) → C3 (sequenced after C2 produces real
+approved-deliverable data — building it against zero real rows would be
+a fancier zero-state, not real value) → C5 (sequenced after C1–C3, since
+it needs real delivered work to point to when suggesting the next
+proposal) → C4 (P3, blocked on sign-off before even detailed scoping,
+same as before). Not proposing to build the whole chain in one shot —
+`PRODUCT.md`'s "build the next layer only once real data justifies it"
+applies here as directly as it did to Phase B/Phase A's own sequencing.
+
+**Also updated**: `PRODUCT-ROADMAP.md`'s "Strategic initiatives" entry,
+to point at the new C1/C2–C5 split instead of the old flat "Phase C"
+line.
+
+---
+
 ## 2026-09-03 — Projects Kanban Command Centre, Phase A built: real board, drag-and-drop, detail workspace; two real gaps found and fixed along the way, one deliberate implementation simplification
 
 **Decision**: Built Phase A exactly against `BACKLOG.md`'s "PHASE 3 DESIGN"

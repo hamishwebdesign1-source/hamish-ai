@@ -98,13 +98,25 @@ of finishing a mission, not as a separate chore that falls behind.
 
 - **Projects Kanban Command Centre** (queued 2026-09-03) — Hamish's own
   mission to rebuild `/studio/projects` from a flat per-client list into a
-  connected Kanban command centre. Phase 1 (Audit) + Phase 2 (Architecture)
-  complete — see `BACKLOG.md`'s three matching entries (Phase A: Ready,
-  build-worthy now; Phase B: Researching, sequenced after Phase A ships;
-  Phase C: Not started, needs net-new subsystems and in two cases Hamish's
-  explicit sign-off before detailed scoping) and `DECISIONS.md`'s matching
-  2026-09-03 entry for the full phasing reasoning. Next: UX/UI Director,
-  Phase 3 (Design) on Phase A's scope only.
+  connected Kanban command centre, then (2026-09-03, same day) reframed
+  around a full delivery chain: Request → Task → Project → In Progress →
+  Deliverable → Internal Review → Client Review → Client approves →
+  Results feed Analytics → Results feed Client Report → Report
+  demonstrates ROI → Agency sends next proposal. **Phase A: shipped and
+  live** (board + drag-and-drop + detail workspace — covers the first
+  four links). **Phase B: Researching**, sequenced after Phase A is used
+  for real (files-on-a-project, invoice linkage, the `projects`↔
+  `website_projects` cross-link decision). **Phase C1 (Deliverables
+  entity + client-visible review): Ready** — the literal bottleneck link;
+  everything past it needs real deliverable data to exist first. **Phase
+  C2–C5** (client approval, results→Analytics/Client Report, an AI
+  project assistant, completed-project→next-proposal): each scoped with
+  its own distinct approval-boundary status, not one flat "someday"
+  bucket — see `BACKLOG.md`'s matching entries and `DECISIONS.md`'s
+  2026-09-03 "Hamish reframed..." entry for the full reasoning, including
+  the explicit call that the no-outreach-before-2026-11-09 constraint
+  does *not* apply to a tenant sending their own client a proposal. Next:
+  UX/UI Director, design pass on Phase C1.
 
 ## How this file gets used
 

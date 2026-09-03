@@ -136,6 +136,18 @@ review," for the full implementation note.
   page reads as one document; a list page reads as a scannable grid —
   the width difference is deliberate, not an inconsistency to "fix" by
   matching list pages.
+- **This detail-page convention (`max-w-3xl`, `Eyebrow`, `font-heading`
+  type scale) is a Studio-shell pattern, not a universal one.** The
+  portal (`/portal`) got its first-ever per-record detail page in Phase
+  C1 (`/portal/projects/[id]`, see the Deliverable pattern below) and
+  deliberately does **not** import this convention wholesale — it copies
+  the *structure* (back-link → title → stacked sections) but renders it
+  in the portal's own already-established idiom
+  (`text-page-title`/`text-page-subtitle`, no `Eyebrow`) and respects
+  `portal/(authed)/layout.tsx`'s own `max-w-6xl`-minus-sidebar width
+  (no extra per-page `max-w-3xl` on top of it). Two audiences, two real
+  visual languages — match the one the page's own audience already
+  knows, not the nearest staff-side reference file.
 - **Eyebrow**: before this pass only Command Centre and Website Builder
   rendered one; every other page's header had none, which read as an
   unexplained one-off rather than a real pattern. Resolved by keeping and
@@ -265,6 +277,76 @@ reuse for any future Kanban-style surface rather than reinventing it:
   `<select>` instead — the same mechanism a keyboard/quick-change control
   already needs on the record's own detail page, reused rather than
   inventing a second "change stage" affordance for one breakpoint.
+
+## Deliverable submit-and-review pattern (Projects Kanban Command Centre, Phase C1 — first instance of "a child list whose visibility is entirely derived from its parent's own state")
+
+Established for `/studio/projects/[id]`'s new "Deliverables" section and
+the portal's first-ever per-project page, `/portal/projects/[id]`
+(`BACKLOG.md`'s Phase C1 entry, full spec + rationale) — the shape to
+reuse for any future "staff submits something, a client's visibility
+into it is gated by a state that already exists on its parent record"
+surface, rather than reinventing per-row visibility flags:
+
+- **Don't design UI for a field that doesn't exist in the real schema.**
+  C1's `deliverables` table has no `status`/`approval_status` column —
+  every row is implicitly "submitted, not yet decided" until C2 adds
+  real decision columns. There is no "not yet submitted" per-deliverable
+  state (that's the section's empty state, not a row state) and no
+  "approved" state to render (C2, not built) — no checkmark, badge, or
+  disabled "Approve" button ahead of the real capability. Verify the
+  actual migration/table before designing states for it, not the
+  states a dispatch *describes* it as having.
+- **Visibility derived from a parent's existing state renders once, at
+  the section level — never repeated per row.** Every deliverable on one
+  project shares the exact same client-visibility fact (gated by
+  `projects.stage`, not a per-row flag), so it's a single banner above
+  the list, not a badge on every card saying the same thing `N` times.
+  Same "one explanatory banner at the top, not re-explained per item"
+  shape as the field-provenance banner pattern above — reused here for
+  a different kind of derived state, not just prefill provenance.
+  Banner colour/icon is pulled from the parent's own existing badge
+  colour (`project-stages.ts`'s `warning`/`success` `badgeVariant` for
+  `client_review`/`completed`) so it visually agrees with the stage
+  badge already on the page, not a new colour vocabulary.
+- **Row-level fields can need their own, separate visibility rule even
+  once the row itself is visible.** A deliverable becoming client-visible
+  doesn't mean every column on it should — `submitted_by` (a bare staff
+  email, this codebase's only "who did this" convention — no display-name
+  resolution layer exists anywhere) stays Studio-only even on a
+  client-visible row; the portal shows `submitted_at` alone, reframed in
+  second person ("Shared with you on…"). Check each field's own exposure,
+  not just the row's, when a child entity gains a client-facing surface
+  for the first time.
+- **A `link_url` (or any user-supplied string a page will render as
+  `<a href>`) needs the same allowlist the Command Centre CTA builder
+  already enforces** (`sanitizeBlocksForWrite()` — reject `javascript:`,
+  `data:`, protocol-relative, and non-`https://` outright) — a second
+  real instance of the same vulnerability class, not a new problem the
+  original CTA-href rule doesn't already describe. Apply it in the
+  Server Action, not just client-side.
+- **A brand-new client-facing detail page adopts the audience's own
+  established visual idiom, not the staff-side page it's modelled on.**
+  `/portal/projects/[id]` copies `/studio/projects/[id]`'s *structure*
+  (back-link → title → stacked sections) but renders it in the portal's
+  own already-established language (`text-page-title`/`text-page-subtitle`,
+  no `Eyebrow` — no portal page uses it today) and respects the portal's
+  own width convention (`portal/(authed)/layout.tsx` already constrains
+  `main` to `max-w-6xl` minus the sidebar; don't also add Studio's
+  per-page `max-w-3xl`, that's a Studio-shell-specific rule). Never
+  reuse a staff-only vocabulary component on a client surface just
+  because it's the nearest visual reference — `ProjectStageTracker`/
+  `PROJECT_STAGES` must never render for a client; `project-stages.ts`'s
+  own comment already establishes internal stage labels ("Internal
+  review") as unfit for a client to see verbatim — the portal always
+  goes through `PORTAL_PROJECT_STAGE_META` instead.
+- **A gated-empty-state has (at least) two honest reasons, and they read
+  differently.** "Nothing renders because RLS hides it" (project not yet
+  in `client_review`) and "nothing renders because nothing exists yet"
+  (stage advanced, zero rows submitted) are both real, both legitimate,
+  and conflating them into one generic "Nothing here yet" misrepresents
+  which one is true — same instinct as the existing "a real 0 of N is
+  not the same as an empty state" section below, extended to a gate a
+  client can't see behind rather than just a metric that landed on zero.
 
 ## Interaction patterns actually in use
 
