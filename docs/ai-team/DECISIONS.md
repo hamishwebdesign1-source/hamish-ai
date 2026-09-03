@@ -8,6 +8,167 @@ just at product-decision scope instead of line scope.
 
 ---
 
+## 2026-09-03 — Prospects mockup → Website Builder prefill built, per the Product/UX-approved spec, no deviations
+
+**Decision**: Built exactly what the two 2026-09-03 entries above and
+`BACKLOG.md`'s own field-by-field mapping specified, with no schema
+migration and no deviation from the agreed mechanism (`client`/`prefill=1`
+search params on the existing `/studio/website-builder/new` route,
+scoped-lookup-from-`source_lead_id` security requirement, hard/soft/blank
+field-provenance tiering).
+
+**Implementation**:
+- `buildWizardPrefill()` + `prospectHasPrefillSource()`
+  (`src/lib/website-brief.ts`) — pure functions; the former maps a
+  prospect row to a `WizardPrefill` (six real fields only: `businessName`,
+  `industry`, `location`, `existingWebsiteUrl` all hard-tier direct
+  columns; `servicesProducts` hard-tier, preferring `research.services`
+  over `website_mockup.services` names, falling back to the mockup only
+  when `research` is entirely absent, not merely empty; `usps` soft-tier
+  from `research.strengths` only, no mockup fallback). 13 new unit tests
+  in `website-brief.test.ts` cover the full-data case, the mockup-only
+  fallback, the "research present but empty" non-fallback case, the
+  no-source-at-all case, null-column absence (not empty string), and that
+  none of the honestly-blank fields ever appear.
+- `src/app/studio/(authed)/website-builder/new/page.tsx` — accepts
+  `client`/`prefill` search params; `prefill=1` triggers a scoped
+  `clients` lookup (by id + `org_id`) to get `source_lead_id`, then a
+  scoped `prospects` lookup (by id + `org_id`) for the six source
+  columns — never trusts a client-supplied prospect id, matches the
+  decision's own stated security requirement.
+- `src/components/platform/website-project-wizard.tsx` — `initialClientId`/
+  `prefill` props seed local state once via `useState(() => ...)`, never a
+  server default; per-field `PrefillTag` badges next to six `<Label>`s
+  (secondary+`Link2`+"Prefilled" for hard, `ai`+"Needs review" for soft,
+  matching `DESIGN-SYSTEM.md`'s "Field-provenance tags on a prefilled
+  form" entry exactly); one-time `border-accent/30 bg-accent/5` banner
+  when `prefill` is present.
+- `src/app/studio/(authed)/clients/page.tsx` — added `source_lead_id` to
+  the existing `clients` select; one additional scoped `prospects` query
+  (`id`/`website_mockup`/`research`, `.eq("org_id", ...)`, `.in("id", ...)`
+  over each client's own `source_lead_id`) computes `prefillEligibleByClient`
+  — passed to `ClientsPanel`, never the actual mockup/research content
+  itself (that's only ever fetched again, freshly, by `/new/page.tsx` at
+  the moment prefill is actually requested).
+- `src/components/platform/clients-panel.tsx` — `source_lead_id` added to
+  the `Client` type; new `StartWebsiteBuildFromProspectControl` (a plain
+  `Link`-rendered `Button` to `/studio/website-builder/new?client=…&prefill=1`)
+  placed right after `GenerateReportControl` inside the expanded
+  `ClientCard`; a collapsed-row `ai`-variant "Mockup ready" `Badge` (Sparkles
+  icon) in the same slot the existing "AI chatbot" badge uses, both gated
+  on the new `prefillEligible` prop.
+- `src/components/platform/prospecting/convert-to-client-control.tsx` —
+  optional secondary pointer built: the post-conversion "Client" badge
+  state now also shows a `text-accent underline` "Start website build in
+  Clients" line (linking to `/studio/clients`, not a deep link — this
+  component doesn't know the resulting `client_id`) when
+  `prospectHasPrefillSource(prospect)` is true, same "no toast, inline
+  text" convention used everywhere else.
+
+**Verification**: `npx tsc --noEmit -p .` clean; `npx eslint` clean on
+every touched file; `npx vitest run` 424/424 green (the previously-known
+flaky `command-centre-section-cards.test.tsx` test passed on this run,
+not re-run separately since it passed the first time); `npm run build`
+succeeded (only pre-existing, unrelated warning: a font-override warning
+for "Big Shoulders"). Not verified in an authenticated live browser
+session — no test Studio credentials were available in this session,
+same caveat the "Website mockup preview visual upgrade" decision entry
+above already flagged; worth a real click-through (convert a prospect
+with a mockup, confirm the badge/control appear, confirm the wizard opens
+prefilled and every field stays editable) before/shortly after this
+reaches production.
+
+**No deviations from the approved spec** — flagging this explicitly per
+this mission's own instruction to note any deviation: none were needed.
+The one open judgement call (the `convert-to-client-control.tsx` pointer
+linking to `/studio/clients` generically rather than a specific client)
+was already anticipated as "optional... do it if cheap" scope, not a
+deviation from a firm requirement.
+
+---
+
+## 2026-09-03 — "Projects Kanban Command Centre" mission: phased 27-point spec into A/B/C, corrected two of the brief's own seed assumptions
+
+**Decision**: Split Hamish's 27-point Projects Kanban spec into three real
+tiers rather than scoping (or recommending) a single all-at-once build —
+Phase A (Kanban board + drag-and-drop stage persistence + a real per-project
+detail workspace + Task/Request/Client linking, `BACKLOG.md`, Ready) is
+build-worthy now on entities that already exist; Phase B (files-on-a-project,
+invoice linkage, the `projects`↔`website_projects` cross-link decision,
+Researching) is real but deliberately sequenced after Phase A ships and is
+used; Phase C (meetings/formal deliverables-with-approval/an AI project
+assistant/client-portal visibility splitting, Not started) requires net-new
+entities or subsystems and, for two items, crosses this team's own
+documented approval boundaries. Full detail in `BACKLOG.md`'s three matching
+entries.
+
+**Why phase rather than build all 27 points**: `PRODUCT.md`'s own
+"genuinely early-stage... build the next layer only once real data
+justifies it" plus Hamish's own point 26 ("if something already works,
+improve it rather than rebuilding it unnecessarily") — most of the spec's
+later items (an AI project assistant, a formal deliverable-approval
+workflow, portal-visibility splitting) describe genuinely new subsystems
+this product has no evidence yet of needing at its current real usage
+volume, the same reasoning that already deferred adjacent AI-agentic ideas
+in the 2026-08-27 "best in market" mission.
+
+**Two of the mission brief's own seed assumptions were wrong, verified not
+repeated**: the dispatch guessed Meetings, Deliverables-as-their-own-entity,
+and Proposals-as-a-distinct-workflow "may not exist" and asked me to verify
+rather than assume. Deliverables genuinely doesn't exist (confirmed via a
+full schema grep — no table, no approval flag anywhere). But **Meetings
+does exist** (`lead_meetings`, `schema-lead-meetings.sql` — Phase 1 of a
+documented Teams-meeting-intelligence plan, scheduling only) and
+**Proposals does exist** (`proposal_tokens` + `sendProposal()` + a public
+`/proposal/[token]` view/accept flow, `schema-proposal-tokens.sql`) — both
+real, working features, just narrowly scoped to `prospect_id`
+(pre-conversion), not to a converted client or a delivery project. This
+matters for Phase C: the honest gap isn't "meetings/proposals don't
+exist," it's "they exist but stop at the sale" — a materially different,
+smaller-sounding gap than the brief's own seed guess implied, and the
+`proposal_tokens` pattern is real, adaptable precedent for a future
+deliverable-approval workflow rather than something to build from scratch.
+
+**The single most important architecture finding**: there are already two
+unrelated "Project" concepts in this codebase — `projects` (the thin
+table this mission is about: `name`/`target_date`/`status`/`assigned_to`,
+one row per client-scoped deliverable) and `website_projects` (a much
+richer, separately-built tracker with its own discovery→brief→tool→build→
+qa→launched stage machine, its own files table, its own troubleshooting
+log). Hamish's own description of what a Project should represent — "what
+are we delivering, what's blocked, what files are relevant" — describes
+`website_projects`' existing shape far more than `projects`' current one,
+but the two tables have zero relationship today: a website build and a
+generic delivery project for the same client are unconnected rows unless a
+human manually keeps them in sync. Deliberately did not resolve this
+unilaterally (merge vs. cross-link vs. leave separate) — flagged as a real
+Phase B decision, not assumed, since committing to a shape before Phase A's
+real detail-workspace layout exists risks building against a UI that
+doesn't exist yet.
+
+**A real, non-obvious migration constraint found and built into Phase A's
+acceptance criteria rather than left for Lead Engineer to discover
+mid-build**: `projects.status` (currently only `active`/`done`) is read as
+a two-value enum by at least 7 real call sites beyond the Projects page
+itself — `owner-digest.ts`'s overdue-project detection, `digest-action-
+tokens.ts`'s one-click "mark project done" email action, command palette
+search, the AI assistant's client summary, the task-assignment dropdown on
+Requests, the client cascade-delete, and the raw data export route. Phase
+A's `stage` column must be additive with `status` derived/kept in sync for
+all seven, not a replacement — written directly into the backlog entry's
+acceptance criteria so this doesn't get missed or rediscovered as a
+regression during Phase 4/6.
+
+**Not resolved here, explicitly handed to UX/UI Director next**: exact
+stage labels/count (Hamish's own brief already says don't blindly copy his
+suggested 7 stages if the architecture suggests otherwise — a real design
+call, not a technical one), the Kanban card's exact visual design, the
+detail workspace's layout, and responsive/mobile behaviour. This dispatch
+covered Phase 1 (Audit) and Phase 2 (Architecture) only, per its own scope
+— Phase 3 (Design) is the next dispatch.
+
+---
+
 ## 2026-09-03 — Prospects mockup → Website Builder prefill: no migration needed, opt-in not silent, one brief assumption corrected
 
 **Decision**: scoped as a read-only, additive prefill of the Website

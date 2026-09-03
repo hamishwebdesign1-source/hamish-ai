@@ -28,6 +28,318 @@ _(none yet)_
 
 ## Ready
 
+### Projects Kanban Command Centre — Phase A: real Kanban board, drag-and-drop stage persistence, project detail workspace
+
+This is the Phase 1 (Audit) + Phase 2 (Architecture) output for Hamish's
+"transform Projects into a connected Kanban command centre" mission — see
+`DECISIONS.md`'s matching 2026-09-03 entry for the full phasing reasoning.
+**This entry covers only Phase A** (the build-worthy-now increment). Phases
+B and C are recorded below it as separate, deliberately-not-yet-buildable
+entries so they don't get silently folded into "the mission," per this
+product's "build the next layer only once real data justifies it"
+principle and Hamish's own point 26 ("if something already works, improve
+it rather than rebuilding it unnecessarily").
+
+**Note on scope input**: this dispatch's brief summarised Hamish's original
+27-point spec (full card design, drag-and-drop, a deep detail workspace,
+filtering/views, premium UX, responsive design) rather than quoting it in
+full. Everything below is scoped against that summary plus the explicit
+audit questions the brief asked me to answer directly. If the full 27-point
+text turns out to materially differ from the summary in a way that changes
+this phasing, reconcile before Phase 3 (Design) starts — flagged honestly
+rather than assumed complete.
+
+- **Problem**: `/studio/projects` (`src/components/platform/projects-panel.tsx`)
+  is a flat per-client list of rows with a two-state status pill
+  (Active/Done), "Mark done," and delete — not a place an agency owner can
+  see what's actually happening across their delivery work. It has no
+  stages beyond active/done, no per-project detail view (no `/studio/
+  projects/[id]` route exists at all), and no way to see a project's own
+  tasks/requests/files without leaving the page. This is real and
+  confirmed by reading the component directly, not assumed from the
+  screenshot alone.
+- **Objective**: replace the flat list with a real Kanban board — multiple
+  configurable stages, working drag-and-drop that persists to the database,
+  and a genuine per-project detail view — built entirely on entities that
+  already exist in production today (`projects`, `tasks`, `clients`,
+  `memberships`/`assigned_to`, `audit_log`), reusing existing Server Action
+  and RLS patterns rather than inventing new ones.
+- **User**: an agency owner (or a team member with `memberships`) running
+  more than a handful of concurrent client projects, who today has to
+  mentally track "where is this at" with no structure beyond a due-date
+  colour and a done/not-done pill.
+- **Priority**: P1 — Hamish's own explicit mission, and everything in this
+  phase is genuinely buildable now (no net-new entity, no new tenancy
+  boundary, no billing/payment logic).
+
+**PHASE 1 AUDIT — verified against the real codebase, entity by entity**
+(table exists? real shape? where?):
+
+| Entity | Exists? | Real shape |
+|---|---|---|
+| **Clients** | Yes | `clients` table (`schema-internal-ops.sql` + many `alter table` migrations since — `org_id`, `source_lead_id`→`prospects`, `status` active/paused/churned, `maintenance_monthly_pence`, `stripe_customer_id`). UI: `clients-panel.tsx`'s expand-in-place `ClientCard` — **no `/studio/clients/[id]` route exists** (confirmed by a prior mission's own finding, re-verified here). |
+| **Leads/Prospects** | Yes | `prospects` table — pipeline stage, `deal_value_pence`, `assigned_to`, `sales_kit`/`website_mockup`/`research` columns, `source_lead_id` is how a `clients` row traces back to one. Distinct from the marketing site's unrelated `leads` table (chat-widget capture only). |
+| **Requests** | Yes | `requests` table (`schema-internal-ops.sql` + alters: `org_id`, `assigned_to`, `website_project_id`→`website_projects`, `auto_sent`, `responded_at`). A client-submitted issue/question, AI-triaged (`category`/`complexity`/`priority`/`covered_by_maintenance`/`draft_response`). **Not linked to `projects` directly** — only indirectly, via a task it spawned. |
+| **Tasks** | Yes, but **not a standalone system** — this answers the brief's own explicit question | `tasks` table: `request_id` (nullable in schema, but every real insert path is `triageRequest()`'s `suggested_task` — confirmed via a full grep, there is no freestanding "create a task" Server Action anywhere in the codebase today), optional `project_id`. So today's "Onboarding" row *is* the task system in miniature: a task is always born from an AI-triaged client request, and only optionally gets filed under a `projects` row afterward via `assignTaskToProject()`. |
+| **Projects** | Yes, genuinely thin | `projects` table (`schema-projects.sql`): `id`, `org_id`, `client_id` (**not null** — one client per project, no multi-client/internal project support), `name`, `target_date`, `status` (**only `active` \| `done`**), `assigned_to`. One "Onboarding" project is auto-seeded on every prospect→client conversion (`prospects/actions.ts`'s `convertProspectToClient`, 14-day target date) — this is where the screenshot's "Onboarding" row actually comes from, not fixture/demo data. |
+| **Deliverables** | **No** — confirmed via a full schema grep, no `deliverables` table, no approval/sign-off flag anywhere. Closest real analogues: `website_projects.build_phases` (a fixed 10-phase JSON array, scoped only to the separate Website Builder sub-product) and `monthly_reports` (a generated snapshot, not an approval workflow). |
+| **Meetings** | **Yes — contrary to this dispatch's own seed guess, verified real, but narrowly scoped** | `lead_meetings` table (`schema-lead-meetings.sql`) — Phase 1 of a documented Teams-meeting-intelligence plan, scheduling only (`ms_event_id`, `scheduled_start/end`, `status`), no AI briefing/analysis columns yet per the file's own comment. **Scoped to `prospect_id` only** — there is no meetings entity for a client or project once they've converted. Real gap, not a nonexistent feature. |
+| **Messages** | No dedicated entity | `requests.draft_response` is a single AI-drafted reply a tenant can edit and send (`sendRequestReply()`); `detect-replies.ts` only checks *whether* a reply exists, never stores content (a deliberate privacy-minimisation choice per its own comment). No two-way thread is persisted anywhere. |
+| **Files/documents** | Exists, but **only for Website Builder projects** | `website_project_files` table + Supabase Storage bucket, scoped tightly to `website_project_id`. No generic file attachment exists on a `clients` row or a `projects` row. |
+| **Analytics** | Yes | `/studio/analytics`, org-wide KPIs, not project-scoped. |
+| **Reports** | Yes, per-client not per-project | `monthly_reports` table, cron-generated snapshots + a manual "Generate report" control on the Clients page. A separate AI-narrated progress-report generator (`src/lib/project-report.ts`) exists but **only in `/admin`**, the single-tenant legacy system (`getSupabaseAdmin()`, `logAuditEvent({actor:"admin"})`) — it is real precedent for an "AI project assistant," but is not currently org-scoped or usage-metered, so it isn't a drop-in reuse for Studio without real porting work. |
+| **Proposals** | **Yes — also contrary to this dispatch's seed guess, verified real** | `proposal_tokens` table + `sendProposal()` + a public `/proposal/[token]` view/accept flow (`schema-proposal-tokens.sql`). Real, working send→view→accept workflow — but scoped to `prospect_id`, i.e. **pre-sale**, not a post-conversion project deliverable-approval mechanism. A genuinely promising pattern to adapt for "what does the client need to approve," not something to build from scratch — but that's an explicit architecture decision, not assumed here. |
+| **Invoices** | Yes | `invoices` table, client-scoped, optional `request_id` link, Stripe-integrated, `reminder_sent_at`. **No `project_id` column** — invoices and projects are entirely unlinked today. |
+| **Payments** | Yes | Per-client Stripe subscriptions/one-off invoices (`docs/ARCHITECTURE.md`'s "Billing" section) — not project-scoped. |
+| **Notifications** | No persisted entity | `notifyAssignee()` is fire-and-forget email only; no in-app notification table/inbox exists anywhere. |
+| **Team members** | Yes | `memberships` table, org-scoped; `assigned_to` (plain lowercased email text, not an FK) used identically across `prospects`, `requests`, and `projects` already. |
+| **Client portal** | Yes | `/portal/*`, session-scoped via `client_members`. A client **can already see their own `projects` rows** (name/status/target_date only, read-only) — `portal-insights-data.ts` + `schema-rls-projects-client-portal.sql` (added specifically because `projects` originally had only an org-staff SELECT policy). No per-project detail page exists in the portal. |
+| **Agency settings** | Yes | `/studio/settings` — org branding, reply-to email, booking link. |
+| **Client permissions** | Yes, binary only | `client_members.role` is `owner`/`member` — no field- or item-level visibility split exists today (Hamish's "portal-visibility-split" ask is genuinely new). |
+
+**PHASE 2 ARCHITECTURE — the real entity-relationship model, and the one
+finding that most changes the shape of this mission**:
+
+```
+organisations (org_id)
+ └─ clients (org_id, source_lead_id → prospects)
+      ├─ requests (client_id, org_id, assigned_to, website_project_id → website_projects)
+      │     └─ tasks (request_id, project_id → projects, nullable)
+      ├─ projects (org_id, client_id NOT NULL, assigned_to)      ← thin tracker
+      ├─ website_projects (org_id, client_id)                    ← rich tracker, UNRELATED table
+      │     ├─ website_project_files (website_project_id)
+      │     └─ troubleshooting_log (jsonb, on the row itself)
+      ├─ invoices (client_id, request_id nullable)  — no project_id
+      ├─ monthly_reports (org_id, client_id)
+      └─ client_members (client_id)  → portal access
+ └─ prospects (org_id, assigned_to, deal_value_pence, sales_kit, website_mockup, research)
+      ├─ lead_meetings (prospect_id)
+      └─ proposal_tokens (org_id, prospect_id)
+ └─ memberships (org_id)  → team members
+```
+
+**There are already two unrelated "Project" concepts in this codebase**:
+`projects` (the thin table this mission is about — name/target_date/
+status/assigned_to) and `website_projects` (a much richer, separately
+built tracker with its own discovery→brief→tool→build→qa→launched stage
+machine, its own files table, its own troubleshooting log). Hamish's own
+spec description of a Project — "what are we delivering, why, what's
+blocked, what's been delivered, what files are relevant" — describes
+`website_projects`' shape far more than `projects`' current shape, but the
+two tables have **zero relationship today**: a website build and a
+generic delivery project for the same client are two unconnected rows
+unless a human manually keeps them in sync. This is the single most
+important architecture finding from this audit and needs an explicit
+decision (see Phase B below), not an assumption, before building a richer
+detail workspace that might otherwise duplicate what Website Builder
+already does well.
+
+**Write/read pattern already correctly established** — `projects/
+actions.ts` uses the service-role client for every write with an inline
+`.eq("org_id", orgId)` (or an equivalent ownership `SELECT`) ownership
+check, matching `docs/ARCHITECTURE.md`'s documented rule that this
+application-level check is the *only* real protection on a write (RLS
+protects the session-scoped read side via `schema-rls-projects-org-staff.sql`
++ `schema-rls-projects-client-portal.sql`'s dual policies). Every new
+Kanban write (stage change, task creation on a project, activity logging)
+must follow this same pattern — nothing here needs a new security model,
+just consistent application of the existing one.
+
+**Real, non-trivial migration constraint found, not assumed**: `projects.
+status` (`active`/`done`) is read directly, as a two-value enum, by at
+least 7 real call sites beyond the Projects page itself: `owner-digest.ts`
+(overdue-project detection filters `status === "active"`),
+`digest-action-tokens.ts` (`mark_project_done` sets `status: "done"` from
+a one-click email action token), `command-search-actions.ts` (command
+palette search results), `answer-clients-question.ts` (AI-assistant
+summary), `requests/page.tsx` (the task-assignment dropdown filters
+`.eq("status", "active")`), `clients/actions.ts` (cascade delete),
+`api/platform/export-data/route.ts` (raw data export). **A Kanban `stage`
+column must be additive, not a replacement** — add `stage text` (the real
+7-value pipeline), keep `status` in sync (derived: any non-`completed`
+stage → `"active"`, `"completed"` → `"done"`) so none of these 7 call
+sites need to change. This is the safe path a naive "just replace status
+with stage" migration would have missed.
+
+**Phasing call (made plainly, not left as options)**: given `PRODUCT.md`'s
+"genuinely early-stage... build the next layer only once real data
+justifies it" and Hamish's own point 26, the 27-point spec splits into
+three real tiers, not one build:
+
+- **Phase A (this entry, Ready)** — Kanban board + drag-and-drop stage
+  persistence + a real per-project detail view + Task/Request/Client
+  linking. Every entity this needs already exists; nothing here crosses an
+  approval boundary.
+- **Phase B (see next entry, Researching)** — Files-on-a-project (clone
+  the already-built `website_project_files` pattern rather than inventing
+  storage infra), `invoices.project_id` tagging (no billing *logic*
+  change), and the explicit `projects` ↔ `website_projects` cross-link
+  decision. Real, valuable, but deliberately sequenced after Phase A ships
+  and is actually used, not bundled in.
+- **Phase C (see entry after that, Not started / needs Hamish sign-off to
+  even scope in detail)** — Meetings/Deliverables-as-their-own-entity/
+  adapting `proposal_tokens` for post-conversion approvals/an AI project
+  assistant/client-portal visibility splitting. Each of these requires a
+  net-new entity or subsystem that doesn't exist yet for a converted
+  client (as opposed to a pre-conversion prospect), materially bigger than
+  "extend the Kanban board," and in two cases (visibility splitting, an
+  AI assistant with real ongoing Anthropic API cost) crosses this team's
+  own documented approval boundaries.
+
+**Acceptance criteria (Phase A)**:
+- `projects` gains an additive `stage` column (7-value pipeline, exact
+  labels a UX/UI Director call per the mission's own "don't blindly use
+  these exact stages" instruction) with `status` derived/kept in sync for
+  all 7 existing read call sites above — no call site needs to change.
+- A real Kanban board (columns = stages) replaces the flat per-client list
+  as the default Projects view; drag-and-drop persists via a new
+  `updateProjectStage()` Server Action (same ownership-check + audit-log
+  pattern as `updateProjectStatus`/`assignProject`), with an optimistic UI
+  update and rollback on failure (this codebase's own established
+  `useOptimistic` pattern — see the "Investigate useOptimistic" backlog
+  closure — not a bespoke one).
+- A new `/studio/projects/[id]` detail route/workspace: header (client,
+  assignee, stage, target date), the project's own tasks (already linked
+  via `project_id` — needs a new "add a task directly to this project"
+  Server Action, since today tasks can only originate from AI-triaged
+  requests), each task's parent request shown for context where one
+  exists, and a real activity/audit trail reusing the existing
+  `audit_log` table (already logs `project.assigned`/`unassigned`/
+  deletion — extend to log stage changes too, don't invent a parallel
+  activity-log system).
+- Filtering/views: keep everything `projects-panel.tsx` already does well
+  (active/all toggle, "assigned to me," client search, bulk actions) —
+  reimplement as Kanban-native, don't regress any of it.
+- A real drag-and-drop library is added (`@dnd-kit/core` +
+  `@dnd-kit/sortable` — not in `package.json` today, confirmed; small,
+  no ongoing infra cost, not an approval-boundary item).
+- Responsive design: the board must degrade to something usable on
+  mobile/narrow viewports (a real per-stage accordion or horizontal
+  scroll — a UX/UI Director call, not decided here).
+- `npx tsc --noEmit`, `npx eslint`, full `vitest` suite green; new tests
+  cover the stage/status derivation logic, the new Server Actions'
+  ownership checks, and the drag-and-drop persistence + rollback state
+  machine.
+- Portal-side: the client's existing read-only `projects` view
+  (`portal-insights-data.ts`) should show the richer stage, not just
+  active/done, since the RLS policy and query already exist — small,
+  additive, in scope for Phase A since it's a read-only surfacing of a
+  column this phase adds anyway, not a new visibility *rule*.
+- Does **not** need Hamish's sign-off before Phase 3 (Design) starts: no
+  destructive migration (additive column only, `status` preserved), no
+  billing/payment logic change, no new tenancy/permission boundary, no new
+  metered AI action. It does need his sign-off on the Direction pick this
+  entry hands to UX/UI Director (stage labels/board visual direction),
+  same as any other design-taste call in this codebase's precedent.
+- **Relevant agent**: UX/UI Director next (Phase 3 — full card design,
+  stage-column visual language, detail-workspace layout, responsive
+  behaviour) → Lead Engineer (Phase 4 build) → QA (Phase 6) → Product
+  Director (Phase 7/8 review against this original problem statement).
+- **Dependencies**: none blocking — every entity Phase A touches
+  (`projects`, `tasks`, `clients`, `memberships`, `audit_log`) already
+  exists in production; the `stage` column is additive.
+- **Status**: Ready.
+
+### Projects Kanban Command Centre — Phase B: Files-on-a-project, invoice linkage, and the `projects` ↔ `website_projects` cross-link decision
+
+- **Problem**: three real, valuable connections Hamish's spec names
+  ("what files are relevant," what's been billed, and how a generic
+  delivery project relates to an in-flight Website Builder build) aren't
+  answerable from Phase A alone, but each has a real, bounded, already-
+  proven pattern to extend rather than build from scratch.
+- **Objective**: (1) a `project_files` table cloning the already-built,
+  already-tested `website_project_files` storage pattern (private Supabase
+  Storage bucket, signed URLs, `kind` label) but scoped to `projects.id`
+  instead of `website_project_id`; (2) a nullable `invoices.project_id`
+  column so "what's been billed / what's outstanding" can surface on a
+  project's detail view — a tag, not a billing *logic* change, the invoice
+  creation/Stripe flow itself is untouched; (3) an explicit decision (not
+  an assumption) on whether/how a `projects` row should be able to point
+  at its own `website_projects` row when the same piece of client work is
+  both a tracked delivery project and an active website build — the
+  audit's own finding that these are today two entirely unrelated tables
+  for what's often conceptually the same piece of work.
+- **User**: same as Phase A — an agency owner running project delivery,
+  who currently can't see a project's files or billing status without
+  leaving Projects, and whose Website Builder work is invisible from the
+  Kanban board even when it's the actual work "AI Lead Generation System"
+  refers to.
+- **Priority**: P2 — real and valuable, but deliberately sequenced after
+  Phase A ships and gets used, not bundled into the same build. Building
+  three more schema touches into an already-substantial Phase A risks the
+  exact kind of premature scope this role exists to push back on.
+- **Expected outcome**: a project's detail workspace (built in Phase A)
+  can show its own files and billing status without inventing new
+  infrastructure; a clear, documented answer to "is a website build its
+  own project or part of one" that the team builds toward consistently
+  instead of guessing per-feature.
+- **Acceptance criteria**: to be written properly once Phase A has shipped
+  and Product Director scopes this as its own dispatch — not written in
+  full here, since committing to exact schema/UI shape before Phase A's
+  real detail-workspace layout exists risks designing against a page that
+  doesn't exist yet.
+- **Relevant agent**: Product Director (re-scope once Phase A ships) →
+  Lead Engineer (`project_files` clone, `invoices.project_id` addition) +
+  UX/UI Director (the cross-link decision's UI implication, if any).
+- **Dependencies**: Phase A shipped and live.
+- **Status**: Researching.
+
+### Projects Kanban Command Centre — Phase C: Meetings, formal Deliverables/approval workflow, AI project assistant, client-portal visibility splitting
+
+- **Problem**: the remaining items in Hamish's 27-point spec — a
+  client-facing meetings record on a project, a formal deliverable
+  approval workflow, an AI project assistant, and per-item client-portal
+  visibility control — each require a net-new entity or subsystem that
+  doesn't exist today for a *converted client*, as distinct from the
+  pre-conversion prospect-scoped versions that do exist
+  (`lead_meetings`, `proposal_tokens`). These are real ideas, not rejected
+  ones, but each is a materially bigger, separately-scoped build than
+  "extend the Kanban board," and two of them cross this team's own
+  documented approval boundaries.
+- **Objective**: not to build now. To record honestly, so a future
+  dispatch doesn't have to re-derive the audit, what each of these would
+  actually require:
+  - **Meetings on a client/project**: `lead_meetings` is prospect-scoped
+    and itself only Phase 1 of a larger documented plan (no AI briefing/
+    analysis columns yet). A client/project-scoped equivalent is a new
+    table plus a decision on whether it reuses the same MS Graph
+    integration `lead_meetings` uses.
+  - **Formal Deliverables + client approval**: no `deliverables` table
+    exists. `proposal_tokens`' public-token, viewed-then-accepted pattern
+    is a real, promising precedent to adapt — but doing so means exposing
+    a new client-facing accept/reject action, a genuinely new write
+    surface for a client's portal session, which is the kind of thing
+    this team's own precedent (the payment-reminder one-click send) flags
+    for Security Auditor review before shipping, not something to wave
+    through because the UI pattern exists elsewhere.
+  - **AI project assistant**: `src/lib/project-report.ts` is real,
+    working precedent — but it's single-tenant `/admin`-only
+    (`getSupabaseAdmin()`, no org scoping, no usage metering). Porting it
+    to multi-tenant Studio means a new metered `UsageEventType`
+    (`usage-limits.ts`), real ongoing Anthropic API cost per generation,
+    and — per `PRODUCT.md`'s own "genuinely early-stage, no significant
+    real usage history yet" — no evidence yet that this gets used enough
+    to justify the build, the same reasoning that already deferred two
+    adjacent AI-agentic ideas in the 2026-08-27 "best in market" mission
+    (see `DECISIONS.md`).
+  - **Client-portal visibility splitting**: `client_members.role` is
+    binary (owner/member) today; per-item visibility control is a
+    genuinely new permission dimension on the client portal — explicitly
+    "a new tenancy boundary" per `docs/ai-team/README.md`'s approval-
+    boundary list, needing Hamish's sign-off before it's even scoped in
+    detail, not just before it's built.
+- **Priority**: P3 (someday) for all four — real, not rejected, but none
+  are build-worthy now.
+- **Relevant agent**: Product Director (re-scope once real usage data
+  from Phase A/B exists, or Hamish explicitly asks to prioritise one of
+  these) → AI/Agent Architect (the assistant item specifically) →
+  Security Auditor (the deliverable-approval item specifically, given the
+  new client-write-action risk shape).
+- **Dependencies**: Phase A and B shipped; for the visibility-splitting
+  and AI-assistant items specifically, Hamish's explicit sign-off before
+  detailed scoping, per the approval-boundary reasoning above.
+- **Status**: Not started.
+
 ### Prefill the Website Builder discovery form from a converted prospect's mockup/research (close the Prospects → Website Builder gap)
 
 - **Problem**: a prospect's "Website mockup" (`draft-website-mockup.ts`,
@@ -159,13 +471,16 @@ _(none yet)_
   `DECISIONS.md`'s matching entry for the placement/mechanism decisions
   and the UX/UI Director's handoff to Lead Engineer for the full
   field-by-field `WizardPrefill` spec, exact query changes, and search-
-  param contract. → **Lead Engineer next** (build).
+  param contract. ~~→ **Lead Engineer next** (build).~~ done, 2026-09-03 —
+  see `DECISIONS.md`'s matching entry. → **QA Engineer next** (verify).
 - **Dependencies**: none — every data source and column already exists in
   production; no approval-boundary item in this scope (see Product
   Director's handoff for the explicit statement that no migration, no
   payments, no destructive change, and no major architecture change is
   involved).
-- **Status**: Ready.
+- **Status**: Built, 2026-09-03 — `npx tsc --noEmit`, `npx eslint` on every
+  touched file, and the full `vitest` suite (424/424) all green; not yet
+  verified in an authenticated live browser session. Not yet QA-reviewed.
 
 ## Researching
 

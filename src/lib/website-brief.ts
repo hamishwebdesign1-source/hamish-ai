@@ -1,5 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { stripMarkdownEmphasis } from "@/lib/strip-markdown-emphasis";
+import type { WebsiteMockup } from "@/lib/draft-website-mockup";
+import type { LeadResearch } from "@/lib/research-lead";
 
 // AI Website Creation Guide, WB1 — HamishAI does not build or host
 // websites. This turns a discovery wizard's answers into a professional
@@ -229,4 +231,99 @@ export async function generateWebsiteBrief(discovery: WebsiteDiscovery): Promise
     console.error("Failed to generate website brief:", error);
     return { error: "The brief generator is temporarily unavailable." };
   }
+}
+
+// Prospects → Website Builder prefill (BACKLOG.md, 2026-09-03) — turns a
+// converted prospect's own prospecting data into a one-time starting
+// point for this same WebsiteDiscovery form, never a server-side default
+// baked into createWebsiteProject itself. Pure function, deliberately: no
+// Supabase, no Anthropic call, so a caller can compute this from any row
+// shape that already carries these six columns (the real `/new/page.tsx`
+// server component does the scoped DB lookups; this only shapes what it
+// found).
+//
+// Tier is per-field, not per-prospect, matching DESIGN-SYSTEM.md's
+// "Field-provenance tags on a prefilled form" entry: "hard" for a direct
+// DB column or research.services (AI-observed from real site content,
+// treated as reliable), "soft" only for research.strengths standing in
+// for USPs (a real signal, but an approximation). Only the six fields
+// BACKLOG.md's own mapping confirms have a real upstream source can ever
+// appear here — targetAudience, objectives, sitemapPages, all four
+// design fields, and contentNotes have nothing to map from and must stay
+// genuinely absent, never an invented middle state.
+export type PrefillTier = "hard" | "soft";
+
+export type PrefillField = { value: string; tier: PrefillTier };
+
+export type WizardPrefillFieldKey = "businessName" | "industry" | "location" | "existingWebsiteUrl" | "servicesProducts" | "usps";
+
+export type WizardPrefill = {
+  // The prospect's own business name — not necessarily identical to the
+  // field value once a user edits it, kept separately so the banner text
+  // ("Started from [X]'s prospecting research…") stays fixed to what was
+  // actually sourced, not whatever the businessName field currently says.
+  sourceBusinessName: string;
+  fields: Partial<Record<WizardPrefillFieldKey, PrefillField>>;
+};
+
+export type PrefillProspect = {
+  business_name: string;
+  category: string | null;
+  neighbourhood: string | null;
+  website: string | null;
+  website_mockup: WebsiteMockup | null;
+  research: LeadResearch | null;
+};
+
+// Same gate the entry point itself uses (BACKLOG.md's acceptance
+// criteria: "a client that has a source_lead_id whose prospect has
+// website_mockup and/or research set") — exported so clients/page.tsx's
+// query and the ClientCard control can share one definition of
+// "eligible" rather than each re-deriving it slightly differently.
+export function prospectHasPrefillSource(prospect: Pick<PrefillProspect, "website_mockup" | "research">): boolean {
+  return Boolean(prospect.website_mockup || prospect.research);
+}
+
+export function buildWizardPrefill(prospect: PrefillProspect): WizardPrefill {
+  const fields: WizardPrefill["fields"] = {};
+
+  const businessName = prospect.business_name.trim();
+  if (businessName) fields.businessName = { value: businessName, tier: "hard" };
+
+  const industry = prospect.category?.trim();
+  if (industry) fields.industry = { value: industry, tier: "hard" };
+
+  const location = prospect.neighbourhood?.trim();
+  if (location) fields.location = { value: location, tier: "hard" };
+
+  // prospects.website, carried forward verbatim to clients.website_url at
+  // conversion (convertProspectToClient) — sourced from the prospect row
+  // directly here rather than requiring a second read of the client row,
+  // since the two are guaranteed identical at the moment of conversion
+  // and this function only ever runs against an already-converted client.
+  const website = prospect.website?.trim();
+  if (website) fields.existingWebsiteUrl = { value: website, tier: "hard" };
+
+  // Prefer research.services (AI-observed from the prospect's actual
+  // site content) over website_mockup.services (restyled marketing copy,
+  // one AI pass further from ground truth) — per BACKLOG.md's own
+  // mapping. Only fall back to mockup service names when no research is
+  // on file at all, not merely when research.services is empty, so a
+  // research pass that genuinely found zero services doesn't quietly
+  // resurrect stale mockup copy instead.
+  const researchServices = prospect.research?.services.filter((s) => s.trim()).map((s) => s.trim()) ?? [];
+  const services = prospect.research
+    ? researchServices
+    : (prospect.website_mockup?.services.map((s) => s.name.trim()).filter(Boolean) ?? []);
+  if (services.length > 0) fields.servicesProducts = { value: services.join(", "), tier: "hard" };
+
+  // research.strengths standing in for USPs — a real signal, but an
+  // approximation, not a verified USP list (BACKLOG.md's own framing).
+  // Deliberately no mockup-derived fallback: nothing in WebsiteMockup's
+  // shape (hero copy, a problem statement, service blurbs, a CTA) is a
+  // "what makes them different" list the way research.strengths is.
+  const strengths = prospect.research?.strengths.filter((s) => s.trim()).map((s) => s.trim()) ?? [];
+  if (strengths.length > 0) fields.usps = { value: strengths.join(", "), tier: "soft" };
+
+  return { sourceBusinessName: prospect.business_name, fields };
 }

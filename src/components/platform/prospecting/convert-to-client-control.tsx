@@ -1,11 +1,13 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import Link from "next/link";
 import { UserPlus } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { convertProspectToClient } from "@/app/studio/(authed)/prospects/actions";
+import { prospectHasPrefillSource } from "@/lib/website-brief";
 import type { Prospect } from "./types";
 
 // A single row's own convert-to-client mini-form — its own component so
@@ -18,7 +20,24 @@ export function ConvertToClientControl({ prospect }: { prospect: Prospect }) {
   const [result, setResult] = useState<Awaited<ReturnType<typeof convertProspectToClient>> | null>(null);
 
   if (prospect.status === "converted") {
-    return <Badge variant="secondary">Client</Badge>;
+    return (
+      <div className="flex flex-col items-end gap-1">
+        <Badge variant="secondary">Client</Badge>
+        {/* Prospects → Website Builder prefill (BACKLOG.md, 2026-09-03)
+            — a secondary pointer back to the real entry point
+            (StartWebsiteBuildFromProspectControl, inside this client's
+            own expanded ClientCard), same "no toast, inline text"
+            convention as everywhere else in this app. Deliberately just
+            a link to Clients, not a deep link to this specific client —
+            this control doesn't know the resulting client_id and isn't
+            worth a second query just to look it up. */}
+        {prospectHasPrefillSource(prospect) && (
+          <Link href="/studio/clients" className="text-[11px] text-accent underline underline-offset-2">
+            Start website build in Clients
+          </Link>
+        )}
+      </div>
+    );
   }
 
   if (!open) {

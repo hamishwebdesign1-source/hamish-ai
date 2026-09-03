@@ -5,6 +5,9 @@ import { getOrgMembership } from "@/lib/org-membership";
 import { ClientsPanel } from "@/components/platform/clients-panel";
 import { computeClientHealth, type ClientHealth } from "@/lib/client-health";
 import { computeClientEngagementRisk, type ClientEngagementRisk } from "@/lib/studio-engagement";
+import { prospectHasPrefillSource } from "@/lib/website-brief";
+import type { WebsiteMockup } from "@/lib/draft-website-mockup";
+import type { LeadResearch } from "@/lib/research-lead";
 
 // SEO/metadata audit (2 Sep 2026) — see studio/(authed)/page.tsx for the
 // full reasoning (every real page under here gets its own real title).
@@ -80,7 +83,7 @@ export default async function StudioClientsPage() {
     supabase
       .from("clients")
       .select(
-        "id, business_name, email, website_url, maintenance_plan, created_at, chatbot_embed_enabled, chatbot_embed_allowed_origin, maintenance_monthly_pence, stripe_subscription_id, subscription_status"
+        "id, business_name, email, website_url, maintenance_plan, created_at, chatbot_embed_enabled, chatbot_embed_allowed_origin, maintenance_monthly_pence, stripe_subscription_id, subscription_status, source_lead_id"
       )
       .eq("org_id", membership.orgId)
       .order("created_at", { ascending: false }),
@@ -239,6 +242,27 @@ export default async function StudioClientsPage() {
     existing.push({ headline: row.headline, detail: row.detail, sourceUrl: row.source_url, createdAt: row.created_at });
   }
 
+  // Prospects → Website Builder prefill (BACKLOG.md, 2026-09-03) — only
+  // ever decides whether the entry point/badge renders for a given
+  // client, never the actual prefill values themselves (those are
+  // computed by /studio/website-builder/new/page.tsx, re-derived and
+  // re-scoped at that point, not trusted from this render). Scoped to
+  // this caller's own org_id, same as every other query on this page —
+  // a prospect id sourced from another org's client would already be
+  // impossible here (source_lead_id only ever points at a prospect the
+  // converting org itself owned), but the explicit .eq stays as the real
+  // protection, not an assumption about what source_lead_id can contain.
+  const sourceLeadIds = [...new Set((clients ?? []).map((c) => c.source_lead_id).filter((id): id is string => Boolean(id)))];
+  const { data: sourceProspects } = sourceLeadIds.length
+    ? await supabase.from("prospects").select("id, website_mockup, research").eq("org_id", membership.orgId).in("id", sourceLeadIds)
+    : { data: [] as { id: string; website_mockup: WebsiteMockup | null; research: LeadResearch | null }[] };
+
+  const eligibleProspectIds = new Set((sourceProspects ?? []).filter((p) => prospectHasPrefillSource(p)).map((p) => p.id));
+  const prefillEligibleByClient: Record<string, boolean> = {};
+  for (const client of clients ?? []) {
+    if (client.source_lead_id && eligibleProspectIds.has(client.source_lead_id)) prefillEligibleByClient[client.id] = true;
+  }
+
   return (
     <ClientsPanel
       clients={clients ?? []}
@@ -249,6 +273,7 @@ export default async function StudioClientsPage() {
       healthByClient={healthByClient}
       riskByClient={riskByClient}
       competitorIntelByClient={competitorIntelByClient}
+      prefillEligibleByClient={prefillEligibleByClient}
       stripeReady={stripeReady}
       hasLoadError={Boolean(clientsError)}
     />

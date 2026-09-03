@@ -22,6 +22,7 @@ import {
   Repeat,
   Mail,
   X,
+  Sparkles,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -55,6 +56,12 @@ type Client = {
   maintenance_monthly_pence: number | null;
   stripe_subscription_id: string | null;
   subscription_status: string | null;
+  // Prospects → Website Builder prefill (BACKLOG.md, 2026-09-03) — the
+  // existing trace-back to the converting prospect, already set by
+  // convertProspectToClient(); StartWebsiteBuildFromProspectControl below
+  // is the only consumer, but it belongs on the shared Client type since
+  // clients/page.tsx now selects it alongside every other column.
+  source_lead_id: string | null;
 };
 
 // Same shared inline-<select> chrome as requests-panel.tsx/
@@ -424,6 +431,25 @@ function GenerateReportControl({ clientId }: { clientId: string }) {
   );
 }
 
+// Prospects → Website Builder prefill (BACKLOG.md, 2026-09-03) — the
+// real entry point DECISIONS.md's matching entry designed: a persistent
+// action inside the expanded ClientCard, distinct from the generic
+// blank-state /studio/website-builder/new flow, only rendered when this
+// client's own source prospect has real mockup/research on file
+// (prefillEligible, computed server-side in clients/page.tsx — this
+// component never re-derives that itself, and never sees the prospect's
+// actual data, only the client id it needs to link to). A plain Link, not
+// a Server Action — the wizard opening with data already resolved is the
+// entire point, so this only ever needs to navigate with the two search
+// params the mechanism is built on (client, prefill=1).
+function StartWebsiteBuildFromProspectControl({ clientId }: { clientId: string }) {
+  return (
+    <Button size="sm" variant="outline" render={<Link href={`/studio/website-builder/new?client=${clientId}&prefill=1`} />}>
+      <Sparkles className="size-3.5" /> Start website build from prospect
+    </Button>
+  );
+}
+
 // Phase 3 of "sell a chatbot to your client's own website" — the Studio
 // toggle + embed snippet. Uses window.location.origin rather than a
 // hardcoded domain for the snippet, so this keeps working correctly
@@ -717,6 +743,7 @@ function ClientCard({
   members,
   stripeReady,
   competitorIntel,
+  prefillEligible,
 }: {
   client: Client;
   invoices: Invoice[];
@@ -727,6 +754,11 @@ function ClientCard({
   members: ClientMember[];
   stripeReady: boolean;
   competitorIntel: CompetitorIntel[];
+  // Prospects → Website Builder prefill (BACKLOG.md, 2026-09-03) — true
+  // only when clients/page.tsx's own scoped lookup confirmed this
+  // client's source prospect has website_mockup and/or research on file;
+  // gates both the collapsed-row badge and the expanded-card control.
+  prefillEligible: boolean;
 }) {
   const [open, setOpen] = useState(false);
 
@@ -755,6 +787,16 @@ function ClientCard({
             {client.chatbot_embed_enabled && (
               <Badge variant="ai" className="hidden gap-1 sm:inline-flex">
                 <MessageCircle className="size-3" /> AI chatbot
+              </Badge>
+            )}
+            {/* Prospects → Website Builder prefill (BACKLOG.md,
+                2026-09-03) — same "surface it one level up" reasoning as
+                the AI chatbot badge above, same slot: scanning "who has a
+                prefillable mockup/research on file" across the client
+                list without opening every row. */}
+            {prefillEligible && (
+              <Badge variant="ai" className="hidden gap-1 sm:inline-flex">
+                <Sparkles className="size-3" /> Mockup ready
               </Badge>
             )}
             {client.website_url && (
@@ -839,6 +881,8 @@ function ClientCard({
 
             <GenerateReportControl clientId={client.id} />
 
+            {prefillEligible && <StartWebsiteBuildFromProspectControl clientId={client.id} />}
+
             <ClientMembersControl client={client} members={members} />
 
             <EmbedChatbotControl client={client} usageCount={embedUsage} leads={embedLeads} />
@@ -917,6 +961,7 @@ export function ClientsPanel({
   embedLeadsByClient,
   membersByClient,
   competitorIntelByClient,
+  prefillEligibleByClient,
   stripeReady,
   hasLoadError,
 }: {
@@ -928,6 +973,12 @@ export function ClientsPanel({
   embedLeadsByClient: Record<string, EmbedLead[]>;
   membersByClient: Record<string, ClientMember[]>;
   competitorIntelByClient: Record<string, CompetitorIntel[]>;
+  // Prospects → Website Builder prefill (BACKLOG.md, 2026-09-03) —
+  // computed server-side (clients/page.tsx), a client id only appears
+  // here at all when its source prospect genuinely has mockup/research
+  // on file; absence (not a false entry) is the default for every other
+  // client, same sparse-map convention as the other *ByClient records.
+  prefillEligibleByClient: Record<string, boolean>;
   stripeReady: boolean;
   // Tier 3 item #11 — page.tsx's own clients query error, additive to its
   // existing console.error (not a replacement): distinguishes a real
@@ -1016,6 +1067,7 @@ export function ClientsPanel({
                   embedLeads={embedLeadsByClient[c.id] ?? []}
                   members={membersByClient[c.id] ?? []}
                   competitorIntel={competitorIntelByClient[c.id] ?? []}
+                  prefillEligible={prefillEligibleByClient[c.id] ?? false}
                   stripeReady={stripeReady}
                 />
               ))}
