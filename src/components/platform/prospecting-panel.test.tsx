@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, waitFor, cleanup } from "@testing-library/react";
-import { ContactTrackingControl, PipelineStageControl } from "./prospecting-panel";
+import { ContactTrackingControl } from "./prospecting/contact-tracking-control";
+import { PipelineStageControl } from "./prospecting/pipeline-stage-control";
 import {
   markProspectContacted,
   markProspectReplied,

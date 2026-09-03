@@ -129,17 +129,23 @@ export default async function WebsiteBuilderPage() {
         eyebrow="Build"
         title="Build professional websites with AI"
         description="HamishAI doesn't build or host websites — it gives you the complete system, brief, and step-by-step AI instructions to build and manage professional websites yourself, using the world's leading agentic coding tools: Claude Code, Codex, and Cursor. You stay in charge of the build; we make you dramatically more capable of running it."
+        actions={
+          // Studio Design Audit, Tier 1 #4 — was a hand-rolled <Link>
+          // styled as a button; now the established Button+render pattern
+          // (see command-centre-section-cards.tsx), same icon/label/colour
+          // intent kept. Post-build cleanup: moved into StudioPageHeader's
+          // own `actions` slot (item #5) to match Analytics' range-
+          // switcher/CSV-export controls instead of sitting outside it.
+          <Button
+            key="create-website-project"
+            size="lg"
+            className="gap-2 bg-accent px-4 font-semibold text-accent-foreground hover:bg-accent/90"
+            render={<Link href="/studio/website-builder/new" />}
+          >
+            <Plus className="size-4" /> Create Website Project
+          </Button>
+        }
       />
-
-      <div className="mt-8">
-        {/* Studio Design Audit, Tier 1 #4 — was a hand-rolled <Link>
-            styled as a button; now the established Button+render pattern
-            (see command-centre-section-cards.tsx), same icon/label/colour
-            intent kept. */}
-        <Button size="lg" className="gap-2 bg-accent px-4 font-semibold text-accent-foreground hover:bg-accent/90" render={<Link href="/studio/website-builder/new" />}>
-          <Plus className="size-4" /> Create Website Project
-        </Button>
-      </div>
 
       {projects && projects.length > 0 ? (
         <div className="mt-8 space-y-6">

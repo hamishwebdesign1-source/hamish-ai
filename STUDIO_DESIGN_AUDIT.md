@@ -435,6 +435,49 @@ Ranked by convergence across specialists, real user/business value, and effort. 
   Tier 2 item #5 work, already resolved in this shared tree by the time
   this pass ran).
 
+- **Phase 3 post-build fixes** — a final, small cleanup pass after the
+  seven specialists re-reviewed the completed build (`50aba86..d6b46cb`).
+  Seven confirmed, isolated findings:
+  1. Fixed a real silent-failure regression in `clients-panel.tsx`'s
+     `ClientMembersControl.remove()` — it discarded
+     `removeClientMemberAction()`'s return value entirely, so a failed
+     removal collapsed the confirm UI with zero feedback. Now checks
+     `"error" in r` and surfaces it via a new `removeError` state,
+     matching this same file's `invite`/`saveRate`/`start`/`cancel` and
+     `team-panel.tsx`'s own remove function.
+  2. Fixed a button-size token mismatch in the same control: the
+     icon-only `Trash2` remove trigger now uses `size="icon-xs"` (was
+     `"xs"`), matching `team-panel.tsx`'s equivalent.
+  3. Fixed a stale tour reference: `studio-tour.tsx`'s "AI Business
+     Analyst" step no longer says "from the Clients page" (`ClientsCopilot`
+     was retired in this mission's own AI-surface-consolidation work) —
+     now correctly points at "the assistant widget in the bottom-left of
+     every page."
+  4. Folded `prospecting-panel.tsx`'s own independent "Monthly limit
+     reached" wording into the shared `UsageLimitMessage` component built
+     earlier in this mission, so all three usage-limit call sites
+     (`discovery-result-message.tsx`, `top-opportunity-kit-action.tsx`,
+     and now this ambient usage card) render identically.
+  5. Moved Website Builder's "Create Website Project" button into
+     `StudioPageHeader`'s own `actions` slot, matching Analytics' range-
+     switcher/CSV-export controls instead of sitting outside it.
+  6. Updated a stale code comment in `clients/page.tsx` that still said
+     the clients-query failure "is not surfaced to the UI" — Tier 3 item
+     #11 already added that surfacing (`hasLoadError`); the comment now
+     describes current reality.
+  7. Deleted the `prospecting-panel.tsx` re-export shim (a 13-line barrel
+     left over from the Tier 1 item #3 file split) — its two real
+     importers (`prospects/page.tsx`, `prospecting-panel.test.tsx`) now
+     import directly from `prospecting/prospecting-panel.tsx` and its
+     sibling control files.
+
+  tsc clean, scoped `eslint` on all eight touched files clean, full
+  `eslint .` matches the documented pre-existing baseline (68 errors/38
+  warnings, unrelated files), and `npm run test` is 415/415 (one
+  transient full-suite flake in `command-centre-section-cards.test.tsx`,
+  unrelated to any file touched in this pass, reproduced as a clean pass
+  in isolation and on a subsequent full-suite re-run).
+
 ## 4. What was not built
 
 *(anything deliberately scoped out during build, beyond the Phase 1 rejections above)*

@@ -40,7 +40,7 @@ const STEPS = [
   {
     icon: Sparkles,
     title: "AI Business Analyst",
-    description: "Ask about your business in plain English, from the Clients page — revenue, who needs attention, what's overdue.",
+    description: "Ask about your business in plain English, from the assistant widget in the bottom-left of every page — revenue, who needs attention, what's overdue.",
   },
   {
     icon: FolderKanban,

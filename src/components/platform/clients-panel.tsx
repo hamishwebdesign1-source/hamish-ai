@@ -440,6 +440,7 @@ function ClientMembersControl({ client, members }: { client: Client; members: Cl
   const [invitePending, startInvite] = useTransition();
   const [inviteError, setInviteError] = useState<string | null>(null);
   const [removePending, startRemove] = useTransition();
+  const [removeError, setRemoveError] = useState<string | null>(null);
   // Tier 4 item #12 — same lightweight two-step confirm as
   // team-panel.tsx's own remove control; only one row can be mid-confirm
   // at a time, same as this file's other single-id confirm states.
@@ -458,8 +459,13 @@ function ClientMembersControl({ client, members }: { client: Client; members: Cl
   }
 
   function remove(memberId: string) {
+    setRemoveError(null);
     startRemove(async () => {
-      await removeClientMemberAction(memberId);
+      const r = await removeClientMemberAction(memberId);
+      if (r && "error" in r) {
+        setRemoveError(r.error ?? "Failed to remove that person.");
+        return;
+      }
       setConfirmingRemoveId(null);
     });
   }
@@ -498,7 +504,7 @@ function ClientMembersControl({ client, members }: { client: Client; members: Cl
                 </div>
               ) : (
                 <Button
-                  size="xs"
+                  size="icon-xs"
                   variant="ghost"
                   disabled={removePending}
                   onClick={() => setConfirmingRemoveId(m.id)}
@@ -511,6 +517,7 @@ function ClientMembersControl({ client, members }: { client: Client; members: Cl
           ))}
         </ul>
       )}
+      {removeError && <p className="mt-1.5 text-xs text-destructive">{removeError}</p>}
 
       <div className="mt-2.5 flex flex-wrap items-end gap-2">
         <Input

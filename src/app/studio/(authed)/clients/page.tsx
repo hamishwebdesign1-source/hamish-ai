@@ -92,9 +92,10 @@ export default async function StudioClientsPage() {
   // `data` — a genuine failure here (RLS misconfiguration, a bad grant,
   // anything) would silently render as the ordinary "no clients yet"
   // empty state instead of surfacing anywhere, making exactly this kind
-  // of bug undiagnosable from the outside. Logged, not surfaced to the
-  // UI — same fail-quiet-but-not-silent convention as stripeOrgError
-  // just below, which this pattern was copied from.
+  // of bug undiagnosable from the outside. Logged here, and — since Tier 3
+  // item #11 of the Studio Design Audit — also passed to ClientsPanel as
+  // `hasLoadError` below, which renders a real "something didn't load
+  // correctly" notice distinct from the legitimate empty state.
   if (clientsError) {
     console.error("Studio Clients: clients query failed:", clientsError);
   }

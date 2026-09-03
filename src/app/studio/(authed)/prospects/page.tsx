@@ -4,7 +4,7 @@ import { getOrgMembership } from "@/lib/org-membership";
 import { getUsageStatus } from "@/lib/usage-limits";
 import type { PlatformPlanSlug } from "@/lib/platform-plans";
 import { listTeamMembers } from "@/lib/team-members";
-import { ProspectingPanel } from "@/components/platform/prospecting-panel";
+import { ProspectingPanel } from "@/components/platform/prospecting/prospecting-panel";
 
 // Server-side data assembly only — every write (settings, running
 // discovery) happens through actions.ts's Server Actions, called from the

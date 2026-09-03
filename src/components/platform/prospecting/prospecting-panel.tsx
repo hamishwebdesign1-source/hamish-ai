@@ -1,11 +1,9 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
 import {
   Search,
-  CircleAlert,
   Tag,
   MapPin,
   Mail,
@@ -33,6 +31,7 @@ import {
 } from "@/app/studio/(authed)/prospects/actions";
 import { DiscoveryResultMessage, type DiscoveryResult } from "@/components/platform/discovery-result-message";
 import { StudioPageHeader } from "@/components/platform/studio-page-header";
+import { UsageLimitMessage } from "@/components/platform/usage-limit-message";
 import type { UsageStatus } from "@/lib/usage-limits";
 import { leadNeedsFollowUp } from "@/lib/lead-status";
 import type { Prospect, ProposalToken, TeamMember } from "./types";
@@ -404,14 +403,9 @@ export function ProspectingPanel({
               </p>
             )}
             {atLimit && (
-              <p className="mt-2 flex items-center gap-1.5 text-xs text-destructive">
-                <CircleAlert className="size-3.5 shrink-0" />
-                Monthly limit reached —{" "}
-                <Link href="/studio/billing" className="underline hover:text-destructive/80">
-                  buy more prospects or upgrade your plan
-                </Link>{" "}
-                to keep finding prospects this month.
-              </p>
+              <div className="mt-2">
+                <UsageLimitMessage used={usage.used} limit={usage.limit} suffix="to keep finding prospects this month" />
+              </div>
             )}
           </CardContent>
         </Card>
