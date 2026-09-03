@@ -36,7 +36,126 @@ _(none yet)_
 
 ## Not started
 
-_(none yet)_
+### Build `StudioEmptyState` and `ConfirmDeleteButton` shared primitives, retrofit existing sites
+
+- **Problem**: Studio Design Audit Phase 1 (Lead Engineer) found the
+  dashed-border empty-state card duplicated 15 times across 9 files and
+  confirm-delete reimplemented independently 4+ times, each with slightly
+  different copy/behaviour. Phase 2 built and adopted `StudioPageHeader`
+  (the highest-priority duplication) but deliberately did not build these
+  two — correctly scoped as Medium priority given the mission's size, but
+  the Phase 3 post-build review (Lead Engineer) found the raw confirm-delete
+  count actually went *up* (4+ → ~10) since Phase 2's own new confirm-step
+  additions (cancel subscription, remove client/team member) each reused
+  the *shape* correctly but each is still its own bespoke implementation,
+  not a shared one.
+- **Objective**: one `StudioEmptyState` component (icon, heading, body,
+  optional CTA) and one `ConfirmDeleteButton`/`useConfirmDelete()` hook,
+  each adopted everywhere the pattern currently exists by hand.
+- **User**: no direct user-facing change intended — this is a
+  maintainability/consistency fix so a future visual or behavioural change
+  to either pattern lands in one place, not 10-15.
+- **Priority**: P2 (worth doing, not urgent — the user-facing cohesion win
+  already shipped via `StudioPageHeader`; this is the maintainability
+  half Phase 2 didn't have room for).
+- **Expected outcome**: a real reduction in duplicate markup/logic; no
+  visible change to end users beyond incidental copy consistency.
+- **Acceptance criteria**: both primitives built; every one of the ~15
+  empty-state sites and ~10 confirm-delete sites (per Lead Engineer's
+  Phase 1/Phase 3 file lists in `STUDIO_DESIGN_AUDIT.md`) adopts them;
+  `tsc`/`eslint`/full test suite green; no behaviour change to any
+  existing delete/empty-state flow.
+- **Relevant agent**: Lead Engineer.
+- **Dependencies**: none.
+- **Status**: Not started.
+
+### Consolidate the 4 duplicated assignee-select components into one shared control
+
+- **Problem**: Studio Design Audit Phase 1 (QA Engineer) found the
+  Prospects, Requests, Projects, and Website Builder assignee `<select>`
+  controls independently reimplement the same optimistic-update-plus-
+  error-surfacing shape. Phase 2 fixed the actual bug (silent rollback
+  with no error message) in all 4, but did not consolidate them into one
+  component — correctly deferred as Low priority (QA's own original
+  scoping) since the bug fix, not the consolidation, was the real
+  user-facing problem.
+- **Objective**: one shared `AssigneeSelect` component so the same fix
+  doesn't need to be applied 4 separate times if this bug class recurs.
+- **User**: no direct user-facing change — maintainability only.
+- **Priority**: P3 (someday) — real, but genuinely lower value than the
+  empty-state/confirm-delete consolidation above since the bug itself is
+  already fixed everywhere it existed.
+- **Expected outcome**: one component, 4 fewer independent
+  implementations to keep in sync by hand.
+- **Relevant agent**: Lead Engineer.
+- **Dependencies**: none.
+- **Status**: Not started.
+
+### Standardise a "Generated {date} · Regenerate" provenance line across every cached AI artifact
+
+- **Problem**: Studio Design Audit Phase 1 (AI/Agent Architect) found
+  `website-brief-panel.tsx` shows a real "Generated {date}" line on its
+  cached AI output but the sales-kit and website-mockup preview components
+  (now in `src/components/platform/prospecting/`) don't have an equivalent
+  — inconsistent legibility of "this is cached AI output, not live" across
+  otherwise-similar surfaces.
+- **Objective**: one small shared component used everywhere a cached AI
+  artifact is shown.
+- **User**: an agency owner reviewing a generated kit/mockup/brief, so
+  they can tell at a glance whether they're looking at something fresh or
+  something generated a while ago.
+- **Priority**: P3 (someday) — real but cosmetic; correctly deferred, not
+  a build-blocking gap.
+- **Relevant agent**: AI/Agent Architect (spec) + Lead Engineer (build).
+- **Dependencies**: none.
+- **Status**: Not started.
+
+### Reconcile the trial-status pill's count-up phrasing with the existing count-down phrasing elsewhere
+
+- **Problem**: Studio Design Audit Phase 2 added a "Trial · Day X of 7"
+  pill (count-up) for days 4-7 of a trial; the existing ≤3-day warning
+  banner and the Billing page both already use count-down phrasing
+  ("X days left"). Found by Growth & Analytics in the Phase 3 post-build
+  review — a new, minor inconsistency that didn't exist before this pill
+  was added.
+- **Objective**: pick one framing (count-down is likely more intuitive —
+  "3 days left" vs. "Day 4 of 7" both work, but having both live
+  simultaneously across 3 surfaces is the actual problem) and apply it
+  everywhere trial status is shown.
+- **Priority**: P3 (someday) — cosmetic, not confusing enough to block
+  anything, but a real, named inconsistency.
+- **Relevant agent**: UX/UI Director (pick the framing) + Lead Engineer
+  (apply it in `(authed)/layout.tsx` and `billing/page.tsx`).
+- **Dependencies**: none.
+- **Status**: Not started.
+
+### Dormancy signal for trialing/paying orgs with zero real activity
+
+- **Problem**: Studio Design Audit Phase 1 (Growth & Analytics) found the
+  only automated re-engagement mechanism today is trial-deadline-driven
+  (`trial-reminders.ts`) — there's no "you signed up and never came back"
+  signal, the most common real early-SaaS drop-off pattern. No
+  "last active" column or query exists anywhere in `/studio` today; this
+  would need new instrumentation against `usage_events`/`ai_call_log`,
+  not a guess.
+- **Objective**: instrumentation first (what does "inactive" actually
+  mean against real rows), a real email/digest addition second.
+- **Priority**: P2 (worth doing) for the instrumentation question itself;
+  the email/digest half is explicitly **not** approved to build without
+  Hamish's own sign-off first.
+- **Explicit constraint, not to be missed**: this sits close enough to
+  the standing pre-2026-11-09 no-outreach rule (`PRODUCT.md`) that Growth
+  & Analytics' own Phase 1 review flagged it as a borderline case —
+  arguably fine as inbound-account-lifecycle mail (same category as the
+  existing trial reminders), not solicitation of a new prospect, but that
+  judgment call is Hamish's to make explicitly before anything is built,
+  not assumed by whichever agent picks this up.
+- **Relevant agent**: Growth & Analytics (design the "what counts as
+  active" query) → Product Director (confirm the outreach-constraint
+  framing with Hamish before scoping further).
+- **Dependencies**: Hamish's explicit sign-off on the outreach-framing
+  question before any email/digest is built.
+- **Status**: Not started.
 
 ## Needs review
 

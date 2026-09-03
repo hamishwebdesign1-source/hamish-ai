@@ -5,6 +5,25 @@ of finishing a mission, not as a separate chore that falls behind.
 
 ## Recently completed (real, shipped, verified live)
 
+- "Studio Design Audit" mission (2026-09-03, `50aba86`..`ae9dc808` — see
+  `STUDIO_DESIGN_AUDIT.md` for the full review-build-review record): full
+  seven-specialist review of `/studio`, 18 prioritised fixes built across
+  cohesion (shared `StudioPageHeader` + standard `max-w-4xl` on 11 pages,
+  `prospecting-panel.tsx` split from 1,920 lines into 12 files, 7 missing
+  `loading.tsx` routes backfilled), AI coherence (3 fragmented "ask about
+  your business" surfaces consolidated onto one engine/one usage meter,
+  `ClientsCopilot` retired), activation (Billing link added to the
+  product's highest-intent conversion moment, onboarding tour reconciled
+  with the Command Centre checklist, PostHog step instrumentation added
+  to onboarding, a persistent trial-status indicator added), and
+  reliability/accessibility (a 4-way silent assignee-select rollback
+  fixed, 7 accessibility regressions restored, 3 destructive controls
+  given a real confirm step). A second, post-build review by the same
+  seven specialists caught and fixed two real regressions the build
+  itself introduced. Test count held at 415/415 green throughout (one
+  test correctly removed for a retired usage-event type); Studio/Platform
+  code stayed lint-clean. **Not yet pushed to production** — 20 commits,
+  all local on `main`, pending Hamish's review.
 - Agency Platform self-serve: Google sign-in, live Stripe billing, real
   signup CTAs, trial-ended email — confirmed working 2026-08-24.
 - Command Centre no-code block builder + AI Design Assistant (Phases 5a–5d) — live 2026-08-21.

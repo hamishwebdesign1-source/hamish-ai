@@ -9,6 +9,78 @@ paragraph, not a full handoff report (those, if worth keeping, go in
 
 ---
 
+## 2026-09-03 — Studio Design Audit: full review → build → post-build-review loop, 18 items shipped
+
+Hamish's mission: make `/studio` feel like one cohesive, premium, world-class
+AI-native product across the full customer journey, following the explicit
+review-then-build-then-review-again process rather than jumping to code.
+Full detail (all seven specialists' original findings, every prioritised
+item, every build entry, the post-build re-review, and before/after scores)
+lives in `STUDIO_DESIGN_AUDIT.md` at the repo root — this entry is the short
+summary `HANDOFF-FORMAT.md`'s own conventions ask for here.
+
+**Phase 1 (read-only review)**: UX/UI Director, Product Director, AI/Agent
+Architect, Lead Engineer, QA Engineer, Growth & Analytics, and Security
+Auditor each independently reviewed the entire `/studio` codebase (no
+authenticated session was available to any of them — every finding
+code-derived). Two specialists independently converged on the same finding
+without coordinating (AI-surface fragmentation — Product Director and
+AI/Agent Architect both flagged the same 3-surface/2-meter redundancy);
+UX/UI Director and Lead Engineer independently quantified the same
+cohesion problem (12x duplicated page headers, 4 different content
+max-widths). No cross-tenant security gap found.
+
+**Phase 2 (build)**: 18 prioritised items built across 5 tiers — a shared
+`StudioPageHeader` + standardised `max-w-4xl` across 11 pages;
+`prospecting-panel.tsx` split from 1,920 lines into 12 files; 7 missing
+`loading.tsx` routes backfilled; the 3 AI "ask about your business"
+surfaces consolidated onto one engine/one usage meter (`ClientsCopilot`
+retired); a misleading AI badge removed from a deterministic feature; a
+4-way silent assignee-select rollback fixed; a Billing link added to the
+product's highest-intent conversion moment; the onboarding tour and
+Command Centre checklist reconciled into one "what to do first" story;
+7 accessibility regressions fixed; 3 destructive controls (cancel
+subscription, remove client/team member) given the established confirm
+pattern; Feedback merged into Help; real dialog semantics added to two
+hand-rolled overlays; PostHog step instrumentation added to onboarding;
+a persistent trial-status indicator added. One lead-engineer subagent
+stalled mid-task (session timeout) after finishing its actual code and
+writing its own `DECISIONS.md` entry but before committing — the
+orchestrator reviewed every diff against the stated task, re-ran
+`tsc`/`eslint`/the full test suite independently, and committed on the
+agent's behalf once satisfied (commit `e253fe0`). Baseline held clean
+throughout: `tsc` clean, Studio/Platform lint-clean, test count moved from
+416→415 (one test correctly deleted for a retired usage-event type), never
+broke.
+
+**Phase 3 (post-build review)**: the same seven specialists re-reviewed
+the actual shipped result against real current source, not the audit
+doc's own prose. Verdict: every Phase 2 claim checked out under spot-check
+(no invented "fixed" claims). Two real regressions were caught and fixed
+in a final pass — a silent-failure bug reintroduced in a sibling control
+built in the same Tier 4 commit (`ClientMembersControl.remove()` in
+`clients-panel.tsx` discarded its Server Action's error, the exact bug
+class Tier 3 #7 had just fixed elsewhere), and a stale tour line still
+pointing new users at the just-retired Clients-page AI copilot. Both
+independently caught by 2+ specialists. One process gap this entry itself
+exists to close: `BACKLOG.md`/`AGENT-LOG.md` updates that the audit doc's
+own text claimed would happen didn't happen until Lead Engineer's
+post-build pass caught the gap — see `BACKLOG.md`'s new entries for what
+was genuinely deferred (not silently dropped).
+
+**Not built, deliberately** (named, not silently dropped — see
+`STUDIO_DESIGN_AUDIT.md` section 2 and `BACKLOG.md`): a coach-mark tour
+rebuild, Campaign budget/spend tracking, merging Website Builder into
+Projects, a dormancy/re-engagement email (outreach-adjacent, needs
+Hamish's own sign-off), a Command Centre density pass (needs real usage
+data first), and two shared-primitive refactors (`StudioEmptyState`,
+`ConfirmDeleteButton`) scoped but not built this pass — real, cheap,
+correctly backlogged rather than rushed at the end of an already-large
+mission.
+
+Not pushed to `main`/production — all 20 commits are local, per the
+standing approval boundary.
+
 ## 2026-08-31 — "AI ROI" mission: a real, attribution-based figure shipped to Billing
 
 Hamish's own pick, after being offered a choice between "AI ROI number,"

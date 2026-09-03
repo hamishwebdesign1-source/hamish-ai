@@ -118,9 +118,17 @@ review," for the full implementation note.
   passes its real nav-section name (`Grow` for Analytics/Prospects/
   Campaigns, `Build` for Website Builder, `Deliver` for Clients/Requests/
   Projects/Knowledge, `Account` for Billing/Settings/Help & Feedback), per
-  `studio-nav.tsx`'s `getNavSections()` — reinforcing the sidebar grouping
-  on the page itself instead of leaving it invisible once you've clicked
-  in.
+  `studio-nav.tsx`'s `getNavSections()`. **Correction (post-build review,
+  UX/UI Director)**: this was originally justified here as "reinforcing
+  the sidebar grouping on the page itself instead of leaving it invisible
+  once you've clicked in" — that's only true on mobile, where
+  `StudioSidebar` is hidden (`md:flex`) and the drawer nav doesn't show
+  group labels inline. On desktop, where the sidebar is always visible,
+  the eyebrow duplicates a label already showing one column to the left —
+  a real, acknowledged redundancy, not a mistake worth reverting on its
+  own (it's cheap, harmless, and genuinely useful on mobile), just not the
+  universal win the original wording claimed. Revisit only if a future
+  pass has a real reason to touch page headers again.
 
 ## Components
 
