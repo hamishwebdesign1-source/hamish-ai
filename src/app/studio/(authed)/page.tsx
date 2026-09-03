@@ -655,17 +655,20 @@ export default async function StudioHomePage() {
           above. 5 columns, every default stat card at span 1: genuinely
           uniform width, not just close — see command-centre-layout.ts's
           own comment on why health gave up its old span-2 default.
-          items-start, not the grid default (stretch): even with health
-          compacted for its new single-width column (a smaller ring,
-          one-line driver rows — see the health card's own comment), it
-          still holds more real content than a plain "icon, number,
-          label" stat card and is naturally a bit taller. Stretching
-          every card in a row to match the tallest one papers over that
-          with visibly empty space in the shorter cards — worse than a
-          small, real height difference between a hero card and its
-          plainer neighbours, which is a completely ordinary dashboard
-          pattern. */}
-      <Reveal delay={80} className="mt-6 grid items-start gap-4 sm:grid-cols-2 lg:grid-cols-5">
+          Grid default (stretch), not items-start — reported live
+          (screenshot): the previous reasoning here assumed the plain
+          stat cards would render at one uniform height with only the
+          Business Health hero card taller by a "small, real" amount.
+          Real content broke that assumption two ways at once — "Business
+          Health" plus its inline help icon doesn't fit this column's
+          text width on one line and wraps, and among the plain cards
+          themselves, a one-word label (Clients) sits at a different
+          height than a two-word one that also wraps (Prospects found,
+          Conversion rate, Pipeline value) — so the row read as jaggedly
+          uneven, not "a small hero-card difference." Every card here
+          already sets h-full for exactly this stretch behavior; this is
+          just no longer overriding it with items-start. */}
+      <Reveal delay={80} className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
         {blocks
           .filter((b): b is Extract<Block, { type: "stat" }> => b.type === "stat")
           .map((block) => (
@@ -675,25 +678,33 @@ export default async function StudioHomePage() {
           ))}
       </Reveal>
 
-      {/* Getting set up (P1 onboarding checklist) — deliberately not a
-          block: it's a temporary, self-removing section (see its own
-          comment below), not a permanent piece of the layout an agency
-          would want to reorder or hide. Moved here, right after the
-          stat row and ahead of the tabs, in the professional-feel pass
-          — it used to render after the whole tabbed area, meaning the
-          org that most needs this (a brand-new one, nothing set up yet)
-          had to scroll past every populated tab to reach it.
-          Studio UX pass (3 Sep 2026) — the actual card markup now lives
-          in onboarding-checklist.tsx, collapsed by default behind a
-          progress summary instead of always fully expanded; see that
-          file's own comment. */}
-      {!checklistComplete && <OnboardingChecklist items={checklist} />}
-
-      {/* Actions required — always the first thing after the numbers,
-          before any tab (see the fixed-position comment above
-          tabContent's own loop for the full reasoning). Full-width, same
-          treatment its own card already had inside the block grid. */}
-      {actionsRequiredContent && <Reveal delay={110} className="mt-6">{actionsRequiredContent}</Reveal>}
+      {/* Getting set up + Actions required — deliberately not blocks:
+          Getting set up is a temporary, self-removing section (see
+          onboarding-checklist.tsx's own comment), not a permanent piece
+          of the layout an agency would want to reorder or hide; Actions
+          required is always the first thing after the numbers, before
+          any tab (see the fixed-position comment above tabContent's own
+          loop for the full reasoning). Moved here, right after the stat
+          row and ahead of the tabs, in the professional-feel pass — it
+          used to render after the whole tabbed area, meaning the org
+          that most needs this (a brand-new one, nothing set up yet) had
+          to scroll past every populated tab to reach it.
+          Studio UX pass (3 Sep 2026) — reported live (screenshot): with
+          both stacked full-width, "Getting set up" alone pushed the
+          tabbed sections below the fold. Tried collapsing it behind an
+          accordion first; reported live again that wasn't the actual
+          ask — side by side, not shorter. Grid instead of two separate
+          full-width blocks: each takes half the row on desktop when
+          both are present, and the one present card still gets the
+          full row on its own (a new org with nothing overdue yet, or a
+          fully set-up org with something overdue) rather than sitting
+          alone in a half-width column. */}
+      {(!checklistComplete || actionsRequiredContent) && (
+        <div className={`mt-6 grid items-start gap-4 ${!checklistComplete && actionsRequiredContent ? "lg:grid-cols-2" : ""}`}>
+          {!checklistComplete && <OnboardingChecklist items={checklist} />}
+          {actionsRequiredContent && <Reveal delay={110}>{actionsRequiredContent}</Reveal>}
+        </div>
+      )}
 
       {/* Everything else (Insights / Your briefing / Engagement risk /
           Model performance / Client AI adoption / Top prospects / Recent
