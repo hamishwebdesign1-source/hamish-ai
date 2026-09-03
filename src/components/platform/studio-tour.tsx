@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { LayoutDashboard, BarChart3, Sparkles, FolderKanban, Inbox, BookOpen, ArrowRight, ArrowLeft } from "lucide-react";
+import { LayoutDashboard, Search, BarChart3, Sparkles, FolderKanban, Inbox, BookOpen, ArrowRight, ArrowLeft } from "lucide-react";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { completeTour } from "@/app/studio/(authed)/tour-actions";
@@ -9,14 +9,28 @@ import { completeTour } from "@/app/studio/(authed)/tour-actions";
 // First-login product tour (Command Centre Phase 4, §26) — a short,
 // skippable walkthrough of the parts of Studio that actually changed
 // this session (Command Centre, Analytics, the Business Analyst), plus
-// the standing pillars (Projects, Requests, Knowledge). Deliberately six
-// steps, not a tour of every nav item — "don't bombard the user" is in
-// the brief's own words.
+// the standing pillars (Prospects, Projects, Requests, Knowledge).
+// Deliberately seven steps, not a tour of every nav item — "don't
+// bombard the user" is in the brief's own words.
+//
+// Studio Design Audit Tier 3 item #9 — a Prospects step is added right
+// after the Command Centre intro (before Analytics) because finding
+// prospects is a brand-new org's actual first real task, confirmed by
+// Command Centre's own "Getting set up" checklist starting with "Run
+// your first discovery search." The closing step now explicitly points
+// back at that same checklist instead of ending on Knowledge, an
+// unrelated topic — one coherent "what to do first" narrative instead of
+// two disjoint ones (tour vs. checklist).
 const STEPS = [
   {
     icon: LayoutDashboard,
     title: "Command Centre",
     description: "Your home screen — what changed, what needs your attention, and what's genuinely working, all from real data.",
+  },
+  {
+    icon: Search,
+    title: "Prospects",
+    description: "Find real local businesses that fit your ideal client, then research and reach out — this is where every new client starts.",
   },
   {
     icon: BarChart3,
@@ -41,7 +55,7 @@ const STEPS = [
   {
     icon: BookOpen,
     title: "Knowledge",
-    description: "Facts about each client's business — grounds their portal AI and any chatbot you put on their own website.",
+    description: "Facts about each client's business — grounds their portal AI and any chatbot you put on their own website. Your first concrete steps are in the \"Getting set up\" checklist on this page — start there.",
   },
 ];
 
