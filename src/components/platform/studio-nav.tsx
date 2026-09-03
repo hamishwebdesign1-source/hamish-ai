@@ -1,4 +1,4 @@
-import { LayoutDashboard, Search, Users, CreditCard, Mail, Inbox, FolderKanban, HelpCircle, BookOpen, BarChart3, Megaphone, Globe, MessageSquare } from "lucide-react";
+import { LayoutDashboard, Search, Users, CreditCard, Mail, Inbox, FolderKanban, HelpCircle, BookOpen, BarChart3, Megaphone, Globe } from "lucide-react";
 import { StudioNavLink } from "@/components/platform/studio-nav-link";
 
 // Grown from a flat top nav (11 items, horizontal-scroll on desktop by
@@ -7,6 +7,13 @@ import { StudioNavLink } from "@/components/platform/studio-nav-link";
 // for the same reason. Grouping mirrors how the product's own
 // information architecture already reads: prospecting work, delivery
 // work, then account-level pages.
+//
+// Studio Design Audit, Tier 5 item #13 — the standalone "Feedback" item
+// was merged into "Help & Feedback" (/studio/help now renders both the
+// FAQ list and the feedback form; /studio/feedback 301s there, see
+// next.config.ts). Both were the two thinnest pages in Studio; a
+// dedicated nav slot for "one textarea, one send action" was real nav
+// clutter, not real information architecture.
 export function getNavSections(): { label: string | null; items: { href: string; label: string; icon: typeof LayoutDashboard }[] }[] {
   return [
     {
@@ -39,8 +46,7 @@ export function getNavSections(): { label: string | null; items: { href: string;
       items: [
         { href: "/studio/billing", label: "Billing", icon: CreditCard },
         { href: "/studio/settings", label: "Settings", icon: Mail },
-        { href: "/studio/feedback", label: "Feedback", icon: MessageSquare },
-        { href: "/studio/help", label: "Help", icon: HelpCircle },
+        { href: "/studio/help", label: "Help & Feedback", icon: HelpCircle },
       ],
     },
   ];

@@ -196,7 +196,19 @@ Ranked by convergence across specialists, real user/business value, and effort. 
 
 ## 3. What was built
 
-*(filled in as Phase 2 build proceeds)*
+- **Tier 5, item #13 — Merged Feedback into Help.** `/studio/feedback`
+  (`feedback/page.tsx` + `feedback/actions.ts`) is retired; `/studio/help`
+  now renders the existing FAQ list and the existing feedback form on one
+  page, both real capabilities kept exactly as they worked before — only
+  the UI/nav was consolidated, not the backend logic (`submitFeedback`
+  moved verbatim into `help/actions.ts`, only its redirect target
+  changed). `getNavSections()` (`studio-nav.tsx`) drops the standalone
+  "Feedback" item and renames "Help" to "Help & Feedback" — this single
+  source of truth is also read by `StudioMobileNav` and the command
+  palette, so both picked up the change with no separate edit needed.
+  `/studio/feedback` 301s to `/studio/help` (`next.config.ts`) so no
+  stale bookmark or nav reference dead-ends. tsc/lint/416-test baseline
+  unaffected.
 
 ## 4. What was not built
 

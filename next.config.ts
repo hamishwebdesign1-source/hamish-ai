@@ -33,8 +33,17 @@ const nextConfig: NextConfig = {
   // src/app/(site)/platform/) — this only redirects the bare marketing
   // URL, so any existing bookmark or backlink still lands on real,
   // correct content instead of a dead end.
+  // Studio Design Audit, Tier 5 item #13 — /studio/feedback (its own
+  // route/page/nav item) was merged onto /studio/help as one page, one
+  // nav item ("Help & Feedback"); see help/page.tsx's own comment.
+  // Redirected rather than left to 404 for the same reason /platform is
+  // above: any existing bookmark or stale nav reference should still
+  // land on real, correct content.
   async redirects() {
-    return [{ source: "/platform", destination: "/", permanent: true }];
+    return [
+      { source: "/platform", destination: "/", permanent: true },
+      { source: "/studio/feedback", destination: "/studio/help", permanent: true },
+    ];
   },
   // SEO/Lighthouse-Best-Practices audit (2 Sep 2026) — verified live via
   // curl that only Strict-Transport-Security was set (Vercel's own

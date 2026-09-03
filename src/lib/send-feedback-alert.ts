@@ -5,7 +5,9 @@ import { siteConfig } from "@/lib/site-config";
 // send-site-alert.ts, kept as its own file for the same reason those two
 // are separate rather than merged: each is a distinct kind of alert with
 // its own subject line and meaning, not a generic "email Hamish"
-// catch-all. This one specifically closes the /studio/feedback loop —
+// catch-all. This one specifically closes the Studio feedback loop
+// (the form now lives on /studio/help, merged there from its own former
+// /studio/feedback route — Studio Design Audit, Tier 5 item #13) —
 // unlike sendErrorAlert (application failures) or sendSiteAlertEmail
 // (automated health checks), the trigger here is a tenant deliberately
 // telling us something, so it's worth its own identity in the inbox.

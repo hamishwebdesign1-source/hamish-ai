@@ -5,8 +5,11 @@ import { createServerSupabaseClient, getUserWithRetry } from "@/lib/supabase-ser
 import { getOrgMembership } from "@/lib/org-membership";
 import { sendFeedbackAlert } from "@/lib/send-feedback-alert";
 
-// Same local requireOrgAndEmail() copy as billing/actions.ts — see that
-// file's own comment for why this isn't a shared import.
+// Moved from the now-retired feedback/actions.ts (Studio Design Audit,
+// Tier 5 item #13 — Feedback merged into Help as one page/nav item, both
+// having been the two thinnest, correctly minimal pages). Same local
+// requireOrgAndEmail() copy as billing/actions.ts — see that file's own
+// comment for why this isn't a shared import.
 async function requireOrgAndEmail(): Promise<{ orgId: string; orgName: string; email: string }> {
   const supabase = await createServerSupabaseClient();
   const {
@@ -24,15 +27,17 @@ async function requireOrgAndEmail(): Promise<{ orgId: string; orgName: string; e
 // Bound directly to a <form action>, same void-returning /
 // redirect-with-query-param shape as every other simple form in
 // /studio (see billing/actions.ts's startCheckout for the pattern this
-// follows) — no client-side state needed for a single textarea.
+// follows) — no client-side state needed for a single textarea. Redirect
+// target updated to /studio/help (this page's own route) now that
+// /studio/feedback no longer exists.
 export async function submitFeedback(formData: FormData) {
   const { orgName, email } = await requireOrgAndEmail();
 
   const message = String(formData.get("message") ?? "").trim();
   if (!message) {
-    redirect("/studio/feedback?error=" + encodeURIComponent("Feedback can't be empty."));
+    redirect("/studio/help?error=" + encodeURIComponent("Feedback can't be empty."));
   }
 
   await sendFeedbackAlert(orgName, email, message);
-  redirect("/studio/feedback?sent=success");
+  redirect("/studio/help?sent=success");
 }
