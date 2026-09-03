@@ -351,6 +351,41 @@ Ranked by convergence across specialists, real user/business value, and effort. 
   not caused by this pass — none of these eight files touch
   `usage-limits.ts` or the AI-surface-consolidation files.
 
+- **Tier 2, item #5 and Tier 5, item #14 — Consolidated the three AI
+  ask-surfaces onto one engine/meter, and gave the two hand-rolled overlays
+  real dialog semantics.** The Clients page's embedded `ClientsCopilot` is
+  retired entirely (component deleted, not remounted anywhere), along with
+  `askClientsCopilot()` (`clients/actions.ts`), `answerClientsQuestion()`'s
+  question-answering wrapper (`answer-clients-question.ts` — its
+  `buildClientsSummary()`/`buildAnalyticsSummary()` helpers are kept,
+  confirmed still genuinely imported by `answer-studio-question.ts`), and
+  `clients_copilot_question` as a `UsageEventType` (`usage-limits.ts`).
+  The command palette's Ask flow and the Clients page itself now both call
+  `askStudioAssistant()` — confirmed a strict superset (same client/
+  analytics data, plus Help-FAQ grounding) — so all three surfaces share
+  one `studio_assistant_question` meter instead of splitting one real
+  monthly allowance across two invisible caps. Historical
+  `clients_copilot_question` usage-event rows are left exactly as
+  recorded, not migrated (`getUsageStatus()` only ever sums the current
+  calendar month by exact event-type match, so they simply stop being
+  queried — see `docs/ai-team/DECISIONS.md` for the full reasoning).
+  Separately, `studio-command-palette.tsx` and `studio-assistant-widget.tsx`
+  — both hand-rolled overlays that predate this codebase's `ui/dialog.tsx`
+  — gained `role="dialog"`/`aria-modal="true"`, a shared Tab-wrap focus
+  trap (new `src/lib/use-focus-trap.ts`), and an Escape-to-close handler on
+  the widget (the palette already had one). `docs/ai-team/DESIGN-SYSTEM.md`
+  updated to reflect `ClientsCopilot`'s retirement everywhere it was
+  referenced as a live example. tsc clean, lint clean (68/38 pre-existing,
+  unrelated), 415/415 tests passing (the expected count after item #10's
+  above-noted retired-event-type test removal).
+  **Process note**: the lead-engineer subagent that did this work stalled
+  (no progress for 600s) immediately before its own commit step, after
+  finishing the code and writing its own `DECISIONS.md`/`DESIGN-SYSTEM.md`
+  entries. The orchestrator reviewed every diff against the stated task
+  before staging (explicit pathspecs, no blanket `git add`), independently
+  re-ran `tsc`/`eslint`/`npm run test`, and committed on the agent's behalf
+  once satisfied nothing was broken or incomplete — see commit `e253fe0`.
+
 ## 4. What was not built
 
 *(anything deliberately scoped out during build, beyond the Phase 1 rejections above)*
