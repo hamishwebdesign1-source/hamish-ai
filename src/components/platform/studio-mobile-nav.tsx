@@ -29,7 +29,23 @@ export function StudioMobileNav({ requestsBadgeCount }: { requestsBadgeCount?: n
       </Button>
 
       {open && (
-        <nav className="absolute inset-x-0 top-full z-40 max-h-[calc(100vh-4rem)] overflow-y-auto border-b border-border/60 bg-background px-6 py-4 shadow-sm">
+        // Reported live (screenshot): the drawer's nav items sat visibly
+        // indented from the true left edge on a narrow viewport instead
+        // of running edge-to-edge, eating into the room the whole point
+        // of a mobile drawer is meant to free up. Root cause: `absolute`
+        // resolves against the nearest positioned ancestor by walking up
+        // the DOM, and this button sits nested inside the header's own
+        // `mx-auto max-w-6xl px-6` centered content row — several layers
+        // below the `<header className="relative">` this was written
+        // assuming it'd anchor to. `fixed` sidesteps that ancestor chain
+        // entirely and anchors to the real viewport, the same fix
+        // already used earlier this session for the left sidebar's own
+        // position:sticky getting broken by an unrelated ancestor.
+        // top-16 matches this file's own pre-existing max-h
+        // calc(100vh-4rem) assumption that the header is exactly 4rem
+        // tall — already correct, just never actually applied to `top`
+        // itself until now.
+        <nav className="fixed inset-x-0 top-16 z-40 max-h-[calc(100vh-4rem)] overflow-y-auto border-b border-border/60 bg-background px-6 py-4 shadow-sm">
           <div className="flex flex-col gap-4">
             {navSections.map((section, i) => (
               <div key={section.label ?? `ungrouped-${i}`} className="flex flex-col gap-1">

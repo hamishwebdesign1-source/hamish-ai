@@ -28,7 +28,12 @@ export function PortalMobileNav({ orgName }: { orgName: string }) {
       </Button>
 
       {open && (
-        <nav className="absolute inset-x-0 top-full z-40 max-h-[calc(100vh-4rem)] overflow-y-auto border-b border-border/60 bg-background px-6 py-4 shadow-sm">
+        // Same fix as studio-mobile-nav.tsx's own (2026-09-03) — `absolute`
+        // was anchoring to whichever positioned ancestor it lands on by
+        // DOM nesting, not the true viewport, so the drawer sat visibly
+        // indented instead of running edge-to-edge. `fixed` sidesteps
+        // that ancestor chain entirely.
+        <nav className="fixed inset-x-0 top-16 z-40 max-h-[calc(100vh-4rem)] overflow-y-auto border-b border-border/60 bg-background px-6 py-4 shadow-sm">
           <div className="flex flex-col gap-4">
             {navSections.map((section, i) => (
               <div key={section.label ?? `ungrouped-${i}`} className="flex flex-col gap-1">
