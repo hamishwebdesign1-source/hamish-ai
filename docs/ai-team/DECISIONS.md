@@ -187,7 +187,21 @@ that policy exactly as before. Needs Hamish to run it (same as the
 `stage` column migration) before this is genuinely fixed in production,
 not just in code.
 
-**Not yet re-verified live** — pending the migration being run.
+**Re-verified live, confirmed fixed**: Hamish ran the migration; the 4
+tasks created during the earlier (broken) test attempts — all of which
+had genuinely been written to the database the whole time, per this
+entry's own root-cause finding — immediately became visible with no new
+write needed, directly confirming the RLS gap was the sole blocker.
+Stage-change reverted back to its original "In progress" value
+afterward (it had been left at "Client review" from live testing) and
+confirmed persisted through a reload.
+
+**New, real gap surfaced by this same test**: there is no delete-task
+control anywhere in Phase A's UI (only status toggling: To do/In
+progress/Done) — the 4 test tasks from this debugging session are stuck
+on the real "W Fitness" project with no in-app way to remove them.
+Logged as a real, small follow-up in `BACKLOG.md` rather than worked
+around.
 
 ---
 

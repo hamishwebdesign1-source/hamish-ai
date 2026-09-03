@@ -544,33 +544,50 @@ covers the whole row.
 - **Dependencies**: none blocking — every entity Phase A touches
   (`projects`, `tasks`, `clients`, `memberships`, `audit_log`) already
   exists in production; the `stage` column is additive.
-- **Status**: **Built and pushed to production; live-verification found
-  one real bug, fix written, pending Hamish running a second migration.**
-  `npx tsc --noEmit -p .`, `npx eslint`, and the full `vitest` suite
-  (456/456) all green, `npm run build` succeeded — but live verification
-  in a real authenticated Studio session (production, Hamish's own
-  account) found real gaps static checks couldn't catch:
-  - The board, drag-handle cards, and 5-stage columns all render
-    correctly; the existing "Onboarding" projects backfilled to
-    `in_progress` exactly as the migration intended.
+- **Status**: **Shipped and live-verified**, 2026-09-03 — `npx tsc
+  --noEmit -p .`, `npx eslint`, and the full `vitest` suite (456/456) all
+  green, `npm run build` succeeded, and live verification in a real
+  authenticated Studio session (production, Hamish's own account) confirms
+  it genuinely works:
+  - Board, drag-handle cards, and 5-stage columns all render correctly;
+    the existing "Onboarding" projects backfilled to `in_progress` exactly
+    as the migration intended.
   - Stage changes genuinely persist (confirmed via a full page reload,
     not just client state) and correctly log a `project.stage_changed`
     audit event, visible on the detail page's Activity trail.
-  - **Real bug, confirmed root cause**: "Add a task" on
-    `/studio/projects/[id]` silently fails to ever show the created task
-    — traced to a stale RLS policy (`tasks_select_own_org`) that only
-    grants SELECT via a join through `requests`, which a project-only
-    task's `request_id: null` can never satisfy. The write itself
-    succeeds (service-role client bypasses RLS); the read is the gap.
-    Full writeup and fix in `docs/ai-team/DECISIONS.md`'s matching
-    2026-09-03 entry. Fix written: `supabase/schema-rls-tasks-via-project.sql`
-    (one additive permissive policy, doesn't touch the existing one) —
-    needs Hamish to run it before task creation is genuinely usable.
-  - Not yet re-verified live post-fix. Drag-and-drop itself not yet
-    confirmed via a real pointer gesture (automation tooling limitation,
-    not a known bug) — the underlying persistence mechanism it shares
-    with the stage-select control is confirmed working.
+  - **Real bug found, fixed, and confirmed fixed**: "Add a task" on
+    `/studio/projects/[id]` initially failed to ever show the created
+    task — traced to a stale RLS policy (`tasks_select_own_org`) that
+    only grants SELECT via a join through `requests`, which a
+    project-only task's `request_id: null` can never satisfy (the write
+    itself always succeeded; the read was the gap). Fixed via
+    `supabase/schema-rls-tasks-via-project.sql` (one additive permissive
+    policy). Re-verified live after Hamish ran it: all 4 tasks from the
+    earlier broken attempts immediately became visible with no new write
+    needed — direct confirmation the RLS gap was the sole cause. Full
+    writeup in `docs/ai-team/DECISIONS.md`'s matching 2026-09-03 entries.
+  - **New real gap surfaced by this same test, logged separately below**:
+    no delete-task control exists anywhere in Phase A's UI.
+  - Drag-and-drop not yet confirmed via a real pointer gesture (a tooling
+    limitation on the verifying side, not a known product bug) — the
+    underlying persistence mechanism it shares with the stage-select
+    control is confirmed working end to end.
   - Phase B/C intentionally not started, per this entry's own phasing.
+
+### Add a delete-task control to the Projects detail page
+
+- **Problem**: `/studio/projects/[id]` (Phase A) lets a task be created
+  and have its status changed, but has no way to delete one — found live
+  while cleaning up test tasks created during Phase A's own verification,
+  which are now stuck on a real project with no in-app removal path.
+- **Objective**: a delete control on each task row, same confirm-before-
+  destructive-action pattern already used elsewhere in Studio (e.g.
+  `DeleteProjectControl` on this same page).
+- **Priority**: P2 — real, small, not blocking, but a genuine gap in an
+  otherwise-complete feature.
+- **Relevant agent**: Lead Engineer.
+- **Dependencies**: none.
+- **Status**: Not started.
 
 ### Projects Kanban Command Centre — Phase B: Files-on-a-project, invoice linkage, and the `projects` ↔ `website_projects` cross-link decision
 

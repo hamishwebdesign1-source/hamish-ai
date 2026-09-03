@@ -5,6 +5,28 @@ of finishing a mission, not as a separate chore that falls behind.
 
 ## Recently completed (real, shipped, verified live)
 
+- "Projects Kanban Command Centre" mission, Phase A (2026-09-03,
+  `95afe38`..`2514c2f` + a manually-run RLS migration): the flat
+  per-client task list at `/studio/projects` replaced with a real
+  5-stage Kanban board (Not Started/In Progress/Internal Review/Client
+  Review/Completed — a deliberate cut from Hamish's own suggested 7, no
+  invented "Approved" stage since no approval entity exists to back it),
+  working drag-and-drop with optimistic update + rollback, and a genuine
+  `/studio/projects/[id]` detail workspace (task list, real "add a task"
+  capability, an audit-log-backed activity trail). Built on entities that
+  already existed — no new tenancy boundary, no billing change. Full
+  seven-specialist chain: Product Director's audit found the codebase
+  already has two unrelated "Project" tables (flagged for a future Phase
+  B decision, not resolved here) and that `projects.status` is read
+  directly by 7 real call sites, so `stage` shipped as a purely additive
+  column with `status` derived from it. Live verification (production,
+  Hamish's own account) caught one real bug a fresh RLS policy gap
+  making project-only tasks invisible to their own owner — root-caused,
+  fixed, and confirmed fixed live (the 4 tasks written during the
+  earlier broken attempts became visible immediately once the fix
+  landed, with no new write needed). One real, small gap surfaced during
+  that same test and logged separately: no delete-task control exists
+  yet. 456/456 tests passing.
 - "Prospects → Website Builder" mission (2026-09-03, `a752851`..`78d3678`):
   the AI-generated "Website mockup" a prospect gets during outreach no
   longer dead-ends once they convert. Two real pieces, both live-verified
