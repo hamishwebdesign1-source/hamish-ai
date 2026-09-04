@@ -1488,7 +1488,19 @@ _(none yet)_
   live authenticated screen is a real call only UX/UI Director's visual
   judgment can close — moving to Needs review rather than Complete for
   that reason, not because any acceptance criterion is unmet.
-- **Status**: Needs review
+- **Visual-density review (2026-09-04)**: the live "Edinburgh solutions"
+  account currently has zero scored prospects, so `top_prospects` never
+  renders in production right now — nothing to screenshot live. Rendered
+  the exact same JSX/Tailwind classes from `command-centre-section-cards.tsx`
+  (lines 478-521) in a throwaway local route with 5 realistic dummy rows
+  (deleted after, never committed) and screenshotted it in the real dark
+  theme. Verdict: not visually noisy. The numbered badges plus 2-line text
+  give each row a clear scan anchor, `space-y-3` gives real breathing room
+  between rows, and the `compact` xs-button treatment stays visually
+  secondary to the business name/score rather than competing with it —
+  reads as an intentionally dense "top 5" list, not clutter. No further
+  design changes needed.
+- **Status**: Complete
 
 ## Complete
 
