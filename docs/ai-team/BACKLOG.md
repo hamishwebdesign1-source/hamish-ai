@@ -780,7 +780,36 @@ Phase B rather than guessed at in Phase A's audit.
 - **Dependencies**: none blocking — `projects.stage`, `client_members`,
   `memberships` all already exist in production from Phase A. Explicitly
   does **not** depend on Phase B (files are deferred, not required).
-- **Status**: Ready — design pass below complete, build not started.
+- **Status**: Built and pushed (commit `5abe704`) — this entry's own
+  "Status: Ready" line was stale; the build actually shipped 2026-09-03.
+  **Live-verified end to end on the Studio side** (2026-09-04, real
+  "Onboarding / W Fitness" project): submitted a real deliverable
+  (title + link), confirmed it renders with submitted-by/date, confirmed
+  the section-level visibility banner correctly reads "Not visible in the
+  client portal yet" at `not_started` and flips to "Visible to the client
+  now" the instant the stage moves to `client_review`, confirmed a
+  matching "Deliverable submitted" Activity entry, then deleted it again
+  and confirmed a "Deliverable removed" entry. Separately confirmed the
+  portal's own cross-client boundary holds — `/portal/projects/[id]` for
+  a project belonging to a different client than the signed-in portal
+  session correctly 404s via `.eq("client_id", membership.clientId)`
+  returning no row, not an information leak.
+  **Not yet verified: the actual client-facing portal render.** Every
+  client this org has (W Fitness, La Salle, Demo Client) has an
+  unaccepted or no portal invite, and inviting a fresh test address hit
+  this session's own write-permission classifier (declined, correctly —
+  granting portal account access isn't a call this loop should make
+  unattended). This is the same gap the previous verification pass hit a
+  rate limit on before finishing; still open. Needs either Hamish's own
+  portal session, or his explicit go-ahead to invite a throwaway test
+  address to the Demo Client's portal next.
+  **Also needs Hamish's attention**: the real "Onboarding / W Fitness"
+  project was moved to `client_review` stage as part of this test (to
+  exercise the visibility-gate toggle) and is now stuck there — reverting
+  it back to `not_started` also hit the same write-permission classifier.
+  The test deliverable itself was created and deleted cleanly (Activity
+  log shows both), so nothing client-visible is currently attached to it,
+  but the stage itself needs a manual revert.
 
 **UX/UI Director design pass (2026-09-03)** — resolves both open items
 above (portal placement, per-deliverable states) and corrects one
