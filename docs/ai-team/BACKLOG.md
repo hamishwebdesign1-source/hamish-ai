@@ -601,7 +601,21 @@ covers the whole row.
   otherwise-complete feature.
 - **Relevant agent**: Lead Engineer.
 - **Dependencies**: none.
-- **Status**: Not started.
+- **Status**: Complete/shipped (commit `e080410`). Built: `deleteProjectTask()`
+  Server Action (same org-ownership-check-then-delete shape as
+  `deleteDeliverable()`), confirm-before-delete UI on `TaskRow` (identical
+  pattern to `DeliverableRow`/`EntryCard`), `"task.deleted"` → "Task removed"
+  added to the project activity trail, 3 new unit tests. Live-verified
+  2026-09-04 on the real "Onboarding / W Fitness" project
+  (`/studio/projects/4edb5d53-a9eb-47bd-9ec4-4452295f74a1`) via a fresh
+  Claude-in-Chrome tab: delete icon present on every task row; used it to
+  delete all 4 stuck test tasks left over from Phase A's own verification
+  ("Send onboarding welcome email" ×2, "Retry test task", "Second retry
+  task"); confirmed each removal persisted after a full page reload (not
+  just client state) and produced a matching "Task removed" Activity entry
+  with the correct task title. Project's task list is now genuinely empty
+  ("No tasks yet.") — the real client data this gap had left stranded is
+  cleaned up.
 
 ### Projects Kanban Command Centre — Phase B: Files-on-a-project, invoice linkage, and the `projects` ↔ `website_projects` cross-link decision
 
