@@ -717,7 +717,7 @@ export function RequestsPanel({
   }
 
   return (
-    <div className="mx-auto max-w-4xl space-y-6">
+    <div className="mx-auto max-w-5xl space-y-6">
       <StudioPageHeader
         eyebrow="Deliver"
         title="Requests"

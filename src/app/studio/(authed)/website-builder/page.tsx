@@ -119,7 +119,7 @@ export default async function WebsiteBuilderPage() {
     .order("created_at", { ascending: false });
 
   return (
-    <div className="mx-auto max-w-4xl">
+    <div className="mx-auto max-w-5xl">
       {/* Studio Design Audit, Tier 1 #4 — eyebrow inconsistency resolved
           by keeping the eyebrow, not dropping it: every adopting page now
           gets one (its real nav-section name, via StudioPageHeader),

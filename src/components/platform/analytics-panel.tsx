@@ -78,7 +78,7 @@ function downloadCsv(data: AnalyticsData) {
 
 export function AnalyticsPanel({ data }: { data: AnalyticsData }) {
   return (
-    <div className="mx-auto max-w-4xl">
+    <div className="mx-auto max-w-5xl">
       <StudioPageHeader
         eyebrow="Grow"
         title="Analytics"

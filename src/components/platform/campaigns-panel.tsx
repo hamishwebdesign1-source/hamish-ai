@@ -336,7 +336,7 @@ export function CampaignsPanel({ campaigns, prospects }: { campaigns: Campaign[]
     : campaigns;
 
   return (
-    <div className="mx-auto max-w-4xl">
+    <div className="mx-auto max-w-5xl">
       <StudioPageHeader
         eyebrow="Grow"
         title="Campaigns"

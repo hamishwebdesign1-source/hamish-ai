@@ -373,7 +373,7 @@ export function ProspectingPanel({
     // GitHub settings all do this) — the mismatch was never "header wide,
     // body narrow," it was "body narrow AND left-aligned instead of
     // centered."
-    <div className="mx-auto max-w-4xl space-y-6">
+    <div className="mx-auto max-w-5xl space-y-6">
       <StudioPageHeader
         eyebrow="Grow"
         title="Prospects"

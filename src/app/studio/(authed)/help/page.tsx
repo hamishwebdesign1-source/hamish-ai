@@ -54,7 +54,7 @@ export default async function StudioHelpPage({
   const { sent, error } = await searchParams;
 
   return (
-    <div className="mx-auto max-w-4xl">
+    <div className="mx-auto max-w-5xl">
       <StudioPageHeader
         eyebrow="Account"
         title="Help & Feedback"

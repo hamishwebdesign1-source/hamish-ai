@@ -405,7 +405,7 @@ export function KnowledgePanel({
   });
 
   return (
-    <div className="mx-auto max-w-4xl">
+    <div className="mx-auto max-w-5xl">
       <StudioPageHeader
         eyebrow="Deliver"
         title="Knowledge base"
