@@ -205,7 +205,26 @@ export default async function StudioAuthedLayout({ children }: { children: React
         )}
         <div className="flex gap-8 px-6">
           <StudioSidebar requestsBadgeCount={requestsBadgeCount ?? undefined} />
-          <main className="min-w-0 flex-1 py-10">{children}</main>
+          {/* overflow-x-hidden here, not on this row or the outer shell —
+              live-verifying the row-width change above surfaced a real,
+              separate bug: help-tip.tsx's plain-CSS tooltip (no collision
+              detection, by design — see tooltip.tsx's own comment on why
+              Base UI's version got dropped) sits `absolute left-1/2
+              -translate-x-1/2 w-max`, and once content got genuinely
+              wider a tooltip trigger near the right edge could push its
+              (invisible-until-hovered, but still layout-participating)
+              content past the viewport, growing document scrollWidth
+              and producing a real horizontal scrollbar on every page,
+              not just ones using a tooltip. Scoped to `main`
+              specifically — NOT the shared row or shell wrapper above —
+              because an ancestor's non-visible overflow is exactly what
+              broke the sidebar's own position:sticky earlier this
+              session (this file's own comment on the aurora-bg fix);
+              `main` is the sidebar's sibling, not its ancestor, so this
+              can't recreate that bug. Doesn't touch the Kanban board's
+              own intentional inner overflow-x-auto either — nested
+              overflow contexts are independent. */}
+          <main className="min-w-0 flex-1 overflow-x-hidden py-10">{children}</main>
         </div>
         <StudioAssistantWidget orgName={org?.name ?? "your agency"} />
       </div>
