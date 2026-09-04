@@ -243,6 +243,47 @@ export async function updateProjectTaskStatus(taskId: string, status: "todo" | "
   return { ok: true as const };
 }
 
+// BACKLOG.md "Add a delete-task control to the Projects detail page" —
+// found live while cleaning up test tasks created during Phase A's own
+// verification, which had no in-app removal path. Same ownership-check
+// shape as updateProjectTaskStatus() above (task.project_id ->
+// projects.org_id, since tasks has no org_id column of its own), and the
+// same delete-plus-audit-log shape as deleteDeliverable() below — no
+// discrimination on request_id: this deletes whatever task row the
+// detail page shows, the same as deleteDeliverable() doesn't
+// discriminate either. tasks.request_id references requests(id) with no
+// ON DELETE clause (defaults to RESTRICT/NO ACTION in Postgres), so
+// deleting a task never cascades into or blocks on its parent request —
+// the request just loses one linked task, exactly as intended.
+export async function deleteProjectTask(taskId: string) {
+  const { orgId, email: actorEmail } = await requireOrgIdAndEmail();
+  const admin = getSupabaseAdmin();
+  if (!admin) return { error: "Supabase is not configured." };
+
+  const { data: task } = await admin.from("tasks").select("id, project_id, title").eq("id", taskId).maybeSingle();
+  if (!task || !task.project_id) return { error: "Task not found." };
+
+  const { data: project } = await admin.from("projects").select("id").eq("id", task.project_id).eq("org_id", orgId).maybeSingle();
+  if (!project) return { error: "Task not found." };
+
+  const { error } = await admin.from("tasks").delete().eq("id", taskId);
+  if (error) return { error: "Failed to delete the task." };
+
+  logAuditEvent({
+    actor: actorEmail,
+    actorType: "admin",
+    action: "task.deleted",
+    targetType: "project",
+    targetId: task.project_id,
+    orgId,
+    metadata: { title: task.title },
+  });
+
+  revalidatePath(`/studio/projects/${task.project_id}`);
+  revalidatePath("/studio/requests");
+  return { ok: true as const };
+}
+
 // A task's project is optional — passing null clears it back to
 // "unassigned" rather than requiring every task to belong to one.
 //

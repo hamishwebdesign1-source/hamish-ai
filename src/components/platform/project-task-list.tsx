@@ -2,13 +2,13 @@
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
-import { Plus } from "lucide-react";
+import { Plus, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { TaskStatusBadge } from "@/components/status-badges";
-import { createProjectTask, updateProjectTaskStatus } from "@/app/studio/(authed)/projects/actions";
+import { createProjectTask, updateProjectTaskStatus, deleteProjectTask } from "@/app/studio/(authed)/projects/actions";
 
 type Task = {
   id: string;
@@ -27,15 +27,34 @@ const CONTEXT_PREVIEW_CHARS = 80;
 // <select> (redundant here — already scoped to this project) with, when
 // the task has a request_id, a quoted context line pointing back at the
 // request it came from.
+// BACKLOG.md "Add a delete-task control to the Projects detail page" —
+// found live while cleaning up test tasks created during this same
+// page's own Phase A verification, which had no in-app removal path.
+// Same confirm-before-destructive-action shape project-deliverable-list.tsx's
+// DeliverableRow already established for this exact page (itself
+// following knowledge-panel.tsx's own EntryCard pattern) — deletes
+// whatever task this row shows, no discrimination on request_id (an
+// AI-triaged task can be removed the same as a manually-added one).
 function TaskRow({ task, request }: { task: Task; request?: RequestSummary }) {
   const [pending, startTransition] = useTransition();
   const [status, setStatus] = useState(task.status);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [deletePending, startDeleteTransition] = useTransition();
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   function setTaskStatus(next: "todo" | "in_progress" | "done") {
     setStatus(next);
     startTransition(async () => {
       const r = await updateProjectTaskStatus(task.id, next);
       if (r && "error" in r) setStatus(task.status);
+    });
+  }
+
+  function remove() {
+    setDeleteError(null);
+    startDeleteTransition(async () => {
+      const r = await deleteProjectTask(task.id);
+      if (r && "error" in r) setDeleteError(r.error ?? "Failed to delete the task.");
     });
   }
 
@@ -49,8 +68,25 @@ function TaskRow({ task, request }: { task: Task; request?: RequestSummary }) {
     <div className="rounded-lg border border-border p-3">
       <div className="flex items-center justify-between gap-2">
         <p className="text-sm font-medium">{task.title}</p>
-        <TaskStatusBadge status={status} />
+        <div className="flex shrink-0 items-center gap-1.5">
+          <TaskStatusBadge status={status} />
+          {confirmingDelete ? (
+            <>
+              <Button size="xs" variant="destructive" disabled={deletePending} onClick={remove}>
+                {deletePending ? "…" : "Confirm"}
+              </Button>
+              <Button size="icon" variant="ghost" aria-label="Cancel delete" onClick={() => setConfirmingDelete(false)}>
+                <X className="size-3.5" />
+              </Button>
+            </>
+          ) : (
+            <Button size="icon" variant="ghost" aria-label="Delete task" onClick={() => setConfirmingDelete(true)}>
+              <Trash2 className="size-3.5 text-muted-foreground" />
+            </Button>
+          )}
+        </div>
       </div>
+      {deleteError && <p className="mt-1 text-xs text-destructive">{deleteError}</p>}
       {task.description && <p className="mt-1 text-xs text-muted-foreground">{task.description}</p>}
       {task.acceptance_criteria && (
         <p className="mt-1 text-xs text-muted-foreground">

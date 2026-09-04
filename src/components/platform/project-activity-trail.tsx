@@ -32,6 +32,9 @@ const ACTION_LABEL: Record<string, string> = {
   // rendered on this exact page.
   "deliverable.submitted": "Deliverable submitted",
   "deliverable.deleted": "Deliverable removed",
+  // "Add a delete-task control" (BACKLOG.md) -- same free-timeline-entry
+  // reasoning as the deliverable actions above.
+  "task.deleted": "Task removed",
 };
 
 const actorTypeVariant: Record<string, "secondary" | "outline" | "warning"> = {
@@ -55,6 +58,7 @@ function describeEntry(entry: ActivityEntry): string {
     }
     case "deliverable.submitted":
     case "deliverable.deleted":
+    case "task.deleted":
       return typeof m.title === "string" ? m.title : "";
     default:
       return "";

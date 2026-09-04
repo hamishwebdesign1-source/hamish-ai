@@ -250,6 +250,76 @@ describe("updateProjectTaskStatus", () => {
   });
 });
 
+describe("deleteProjectTask", () => {
+  it("rejects a task with no project_id at all, and never deletes", async () => {
+    const deleteFn = vi.fn();
+    getSupabaseAdminMock.mockReturnValue({
+      from: (table: string) =>
+        table === "tasks"
+          ? { select: () => ({ eq: () => ({ maybeSingle: () => Promise.resolve({ data: { id: "task-1", project_id: null }, error: null }) }) }), delete: deleteFn }
+          : { delete: deleteFn },
+    });
+    const { deleteProjectTask } = await import("./actions");
+
+    const result = await deleteProjectTask("task-1");
+
+    expect(result).toEqual({ error: "Task not found." });
+    expect(deleteFn).not.toHaveBeenCalled();
+    expect(auditLogMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects a task whose project belongs to another org, and never deletes", async () => {
+    const deleteFn = vi.fn();
+    getSupabaseAdminMock.mockReturnValue({
+      from: (table: string) => {
+        if (table === "tasks") {
+          return {
+            select: () => ({ eq: () => ({ maybeSingle: () => Promise.resolve({ data: { id: "task-1", project_id: "project-owned-by-org-b" }, error: null }) }) }),
+            delete: deleteFn,
+          };
+        }
+        if (table === "projects") {
+          return { select: () => ({ eq: () => ({ eq: () => ({ maybeSingle: () => Promise.resolve({ data: null, error: null }) }) }) }) };
+        }
+        return { delete: deleteFn };
+      },
+    });
+    const { deleteProjectTask } = await import("./actions");
+
+    const result = await deleteProjectTask("task-1");
+
+    expect(result).toEqual({ error: "Task not found." });
+    expect(deleteFn).not.toHaveBeenCalled();
+    expect(auditLogMock).not.toHaveBeenCalled();
+  });
+
+  it("deletes once ownership is confirmed and logs task.deleted against the parent project", async () => {
+    const deleteEq = vi.fn().mockResolvedValue({ error: null });
+    getSupabaseAdminMock.mockReturnValue({
+      from: (table: string) => {
+        if (table === "tasks") {
+          return {
+            select: () => ({
+              eq: () => ({ maybeSingle: () => Promise.resolve({ data: { id: "task-1", project_id: "project-1", title: "Send onboarding email" }, error: null }) }),
+            }),
+            delete: () => ({ eq: deleteEq }),
+          };
+        }
+        return { select: () => ({ eq: () => ({ eq: () => ({ maybeSingle: () => Promise.resolve({ data: { id: "project-1" }, error: null }) }) }) }) };
+      },
+    });
+    const { deleteProjectTask } = await import("./actions");
+
+    const result = await deleteProjectTask("task-1");
+
+    expect(result).toEqual({ ok: true });
+    expect(deleteEq).toHaveBeenCalledWith("id", "task-1");
+    expect(auditLogMock).toHaveBeenCalledWith(
+      expect.objectContaining({ action: "task.deleted", targetType: "project", targetId: "project-1", metadata: { title: "Send onboarding email" } })
+    );
+  });
+});
+
 describe("createProject", () => {
   it("rejects a client belonging to another org, and never inserts", async () => {
     const insert = vi.fn();
