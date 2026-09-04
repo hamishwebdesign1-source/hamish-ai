@@ -136,7 +136,21 @@ export default async function StudioAuthedLayout({ children }: { children: React
         <div className="studio-shell aurora-bg pointer-events-none inset-0 -z-10" style={{ position: "absolute" }} aria-hidden="true" />
         <StudioCommandPalette />
         <header className="relative border-b border-border/60 bg-background">
-          <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-6 py-4">
+          {/* Reported live (3 Sep 2026): asked to move the sidebar rail
+              further left to free up room for real content, and to give
+              it a visible border. The rail itself wasn't the problem —
+              this row and the content row below it both sat inside the
+              same shared max-w-6xl, which padded the rail in from the
+              true edge on any screen wider than that column. Widened
+              both rows to the same px-6 gutter with no shared
+              max-width, so the header's own content and the sidebar
+              line up against the same true edge instead of the header
+              staying narrower than the row now below it. Each page's
+              own content still centres itself independently (every
+              /studio page already wraps its own children in its own
+              mx-auto max-w-4xl/max-w-6xl — unaffected, just now
+              centring within more real room). */}
+          <div className="flex items-center justify-between gap-3 px-6 py-4">
             {/* Studio Design Audit, Tier 1 #4 — a long org name had no
                 truncation and forced horizontal overflow at narrow
                 widths (no shrink-0/min-w-0 guard on this row at all).
@@ -189,7 +203,7 @@ export default async function StudioAuthedLayout({ children }: { children: React
             .
           </div>
         )}
-        <div className="mx-auto flex max-w-6xl gap-8 px-6">
+        <div className="flex gap-8 px-6">
           <StudioSidebar requestsBadgeCount={requestsBadgeCount ?? undefined} />
           <main className="min-w-0 flex-1 py-10">{children}</main>
         </div>

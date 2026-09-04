@@ -78,17 +78,27 @@ export function StudioSidebar({ requestsBadgeCount }: { requestsBadgeCount?: num
     // away with the page instead of staying put — every other app with a
     // grouped sidebar this size keeps it fixed. sticky (not fixed) so it
     // stays within its own flex column rather than needing separate
-    // width/offset math to match the centred max-w-6xl layout; self-start
-    // stops the flex row from stretching it to the main column's height
-    // (which would make "sticky" a no-op — nothing to scroll past inside
-    // its own box).
+    // width/offset math to match the layout; self-start stops the flex
+    // row from stretching it to the main column's height (which would
+    // make "sticky" a no-op — nothing to scroll past inside its own box).
     //
     // First cut added max-h + overflow-y-auto here as a short-viewport
     // guard — reported live as its own, unwanted scrollbar sitting next
     // to the page's own, which reads as broken rather than helpful.
     // Dropped: the nav's natural height fits a normal viewport fine, and
     // "static, not another scroll region" was the actual ask.
-    <aside className="sticky top-8 hidden w-52 shrink-0 flex-col gap-6 self-start py-8 md:flex">
+    //
+    // Reported live again (3 Sep 2026): asked to move the whole rail
+    // further left to free up room for the actual content, and to give
+    // it a visible boundary. The rail's own width/position weren't the
+    // problem — the row it sits in (studio/(authed)/layout.tsx) was
+    // capped at the same shared max-w-6xl as the header above it, which
+    // padded the rail in from the true edge on any screen wider than
+    // that. Fixed at the row level (both header and content row widened
+    // to the same px-6 gutter with no shared max-width), not here — this
+    // component just adds the requested border/background now that it
+    // reads as its own real panel, not a bare column of links.
+    <aside className="sticky top-8 hidden w-52 shrink-0 flex-col gap-6 self-start rounded-xl border border-border bg-card/40 p-3 py-6 md:flex">
       {navSections.map((section, i) => (
         <div key={section.label ?? `ungrouped-${i}`} className="flex flex-col gap-1">
           {section.label && <p className="text-eyebrow px-2.5 pb-1">{section.label}</p>}
