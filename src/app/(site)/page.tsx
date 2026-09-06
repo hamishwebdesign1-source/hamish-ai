@@ -11,6 +11,7 @@ import { ParallaxLayer } from "@/components/parallax-layer";
 import { HeroProductPanel } from "@/components/platform-preview/hero-product-panel";
 import { StudioTour } from "@/components/platform-preview/studio-tour";
 import { AgencyTypeSelector } from "@/components/platform-preview/agency-type-selector";
+import { ProcessTimeline } from "@/components/process-timeline";
 import {
   Accordion,
   AccordionItem,
@@ -58,6 +59,39 @@ const planIcons: Record<PlatformPlanSlug, typeof Rocket> = {
   professional: Zap,
   agency: Building2,
 };
+
+// Direct feedback (4 Sep 2026): the embeddable client chatbot — real,
+// shipped, and already the literal centrepiece of AI Automation's own
+// pitch (agency-types.ts's "a real, literal AI receptionist") — had no
+// standalone homepage section of its own, only a supporting bullet
+// inside one agency type's explanation. It's a real, sellable feature
+// any agency type can offer (it's a per-client toggle, not tied to a
+// specific business model), so it earns its own section. Steps below
+// are the exact, real 4-step flow already shown inside a client's own
+// card in Studio (clients-panel.tsx's "Chatbot for their website"),
+// tightened into headline form for ProcessTimeline — not invented.
+const chatbotSteps = [
+  {
+    step: "01",
+    title: "Add the facts",
+    body: "Add opening hours, policies and services to their Knowledge Base — the same facts your team already keeps for every client. It only ever answers from what's there, never from account or order data.",
+  },
+  {
+    step: "02",
+    title: "Turn it on",
+    body: "Enter their website URL from their own card in Clients and switch it on — no separate tool, no new login to manage.",
+  },
+  {
+    step: "03",
+    title: "Hand off one snippet",
+    body: "Copy a single script tag and send it to whoever manages their site — them, their web developer, or you.",
+  },
+  {
+    step: "04",
+    title: "It's live",
+    body: "Real visitors get real answers instantly, and every conversation it can't finish becomes a lead on that client's own card, ready to follow up.",
+  },
+];
 
 const platformFaqs = [
   {
@@ -236,6 +270,41 @@ export default async function HomePage() {
                   </li>
                 ))}
               </ul>
+            </div>
+          </Reveal>
+        </div>
+      </section>
+
+      <section className="border-t border-border/60">
+        <div className="mx-auto max-w-6xl px-6 py-16 md:py-20">
+          <Reveal>
+            <Eyebrow className="mb-4">A real, sellable deliverable</Eyebrow>
+            <h2 className="max-w-2xl font-heading text-2xl font-semibold text-balance md:text-3xl">
+              Give every client an AI chatbot for their own website.
+            </h2>
+            <p className="mt-3 max-w-xl text-muted-foreground">
+              The most literal feature in Studio — instant, accurate answers on a client&apos;s own site, day or
+              night, and every conversation it can&apos;t finish becomes a real lead in your pipeline. One toggle
+              per client, no separate tool to run.
+            </p>
+          </Reveal>
+          <Reveal delay={80}>
+            <ProcessTimeline steps={chatbotSteps} />
+          </Reveal>
+          <Reveal delay={140} className="mt-10">
+            <div className="overflow-hidden rounded-2xl border border-border bg-background shadow-lg shadow-black/5">
+              <div className="relative aspect-[1568/745] bg-secondary/60">
+                <Image
+                  src="/images/platform/agency-types/automation.png"
+                  alt="Studio's 'Chatbot for their website' section on a real client card: a live embeddable chatbot already enabled, showing '1 message · last 30 days' and the real embed script snippet."
+                  fill
+                  sizes="(min-width: 1024px) 1100px, 100vw"
+                  className="object-cover object-top"
+                />
+                <span className="absolute top-3 left-3 rounded-full bg-background/90 px-2.5 py-1 font-mono text-[9px] tracking-[0.15em] text-muted-foreground uppercase shadow-sm backdrop-blur">
+                  Real Studio screenshot
+                </span>
+              </div>
             </div>
           </Reveal>
         </div>
