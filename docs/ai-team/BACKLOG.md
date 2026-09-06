@@ -1448,7 +1448,15 @@ _(none yet)_
 - **Relevant agent**: UX/UI Director (pick the framing) + Lead Engineer
   (apply it in `(authed)/layout.tsx` and `billing/page.tsx`).
 - **Dependencies**: none.
-- **Status**: Not started.
+- **Status**: Complete/shipped (commit `5dc5e93`). Picked count-down —
+  the pill (the only count-up surface) now reads "Trial · X days left",
+  matching the ≤3-day warning banner and Billing's own trial line
+  exactly. `billing/page.tsx` needed no change, already count-down.
+  Removed the now-unused `trialDayNumber` calculation. Not live-screenshot-
+  verified — the only account with a live session has 0 trial days left
+  (the banner's own range, not the pill's 4-7-day window) — but this is a
+  copy-only change with the visibility gate itself untouched, and
+  `tsc`/`eslint`/full `vitest` suite (467/467)/`npm run build` all green.
 
 ### Dormancy signal for trialing/paying orgs with zero real activity
 
