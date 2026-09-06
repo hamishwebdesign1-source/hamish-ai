@@ -1532,7 +1532,29 @@ _(none yet)_
   a build-blocking gap.
 - **Relevant agent**: AI/Agent Architect (spec) + Lead Engineer (build).
 - **Dependencies**: none.
-- **Status**: Not started.
+- **Status**: Complete/shipped (commit `d3473d1`). Real gap turned out
+  bigger than "cosmetic": `sales_kit_generated_at`/`website_mockup_generated_at`
+  already existed as real DB columns (written by `draft-sales-kit.ts`/
+  `draft-website-mockup.ts`, already used for AI ROI and admin's own lead
+  page) but Studio's own Prospects query never selected them, and
+  `research_generated_at` was selected but never rendered. Fixed all
+  three (`research-summary.tsx`, `sales-kit-section.tsx`,
+  `website-mockup-section.tsx`) with the same header row
+  `website-brief-panel.tsx` already uses. Also closed a real capability
+  gap alongside it: research and sales kits had no regenerate path at
+  all once first generated (only the empty-state's first-time trigger
+  existed) — confirmed each Server Action has no re-run guard before
+  wiring a Regenerate button to it. **Deviation from the letter of this
+  entry's own "one small shared component" objective**: built inline in
+  each of the three files, matching `website-brief-panel.tsx`'s own
+  pattern exactly rather than extracting a 4th shared component —
+  `website-brief-panel.tsx` itself was never converted either, the JSX
+  is ~8 trivial lines with a different regenerate action per site, and
+  the actual user-facing objective (consistent provenance everywhere)
+  is fully met without it. Revisit if a 5th site needs this pattern.
+  `npx tsc --noEmit`, `npx eslint`, full `vitest` suite (467/467), and
+  `npm run build` all green. Live deploy propagation slower than usual
+  this pass — visual confirmation still pending as of this note.
 
 ### Reconcile the trial-status pill's count-up phrasing with the existing count-down phrasing elsewhere
 
