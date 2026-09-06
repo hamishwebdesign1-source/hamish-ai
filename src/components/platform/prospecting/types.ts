@@ -21,7 +21,9 @@ export type Prospect = {
   research: LeadResearch | null;
   research_generated_at: string | null;
   website_mockup: WebsiteMockup | null;
+  website_mockup_generated_at: string | null;
   sales_kit: SalesKit | null;
+  sales_kit_generated_at: string | null;
   contacted_at: string | null;
   last_contact_method: string | null;
   replied_at: string | null;

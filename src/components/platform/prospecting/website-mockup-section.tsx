@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { LoaderCircle, LayoutTemplate } from "lucide-react";
+import { LoaderCircle, LayoutTemplate, FileText, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { generateWebsiteMockup } from "@/app/studio/(authed)/prospects/actions";
@@ -22,9 +22,45 @@ import { StudioEmptyState } from "@/components/platform/studio-empty-state";
 // actual homepage uses, without adding a single pixel of invented bespoke
 // design. The "AI-drafted" tag reuses the established `ai` Badge variant
 // (badge.tsx) rather than a one-off label.
-function WebsiteMockupPreview({ mockup }: { mockup: WebsiteMockup }) {
+function WebsiteMockupPreview({
+  mockup,
+  prospectId,
+  generatedAt,
+}: {
+  mockup: WebsiteMockup;
+  prospectId: string;
+  generatedAt: string | null;
+}) {
+  // BACKLOG.md "Standardise a 'Generated {date} · Regenerate' provenance
+  // line across every cached AI artifact" — matches website-brief-panel.tsx's
+  // own reference pattern. generateWebsiteMockup() has no guard against
+  // re-running on a prospect that already has one (confirmed by reading
+  // the action), it just overwrites — same as every other regenerate
+  // button in this app.
+  const [regenPending, startRegen] = useTransition();
+  const [regenError, setRegenError] = useState<string | null>(null);
+
+  function regenerate() {
+    setRegenError(null);
+    startRegen(async () => {
+      const r = await generateWebsiteMockup(prospectId);
+      if (r && "error" in r) setRegenError(r.error ?? "Mockup generation failed.");
+    });
+  }
+
   return (
     <div>
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <FileText className="size-3.5 shrink-0" />
+          {generatedAt ? `Generated ${new Date(generatedAt).toLocaleString("en-GB")}` : "Generated"}
+        </p>
+        <Button size="xs" variant="ghost" disabled={regenPending} onClick={regenerate}>
+          <RotateCcw className="size-3.5" /> {regenPending ? "Regenerating…" : "Regenerate"}
+        </Button>
+      </div>
+      {regenError && <p className="mb-3 text-xs text-destructive">{regenError}</p>}
+
       <div className="overflow-hidden rounded-lg border border-border">
         <div className="flex items-center gap-2 border-b border-border bg-secondary/40 px-3 py-2">
           <div className="flex shrink-0 gap-1.5" aria-hidden="true">
@@ -78,7 +114,11 @@ export function WebsiteMockupSection({ prospect }: { prospect: Prospect }) {
   return (
     <div>
       {prospect.website_mockup ? (
-        <WebsiteMockupPreview mockup={prospect.website_mockup} />
+        <WebsiteMockupPreview
+          mockup={prospect.website_mockup}
+          prospectId={prospect.id}
+          generatedAt={prospect.website_mockup_generated_at}
+        />
       ) : (
         <div>
           <StudioEmptyState

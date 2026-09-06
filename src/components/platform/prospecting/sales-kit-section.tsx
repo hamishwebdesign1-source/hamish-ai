@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Copy, Mail, PhoneCall, FileText, Calendar, MessageCircle, Send, LoaderCircle, ClipboardList } from "lucide-react";
+import { Copy, Mail, PhoneCall, FileText, Calendar, MessageCircle, Send, LoaderCircle, ClipboardList, RotateCcw } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { sendProposal, generateSalesKit } from "@/app/studio/(authed)/prospects/actions";
@@ -82,12 +82,14 @@ function SalesKitPreview({
   prospectId,
   prospectEmail,
   proposalToken,
+  generatedAt,
 }: {
   kit: SalesKit;
   bookingLink: string | null;
   prospectId: string;
   prospectEmail: string | null;
   proposalToken: ProposalToken | null;
+  generatedAt: string | null;
 }) {
   // Roadmap item #9 — same deterministic append sendForOrg() (autonomous-
   // outreach.ts) applies before an automated send, applied here so a
@@ -97,8 +99,36 @@ function SalesKitPreview({
   const outreachBody = appendBookingLink(kit.outreach_email.body, bookingLink);
   const followUpBody = appendBookingLink(kit.follow_up_email.body, bookingLink);
 
+  // BACKLOG.md "Standardise a 'Generated {date} · Regenerate' provenance
+  // line across every cached AI artifact" — matches website-brief-panel.tsx's
+  // own reference pattern. generateSalesKit() has no guard against
+  // re-running on a prospect that already has one (confirmed by reading
+  // the action), it just overwrites — same as every other regenerate
+  // button in this app.
+  const [regenPending, startRegen] = useTransition();
+  const [regenError, setRegenError] = useState<string | null>(null);
+
+  function regenerate() {
+    setRegenError(null);
+    startRegen(async () => {
+      const r = await generateSalesKit(prospectId);
+      if (r && "error" in r) setRegenError(r.error ?? "Sales kit generation failed.");
+    });
+  }
+
   return (
     <div className="space-y-3">
+      <div className="flex items-center justify-between gap-3">
+        <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <FileText className="size-3.5 shrink-0" />
+          {generatedAt ? `Generated ${new Date(generatedAt).toLocaleString("en-GB")}` : "Generated"}
+        </p>
+        <Button size="xs" variant="ghost" disabled={regenPending} onClick={regenerate}>
+          <RotateCcw className="size-3.5" /> {regenPending ? "Regenerating…" : "Regenerate"}
+        </Button>
+      </div>
+      {regenError && <p className="text-xs text-destructive">{regenError}</p>}
+
       <div className="rounded-lg border border-border p-3">
         <div className="flex items-center justify-between">
           <p className="flex items-center gap-1.5 text-xs font-semibold"><Mail className="size-3.5 shrink-0 text-muted-foreground" /> Outreach email</p>
@@ -192,6 +222,7 @@ export function SalesKitSection({ prospect, bookingLink, proposalToken }: { pros
           prospectId={prospect.id}
           prospectEmail={prospect.email}
           proposalToken={proposalToken}
+          generatedAt={prospect.sales_kit_generated_at}
         />
       ) : (
         <div>

@@ -166,7 +166,12 @@ export function ProspectCard({
                   </TabsTab>
                 </TabsList>
                 <TabsPanel value="research">
-                  <ResearchSummary research={prospect.research} scoreBreakdown={prospect.score_breakdown} />
+                  <ResearchSummary
+                    prospectId={prospect.id}
+                    research={prospect.research}
+                    scoreBreakdown={prospect.score_breakdown}
+                    generatedAt={prospect.research_generated_at}
+                  />
                 </TabsPanel>
                 <TabsPanel value="mockup">
                   <WebsiteMockupSection prospect={prospect} />

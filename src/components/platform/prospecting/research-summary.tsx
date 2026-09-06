@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { LoaderCircle, RefreshCw, ThumbsUp, ThumbsDown, Lightbulb, Gauge, Sparkles } from "lucide-react";
+import { LoaderCircle, RefreshCw, RotateCcw, ThumbsUp, ThumbsDown, Lightbulb, Gauge, Sparkles, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { researchProspect } from "@/app/studio/(authed)/prospects/actions";
@@ -82,9 +82,49 @@ function ScoreBreakdownBars({ breakdown }: { breakdown: ScoreBreakdown }) {
   );
 }
 
-export function ResearchSummary({ research, scoreBreakdown }: { research: LeadResearch; scoreBreakdown: ScoreBreakdown | null }) {
+// BACKLOG.md "Standardise a 'Generated {date} · Regenerate' provenance
+// line across every cached AI artifact" — website-brief-panel.tsx's own
+// header row (FileText icon, "Generated {date}", a ghost Regenerate
+// button) is the reference pattern this matches. Regeneration wasn't
+// possible at all here before this — researchProspect() has no guard
+// against re-running on a prospect that already has research (confirmed
+// by reading the action), it just overwrites, same as every other
+// cached-artifact regenerate button in this app.
+export function ResearchSummary({
+  prospectId,
+  research,
+  scoreBreakdown,
+  generatedAt,
+}: {
+  prospectId: string;
+  research: LeadResearch;
+  scoreBreakdown: ScoreBreakdown | null;
+  generatedAt: string | null;
+}) {
+  const [pending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+
+  function regenerate() {
+    setError(null);
+    startTransition(async () => {
+      const r = await researchProspect(prospectId);
+      if (r && "error" in r) setError(r.error ?? "Research failed.");
+    });
+  }
+
   return (
     <div className="space-y-4">
+      <div className="flex items-center justify-between gap-3">
+        <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <FileText className="size-3.5 shrink-0" />
+          {generatedAt ? `Generated ${new Date(generatedAt).toLocaleString("en-GB")}` : "Generated"}
+        </p>
+        <Button size="xs" variant="ghost" disabled={pending} onClick={regenerate}>
+          <RotateCcw className="size-3.5" /> {pending ? "Regenerating…" : "Regenerate"}
+        </Button>
+      </div>
+      {error && <p className="text-xs text-destructive">{error}</p>}
+
       {scoreBreakdown && <ScoreBreakdownBars breakdown={scoreBreakdown} />}
 
       <div className="rounded-lg border border-accent/30 bg-accent/5 p-3">
