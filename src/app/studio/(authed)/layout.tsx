@@ -68,12 +68,6 @@ export default async function StudioAuthedLayout({ children }: { children: React
   // escalation itself is preserved, just no longer the only signal.
   const showTrialBanner = isTrialing && trialDaysLeft !== null && trialDaysLeft <= 3;
   const showTrialPill = isTrialing && trialDaysLeft !== null && trialDaysLeft > 3;
-  // 7-day trial (onboarding-wizard.tsx's own "7-day free trial" copy,
-  // trial-reminders.ts's schedule) — Day X counts up from 1, not down
-  // from trialDaysLeft, since "Day 6 of 7" reads as progress while
-  // "1 day left" (already covered by the warning banner below) reads as
-  // urgency; two different jobs for two different remaining-time ranges.
-  const trialDayNumber = trialDaysLeft !== null ? Math.min(7, Math.max(1, 8 - trialDaysLeft)) : null;
 
   // Studio improvement — the Requests nav badge. Same embedded-resource
   // filter (clients!inner(org_id)) requestBelongsToOrg() (requests/actions.ts)
@@ -169,10 +163,16 @@ export default async function StudioAuthedLayout({ children }: { children: React
                   trial indicator for days 4-7 remaining (see showTrialPill's
                   own comment above); deliberately muted (bg-secondary, no
                   warning colour) since this is just orientation, not the
-                  "act now" moment the banner below is for. */}
-              {showTrialPill && trialDayNumber !== null && (
+                  "act now" moment the banner below is for.
+                  BACKLOG.md "Reconcile the trial-status pill's count-up
+                  phrasing" — originally "Day X of 7" (counting up), the
+                  one count-up surface among three (this banner and
+                  Billing's own trial line both already count down);
+                  switched to the same "X days left" framing so trial
+                  status reads the same wherever it's shown. */}
+              {showTrialPill && trialDaysLeft !== null && (
                 <span className="shrink-0 rounded-full border border-border bg-secondary/60 px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
-                  Trial · Day {trialDayNumber} of 7
+                  Trial · {trialDaysLeft} day{trialDaysLeft === 1 ? "" : "s"} left
                 </span>
               )}
             </div>
