@@ -36,6 +36,7 @@ import {
 import { assignTaskToProject } from "@/app/studio/(authed)/projects/actions";
 import { StudioPageHeader } from "@/components/platform/studio-page-header";
 import { StudioEmptyState } from "@/components/platform/studio-empty-state";
+import { AssigneeSelect } from "@/components/platform/assignee-select";
 import type { TroubleshootingEntry } from "@/lib/website-troubleshooting";
 
 type Request = {
@@ -311,22 +312,6 @@ function RequestCard({
   teamMembers: TeamMember[];
 }) {
   const [open, setOpen] = useState(false);
-  const [assignee, setAssignee] = useState(request.assigned_to ?? "");
-  const [assignPending, startAssign] = useTransition();
-  const [assignError, setAssignError] = useState<string | null>(null);
-
-  function setRequestAssignee(next: string) {
-    const prev = assignee;
-    setAssignError(null);
-    setAssignee(next);
-    startAssign(async () => {
-      const r = await assignRequest(request.id, next || null);
-      if (r && "error" in r) {
-        setAssignee(prev);
-        setAssignError(r.error ?? "Failed to update — try again.");
-      }
-    });
-  }
   const [draft, setDraft] = useState(request.draft_response ?? "");
   const [draftPending, startDraftSave] = useTransition();
   const [draftSaved, setDraftSaved] = useState(false);
@@ -429,25 +414,12 @@ function RequestCard({
               would fire the open/close toggle on every interaction. Only
               rendered once there's actually more than one person to
               assign to — a solo owner has no one else to hand this to. */}
-          {teamMembers.length > 1 && (
-            <div className="flex shrink-0 flex-col gap-1">
-              <select
-                value={assignee}
-                onChange={(e) => setRequestAssignee(e.target.value)}
-                disabled={assignPending}
-                aria-label={`Assign request from ${clientName(request)}`}
-                className={selectClasses}
-              >
-                <option value="">Unassigned</option>
-                {teamMembers.map((m) => (
-                  <option key={m.email} value={m.email}>
-                    {m.email}
-                  </option>
-                ))}
-              </select>
-              {assignError && <p className="text-[11px] text-destructive">{assignError}</p>}
-            </div>
-          )}
+          <AssigneeSelect
+            value={request.assigned_to}
+            onAssign={(next) => assignRequest(request.id, next)}
+            teamMembers={teamMembers}
+            ariaLabel={`Assign request from ${clientName(request)}`}
+          />
           <button
             type="button"
             onClick={() => setOpen((o) => !o)}
