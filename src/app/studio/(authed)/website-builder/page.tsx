@@ -8,6 +8,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { StudioPageHeader } from "@/components/platform/studio-page-header";
+import { StudioEmptyState } from "@/components/platform/studio-empty-state";
 import { AI_CODING_TOOLS } from "@/lib/ai-coding-tools";
 import { daysSince } from "@/lib/lead-meta";
 
@@ -170,12 +171,11 @@ export default async function WebsiteBuilderPage() {
           })}
         </div>
       ) : (
-        <div className="mt-8 rounded-xl border border-dashed border-border p-8 text-center">
-          <Globe className="mx-auto size-6 text-muted-foreground" />
-          <p className="mt-3 text-sm text-muted-foreground">
-            No website projects yet — create one for a client to get started.
-          </p>
-        </div>
+        <StudioEmptyState
+          className="mt-8"
+          icon={Globe}
+          description="No website projects yet — create one for a client to get started."
+        />
       )}
 
       <div className="mt-10 border-t border-border pt-6">

@@ -2,13 +2,14 @@
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
-import { Plus, Trash2, X } from "lucide-react";
+import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { TaskStatusBadge } from "@/components/status-badges";
 import { createProjectTask, updateProjectTaskStatus, deleteProjectTask } from "@/app/studio/(authed)/projects/actions";
+import { ConfirmDeleteButton } from "@/components/platform/confirm-delete-button";
 
 type Task = {
   id: string;
@@ -38,8 +39,6 @@ const CONTEXT_PREVIEW_CHARS = 80;
 function TaskRow({ task, request }: { task: Task; request?: RequestSummary }) {
   const [pending, startTransition] = useTransition();
   const [status, setStatus] = useState(task.status);
-  const [confirmingDelete, setConfirmingDelete] = useState(false);
-  const [deletePending, startDeleteTransition] = useTransition();
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
   function setTaskStatus(next: "todo" | "in_progress" | "done") {
@@ -47,14 +46,6 @@ function TaskRow({ task, request }: { task: Task; request?: RequestSummary }) {
     startTransition(async () => {
       const r = await updateProjectTaskStatus(task.id, next);
       if (r && "error" in r) setStatus(task.status);
-    });
-  }
-
-  function remove() {
-    setDeleteError(null);
-    startDeleteTransition(async () => {
-      const r = await deleteProjectTask(task.id);
-      if (r && "error" in r) setDeleteError(r.error ?? "Failed to delete the task.");
     });
   }
 
@@ -70,20 +61,12 @@ function TaskRow({ task, request }: { task: Task; request?: RequestSummary }) {
         <p className="text-sm font-medium">{task.title}</p>
         <div className="flex shrink-0 items-center gap-1.5">
           <TaskStatusBadge status={status} />
-          {confirmingDelete ? (
-            <>
-              <Button size="xs" variant="destructive" disabled={deletePending} onClick={remove}>
-                {deletePending ? "…" : "Confirm"}
-              </Button>
-              <Button size="icon" variant="ghost" aria-label="Cancel delete" onClick={() => setConfirmingDelete(false)}>
-                <X className="size-3.5" />
-              </Button>
-            </>
-          ) : (
-            <Button size="icon" variant="ghost" aria-label="Delete task" onClick={() => setConfirmingDelete(true)}>
-              <Trash2 className="size-3.5 text-muted-foreground" />
-            </Button>
-          )}
+          <ConfirmDeleteButton
+            label="Delete task"
+            onDelete={() => deleteProjectTask(task.id)}
+            fallbackError="Failed to delete the task."
+            onErrorChange={setDeleteError}
+          />
         </div>
       </div>
       {deleteError && <p className="mt-1 text-xs text-destructive">{deleteError}</p>}

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Search } from "lucide-react";
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion";
 import { Input } from "@/components/ui/input";
+import { StudioEmptyState } from "@/components/platform/studio-empty-state";
 
 type Faq = { q: string; a: string };
 
@@ -28,9 +29,7 @@ export function HelpFaqList({ faqs }: { faqs: Faq[] }) {
 
       <div className="mt-4">
         {visible.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
-            No help articles match that search — try a different term, or email us below.
-          </div>
+          <StudioEmptyState description="No help articles match that search — try a different term, or email us below." />
         ) : (
           <Accordion>
             {visible.map((f) => (

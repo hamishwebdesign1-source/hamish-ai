@@ -1,10 +1,8 @@
 "use client";
 
-import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Trash2, X } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { deleteWebsiteProject } from "@/app/studio/(authed)/website-builder/actions";
+import { ConfirmDeleteButton } from "@/components/platform/confirm-delete-button";
 
 // Studio big-ticket ("no delete for projects/website-builder projects")
 // — same confirm-then-delete shape as campaigns-panel.tsx's own
@@ -14,39 +12,19 @@ import { deleteWebsiteProject } from "@/app/studio/(authed)/website-builder/acti
 // of just hiding a card in place.
 export function DeleteWebsiteProjectControl({ projectId }: { projectId: string }) {
   const router = useRouter();
-  const [confirming, setConfirming] = useState(false);
-  const [pending, startTransition] = useTransition();
-  const [error, setError] = useState<string | null>(null);
-
-  function remove() {
-    setError(null);
-    startTransition(async () => {
-      const r = await deleteWebsiteProject(projectId);
-      if (r && "error" in r) {
-        setError(r.error ?? "Failed to delete.");
-        return;
-      }
-      router.push("/studio/website-builder");
-    });
-  }
-
-  if (confirming) {
-    return (
-      <span className="flex items-center gap-1.5">
-        <Button size="xs" variant="destructive" disabled={pending} onClick={remove}>
-          {pending ? "Deleting…" : "Confirm delete"}
-        </Button>
-        <Button size="icon-xs" variant="ghost" aria-label="Cancel delete" onClick={() => setConfirming(false)}>
-          <X className="size-3" />
-        </Button>
-        {error && <span className="text-xs text-destructive">{error}</span>}
-      </span>
-    );
-  }
 
   return (
-    <Button size="icon-xs" variant="ghost" aria-label="Delete this website project" onClick={() => setConfirming(true)}>
-      <Trash2 className="size-3.5" />
-    </Button>
+    <ConfirmDeleteButton
+      label="Delete this website project"
+      onDelete={() => deleteWebsiteProject(projectId)}
+      fallbackError="Failed to delete."
+      onSuccess={() => router.push("/studio/website-builder")}
+      size="icon-xs"
+      iconClassName="size-3.5"
+      cancelIconClassName="size-3"
+      confirmText="Confirm delete"
+      pendingText="Deleting…"
+      showInlineError
+    />
   );
 }

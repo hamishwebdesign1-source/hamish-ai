@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { generateWebsiteMockup } from "@/app/studio/(authed)/prospects/actions";
 import type { WebsiteMockup } from "@/lib/draft-website-mockup";
 import type { Prospect } from "./types";
+import { StudioEmptyState } from "@/components/platform/studio-empty-state";
 
 // The mockup preview — deliberately plain *content* (no custom design, no
 // images, no invented URL/domain), so the framing stays honest about what
@@ -79,34 +80,36 @@ export function WebsiteMockupSection({ prospect }: { prospect: Prospect }) {
       {prospect.website_mockup ? (
         <WebsiteMockupPreview mockup={prospect.website_mockup} />
       ) : (
-        <div className="rounded-lg border border-dashed border-border p-4 text-center">
-          <p className="text-sm text-muted-foreground">
-            No mockup yet — AI-written homepage copy for this prospect, not a designed page.
-          </p>
-          <Button
-            size="sm"
-            variant="outline"
-            className="mt-3"
-            disabled={pending}
-            onClick={() =>
-              startTransition(async () => {
-                setError(null);
-                const r = await generateWebsiteMockup(prospect.id);
-                if (r && "error" in r) setError(r.error ?? "Mockup generation failed.");
-              })
+        <div>
+          <StudioEmptyState
+            size="xs"
+            description="No mockup yet — AI-written homepage copy for this prospect, not a designed page."
+            action={
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={pending}
+                onClick={() =>
+                  startTransition(async () => {
+                    setError(null);
+                    const r = await generateWebsiteMockup(prospect.id);
+                    if (r && "error" in r) setError(r.error ?? "Mockup generation failed.");
+                  })
+                }
+              >
+                {pending ? (
+                  <>
+                    <LoaderCircle className="size-3.5 animate-spin" /> Writing…
+                  </>
+                ) : (
+                  <>
+                    <LayoutTemplate className="size-3.5" /> Generate mockup
+                  </>
+                )}
+              </Button>
             }
-          >
-            {pending ? (
-              <>
-                <LoaderCircle className="size-3.5 animate-spin" /> Writing…
-              </>
-            ) : (
-              <>
-                <LayoutTemplate className="size-3.5" /> Generate mockup
-              </>
-            )}
-          </Button>
-          {error && <p className="mt-2 text-xs text-destructive">{error}</p>}
+          />
+          {error && <p className="mt-2 text-center text-xs text-destructive">{error}</p>}
         </div>
       )}
     </div>

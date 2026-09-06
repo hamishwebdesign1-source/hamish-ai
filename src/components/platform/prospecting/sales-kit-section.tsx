@@ -8,6 +8,7 @@ import { sendProposal, generateSalesKit } from "@/app/studio/(authed)/prospects/
 import type { SalesKit } from "@/lib/draft-sales-kit";
 import { appendBookingLink } from "@/lib/booking-link";
 import type { Prospect, ProposalToken } from "./types";
+import { StudioEmptyState } from "@/components/platform/studio-empty-state";
 
 // Small, local — copies its own text and shows a brief confirmation, no
 // shared state needed since each outreach piece has its own button.
@@ -193,32 +194,36 @@ export function SalesKitSection({ prospect, bookingLink, proposalToken }: { pros
           proposalToken={proposalToken}
         />
       ) : (
-        <div className="rounded-lg border border-dashed border-border p-4 text-center">
-          <p className="text-sm text-muted-foreground">Not generated yet — email, follow-up, call script, LinkedIn message, meeting agenda and proposal outline, in one go.</p>
-          <Button
-            size="sm"
-            variant="outline"
-            className="mt-3"
-            disabled={pending}
-            onClick={() =>
-              startTransition(async () => {
-                setError(null);
-                const r = await generateSalesKit(prospect.id);
-                if (r && "error" in r) setError(r.error ?? "Sales kit generation failed.");
-              })
+        <div>
+          <StudioEmptyState
+            size="xs"
+            description="Not generated yet — email, follow-up, call script, LinkedIn message, meeting agenda and proposal outline, in one go."
+            action={
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={pending}
+                onClick={() =>
+                  startTransition(async () => {
+                    setError(null);
+                    const r = await generateSalesKit(prospect.id);
+                    if (r && "error" in r) setError(r.error ?? "Sales kit generation failed.");
+                  })
+                }
+              >
+                {pending ? (
+                  <>
+                    <LoaderCircle className="size-3.5 animate-spin" /> Writing…
+                  </>
+                ) : (
+                  <>
+                    <ClipboardList className="size-3.5" /> Generate outreach kit
+                  </>
+                )}
+              </Button>
             }
-          >
-            {pending ? (
-              <>
-                <LoaderCircle className="size-3.5 animate-spin" /> Writing…
-              </>
-            ) : (
-              <>
-                <ClipboardList className="size-3.5" /> Generate outreach kit
-              </>
-            )}
-          </Button>
-          {error && <p className="mt-2 text-xs text-destructive">{error}</p>}
+          />
+          {error && <p className="mt-2 text-center text-xs text-destructive">{error}</p>}
         </div>
       )}
     </div>

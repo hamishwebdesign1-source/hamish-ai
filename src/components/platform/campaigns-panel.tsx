@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
-import { Megaphone, Plus, Target, X, Trash2, CircleAlert, Search } from "lucide-react";
+import { Megaphone, Plus, Target, X, CircleAlert, Search } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -11,6 +11,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { createCampaign, updateCampaignStatus, assignProspectToCampaign, deleteCampaign } from "@/app/studio/(authed)/campaigns/actions";
 import { StudioPageHeader } from "@/components/platform/studio-page-header";
+import { StudioEmptyState } from "@/components/platform/studio-empty-state";
+import { ConfirmDeleteButton } from "@/components/platform/confirm-delete-button";
 
 type Campaign = { id: string; name: string; objective: string | null; status: string; created_at: string };
 type Prospect = {
@@ -188,8 +190,6 @@ function AddProspectControl({ campaignId, unassigned }: { campaignId: string; un
 function CampaignCard({ campaign, prospects, unassigned }: { campaign: Campaign; prospects: Prospect[]; unassigned: Prospect[] }) {
   const [status, setStatus] = useState(campaign.status);
   const [pending, startTransition] = useTransition();
-  const [confirmingDelete, setConfirmingDelete] = useState(false);
-  const [deletePending, startDeleteTransition] = useTransition();
   const [deleted, setDeleted] = useState(false);
 
   const converted = prospects.filter((p) => p.status === "converted").length;
@@ -242,17 +242,6 @@ function CampaignCard({ campaign, prospects, unassigned }: { campaign: Campaign;
     });
   }
 
-  function remove() {
-    startDeleteTransition(async () => {
-      const r = await deleteCampaign(campaign.id);
-      if (r && "error" in r) {
-        setConfirmingDelete(false);
-        return;
-      }
-      setDeleted(true);
-    });
-  }
-
   // revalidatePath re-fetches server data but doesn't unmount an already-
   // rendered client card mid-transition — hide it immediately on success
   // rather than leaving a just-deleted campaign visible until the next
@@ -278,20 +267,14 @@ function CampaignCard({ campaign, prospects, unassigned }: { campaign: Campaign;
             <Button size="xs" variant="ghost" disabled={pending} onClick={toggleStatus}>
               {status === "completed" ? "Reopen" : "Mark completed"}
             </Button>
-            {confirmingDelete ? (
-              <>
-                <Button size="xs" variant="destructive" disabled={deletePending} onClick={remove}>
-                  {deletePending ? "…" : "Confirm"}
-                </Button>
-                <Button size="icon-xs" variant="ghost" aria-label="Cancel delete" onClick={() => setConfirmingDelete(false)}>
-                  <X className="size-3" />
-                </Button>
-              </>
-            ) : (
-              <Button size="icon-xs" variant="ghost" aria-label="Delete campaign" onClick={() => setConfirmingDelete(true)}>
-                <Trash2 className="size-3" />
-              </Button>
-            )}
+            <ConfirmDeleteButton
+              label="Delete campaign"
+              onDelete={() => deleteCampaign(campaign.id)}
+              onSuccess={() => setDeleted(true)}
+              keepConfirmingOnError={false}
+              size="icon-xs"
+              iconClassName="size-3"
+            />
           </div>
         </div>
         <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 font-mono text-[11px] text-muted-foreground">
@@ -364,16 +347,13 @@ export function CampaignsPanel({ campaigns, prospects }: { campaigns: Campaign[]
       )}
 
       {campaigns.length === 0 ? (
-        <div className="mt-6 rounded-xl border border-dashed border-border p-8 text-center">
-          <Megaphone className="mx-auto size-6 text-muted-foreground" />
-          <p className="mt-3 text-sm text-muted-foreground">
-            No campaigns yet — create one, then assign prospects to it as you find them.
-          </p>
-        </div>
+        <StudioEmptyState
+          className="mt-6"
+          icon={Megaphone}
+          description="No campaigns yet — create one, then assign prospects to it as you find them."
+        />
       ) : visibleCampaigns.length === 0 ? (
-        <div className="mt-4 rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
-          No campaigns match that search.
-        </div>
+        <StudioEmptyState className="mt-4" description="No campaigns match that search." />
       ) : (
         <div className="mt-4 space-y-2">
           {visibleCampaigns.map((c) => (

@@ -43,6 +43,7 @@ import {
 import type { ClientHealth } from "@/lib/client-health";
 import type { ClientEngagementRisk } from "@/lib/studio-engagement";
 import { StudioPageHeader } from "@/components/platform/studio-page-header";
+import { StudioEmptyState } from "@/components/platform/studio-empty-state";
 
 type Client = {
   id: string;
@@ -1021,16 +1022,19 @@ export function ClientsPanel({
       )}
 
       {clients.length === 0 ? (
-        <div className="mt-6 rounded-xl border border-dashed border-border p-8 text-center">
-          <Users className="mx-auto size-6 text-muted-foreground" />
-          <p className="mt-3 text-sm text-muted-foreground">
-            No clients yet — convert a prospect from{" "}
-            <Link href="/studio/prospects" className="text-accent underline underline-offset-2">
-              Prospects
-            </Link>{" "}
-            to get started.
-          </p>
-        </div>
+        <StudioEmptyState
+          className="mt-6"
+          icon={Users}
+          description={
+            <>
+              No clients yet — convert a prospect from{" "}
+              <Link href="/studio/prospects" className="text-accent underline underline-offset-2">
+                Prospects
+              </Link>{" "}
+              to get started.
+            </>
+          }
+        />
       ) : (
         <>
           <p className="mt-4 text-sm text-muted-foreground">
@@ -1051,9 +1055,7 @@ export function ClientsPanel({
             </div>
           )}
           {visibleClients.length === 0 ? (
-            <div className="mt-3 rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
-              No clients match that search.
-            </div>
+            <StudioEmptyState className="mt-3" description="No clients match that search." />
           ) : (
             <div className="mt-3 space-y-2">
               {visibleClients.map((c) => (

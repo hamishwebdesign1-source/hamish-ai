@@ -155,6 +155,10 @@ function KanbanColumn({
         className={`flex min-h-24 flex-1 flex-col gap-2 rounded-lg p-1 transition-colors ${isOver ? "bg-accent/5 ring-2 ring-accent/30" : ""}`}
       >
         {projects.length === 0 ? (
+          // Deliberately not <StudioEmptyState> — that component's description
+          // text is always text-sm, but this compact Kanban-column placeholder
+          // needs text-xs to fit the column's own tight width; forcing it
+          // through the shared primitive would visibly enlarge this text.
           <div className="rounded-lg border border-dashed border-border p-4 text-center text-xs text-muted-foreground">No projects in this stage</div>
         ) : (
           projects.map((p) => {

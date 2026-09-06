@@ -35,6 +35,7 @@ import {
 } from "@/app/studio/(authed)/requests/actions";
 import { assignTaskToProject } from "@/app/studio/(authed)/projects/actions";
 import { StudioPageHeader } from "@/components/platform/studio-page-header";
+import { StudioEmptyState } from "@/components/platform/studio-empty-state";
 import type { TroubleshootingEntry } from "@/lib/website-troubleshooting";
 
 type Request = {
@@ -725,12 +726,10 @@ export function RequestsPanel({
       />
 
       {requests.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-border p-8 text-center">
-          <Inbox className="mx-auto size-6 text-muted-foreground" />
-          <p className="mt-3 text-sm text-muted-foreground">
-            Nothing yet — this fills in as soon as one of your clients raises something through their portal.
-          </p>
-        </div>
+        <StudioEmptyState
+          icon={Inbox}
+          description="Nothing yet — this fills in as soon as one of your clients raises something through their portal."
+        />
       ) : (
         <>
           <div className="flex flex-wrap items-center gap-2">
@@ -753,9 +752,7 @@ export function RequestsPanel({
           </div>
 
           {visible.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
-              {search.trim() ? "No requests match that search." : "Nothing in this view."}
-            </div>
+            <StudioEmptyState description={search.trim() ? "No requests match that search." : "Nothing in this view."} />
           ) : (
             <>
               {selectableVisible.length > 0 && (

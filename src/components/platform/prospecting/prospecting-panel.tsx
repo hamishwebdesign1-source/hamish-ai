@@ -31,6 +31,7 @@ import {
 } from "@/app/studio/(authed)/prospects/actions";
 import { DiscoveryResultMessage, type DiscoveryResult } from "@/components/platform/discovery-result-message";
 import { StudioPageHeader } from "@/components/platform/studio-page-header";
+import { StudioEmptyState } from "@/components/platform/studio-empty-state";
 import { UsageLimitMessage } from "@/components/platform/usage-limit-message";
 import type { UsageStatus } from "@/lib/usage-limits";
 import { leadNeedsFollowUp } from "@/lib/lead-status";
@@ -783,13 +784,9 @@ export function ProspectingPanel({
           )}
         </div>
         {prospects.length === 0 ? (
-          <div className="mt-3 rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
-            No prospects yet — set your niche above and click &quot;Find prospects now.&quot;
-          </div>
+          <StudioEmptyState className="mt-3" description={'No prospects yet — set your niche above and click "Find prospects now."'} />
         ) : visibleProspects.length === 0 ? (
-          <div className="mt-3 rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
-            No prospects match that search or filter.
-          </div>
+          <StudioEmptyState className="mt-3" description="No prospects match that search or filter." />
         ) : (
           <>
             {/* Studio improvement — bulk actions. Only shown once there's a

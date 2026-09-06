@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { createProject, updateProjectStage } from "@/app/studio/(authed)/projects/actions";
 import { StudioPageHeader } from "@/components/platform/studio-page-header";
+import { StudioEmptyState } from "@/components/platform/studio-empty-state";
 import { ProjectKanbanBoard } from "@/components/platform/project-kanban-board";
 import { ProjectStageAccordion } from "@/components/platform/project-stage-accordion";
 import { ProjectStageSelect } from "@/components/platform/project-stage-select";
@@ -283,12 +284,10 @@ export function ProjectsPanel({
       />
 
       {clients.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-border p-8 text-center">
-          <FolderKanban className="mx-auto size-6 text-muted-foreground" />
-          <p className="mt-3 text-sm text-muted-foreground">
-            No clients yet — convert a prospect first, then come back here to track their delivery.
-          </p>
-        </div>
+        <StudioEmptyState
+          icon={FolderKanban}
+          description="No clients yet — convert a prospect first, then come back here to track their delivery."
+        />
       ) : (
         <>
           <div className="flex flex-wrap items-center gap-2">
@@ -340,9 +339,7 @@ export function ProjectsPanel({
           {bulkError && <p className="text-xs text-destructive">{bulkError}</p>}
 
           {filteredProjects.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
-              No projects match the current filters.
-            </div>
+            <StudioEmptyState description="No projects match the current filters." />
           ) : (
             <>
               <div className="hidden md:block">

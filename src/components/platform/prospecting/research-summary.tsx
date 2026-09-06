@@ -6,38 +6,43 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { researchProspect } from "@/app/studio/(authed)/prospects/actions";
 import type { LeadResearch, ScoreBreakdown } from "@/lib/research-lead";
+import { StudioEmptyState } from "@/components/platform/studio-empty-state";
 
 export function ResearchTrigger({ prospectId }: { prospectId: string }) {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
   return (
-    <div className="rounded-lg border border-dashed border-border p-4 text-center">
-      <p className="text-sm text-muted-foreground">Not researched yet — no contact details or opportunity analysis found.</p>
-      <Button
-        size="sm"
-        variant="outline"
-        className="mt-3"
-        disabled={pending}
-        onClick={() =>
-          startTransition(async () => {
-            setError(null);
-            const r = await researchProspect(prospectId);
-            if (r && "error" in r) setError(r.error ?? "Research failed.");
-          })
+    <div>
+      <StudioEmptyState
+        size="xs"
+        description="Not researched yet — no contact details or opportunity analysis found."
+        action={
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={pending}
+            onClick={() =>
+              startTransition(async () => {
+                setError(null);
+                const r = await researchProspect(prospectId);
+                if (r && "error" in r) setError(r.error ?? "Research failed.");
+              })
+            }
+          >
+            {pending ? (
+              <>
+                <LoaderCircle className="size-3.5 animate-spin" /> Researching…
+              </>
+            ) : (
+              <>
+                <RefreshCw className="size-3.5" /> Research this business
+              </>
+            )}
+          </Button>
         }
-      >
-        {pending ? (
-          <>
-            <LoaderCircle className="size-3.5 animate-spin" /> Researching…
-          </>
-        ) : (
-          <>
-            <RefreshCw className="size-3.5" /> Research this business
-          </>
-        )}
-      </Button>
-      {error && <p className="mt-2 text-xs text-destructive">{error}</p>}
+      />
+      {error && <p className="mt-2 text-center text-xs text-destructive">{error}</p>}
     </div>
   );
 }

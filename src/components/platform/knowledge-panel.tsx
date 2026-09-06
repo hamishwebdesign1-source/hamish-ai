@@ -2,7 +2,7 @@
 
 import { useRef, useState, useTransition } from "react";
 import Link from "next/link";
-import { BookOpen, Plus, Pencil, Trash2, X, Sparkles, Search, Upload } from "lucide-react";
+import { BookOpen, Plus, Pencil, X, Sparkles, Search, Upload } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -17,6 +17,8 @@ import {
   importKnowledgeEntries,
 } from "@/app/studio/(authed)/knowledge/actions";
 import { StudioPageHeader } from "@/components/platform/studio-page-header";
+import { StudioEmptyState } from "@/components/platform/studio-empty-state";
+import { ConfirmDeleteButton } from "@/components/platform/confirm-delete-button";
 
 type Client = { id: string; business_name: string; source_lead_id?: string | null };
 type Entry = { id: string; client_id: string | null; title: string; content: string; created_at: string };
@@ -296,7 +298,6 @@ function EntryCard({ entry, clients }: { entry: Entry; clients: Client[] }) {
   const [editing, setEditing] = useState(false);
   const [title, setTitle] = useState(entry.title);
   const [content, setContent] = useState(entry.content);
-  const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
@@ -309,13 +310,6 @@ function EntryCard({ entry, clients }: { entry: Entry; clients: Client[] }) {
         return;
       }
       setEditing(false);
-    });
-  }
-
-  function remove() {
-    startTransition(async () => {
-      const r = await deleteKnowledgeEntry(entry.id);
-      if (r && "error" in r) setError(r.error ?? "Failed to delete.");
     });
   }
 
@@ -354,20 +348,12 @@ function EntryCard({ entry, clients }: { entry: Entry; clients: Client[] }) {
             <Button size="icon" variant="ghost" aria-label="Edit" onClick={() => setEditing(true)}>
               <Pencil className="size-3.5" />
             </Button>
-            {confirmingDelete ? (
-              <>
-                <Button size="xs" variant="destructive" disabled={pending} onClick={remove}>
-                  {pending ? "…" : "Confirm"}
-                </Button>
-                <Button size="icon" variant="ghost" aria-label="Cancel delete" onClick={() => setConfirmingDelete(false)}>
-                  <X className="size-3.5" />
-                </Button>
-              </>
-            ) : (
-              <Button size="icon" variant="ghost" aria-label="Delete" onClick={() => setConfirmingDelete(true)}>
-                <Trash2 className="size-3.5 text-muted-foreground" />
-              </Button>
-            )}
+            <ConfirmDeleteButton
+              label="Delete"
+              onDelete={() => deleteKnowledgeEntry(entry.id)}
+              fallbackError="Failed to delete."
+              onErrorChange={setError}
+            />
           </div>
         </div>
         {error && <p className="mt-2 text-xs text-destructive">{error}</p>}
@@ -477,17 +463,13 @@ export function KnowledgePanel({
       )}
 
       {entries.length === 0 ? (
-        <div className="mt-6 rounded-xl border border-dashed border-border p-8 text-center">
-          <BookOpen className="mx-auto size-6 text-muted-foreground" />
-          <p className="mt-3 text-sm text-muted-foreground">
-            No entries yet — add facts about your clients&apos; businesses so their support agent can answer
-            instantly instead of every question becoming a request.
-          </p>
-        </div>
+        <StudioEmptyState
+          className="mt-6"
+          icon={BookOpen}
+          description="No entries yet — add facts about your clients' businesses so their support agent can answer instantly instead of every question becoming a request."
+        />
       ) : filteredEntries.length === 0 ? (
-        <div className="mt-4 rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
-          No entries match that search or filter.
-        </div>
+        <StudioEmptyState className="mt-4" description="No entries match that search or filter." />
       ) : (
         <div className="mt-4 space-y-2">
           {filteredEntries.map((e) => (

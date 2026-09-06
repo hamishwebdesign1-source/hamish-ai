@@ -1,13 +1,14 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Plus, Trash2, X, ExternalLink, Eye, EyeOff } from "lucide-react";
+import { Plus, ExternalLink, Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { formatDate } from "@/lib/project-dates";
 import { createDeliverable, deleteDeliverable } from "@/app/studio/(authed)/projects/actions";
+import { ConfirmDeleteButton } from "@/components/platform/confirm-delete-button";
 
 type Deliverable = {
   id: string;
@@ -60,36 +61,19 @@ function VisibilityBanner({ stage }: { stage: string }) {
 // EntryCard) in place of Tasks' status-button trio, since a deliverable
 // has no status column in C1.
 function DeliverableRow({ deliverable }: { deliverable: Deliverable }) {
-  const [confirmingDelete, setConfirmingDelete] = useState(false);
-  const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
-
-  function remove() {
-    startTransition(async () => {
-      const r = await deleteDeliverable(deliverable.id);
-      if (r && "error" in r) setError(r.error ?? "Failed to delete.");
-    });
-  }
 
   return (
     <div className="rounded-lg border border-border p-3">
       <div className="flex items-start justify-between gap-2">
         <p className="text-sm font-medium">{deliverable.title}</p>
         <div className="flex shrink-0 items-center gap-1">
-          {confirmingDelete ? (
-            <>
-              <Button size="xs" variant="destructive" disabled={pending} onClick={remove}>
-                {pending ? "…" : "Confirm"}
-              </Button>
-              <Button size="icon" variant="ghost" aria-label="Cancel delete" onClick={() => setConfirmingDelete(false)}>
-                <X className="size-3.5" />
-              </Button>
-            </>
-          ) : (
-            <Button size="icon" variant="ghost" aria-label="Delete" onClick={() => setConfirmingDelete(true)}>
-              <Trash2 className="size-3.5 text-muted-foreground" />
-            </Button>
-          )}
+          <ConfirmDeleteButton
+            label="Delete"
+            onDelete={() => deleteDeliverable(deliverable.id)}
+            fallbackError="Failed to delete."
+            onErrorChange={setError}
+          />
         </div>
       </div>
       {deliverable.description && <p className="mt-1 text-xs text-muted-foreground">{deliverable.description}</p>}

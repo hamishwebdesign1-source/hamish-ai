@@ -1,10 +1,8 @@
 "use client";
 
-import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Trash2, X } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { deleteProject } from "@/app/studio/(authed)/projects/actions";
+import { ConfirmDeleteButton } from "@/components/platform/confirm-delete-button";
 
 // Projects Kanban Command Centre, Phase A — extracted into its own small
 // component, mirroring DeleteWebsiteProjectControl's exact confirm-then-
@@ -14,39 +12,19 @@ import { deleteProject } from "@/app/studio/(authed)/projects/actions";
 // hiding a card in place.
 export function DeleteProjectControl({ projectId }: { projectId: string }) {
   const router = useRouter();
-  const [confirming, setConfirming] = useState(false);
-  const [pending, startTransition] = useTransition();
-  const [error, setError] = useState<string | null>(null);
-
-  function remove() {
-    setError(null);
-    startTransition(async () => {
-      const r = await deleteProject(projectId);
-      if (r && "error" in r) {
-        setError(r.error ?? "Failed to delete.");
-        return;
-      }
-      router.push("/studio/projects");
-    });
-  }
-
-  if (confirming) {
-    return (
-      <span className="flex items-center gap-1.5">
-        <Button size="xs" variant="destructive" disabled={pending} onClick={remove}>
-          {pending ? "Deleting…" : "Confirm delete"}
-        </Button>
-        <Button size="icon-xs" variant="ghost" aria-label="Cancel delete" onClick={() => setConfirming(false)}>
-          <X className="size-3" />
-        </Button>
-        {error && <span className="text-xs text-destructive">{error}</span>}
-      </span>
-    );
-  }
 
   return (
-    <Button size="icon-xs" variant="ghost" aria-label="Delete this project" onClick={() => setConfirming(true)}>
-      <Trash2 className="size-3.5" />
-    </Button>
+    <ConfirmDeleteButton
+      label="Delete this project"
+      onDelete={() => deleteProject(projectId)}
+      fallbackError="Failed to delete."
+      onSuccess={() => router.push("/studio/projects")}
+      size="icon-xs"
+      iconClassName="size-3.5"
+      cancelIconClassName="size-3"
+      confirmText="Confirm delete"
+      pendingText="Deleting…"
+      showInlineError
+    />
   );
 }

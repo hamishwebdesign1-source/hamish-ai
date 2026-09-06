@@ -6,6 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PROMPT_LIBRARY, PROMPT_CATEGORY_LABELS, type PromptCategory, type PromptTemplate } from "@/lib/website-prompt-library";
+import { StudioEmptyState } from "@/components/platform/studio-empty-state";
 
 const TOKEN_RE = /\[([^\]]+)\]/g;
 
@@ -155,10 +156,7 @@ export function PromptLibraryBrowser({ prefill }: { prefill: PromptLibraryPrefil
 
       <div className="mt-4 space-y-2">
         {visible.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-border p-8 text-center">
-            <Sparkles className="mx-auto size-6 text-muted-foreground" />
-            <p className="mt-3 text-sm text-muted-foreground">No prompts in this category yet.</p>
-          </div>
+          <StudioEmptyState icon={Sparkles} description="No prompts in this category yet." />
         ) : (
           visible.map((prompt) => <PromptCard key={prompt.id} prompt={prompt} prefill={prefill} />)
         )}
