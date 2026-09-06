@@ -1399,7 +1399,18 @@ _(none yet)_
   implementations to keep in sync by hand.
 - **Relevant agent**: Lead Engineer.
 - **Dependencies**: none.
-- **Status**: Not started.
+- **Status**: Complete/shipped (commit `98516a8`). Built `assignee-select.tsx`
+  covering both real, deliberately-kept shapes (a labelled "Assigned to"
+  wrapper for the two dedicated-page controls; a bare select for the two
+  in-card controls, tight on space, aria-label only). `prospect-card.tsx`'s
+  own distinct `h-7`/`text-[11px]` sizing kept via the new `className`
+  override — a real difference, not a duplicate to normalise away. Error
+  text normalised to `text-xs` everywhere (was `text-[11px]` on the two
+  in-card sites — a 1px difference not worth a prop). Zero behaviour
+  change: same rollback-on-error, same "Unassigned" option, same
+  team-members->1 gate, same Server Actions called unchanged. `npx tsc
+  --noEmit`, `npx eslint`, full `vitest` suite (467/467), and `npm run
+  build` all green.
 
 ### Standardise a "Generated {date} · Regenerate" provenance line across every cached AI artifact
 
@@ -2665,3 +2676,37 @@ untested — they're not extracted into standalone functions the way the
 stat/section cards are, so covering them would mean a refactor first, not
 just writing tests. A real, smaller follow-up if it matters later, not
 done as part of this item.
+
+### Every Studio dropdown rendered unreadable white-on-white text (real user report, screenshot)
+
+Closed 2026-09-06 (`20f61fe`, `d78fdeb`, `cca47a5`) — a `<select>`'s own
+closed state was fully custom-styled, but the native dropdown popup list
+(rendered by the OS/browser, outside the page's own paint tree) had no
+theming at all: `.dark` (Studio's own dark class, applied to a wrapper
+div, not `:root`/`html`) never set `color-scheme`, so Chrome fell back
+to a light popup while still inheriting the dark theme's light option
+text colour.
+- First fix (`20f61fe`): `color-scheme: dark` on `.dark` — the standard
+  CSS API for this, verified via `getComputedStyle`, confirmed live.
+- Reported still broken (real user, live testing) even with that
+  property computing correctly — automation can't screenshot a native
+  select's open popup to catch a mismatch like this itself, so this
+  needed the user's own eyes. Root cause: `color-scheme`'s effect on a
+  native popup isn't reliably honoured by Chromium when declared on a
+  non-root element.
+- Belt-and-braces fix (`d78fdeb`, corrected in `cca47a5`): explicit
+  `background-color`/`color` on `.dark select option` (using the
+  existing `--popover`/`--popover-foreground` tokens) — the mechanism
+  browsers actually apply consistently for popup content. `d78fdeb`'s
+  first attempt also styled `.dark select` itself, which would have
+  changed every closed select's own background sitewide (every
+  `selectClasses` definition in this codebase uses `bg-transparent` for
+  the closed control, blending into its card/row — a class+element
+  selector beats that single utility class in the cascade) — caught and
+  fixed in `cca47a5` before it mattered visually. Live-verified via the
+  actual computed CSS rule text and computed styles across Knowledge and
+  Prospects: option background/text resolve correctly, closed select
+  background confirmed still `transparent`. `npx tsc --noEmit`, full
+  `vitest` suite (467/467), and `npm run build` all green on every
+  commit. Final visual confirmation (an open popup can't be
+  screenshotted by automation) handed back to the user.
