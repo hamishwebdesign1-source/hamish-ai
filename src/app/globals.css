@@ -169,6 +169,22 @@
   --sidebar-ring: oklch(0.66 0.19 258);
 }
 
+/* Belt-and-braces on top of .dark's own color-scheme: dark above —
+   reported still broken live in real browser testing even with that
+   property correctly computing, which points at a real Chromium quirk:
+   color-scheme's effect on a <select>'s native popup isn't reliably
+   honoured when declared on a non-root element (a plain wrapper div
+   here, not :root/html, since only Studio is dark-themed). Explicit
+   background/colour on the select and its options is the more
+   reliable fix browsers actually apply consistently — kept alongside
+   color-scheme rather than replacing it, since color-scheme is still
+   the correct signal for scrollbars and other native chrome. */
+.dark select,
+.dark select option {
+  background-color: var(--popover);
+  color: var(--popover-foreground);
+}
+
 /* Studio Mission Control — the full visual redesign of /studio (all of
    it, not just the Command Centre: this scopes onto the shared authed
    layout, so every page under /studio inherits it via the same
