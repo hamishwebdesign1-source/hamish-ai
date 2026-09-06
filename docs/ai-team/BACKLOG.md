@@ -28,6 +28,109 @@ _(none yet)_
 
 ## Ready
 
+### Public `/help` page — pre-signup/new-signup documentation for the Agency Platform
+
+Scoped from a "public docs launch readiness" mission (2026-09-06). Full
+audit, IA reasoning, and explicit non-scope in the Product Director's
+handoff — see `DECISIONS.md`'s matching 2026-09-06 entry. Do not expand
+this into a multi-page documentation site; the point of this entry is a
+single, real, well-organised page, not the start of a docs product.
+
+- **Problem**: there is currently zero public (unauthenticated) product
+  documentation between the homepage's high-level pitch and the
+  authenticated app's own in-app help (`/studio/help`, `/portal/help`).
+  Verified via a full route listing of `src/app/(site)/*` — no `/docs` or
+  `/help` route exists on the marketing site. A prospective customer
+  evaluating the product before signing up, or someone who just signed up
+  and wants to understand a feature before diving in, has nowhere to go
+  except the homepage's two sales-objection FAQ entries (`platformFaqs` in
+  `(site)/page.tsx`, lines 96-107) or a support email.
+- **Objective**: one real, indexable `/help` page under `(site)/` covering
+  (1) a short "Getting started" walkthrough for a brand-new signup, (2) the
+  existing 24-entry `STUDIO_FAQS` (`src/lib/studio-help-faqs.ts`)
+  republished verbatim — genuinely comprehensive, real, and already
+  maintained; no rewrite needed for a pre-signup audience since every entry
+  is descriptive product documentation, not something that assumes the
+  reader is mid-session, and (3) a short "Legal & data" links section
+  pointing to the already-solid `/terms` and `/privacy`.
+- **User**: (a) a prospective agency-owner customer evaluating the product
+  before starting the free trial, wanting more depth than the homepage
+  pitch without booking a call; (b) a just-signed-up user in the 7-day
+  trial who wants to understand a feature (e.g. "what's autonomous
+  outreach") before clicking into Studio and finding out live.
+- **Priority**: P1 — a real, verified gap blocking a normal pre-signup
+  evaluation path, not padding. Not P0 only because it doesn't block
+  anything currently in progress or any existing user from using the
+  product today (self-serve signup/billing/trial are already live and
+  working without it).
+- **Expected outcome**: a prospective or new customer can self-serve answer
+  "what does this actually do" and "how do I get started" without emailing
+  support or signing up blind. Real, observable outcome once PostHog is
+  looked at post-launch: `/help` gets organic traffic and a nonzero
+  time-on-page, rather than being unreachable from any nav path (there's
+  currently no way to prove or disprove demand for this — that's the honest
+  state, not a target number to hit at launch).
+- **Acceptance criteria**:
+  - New route `src/app/(site)/help/page.tsx`, following this codebase's
+    established `(site)` page pattern exactly (`PageHero`, a `Metadata`
+    export with `alternates: { canonical: "/help" }`, an
+    `opengraph-image.tsx` sibling — every existing `(site)` page has one,
+    confirmed by directory listing).
+  - Reuses `HelpFaqList` (`src/components/platform/help-faq-list.tsx`) as-is
+    — it's already a generic component (`{q, a}[]` prop, built-in search,
+    no Studio-specific dependency) — importing `STUDIO_FAQS` directly.
+    **Do not fork or duplicate this component or its content.**
+  - Add `FaqJsonLd` (`src/components/seo/faq-json-ld.tsx`) with `STUDIO_FAQS`
+    mapped to its `{question, answer}` shape, matching the SEO/GEO precedent
+    already established on the homepage/`/services`/`/platform`.
+  - "Getting started" section: a short, real, ordered list grounded in
+    actual product flow (sign up → set ICP/prospecting criteria → run first
+    discovery search → generate a sales kit → convert a prospect to a
+    client → invite team → connect Stripe for client billing) — no invented
+    steps, cross-check against `studio-tour.tsx`'s own 7 steps and the
+    Command Centre's real "Getting set up" checklist so this doesn't drift
+    from what the in-app onboarding actually does.
+  - "Legal & data" section: plain links to `/terms` and `/privacy` — no new
+    legal content, this section exists only so `/help` is a genuine single
+    landing point for "everything before you sign up."
+  - IA: add `/help` to `sitemap.ts`'s `staticPages` array (priority ~0.7,
+    monthly, matching `/services`/`/ai-solutions`'s tier — real documentation
+    content, not a legal boilerplate page). Add a `/help` link to
+    `SiteFooter`'s legal-links row alongside `/terms`/`/privacy` (cheapest,
+    lowest-commitment placement, matches existing footer IA precedent) at
+    minimum. A `/help` entry in `siteConfig.platformNav` (visible in the
+    homepage header, alongside "How it works"/"Pricing"/"FAQ") is a real,
+    reasonable nice-to-have but is a visual-crowding call for whoever builds
+    this to sanity-check against the live header, not mandated here — footer
+    placement alone already resolves the "nowhere to go" problem this entry
+    exists to fix.
+  - Not required, explicitly out of scope for this entry (see this
+    Product Director's RECOMMENDATION in the matching mission handoff for
+    the full reasoning): a status page, a public changelog, a full
+    documentation site with its own search/versioning/subdomain
+    (Mintlify/GitBook/Docusaurus), API/developer docs (no public API
+    exists), a separate page per FAQ category, or a "Trust Center"/security
+    overview page (already covered by `/privacy`'s existing sub-processor
+    and RLS disclosure).
+  - `npx tsc --noEmit -p .`, `npx eslint`, full `vitest` suite green (no new
+    logic beyond static content + the `FaqJsonLd` mapping, so no new tests
+    strictly required, but don't break the sitemap/cron-schedule consistency
+    tests if any touch `sitemap.ts`).
+  - Does **not** need Hamish's sign-off before building: no new data model,
+    no billing/payment logic, no new tenancy boundary, no destructive
+    migration, no ongoing infrastructure cost (hosted in the existing
+    Next.js app on the existing Vercel pipeline — confirmed against
+    `docs/ai-team/README.md`'s approval-boundary list, none of the seven
+    triggers apply). This is a "create/update documentation" + "build
+    prototype"-class safe autonomous action per that same list.
+- **Relevant agent**: Lead Engineer (build) → QA → Product Director (review
+  against this entry's original problem statement — specifically: can a
+  signed-out visitor now actually find and read real answers to "what is
+  this" and "how do I start," not just "does the page render").
+- **Dependencies**: none blocking — `STUDIO_FAQS`, `HelpFaqList`, `FaqJsonLd`,
+  `/terms`, `/privacy` all already exist and are already correct.
+- **Status**: Ready.
+
 ### Projects Kanban Command Centre — Phase A: real Kanban board, drag-and-drop stage persistence, project detail workspace
 
 This is the Phase 1 (Audit) + Phase 2 (Architecture) output for Hamish's
@@ -2718,3 +2821,25 @@ text colour.
   `vitest` suite (467/467), and `npm run build` all green on every
   commit. Final visual confirmation (an open popup can't be
   screenshotted by automation) handed back to the user.
+
+### PostHog was setting a real first-party cookie despite the code's own no-consent-banner reasoning
+
+Closed 2026-09-06 (`48da52b`) — a pre-launch readiness pass. The
+existing comment in `analytics-provider.tsx` justified skipping a
+cookie-consent banner by claiming PostHog's default config here "uses
+localStorage, not third-party cookies." Checked the claim against the
+actual installed SDK rather than trusting the comment: grepped
+`node_modules/posthog-js/dist/module.full.js` for its real default
+options object and found `persistence:"localStorage+cookie"` — the
+init() call never overrode that, so a real first-party analytics
+cookie was being set on every page load. "Not third-party" and "no
+cookies" are different claims; only the first one was true. Fix:
+`persistence: "localStorage"` explicitly, so analytics genuinely sets
+no cookies at all — makes the existing reasoning actually correct
+instead of a compliance gap sitting quietly under it. No behaviour
+change to what's tracked. `npx tsc --noEmit`, `npx eslint`, full
+`vitest` suite (467/467), and `npm run build` all green. Live "zero
+cookies" confirmation not obtainable via this session's browser tooling
+(`document.cookie` reads are sandboxed/blocked in this environment) —
+verified at the source level instead, which is the more reliable check
+for this specific claim anyway.
