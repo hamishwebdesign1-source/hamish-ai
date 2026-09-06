@@ -54,6 +54,9 @@ export function SiteFooter() {
           © {new Date().getFullYear()} {siteConfig.name}. All rights reserved.
         </p>
         <div className="flex flex-wrap items-center justify-center gap-4">
+          <Link href="/help" className="hover:text-foreground">
+            Help
+          </Link>
           <Link href="/terms" className="hover:text-foreground">
             Terms of Service
           </Link>
