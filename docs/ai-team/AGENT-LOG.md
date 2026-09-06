@@ -231,3 +231,24 @@ auth, DB, routes, testing, deployment, existing AI integrations) rather than
 a generic template — see `docs/ai-team/DECISIONS.md` for the reasoning and
 the real `docs/ARCHITECTURE.md` drift this surfaced and fixed. No mission
 has run yet; this log starts here.
+
+## 2026-09-06 — Public documentation for launch
+
+Mission: "Create all public/customer-facing documentation needed to launch
+the Agency Platform, and recommend where it should be hosted." Orchestrator
+audited first (legal pages, existing FAQ content, route listing) before
+dispatching — found Terms/Privacy already solid and a real 24-entry FAQ
+(`STUDIO_FAQS`) already written but trapped behind auth. Product Director
+re-verified that audit independently rather than rubber-stamping it,
+confirmed the hosting call (in-app, existing Vercel pipeline — no new
+tooling cost, none of `README.md`'s approval-boundary triggers apply),
+and scoped the real gap tightly: one `/help` page, not a documentation
+site. Explicitly rejected a status page, changelog, docs platform,
+API docs, and a Trust Center, each with its own reasoning — see
+`DECISIONS.md`'s matching entry. Lead Engineer built exactly that scope,
+cross-checking the "Getting started" steps against real onboarding
+content instead of inventing them. Orchestrator independently
+re-verified (`tsc`/`eslint`/full `vitest` suite 467/467/`npm run build`,
+confirmed `/help` builds as a static route) before committing —
+`1bbe8ac`, pushed. Live-deploy confirmation still pending as this entry
+is written.

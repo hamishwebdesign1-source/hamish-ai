@@ -5,6 +5,26 @@ of finishing a mission, not as a separate chore that falls behind.
 
 ## Recently completed (real, shipped, verified live)
 
+- "Public documentation for launch" mission (2026-09-06, `1bbe8ac`): a
+  real, verified gap — zero public, unauthenticated product
+  documentation existed between the homepage's pitch and the
+  authenticated app's own `/studio/help`/`/portal/help`, so a
+  prospective customer evaluating the platform before signing up had
+  nowhere to go but a support email. New `/help` page under `(site)/`:
+  a 7-step "Getting started" walkthrough cross-checked against the
+  Command Centre's real onboarding checklist and StudioTour's real
+  steps (not invented), the existing 24-entry `STUDIO_FAQS` republished
+  verbatim through the already-generic `HelpFaqList` (no fork, no
+  duplicate content), `FaqJsonLd` for SEO/GEO, and links to the
+  already-solid `/terms`/`/privacy`. Deliberately scoped to one page,
+  not a documentation site — a status page, changelog, docs platform,
+  API docs, and Trust Center were all explicitly considered and
+  rejected, each with its own reasoning in `DECISIONS.md`. Hosted
+  in-app on the existing Vercel pipeline rather than a separate docs
+  tool (Mintlify/GitBook/Docusaurus) — no new recurring cost, content
+  stays in git next to the code it describes. `tsc`/`eslint`/full
+  `vitest` suite (467/467)/`npm run build` all green, `/help` confirmed
+  building as a static route.
 - "Projects Kanban Command Centre" mission, Phase A (2026-09-03,
   `95afe38`..`2514c2f` + a manually-run RLS migration): the flat
   per-client task list at `/studio/projects` replaced with a real
