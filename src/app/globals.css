@@ -175,11 +175,17 @@
    color-scheme's effect on a <select>'s native popup isn't reliably
    honoured when declared on a non-root element (a plain wrapper div
    here, not :root/html, since only Studio is dark-themed). Explicit
-   background/colour on the select and its options is the more
-   reliable fix browsers actually apply consistently — kept alongside
-   color-scheme rather than replacing it, since color-scheme is still
-   the correct signal for scrollbars and other native chrome. */
-.dark select,
+   background/colour on just the <option> elements is the more
+   reliable fix browsers actually apply consistently for the popup
+   list — kept alongside color-scheme rather than replacing it, since
+   color-scheme is still the correct signal for scrollbars and other
+   native chrome. Deliberately NOT also styling the <select> element
+   itself: every selectClasses definition in this codebase uses
+   bg-transparent for the closed control's own box (blending into
+   whichever card/row it sits on), and .dark select would win that
+   cascade (a class+element selector beats a single utility class),
+   visibly changing every closed select's background sitewide — a real
+   regression this fix doesn't need to risk. */
 .dark select option {
   background-color: var(--popover);
   color: var(--popover-foreground);
