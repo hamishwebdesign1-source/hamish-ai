@@ -1362,6 +1362,20 @@ _(none yet)_
   `tsc`/`eslint`/full test suite green; no behaviour change to any
   existing delete/empty-state flow.
 - **Relevant agent**: Lead Engineer.
+- **Status**: Complete/shipped (commit `4422038`). Built `studio-empty-state.tsx`,
+  `use-confirm-delete.ts`, and `confirm-delete-button.tsx`; retrofitted 7
+  delete-control sites and 11 empty-state sites. Deliberately left alone,
+  with reasons recorded in the commit message: `MaintenanceSubscriptionControl`/
+  `DeleteClientControl`/`team-panel.tsx`/`data-privacy-panel.tsx` (genuinely
+  different trigger shape or type-to-confirm weight) and `ClientMembersControl`
+  (single shared confirm-id across a list — the per-row primitive would let
+  multiple rows confirm at once, a real behaviour change); `project-kanban-board.tsx`'s
+  column placeholder (needs `text-xs`, the primitive's description is fixed
+  `text-sm`). `npx tsc --noEmit`, `npx eslint`, full `vitest` suite (467/467),
+  and `npm run build` all green — no behind-change to any existing flow.
+  (First dispatched to a backgrounded Lead Engineer agent, which stalled
+  after building the two primitives but before any retrofit; the
+  orchestrator completed the retrofit directly rather than re-dispatching.)
 - **Dependencies**: none.
 - **Status**: Not started.
 
