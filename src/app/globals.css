@@ -124,6 +124,12 @@
 }
 
 .dark {
+  /* Native form controls (a <select>'s own dropdown popup list, scrollbars)
+     aren't themed by the CSS custom properties above — without this, Chrome
+     renders the popup in the OS's light theme while still inheriting this
+     theme's light option text colour, producing unreadable white-on-white
+     text in every dropdown across Studio. */
+  color-scheme: dark;
   --background: oklch(0.17 0.02 260);
   --foreground: oklch(0.95 0.006 90);
   --card: oklch(0.21 0.02 260);
