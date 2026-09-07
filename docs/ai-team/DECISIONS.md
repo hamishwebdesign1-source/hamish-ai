@@ -1561,3 +1561,42 @@ that the exact ownership-check shape used throughout genuinely returns no
 row (`PGRST116`) for two of Edinburgh Solutions' real ids (one prospect,
 one client) — read-only, no mutation ever attempted against their data,
 per this task's explicit safety constraint.
+
+## 2026-09-07 — First `/admin` isolation fix (08662cc) reviewed as incomplete; stop-the-line, sent back for round 2
+
+**Decision**: Security Auditor's review of commit `08662cc` (the fix for
+the P0 `/admin` cross-tenant isolation gap) confirmed all 22 originally-
+scoped actions/reads are correctly and consistently fixed, but found the
+sweep itself missed two routes with **live, currently-real** foreign-
+tenant data exposure that the original scoping pass's own "probably not
+exposed" spot-check on `knowledge_base` got wrong:
+
+1. `/admin`'s own dashboard homepage blends Edinburgh Solutions' real
+   prospect pipeline (AI-estimated deal value, conversion probability) into
+   Hamish's own "Pipeline value"/"Hot leads" figures, unfiltered.
+2. `/admin/knowledge` displays — and lets an admin one-click-delete —
+   Edinburgh Solutions' real knowledge-base entries ("Opening hours,"
+   "What we do" for their own real client), unfiltered.
+
+Plus five zero-current-blast-radius-but-same-defect-shape gaps
+(`/admin/audit`, `/admin/ai-activity`, `updateDraftResponse`/
+`regenerateAdminDraft`/`reviewAutoSend`, `sendInvoiceReminderAction` —
+the last one directly comparable to a pattern already correctly shipped
+in `/studio`'s own `sendClientInvoiceReminderAction`, just never ported
+to admin's copy).
+
+**Why decided as stop-the-line rather than "close enough, ship it"**:
+per this team's own security-change approval boundary, and because two
+of the seven remaining gaps are not theoretical — they're live today,
+through normal linked navigation, no attacker cleverness required. This
+is the second time a "complete" `/admin` isolation sweep has missed a
+live route (the original P0 finding, and now this one) — Security
+Auditor's own risk note (a lint rule or test asserting every org-scoped
+table access in `src/app/admin/**` carries an org filter, rather than
+relying on repeated manual sweeps) is worth taking seriously as a
+structural fix once the immediate exposure is closed.
+
+**Not sent to QA or Hamish for sign-off yet** — round 2 dispatched to
+Lead Engineer immediately given the live exposure, same fix pattern,
+same file conventions as `08662cc`. `BACKLOG.md`'s P0 entry corrected to
+remove the incorrect "knowledge_base probably not exposed" line.
