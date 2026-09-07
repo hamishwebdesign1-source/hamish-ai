@@ -1435,38 +1435,292 @@ _(none yet)_
 
 ## Not started
 
-### research-lead.ts's system prompt hardcodes "Hamish AI, a small Edinburgh-based AI/web consultancy" for every tenant
+### research-lead.ts's system prompt (and its RESEARCH_TOOL schema) hardcodes "Hamish AI" for every tenant — now confirmed to leak into real tenant outreach content
 
-- **Problem**: found while fixing the £-currency bug (see "Complete" section
-  below) — `buildSystemPrompt()` in `research-lead.ts` opens with `"You are
-  researching a small business as a lead-qualification step for Hamish AI,
-  a small Edinburgh-based AI/web consultancy"`, a fixed string, not a
-  parameter. `searchCandidates()` in `discover-leads.ts` already takes and
-  uses a real `orgName` at the exact same kind of call site — this file
-  never got the same treatment. Every Studio tenant's own research (not
-  just HamishAI's internal pipeline) is framed as if it were HamishAI
-  doing the researching. The currency fix works around the most visible
-  symptom (an explicit `currency` field, correctly reasoned from
-  `lead.neighbourhood` regardless of this framing) but the framing itself
-  is still wrong for any non-internal org.
-- **Objective**: thread the calling org's own name (and drop "Edinburgh-
-  based") into `buildSystemPrompt()`, the same way `searchCandidates()`
-  already does — default to "Hamish AI, a small Edinburgh-based AI/web
-  consultancy" only for callers with no org context (`/admin`,
-  `deep-research-pipeline.ts`'s background jobs, `discover-leads.ts`'s own
-  `researchLead()` call inside `insertCandidates()` when running for the
-  internal org).
-- **Priority**: P2 — real, but lower visible severity than the currency
-  bug (doesn't produce an obviously-wrong number on screen the way £ for a
-  US business did); worth a deliberate pass rather than folding into
-  another fix.
-- **Scope note**: touches `research-lead.ts` (`researchLead()`'s
-  signature), `discover-leads.ts` (`insertCandidates()` already has
-  `org.name` in scope at both call sites), `prospects/actions.ts`'s
-  `researchProspect()` (currently only fetches `orgId` for the ownership
-  check, would need `org.name` too), and `deep-research-pipeline.ts`'s
-  background job. Not a one-file fix.
+Escalated from P2 → P1 (2026-09-07, "Prospect-generation pipeline audit"
+mission, AI/Agent Architect) — the original problem statement below was
+correct but understated; live testing found a second, independent hardcode
+and confirmed real downstream contamination, not just a framing nit.
+
+- **Problem**: `buildSystemPrompt()` in `research-lead.ts` (line 380)
+  doesn't take an `orgName`/sender parameter **at all** — unlike
+  `discover-leads.ts`'s `searchCandidates()` and `draft-sales-kit.ts`
+  (which both already thread a real org identity through), every single
+  tenant's research pass is 100% "Hamish AI, a small Edinburgh-based
+  AI/web consultancy" framed, with zero tenant-awareness. **New finding,
+  not in the original problem statement**: `RESEARCH_TOOL`'s
+  `recommended_services` field description (`research-lead.ts:282`) is a
+  *second*, independent hardcode — "Which Hamish AI service(s) fit best
+  (redesign, AI chat assistant, booking system, etc.)" — sent to the model
+  as part of the tool schema itself, not just the system prompt.
+  **Live-confirmed impact** (`scratch/audit-recommended-services-skew.mjs`,
+  same real candidate, same production `RESEARCH_TOOL` schema, three
+  tenant identities): a correctly-identified bookkeeping firm's research
+  still came back recommending "Website redesign," "AI chat assistant,"
+  and "Booking system integration" — near-verbatim the same output as the
+  literal Hamish AI baseline, with only one contextually-appropriate item
+  ("Invoice and payment automation") added; a marketing agency's research
+  showed the same pattern. This field flows **unfiltered** into
+  `draft-sales-kit.ts:95` and `draft-website-mockup.ts:46` — real outreach
+  content a tenant sends to their own prospects — directly contradicting
+  `draft-sales-kit.ts`'s own already-correct `sender.isInternal`/
+  `sender.agencyType`-aware pitch framing (a marketing agency's sales kit
+  gets pitched around what *it* sells, but built on a recommended-services
+  list secretly generated as if the pitch were for HamishAI's own
+  services). `draft-website-mockup.ts`'s own header comment claims it's
+  "genuinely tenant-safe from the start" — not true for any tenant whose
+  cached research contains a `recommended_services` list, since that
+  upstream field isn't tenant-safe regardless of `orgName` being correctly
+  passed at the mockup-generation step itself.
+- **Objective**: thread a real sender/`orgName`/`agencyType` param through
+  `buildSystemPrompt()`, following the exact pattern already correct in
+  `draft-sales-kit.ts` (`sender.isInternal` gate + `agencyType`-aware
+  framing) — not just `searchCandidates()`'s simpler `orgName`-only
+  pattern, since `recommended_services` specifically needs to know what
+  *this* agency sells, not just its name. Rewrite the `recommended_services`
+  field description to ask generically for "services this researching
+  agency could plausibly offer this business" instead of naming Hamish
+  AI's own service list. Default to the current Hamish AI framing only for
+  callers with genuinely no org context (`/admin`, `deep-research-
+  pipeline.ts`'s background jobs, `discover-leads.ts`'s own internal-org
+  `researchLead()` call).
+- **Priority**: **P1** (raised from P2) — live-confirmed to produce wrong,
+  Hamish-branded service recommendations inside content a real
+  non-HamishAI tenant could actually send to their own prospect, not a
+  cosmetic framing issue.
+- **Scope note**: touches `research-lead.ts` (`buildSystemPrompt()` +
+  `RESEARCH_TOOL`'s `recommended_services` description), `discover-
+  leads.ts` (`insertCandidates()` already has `org.name`/`org` in scope at
+  both call sites — would need the org's `agencyType` too, same lookup
+  `draft-sales-kit.ts` already does), `prospects/actions.ts`'s
+  `researchProspect()` (currently only fetches `orgId`, would need
+  `org.name`/`agencyType`), and `deep-research-pipeline.ts`'s background
+  job. Not a one-file fix.
+- **Relevant agent**: AI/Agent Architect (schema/prompt rewrite, pattern
+  already scoped above) → Lead Engineer (thread the param through all 4
+  call sites) → QA (confirm a non-internal tenant's research no longer
+  mentions Hamish-specific services).
+- **Status**: **Complete/shipped** (commit `84bd34c`, 2026-09-07). Built
+  exactly as scoped: `identityForResearch()`/`recommendedServicesDescription()`
+  added to `research-lead.ts` mirroring `draft-sales-kit.ts`'s 3-branch
+  isInternal/agencyType/generic logic; `RESEARCH_TOOL` turned into
+  `buildResearchTool(sender)`; `sender` threaded through `researchLead()`,
+  `buildSystemPrompt()`, `buildConceptAnalysisPrompt()`. The two internal-only
+  call sites (`/admin`, the concept-page deep-research job) correctly left
+  on the default. `searchProspectsNow()`'s org query gained the
+  `prospecting_config` select it was missing (needed to resolve
+  `agencyType`). 10 new tests, 477/477 total passing.
+  **QA-verified live against real production data**, not just unit
+  tests: ran the actual `researchLead()` against the real "Edinburgh
+  Solutions" org (agencyType "AI Analytics") on a real, never-before-
+  researched prospect — `recommended_services` came back as that org's
+  own catalogue ("Custom KPI dashboards," "One-off data audit," "Monthly
+  performance reports"), not the old Hamish-specific default. Separately
+  confirmed HamishAI's own internal pipeline produces byte-identical
+  output to before the fix (no regression) and that the generic
+  no-`agencyType` fallback works correctly. `npx tsc --noEmit -p .`,
+  `npx eslint`, `npm run test` (477/477), and `npm run build` all green.
+  **Real gap found and fixed same-session, unrelated to the diff
+  itself**: the building agent's own leftover live-verification script
+  was breaking `npm run build`/`tsc` for the next person — traced to
+  `scratch/` never actually being in `.gitignore` despite several past
+  sessions' comments assuming it was. Fixed by deleting the stray file
+  and adding `scratch/` to `.gitignore` (`2e968b1`).
+  **Real, small gap found and logged separately, not fixed here**:
+  `recommended_services` (the exact field this fix touches) isn't
+  rendered anywhere in Studio's own `research-summary.tsx` today — a
+  tenant only sees this fix's effect indirectly, through the AI sales kit
+  it feeds into. See the new "Surface `recommended_services` in Studio's
+  own research summary" entry below.
+  Pre-existing, out-of-scope grammar nit noted by both Lead Engineer and
+  QA: `identityForResearch()`/`draft-sales-kit.ts`'s shared identity logic
+  produces "a AI Automation agency" instead of "an" for vowel-starting
+  agency-type names — confirmed to only ever appear inside an AI system
+  prompt, never rendered to a user, so left as a low-priority cosmetic
+  note rather than fixed.
+
+### Surface `recommended_services` in Studio's own research summary
+
+- **Problem**: found by QA while verifying the "Hamish AI" hardcode fix
+  above (commit `84bd34c`) — `research.recommended_services` is only ever
+  rendered in `/admin`'s pages (HamishAI's own internal tool). Studio's
+  own `research-summary.tsx` (what a real tenant actually sees on
+  `/studio/prospects`) shows `pursue_because`, `business_summary`, value
+  band, conversion probability, `ai_opportunity_fit`, `weaknesses`,
+  `strengths`, `ai_opportunities`, and `suggested_sales_angle` — but never
+  `recommended_services` directly, even though it's a real, already-
+  computed field a tenant would plausibly want to see ("what should I
+  actually pitch this business").
+- **Objective**: add a small "Recommended services" badge/line to
+  `research-summary.tsx`, same treatment as the existing badges, using
+  the tenant's own real `recommended_services` values (now correctly
+  agency-aware per the fix above).
+- **Priority**: P3 (someday) — real, small, cosmetic; not a defect
+  introduced by the fix above (the field was never surfaced there before
+  it either), just a gap the fix's own QA pass happened to notice.
 - **Relevant agent**: Lead Engineer.
+- **Dependencies**: none.
+- **Status**: Not started.
+
+### `computeLeadScore` vs `computeScoreBreakdown` can rank the same prospect differently across surfaces
+
+- **Problem**: found during the 2026-09-07 prospect-pipeline audit
+  (AI/Agent Architect). `/admin/leads` sorts/filters by `computeLeadScore`
+  (research-lead.ts:216); Studio's prospecting-panel.tsx defaults its
+  "Highest score" sort to `computeScoreBreakdown.overall`
+  (`b.score_breakdown?.overall ?? b.score`). Both are computed from the
+  same research and saved together, but they're genuinely different
+  formulas — and the pipeline's own search brief is built entirely around
+  "find businesses with no/weak web presence," meaning the modal real
+  prospect has `siteCheck === null`. For that case, `computeLeadScore`
+  collapses to just 2 or 3 out of 5 for the overwhelming majority of real
+  leads (it can't see value band or problem count once site_check is
+  null), while `computeScoreBreakdown.overall` still varies meaningfully
+  on those same inputs. Concrete illustration (both leads
+  `ai_opportunity_fit: "high"`, no website): a $6,000+ lead with 8
+  weakness/trust/conversion findings scores `computeLeadScore` = 3,
+  `computeScoreBreakdown.overall` = 4; a $500-1,500 lead with 2 findings
+  also scores `computeLeadScore` = 3 (tied with the first) but
+  `computeScoreBreakdown.overall` = 2. `/admin/leads` would rank these
+  tied; a Studio tenant's default sort would clearly separate them. This
+  is the modal case, not a contrived edge case.
+- **Objective**: not decided here — a genuine product judgment call
+  (which formula should be the one canonical score), not something to
+  resolve unilaterally. Two real options: (a) pick one formula as
+  canonical for sort/display on both surfaces, or (b) keep both but
+  surface them side-by-side wherever a score is shown, so the
+  discrepancy is visible rather than silently hidden behind two
+  differently-sorted lists.
+- **Priority**: P2 — real, live, and affects prioritisation on both
+  `/admin/leads` and every Studio tenant's default prospect ordering, but
+  not a broken/crashing feature.
+- **Relevant agent**: Product Director (pick the direction) → Lead
+  Engineer (align the two surfaces).
+- **Dependencies**: Hamish's/Product Director's call on which formula
+  wins, or whether both stay and are shown together.
+- **Status**: Not started.
+
+### Background lead-discovery `maxSearchUses: 5` is very likely under-budgeted relative to real usage — real cost tradeoff, needs sign-off
+
+- **Problem**: found during the 2026-09-07 prospect-pipeline audit.
+  `discoverLeads()`'s weekly background rotation calls `searchCandidates()`
+  with `maxSearchUses: 5` (`discover-leads.ts:173`'s default);
+  `searchProspectsNow()` (the on-demand "Search now"/"Find prospects now"
+  path) uses `10`. Live testing at `maxSearchUses: 10` found the model
+  consumed the **full** 10-call budget in 5 of 6 real test locations —
+  including a small-town control search that should have been "easy" —
+  strongly suggesting the model is being budget-constrained rather than
+  concluding "nothing more to find." The background rotation's budget of
+  5 was not itself live-tested in this audit (out of scope for the
+  dispatch), but given the on-demand evidence, it is very likely also
+  fully consumed rather than a natural stopping point, meaning the weekly
+  cron is plausibly leaving real, findable prospects on the table purely
+  due to search-budget ceiling, not model judgment.
+- **Objective**: not decided here — raising `maxSearchUses` for the
+  background rotation would plausibly increase weekly discovery yield,
+  but at a real, ongoing incremental Anthropic API cost across every
+  org's weekly cron run (13 cron jobs already exist; this is one of them,
+  running for every paying + internal org, every week). This is exactly
+  the kind of "ongoing infrastructure cost" `docs/ai-team/README.md`'s
+  approval boundary calls out — not something to change unilaterally.
+- **Priority**: P2 — real, evidenced (indirectly) cost/yield tradeoff,
+  but requires an explicit decision, not urgent to force.
+- **Relevant agent**: Growth & Analytics (model the real cost delta of
+  e.g. 5→8 or 5→10 calls/pair × `PAIRS_PER_RUN` × org count) → Hamish
+  (sign-off) → Lead Engineer (bump the constant).
+- **Dependencies**: Hamish's explicit sign-off — a new ongoing cost.
+- **Status**: Not started.
+
+### `computeScoreBreakdown`'s `value` dimension is currency-blind — low priority, but HamishAI's own org is now a live multi-currency case
+
+- **Problem**: `VALUE_BAND_SCORE` (`value-band.ts:16`) scores a value band
+  purely on its numeric string — a "$6,000+" US prospect and a "£6,000+"
+  UK prospect both score 5 on the `value` dimension despite being ~1.27x
+  apart in real money. Harmless within a single-currency org, but the
+  2026-09-07 pipeline audit's own live testing shows HamishAI's own
+  organisation already searching GBP/USD/EUR markets in the same run —
+  exactly the scenario where this would misrank prospects against each
+  other.
+- **Objective**: a small per-currency multiplier applied before bucketing
+  into `VALUE_BAND_SCORE`, so cross-currency prospects on the same org
+  rank fairly relative to each other.
+- **Priority**: P3 (someday) — real but low-severity; bands are already
+  coarse (4 buckets) and there's no live evidence yet of this causing an
+  actual bad prioritisation decision, only that the precondition for one
+  (a genuinely mixed-currency org) now demonstrably exists.
+- **Relevant agent**: Lead Engineer.
+- **Dependencies**: none.
+- **Status**: Not started.
+
+### "Search now" gives no explanation when a saturated-market search legitimately yields few/zero results
+
+- **Problem**: `DiscoveryResultMessage` (discovery-result-message.tsx:54)
+  renders a thin/zero result identically regardless of *why* it's thin —
+  "Found 1 new prospect" for a genuinely saturated market (e.g. New York)
+  looks exactly like "Found 1 new prospect" from a real search problem.
+  This ambiguity is what caused Hamish's own "New York" report to read as
+  a possible bug in the first place (see the £-currency bug's Complete
+  entry) when the low yield itself was plausibly correct behaviour. The
+  2026-09-07 pipeline audit's live testing reinforces this: `searchCandidates()`'s
+  brief by design surfaces only weak/no-web-presence businesses, so a low
+  number is an expected, not exceptional, outcome in a well-served city.
+- **Objective**: when a search returns fewer than its own `minResults`
+  (a real, checkable condition — the brief already asks for a specific
+  range), add one honest, generic sentence to the result message — e.g.
+  "In well-established markets, most businesses already have a website,
+  so fewer qualify here — that's expected, not a search failure." — not a
+  claim about that specific search's cause, just honest framing of what
+  the tool is designed to do.
+- **Priority**: P3 (someday) — cosmetic/copy-only, but directly addresses
+  a confusion that's already happened once for real.
+- **Relevant agent**: UX/UI Director (copy) + Lead Engineer (wire the
+  `< minResults` condition through `DiscoverLeadsResult`).
+- **Dependencies**: none.
+- **Status**: Not started.
+
+### Dedup across repeated searches only matches on normalised business name — no website/phone fallback
+
+- **Problem**: `insertCandidates()`'s dedup (`discover-leads.ts:309`) only
+  compares `normaliseName(candidate.business_name)` against previously
+  seen names. Two searches that find the same real business under
+  slightly different naming (the model reporting "Bob's Plumbing" one run
+  and "Bob's Plumbing Services" or "Bob's Plumbing Ltd" another) would
+  insert it twice — the `website`/`phone` fields the model already
+  captures (when present) are never used as a stronger secondary dedup
+  signal. Not evidenced as having actually happened yet (would need a
+  tenant re-searching overlapping areas over time to surface it) — a
+  plausible-but-unconfirmed gap, not a live bug.
+- **Objective**: when a candidate has a `website`, also check it against
+  existing prospects' normalised `website` (domain-only comparison) before
+  inserting — a strictly additive check, name-dedup stays the primary
+  path.
+- **Priority**: P3 (someday) — plausible, not confirmed; normal name-based
+  dedup already covers the common case.
+- **Relevant agent**: Lead Engineer.
+- **Dependencies**: none.
+- **Status**: Not started.
+
+### `discoverLeads()` and `searchProspectsNow()` duplicate ~40 lines of billing/usage-check logic
+
+- **Problem**: the two top-level functions in `discover-leads.ts` already
+  correctly share `searchCandidates()` and `insertCandidates()` (the
+  comment on `insertCandidates()` explains exactly why — so the two paths
+  "can't quietly drift"), but the billing check (`subscription_status`/
+  `trial_ends_at`) and the monthly-usage/purchased-credits ceiling
+  computation are each copy-pasted near-identically at the top of both
+  functions instead of sharing a helper. No live bug found from this
+  duplication today, but it's the exact shape of risk
+  `insertCandidates()`'s own comment already warns about one level down —
+  a future billing-rule change applied to one function and missed on the
+  other.
+- **Objective**: extract a shared `checkProspectingBillingAndUsage(org,
+  cap)` (or similar) helper used by both, returning the same
+  `billingRequired`/`limitReached`/ceiling shape both functions already
+  build by hand.
+- **Priority**: P3 (someday) — real duplication, no live bug, pure
+  maintainability.
+- **Relevant agent**: Lead Engineer.
+- **Dependencies**: none.
 - **Status**: Not started.
 
 ### Build `StudioEmptyState` and `ConfirmDeleteButton` shared primitives, retrofit existing sites

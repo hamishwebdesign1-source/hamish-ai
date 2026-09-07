@@ -327,3 +327,101 @@ deliberately only surfaces weak/no-web-presence businesses, so a low
 yield in a saturated market like NYC is plausibly by design, not a bug
 — flagged as worth watching across more searches rather than treated
 as confirmed either way on one data point.
+
+## 2026-09-07 — Prospect-generation pipeline audit (ideas-only mission)
+
+`/mission` dispatched an AI/Agent Architect to get real evidence (not
+guesses) on four open questions in `discover-leads.ts`/`research-lead.ts`:
+whether the recently-fixed GBP-hardcode issue's sibling ("Hamish AI"
+framing) actually contaminates tenant-facing content, whether the "New
+York → 1 result" report is the search tool working as designed, whether
+the currency fix's EUR path actually works (only USD had been
+live-verified), and whether `computeLeadScore`/`computeScoreBreakdown`
+diverging is a real problem. No code changed — evidence-gathering only,
+per the mission's own "ideas only first" scope.
+
+**Real, live-confirmed finding, escalated P2→P1**: `research-lead.ts`'s
+`RESEARCH_TOOL` schema hardcodes "Which Hamish AI service(s) fit best" as
+a field description (independent of the already-known system-prompt
+hardcode) — live-tested against a bookkeeping-firm identity and a
+marketing-agency identity, both still came back recommending
+"redesign/AI chat assistant/booking system," Hamish's own catalogue, not
+what those businesses actually sell. This flows unfiltered into
+`draft-sales-kit.ts`/`draft-website-mockup.ts` — real outreach content a
+tenant sends to their own prospects — directly undermining those two
+files' own already-correct tenant-aware framing. Full writeup and fix
+plan in `BACKLOG.md`'s matching entry (now "Ready").
+
+**Saturated-market yield ("New York" question) — resolved with real
+data, mostly as "working as designed"**: live-replicated the exact
+production search prompt/tool/model across 6 real locations (New York,
+Akron OH, American Fork UT, Leeds, Linlithgow control, Lyon). New York
+reproduced the thin yield (2 candidates) and was the only location that
+burned its full search budget and needed the existing no-tool-use safety
+nudge — consistent with a genuinely thin market, not a broken prompt.
+Every other location, including the small-town control, returned a
+healthy, genuine result. Not closed as "proven," logged as "watched" —
+worth re-checking if the same near-exhausted-budget pattern recurs for
+another huge market (LA, Chicago, London).
+
+**Side finding**: 5 of 6 test locations consumed the full `maxSearchUses:
+10` on-demand budget, suggesting the background rotation's `maxSearchUses:
+5` default is very likely leaving real yield on the table — a genuine
+ongoing-cost tradeoff, logged as its own backlog entry needing Hamish's
+sign-off, not decided here.
+
+**EUR currency path confirmed working** (Lyon, France candidate returned
+`currency: "EUR"` correctly) — closes the one untested case from the
+42d8f5f currency fix.
+
+**`computeLeadScore` vs `computeScoreBreakdown` divergence confirmed
+real, not usually-agreeing**: since the pipeline's own brief only
+surfaces no/weak-website businesses, the modal real prospect has
+`siteCheck === null`, which collapses `computeLeadScore` to 2-3/5
+regardless of value band or problem count — while `computeScoreBreakdown.overall`
+(what Studio's default sort uses) still varies on those same inputs.
+Concrete example in the backlog entry shows two very different real
+leads tying on `/admin/leads`'s sort but clearly separating on Studio's.
+Flagged as a product judgment call (which formula wins), not resolved
+here.
+
+Six new/updated `BACKLOG.md` entries in total (one escalated to P1/Ready,
+five new P2/P3 items — scoring divergence, search-budget sign-off,
+currency-blind value scoring, thin-yield messaging, dedup fallback,
+discoverLeads/searchProspectsNow shared-logic duplication). Two
+gitignored scratch scripts used for the live testing
+(`scratch/audit-lead-pipeline.mjs`, `scratch/audit-recommended-services-skew.mjs`),
+not committed.
+
+## 2026-09-07 — Built and QA'd BACKLOG.md item #1 (research-lead.ts "Hamish AI" hardcode)
+
+Hamish said "start 1" against the prospect-pipeline audit's ranked
+findings above. Lead Engineer built it (commit `84bd34c`): `research-lead.ts`
+now threads a real `sender: {name, isInternal, agencyType}` through its
+system prompt, concept-analysis prompt, and `RESEARCH_TOOL`'s
+`recommended_services` field description, following `draft-sales-kit.ts`'s
+already-correct pattern exactly. Two real call sites updated
+(`researchProspect()`, `discover-leads.ts`'s `insertCandidates()`); the
+two genuinely internal-only call sites (`/admin`, the concept-page deep-
+research job) correctly left on the default. 477/477 tests green.
+
+QA then verified live against real production data, not just unit
+tests: ran the actual `researchLead()` against the real "Edinburgh
+Solutions" org (agencyType "AI Analytics") on a real, never-before-
+researched prospect — `recommended_services` came back as that org's own
+catalogue ("Custom KPI dashboards," "One-off data audit," "Monthly
+performance reports"), not the old Hamish-specific default. Separately
+confirmed HamishAI's own internal pipeline produces byte-identical output
+to before the fix (no regression). Two real findings from QA's pass,
+both closed same-session: (1) the building agent's own leftover
+verification script in `scratch/` was breaking `npm run build`/`tsc` for
+anyone else in the checkout — traced to `scratch/` never actually being
+in `.gitignore` despite several sessions' comments assuming it was;
+fixed by deleting the stray file and adding `scratch/` to `.gitignore`
+(`2e968b1`); (2) `recommended_services` (the field this fix touches)
+isn't actually rendered anywhere in Studio's own `research-summary.tsx`
+today — a tenant only sees its effect indirectly, through the AI sales
+kit it feeds into. Logged as a small new backlog item rather than
+silently left unnoted.
+
+BACKLOG.md's matching entry marked Complete.

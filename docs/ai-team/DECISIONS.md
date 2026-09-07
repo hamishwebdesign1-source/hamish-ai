@@ -1383,3 +1383,67 @@ unsupervised auto-send under Hamish's identity) — shipping this hardening
 to production should still get Hamish's explicit confirmation per
 `docs/ai-team/README.md`'s approval boundaries, even though the code change
 itself was small enough to implement directly for review.
+
+## 2026-09-07 — Escalated the "Hamish AI" research-prompt hardcode from P2 to P1 based on live evidence
+
+**Decision**: when this was first logged (alongside the £-currency fix,
+`42d8f5f`), it was scoped as a framing/cosmetic issue — real, but lower
+visible severity than a wrong currency symbol on screen. The
+prospect-pipeline audit mission's live testing changed that assessment:
+running the actual `RESEARCH_TOOL` schema against a correctly-identified
+bookkeeping-firm and marketing-agency identity still produced
+"Website redesign / AI chat assistant / booking system" recommendations
+— Hamish's own service catalogue, not what those tenants sell — because
+`research-lead.ts:282`'s `recommended_services` field description
+independently hardcodes "Which Hamish AI service(s) fit best," separate
+from the already-known system-prompt hardcode. That field flows straight
+into `draft-sales-kit.ts` and `draft-website-mockup.ts`, both of which
+otherwise correctly frame a pitch around the tenant's real business —
+meaning a tenant's outreach kit could genuinely recommend the wrong
+services under correct branding. Re-scoped to P1 and moved to "Ready" in
+`BACKLOG.md` (full evidence and fix plan there) rather than left as a
+someday cosmetic fix.
+
+**Why decided rather than just reported**: this crosses from "framing
+looks wrong" to "a real tenant's real outreach content could recommend
+services they don't offer" — the exact class of issue this team's
+"real data or nothing" / no-fabricated-functionality principles exist to
+catch, and the fix path is fully evidenced and pattern-proven elsewhere
+in the codebase (`draft-sales-kit.ts`'s `sender.isInternal`/`agencyType`
+pattern), so there's no open design question left to justify deferring
+it.
+
+## 2026-09-07 — Closed the "New York" saturated-market question with real evidence: mostly working as designed, watched not fixed
+
+**Decision**: the £-currency fix (`42d8f5f`) left this open with one
+data point and an honest "not enough evidence yet" note. The
+prospect-pipeline audit mission live-replicated the actual production
+search prompt/tool/model (not a paraphrase) across 6 real locations
+spanning a small-town control (Linlithgow) to New York City. New York
+reproduced the thin yield (2 candidates, same order of magnitude as the
+original 1-result report) and was the *only* location where the model
+burned its full 10-call search budget and needed the existing
+no-tool-use safety nudge (`discover-leads.ts:225-265`) rather than
+calling `submit_candidates` on its own. Every other market — including
+the small-town control and a never-before-searched UK city (Leeds) —
+returned a healthy, genuine result with real, specific `why_suggested`
+reasoning. This pattern (near-total budget exhaustion isolated to the
+single largest market tested) is consistent with the tool working as
+designed for a genuinely saturated market, not a broken prompt.
+
+**Not closed as definitively proven** — one live test per location isn't
+a controlled experiment, and Haiku output has real run-to-run variance.
+Logged in `BACKLOG.md` as "watched": if the same near-exhausted-budget,
+no-tool-use pattern recurs for another huge market (LA, Chicago, London),
+that would be real evidence of a genuine gap, not this one-off result.
+
+**Real side finding surfaced by the same test**: 5 of 6 locations
+(including the "easy" small-town control) consumed the *full* 10-call
+on-demand search budget — meaning the background rotation's lower
+`maxSearchUses: 5` default is very likely also budget-constrained rather
+than reaching a natural stopping point, i.e. the weekly cron plausibly
+under-yields relative to what it could find. Logged as its own backlog
+entry rather than folded into this one, since raising it is a real,
+ongoing Anthropic-cost decision that needs Hamish's sign-off
+(`docs/ai-team/README.md`'s approval boundary on new ongoing
+infrastructure cost), not something this team decides unilaterally.
