@@ -176,6 +176,16 @@ export function AnalyticsPanel({ data }: { data: AnalyticsData }) {
               </Badge>
             </CardContent>
           </Card>
+          {/* Reported live via screenshot: these read as "Not connected"
+              (implying a tenant could connect them right now, just
+              hasn't) but none of the three is a real integration —
+              confirmed by a full-codebase search, there's no OAuth flow,
+              API route or upload handler behind any of them anywhere.
+              "Not connected" was actively misleading; "Coming soon"
+              matches this section's own subtitle ("connect more sources
+              as they become available") instead of contradicting it, and
+              the cards stay non-interactive (no href/onClick) rather than
+              pretending to be a dead button. */}
           {["Google Analytics", "CRM", "CSV upload"].map((name) => (
             <Card key={name}>
               <CardContent className="flex items-center justify-between py-3">
@@ -183,7 +193,7 @@ export function AnalyticsPanel({ data }: { data: AnalyticsData }) {
                   <Circle className="size-4 text-muted-foreground" />
                   <p className="text-sm font-medium text-muted-foreground">{name}</p>
                 </div>
-                <Badge variant="secondary">Not connected</Badge>
+                <Badge variant="secondary">Coming soon</Badge>
               </CardContent>
             </Card>
           ))}
