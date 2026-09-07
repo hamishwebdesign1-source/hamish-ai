@@ -128,6 +128,37 @@ export const AI_ACTIVITY_GROUPS: Record<string, { label: string; actions: readon
   },
 };
 
+// P0 fix, round 2 — audit_log's own org_id column is not just unreliable,
+// it can be actively *wrong* for a prospect-scoped entry, so it is
+// deliberately never trusted here, even when set. discover-leads.ts's
+// lead.discovered/lead.researched logAuditEvent() calls have never passed
+// orgId (confirmed by reading the call site directly), even though the
+// same function's own prospects insert two lines above it does set the
+// real org_id correctly — so before logAuditEvent() gained its optional
+// orgId parameter, every one of those calls silently fell through to the
+// audit_log column's own DB default (HamishAI's literal org id), even for
+// a real paying tenant's own background lead-discovery run. Live-confirmed:
+// several of Edinburgh Solutions' real lead.discovered/lead.researched
+// audit_log rows carry org_id = HamishAI's id today, while the prospect
+// they actually point at is genuinely Edinburgh Solutions' own — trusting
+// org_id here would have kept exactly the rows this fix exists to exclude.
+// Every action in AI_ACTIVITY_ACTIONS resolves to either a client_id or a
+// prospect target except Content Factory's (which has no tenant concept at
+// all — content_ideas carries no org_id anywhere in this codebase), so
+// resolving ownership via the actual target entity — never via org_id — is
+// both safe and strictly more correct for this specific, closed action list.
+export function filterAiActivityToOrg<T extends Pick<AiActivityEntry, "client_id" | "target_type" | "target_id">>(
+  entries: T[],
+  orgClientIds: Set<string>,
+  orgProspectIds: Set<string>
+): T[] {
+  return entries.filter((entry) => {
+    if (entry.client_id) return orgClientIds.has(entry.client_id);
+    if (entry.target_type === "prospect" && entry.target_id) return orgProspectIds.has(entry.target_id);
+    return true;
+  });
+}
+
 // Where each action's detail actually lives, so the feed can link through
 // to it instead of being a dead end.
 export function aiActivityHref(entry: Pick<AiActivityEntry, "target_type" | "target_id" | "client_id">): string | null {

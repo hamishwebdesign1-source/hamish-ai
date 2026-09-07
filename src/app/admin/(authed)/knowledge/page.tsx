@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { BookOpen, X, TriangleAlert, CircleCheck, Sparkles, Search } from "lucide-react";
 import { getSupabaseAdmin } from "@/lib/supabase";
+import { HAMISHAI_ORG_ID } from "@/lib/org-membership";
 import { deleteKnowledgeEntry } from "@/app/admin/actions";
 import { extractTextFromFile } from "@/lib/document-text";
 import { extractKnowledgeEntries } from "@/lib/extract-knowledge-entries";
@@ -80,14 +81,22 @@ export default async function KnowledgePage({
   const { imported, importError, q: searchQuery } = await searchParams;
   const supabase = getSupabaseAdmin();
 
+  // Ownership checks — getSupabaseAdmin() bypasses RLS, so these inline
+  // filters are the only thing stopping another org's clients/knowledge
+  // entries from appearing here (both a name-leak on the dropdown and a
+  // one-click-deletable foreign row on the list — live-confirmed: 2 of
+  // Edinburgh Solutions' real knowledge_base rows were visible and
+  // deletable here before this fix). See docs/ai-team's P0 /admin
+  // org-isolation fix.
   const { data: clients } = supabase
-    ? await supabase.from("clients").select("id, business_name").order("business_name")
+    ? await supabase.from("clients").select("id, business_name").eq("org_id", HAMISHAI_ORG_ID).order("business_name")
     : { data: [] };
 
   const { data: allEntries, error } = supabase
     ? await supabase
         .from("knowledge_base")
         .select("id, title, content, client_id, clients(business_name)")
+        .eq("org_id", HAMISHAI_ORG_ID)
         .order("created_at", { ascending: false })
     : { data: [], error: null };
   if (error) console.error("Failed to fetch knowledge base:", error);

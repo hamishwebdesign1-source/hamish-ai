@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ThumbsUp, ThumbsDown, ShieldCheck, Search, X } from "lucide-react";
 import { getSupabaseAdmin } from "@/lib/supabase";
+import { HAMISHAI_ORG_ID } from "@/lib/org-membership";
 import { reviewAutoSend } from "@/app/admin/actions";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -18,11 +19,16 @@ export default async function AutoSendAuditPage({
   const { filter, q: searchQuery } = await searchParams;
   const supabase = getSupabaseAdmin();
 
+  // Ownership check — getSupabaseAdmin() bypasses RLS; see docs/ai-team's
+  // P0 /admin org-isolation fix. requests.org_id is set directly on the
+  // row (same column already relied on elsewhere in /admin), no join
+  // needed.
   const { data: allRequests, error: requestsError } = supabase
     ? await supabase
         .from("requests")
         .select("id, raw_text, category, created_at, auto_send_reviewed, auto_send_accurate, clients(business_name)")
         .eq("auto_sent", true)
+        .eq("org_id", HAMISHAI_ORG_ID)
         .order("created_at", { ascending: false })
     : { data: [], error: null };
   if (requestsError) console.error("Failed to fetch auto-sent requests for audit:", requestsError);

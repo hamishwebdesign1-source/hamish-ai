@@ -8,6 +8,113 @@ just at product-decision scope instead of line scope.
 
 ---
 
+## 2026-09-07 — `/admin` org-isolation fix, round 2: closed Security Auditor's remaining gaps; `audit_log.org_id` found to be actively wrong, not just missing, for prospect-scoped entries
+
+**Context**: round 1 (`08662cc`) scoped and fixed the 22 originally-named
+`/admin` prospects/clients reads/writes to `HAMISHAI_ORG_ID`. Security
+Auditor's follow-up review found it incomplete: two routes with live,
+currently-real foreign-tenant (Edinburgh Solutions') data exposure the
+first pass never touched (`/admin`'s dashboard homepage, `/admin/knowledge`),
+plus five further same-shape gaps with zero current blast radius but cheap
+to fix in the same pass. Full list in `BACKLOG.md`'s matching entry.
+
+**Fixed as scoped**: dashboard homepage's `invoices`/`requests`/both
+`prospects` queries and `site_checks` (gated for consistency, matching
+round 1's own precedent for `requests/[id]/page.tsx`); `/admin/knowledge`'s
+main read and `clients` dropdown; `deleteKnowledgeEntry`;
+`sendInvoiceReminderAction` (ported `studio/(authed)/clients/actions.ts`'s
+exact `clients!inner(org_id)` join, since `invoices.org_id` isn't reliably
+set on every insert path — a real, separate, already-documented gap, not
+fixed here); `updateDraftResponse`/`regenerateAdminDraft`/`reviewAutoSend`
+(preceding ownership SELECTs on `requests`, since a Server Action is its
+own independently-invokable endpoint regardless of the page-level gate
+already on `requests/[id]/page.tsx`); `/admin/audit`'s `requests` read.
+
+**The one part of this round that turned into a real investigation, not a
+mechanical port of round 1's pattern**: `/admin/ai-activity` and the
+dashboard homepage's own AI-activity mini feed both read `audit_log`,
+which has carried its own `org_id` column since
+`schema-backfill-internal-org.sql`. The dispatch's own brief assumed this
+column simply "doesn't have its own org_id" (wrong — it does) and suggested
+joining through `clients.org_id` the way `removeClientMember` does. Checked
+directly against live data before writing the fix, per this task's own
+"live, read-only checks only" constraint, rather than trusting either the
+brief's assumption or the column's apparent completeness:
+
+- `audit_log.org_id` distribution on the real table: 242 rows tagged
+  `HAMISHAI`, 17 tagged `EDINBURGH`, 43 `null`. A first-pass fix trusting an
+  explicit `org_id` when set, falling back to `client_id`/prospect-target
+  ownership only when `null`, looked reasonable and was drafted first.
+- Live-checking that first draft against the real table (261 total,
+  scoped to the `AI_ACTIVITY_ACTIONS` list plus a bit of margin) found it
+  **still leaked 29 real Edinburgh Solutions rows into the "kept" set** —
+  the exact opposite of what round 1's precedent (org_id = null defaults to
+  excluded, matching "prospects/clients default to HamishAI's org unless
+  otherwise set") would predict. Traced the root cause directly rather than
+  patching around the symptom: `discover-leads.ts`'s
+  `lead.discovered`/`lead.researched` `logAuditEvent()` calls have **never**
+  passed the optional `orgId` parameter, even though the very same
+  function's own `prospects` insert two lines above it does set the real
+  `org_id` correctly. Before `logAuditEvent()` gained that optional
+  parameter (a later Studio "team collaboration" addition, per
+  `audit-log.ts`'s own comment), every omitted-`orgId` insert fell through
+  to the column's DB `DEFAULT` — HamishAI's literal org id — regardless of
+  which tenant the background lead-discovery cron was actually running for.
+  Confirmed directly: several of Edinburgh Solutions' own real
+  `lead.discovered`/`lead.researched` audit rows, for prospects genuinely
+  created under their own `org_id` the same day their organisation was
+  created, carry `org_id = HamishAI's id` on the audit_log row itself.
+- **This is a materially different, more dangerous shape of bug than "the
+  column is sometimes null"**: an explicit-but-wrong value in a column
+  that looks authoritative is exactly the kind of thing a fix that trusts
+  "if set, use it" would get backwards. Corrected the design before
+  shipping it, not after: `filterAiActivityToOrg()`
+  (`src/lib/ai-activity.ts`) now **never reads `org_id` at all** — it
+  resolves ownership purely via the entry's real target (`client_id` →
+  `clients.org_id`, or a prospect-scoped entry's `target_id` →
+  `prospects.org_id`), falling through to "keep" only when an entry has
+  neither (every Content Factory action — `content_ideas` has no
+  `org_id`/tenant concept anywhere in this codebase, so it can never
+  belong to another org regardless). Verified this is safe for every
+  action in the closed `AI_ACTIVITY_ACTIONS` list specifically (every
+  member resolves to a `client_id` or a prospect target except Content
+  Factory's) — not a general claim that `org_id` should never be trusted
+  anywhere else in this codebase, just for this specific, audited list.
+- Re-verified live after the fix: 256 matching-action rows in the real
+  table, 41 correctly excluded, **0 leaked** in either the homepage's
+  top-8 mini-feed simulation or the full page's top-150 feed simulation
+  (both raised their pre-filter fetch limit — 50→top-8, 400→top-150 — so
+  filtering out foreign rows can't silently shrink a feed below its
+  intended size).
+
+**Housekeeping folded in, per this round's own explicit instruction**:
+`admin/actions.test.ts` was re-observed timing out under full-suite
+parallel load (passes clean in isolation every time) — the exact
+flakiness Security Auditor flagged in round 1. Bumped `testTimeout` to
+15000ms for that file via `vi.setConfig()` rather than leaving it to keep
+flaking; re-ran the full suite twice clean afterward (493/493 both times).
+
+**New, small, explicitly-flagged-not-fixed finding**: `/admin/knowledge`'s
+`addKnowledgeEntry`/`importKnowledgeFromDocument` insert a `client_id`
+straight from form data with no validation it belongs to
+`HAMISHAI_ORG_ID` — a write-misattribution gap (not a read leak; the
+now-fixed read gate and RLS still stop a foreign org from ever seeing it),
+closed in practice by this round's own dropdown fix but not defended
+against a hand-crafted POST. Left as a fast-follow rather than folded in,
+per this dispatch's own explicit "keep scope disciplined" instruction —
+matches `checkOneLeadSend()`/`updateTaskStatus`'s client-email read, both
+carried forward unchanged from round 1 for the same reason.
+
+**Verified**: `npx tsc --noEmit -p .` clean; `npx eslint` clean on every
+touched file; `npx vitest run` 493/493 green, run twice; `npm run build`
+succeeded. Live read-only re-verification (real Supabase, `.env.local`, zero
+writes attempted against Edinburgh Solutions' real rows, per this task's own
+explicit safety constraint) confirmed every fix above with before/after row
+counts. Status: fixed, back to Security Auditor for its own requested
+second review pass before QA. Full detail in `BACKLOG.md`'s matching entry.
+
+---
+
 ## 2026-09-07 — Background lead-discovery `maxSearchUses` raised from 5 to 10, accepting the real recurring Anthropic cost
 
 **Context**: the 2026-09-07 prospect-generation pipeline audit found

@@ -71,10 +71,19 @@ export async function updateDraftResponse(requestId: string, formData: FormData)
   const supabase = getSupabaseAdmin();
   if (!supabase) return;
 
+  // Ownership check — a Server Action is its own independently-invokable
+  // endpoint regardless of the page-level gating already applied to
+  // requests/[id]/page.tsx's own read (see docs/ai-team's P0 /admin
+  // org-isolation fix, round 2). Without this, /admin could overwrite
+  // another org's real client-facing draft reply by requestId.
+  const { data: request } = await supabase.from("requests").select("id").eq("id", requestId).eq("org_id", HAMISHAI_ORG_ID).single();
+  if (!request) return;
+
   const { error } = await supabase
     .from("requests")
     .update({ draft_response: draftResponse })
-    .eq("id", requestId);
+    .eq("id", requestId)
+    .eq("org_id", HAMISHAI_ORG_ID);
 
   if (error) console.error("Failed to update draft response:", error);
 
@@ -95,7 +104,15 @@ export async function regenerateAdminDraft(requestId: string) {
   const supabase = getSupabaseAdmin();
   if (!supabase) return;
 
-  const { data: request } = await supabase.from("requests").select("client_id, raw_text").eq("id", requestId).single();
+  // Ownership check — see updateDraftResponse's comment above. Also stops
+  // /admin from spending a real Anthropic call regenerating a draft against
+  // another org's real client request.
+  const { data: request } = await supabase
+    .from("requests")
+    .select("client_id, raw_text")
+    .eq("id", requestId)
+    .eq("org_id", HAMISHAI_ORG_ID)
+    .single();
   if (!request) return;
 
   const result = await regenerateDraftResponse(request.client_id, request.raw_text);
@@ -104,7 +121,11 @@ export async function regenerateAdminDraft(requestId: string) {
     return;
   }
 
-  const { error } = await supabase.from("requests").update({ draft_response: result.draftResponse }).eq("id", requestId);
+  const { error } = await supabase
+    .from("requests")
+    .update({ draft_response: result.draftResponse })
+    .eq("id", requestId)
+    .eq("org_id", HAMISHAI_ORG_ID);
   if (error) console.error("Failed to save regenerated draft:", error);
 
   revalidatePath(`/admin/requests/${requestId}`);
@@ -114,7 +135,14 @@ export async function deleteKnowledgeEntry(entryId: string) {
   const supabase = getSupabaseAdmin();
   if (!supabase) return;
 
-  const { error } = await supabase.from("knowledge_base").delete().eq("id", entryId);
+  // Ownership check — see updateLeadStatus's comment above. Without this,
+  // /admin could one-click-delete another org's real knowledge_base entry
+  // by id (live-confirmed: 2 of Edinburgh Solutions' real entries were
+  // deletable here before this fix).
+  const { data: entry } = await supabase.from("knowledge_base").select("id").eq("id", entryId).eq("org_id", HAMISHAI_ORG_ID).single();
+  if (!entry) return;
+
+  const { error } = await supabase.from("knowledge_base").delete().eq("id", entryId).eq("org_id", HAMISHAI_ORG_ID);
   if (error) console.error("Failed to delete knowledge entry:", error);
 
   revalidatePath("/admin/knowledge");
@@ -588,16 +616,37 @@ export async function reviewAutoSend(requestId: string, accurate: boolean, reval
   const supabase = getSupabaseAdmin();
   if (!supabase) return;
 
+  // Ownership check — see updateDraftResponse's comment above.
+  const { data: request } = await supabase.from("requests").select("id").eq("id", requestId).eq("org_id", HAMISHAI_ORG_ID).single();
+  if (!request) return;
+
   const { error } = await supabase
     .from("requests")
     .update({ auto_send_reviewed: true, auto_send_accurate: accurate })
-    .eq("id", requestId);
+    .eq("id", requestId)
+    .eq("org_id", HAMISHAI_ORG_ID);
   if (error) console.error("Failed to record auto-send review:", error);
 
   revalidatePath(revalidate);
 }
 
 export async function sendInvoiceReminderAction(invoiceId: string, revalidate: string) {
+  // Ownership check — invoices.org_id isn't set on every insert path today
+  // (same real, separate gap studio/(authed)/clients/actions.ts's
+  // sendClientInvoiceReminderAction() already documents), so this checks
+  // the invoice's client relationship instead, same clients!inner shape
+  // that action already uses. Without this, /admin could send a real
+  // reminder email against another org's real client's invoice by id.
+  const supabase = getSupabaseAdmin();
+  if (!supabase) return;
+  const { data: invoice } = await supabase
+    .from("invoices")
+    .select("id, clients!inner(org_id)")
+    .eq("id", invoiceId)
+    .eq("clients.org_id", HAMISHAI_ORG_ID)
+    .single();
+  if (!invoice) return;
+
   const result = await sendInvoiceReminder(invoiceId);
   if ("error" in result) console.error("Failed to send invoice reminder:", result.error);
 

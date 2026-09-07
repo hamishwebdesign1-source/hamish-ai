@@ -13,10 +13,11 @@ import {
   ArrowRight,
 } from "lucide-react";
 import { getSupabaseAdmin } from "@/lib/supabase";
+import { HAMISHAI_ORG_ID } from "@/lib/org-membership";
 import { isInvoiceOverdue } from "@/lib/invoice-status";
 import { leadNeedsFollowUp } from "@/lib/lead-status";
 import { timeAgo } from "@/lib/time-ago";
-import { AI_ACTIVITY_ACTIONS, describeAiActivity, aiActivityHref } from "@/lib/ai-activity";
+import { AI_ACTIVITY_ACTIONS, describeAiActivity, aiActivityHref, filterAiActivityToOrg } from "@/lib/ai-activity";
 import { normalizeValueBand } from "@/lib/value-band";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -84,28 +85,46 @@ export default async function AdminOverviewPage() {
     { data: recentChecks },
     { data: researchedLeads },
     { data: todaysMeetingsRaw },
-    { data: aiActivityRaw },
+    { data: aiActivityRawUnfiltered },
+    { data: orgClients },
+    { data: orgProspects },
   ] = await Promise.all([
+    // Every read below is scoped to HAMISHAI_ORG_ID — /admin is Hamish's
+    // own internal view only, locked to his org everywhere (see
+    // docs/ai-team's P0 /admin org-isolation fix). getSupabaseAdmin()
+    // bypasses RLS, so this inline filter is the only thing stopping a
+    // real tenant's rows (e.g. Edinburgh Solutions') from blending into
+    // this dashboard's own pipeline/revenue/attention figures.
     supabase
       ? supabase
           .from("invoices")
           .select("id, client_id, amount_pence, description, due_date, status, clients(business_name)")
           .eq("status", "open")
+          .eq("org_id", HAMISHAI_ORG_ID)
       : Promise.resolve({ data: [] }),
     supabase
       ? supabase
           .from("requests")
           .select("id, client_id, raw_text, category, created_at, clients(business_name)")
           .eq("status", "awaiting_info")
+          .eq("org_id", HAMISHAI_ORG_ID)
           .order("created_at", { ascending: true })
       : Promise.resolve({ data: [] }),
     supabase
-      ? supabase.from("prospects").select("id, business_name, contacted_at, status").eq("status", "contacted")
+      ? supabase
+          .from("prospects")
+          .select("id, business_name, contacted_at, status")
+          .eq("status", "contacted")
+          .eq("org_id", HAMISHAI_ORG_ID)
       : Promise.resolve({ data: [] }),
+    // site_checks currently has zero foreign-org rows live, but gated for
+    // consistency/future-proofing — same reasoning already applied to
+    // requests/[id]/page.tsx in the first pass of this fix.
     supabase
       ? supabase
           .from("site_checks")
           .select("client_id, uptime_ok, ssl_ok, broken_links, checked_at, clients(business_name)")
+          .eq("org_id", HAMISHAI_ORG_ID)
           .order("checked_at", { ascending: false })
           .limit(50)
       : Promise.resolve({ data: [] }),
@@ -113,24 +132,49 @@ export default async function AdminOverviewPage() {
     // with a cached research pass already run. Zero extra AI cost: this
     // reads the jsonb column researchLead() already wrote, no new calls.
     supabase
-      ? supabase.from("prospects").select("id, business_name, score, research, status").neq("status", "not_fit").not("research", "is", null)
+      ? supabase
+          .from("prospects")
+          .select("id, business_name, score, research, status")
+          .neq("status", "not_fit")
+          .not("research", "is", null)
+          .eq("org_id", HAMISHAI_ORG_ID)
       : Promise.resolve({ data: [] }),
+    // lead_meetings has no org_id column of its own — joins through
+    // prospects (same "join through the real tenant-scoped table" shape
+    // as removeClientMember's clients!inner join). Zero real rows live
+    // today, gated for the same consistency/future-proofing reason as
+    // site_checks above.
     supabase
       ? supabase
           .from("lead_meetings")
-          .select("id, scheduled_start, join_url, prospects(business_name)")
+          .select("id, scheduled_start, join_url, prospects!inner(business_name, org_id)")
           .eq("status", "scheduled")
+          .eq("prospects.org_id", HAMISHAI_ORG_ID)
           .order("scheduled_start", { ascending: true })
       : Promise.resolve({ data: [] }),
+    // audit_log's own org_id column is never trusted here — see
+    // filterAiActivityToOrg's comment for why it can be actively wrong,
+    // not just missing, for a prospect-scoped entry (live-confirmed: real
+    // Edinburgh Solutions lead.discovered/lead.researched rows carry
+    // org_id = HamishAI's id). Filtered in application code below via the
+    // entry's real client_id/prospect-target ownership instead.
     supabase
       ? supabase
           .from("audit_log")
           .select("id, action, created_at, metadata, target_id, target_type, client_id")
           .in("action", AI_ACTIVITY_ACTIONS as unknown as string[])
           .order("created_at", { ascending: false })
-          .limit(8)
+          .limit(50)
       : Promise.resolve({ data: [] }),
+    supabase ? supabase.from("clients").select("id").eq("org_id", HAMISHAI_ORG_ID) : Promise.resolve({ data: [] }),
+    supabase ? supabase.from("prospects").select("id").eq("org_id", HAMISHAI_ORG_ID) : Promise.resolve({ data: [] }),
   ]);
+
+  const aiActivityRaw = filterAiActivityToOrg(
+    aiActivityRawUnfiltered ?? [],
+    new Set((orgClients ?? []).map((c) => c.id)),
+    new Set((orgProspects ?? []).map((p) => p.id))
+  ).slice(0, 8);
 
   const overdueInvoices = (openInvoices ?? [])
     .filter(isInvoiceOverdue)
@@ -179,7 +223,7 @@ export default async function AdminOverviewPage() {
   const todayStr = new Date().toISOString().slice(0, 10);
   const todaysMeetings = (todaysMeetingsRaw ?? []).filter((m) => m.scheduled_start.slice(0, 10) === todayStr);
 
-  const aiActivity = aiActivityRaw ?? [];
+  const aiActivity = aiActivityRaw;
 
   return (
     <div>

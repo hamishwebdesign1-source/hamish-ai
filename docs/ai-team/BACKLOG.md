@@ -3316,37 +3316,82 @@ isolated to `/admin/leads`, and it is not read-only.
   it's considered closed.
 - **Dependencies**: Hamish's explicit decision + sign-off. Scoping itself
   is complete.
-- **Status**: **Partially fixed (`08662cc`, 2026-09-07); Security Auditor
-  review found the sweep incomplete — round 2 in progress, NOT yet safe to
-  send to QA or Hamish for sign-off.** Hamish answered the open framing
-  question directly: locked to HamishAI's own org everywhere
-  (`/admin/agencies` remains the one deliberate exception, unchanged), not
-  given a separate cross-org oversight capability. The 22 originally-named
-  reads/writes are correctly and consistently scoped to `HAMISHAI_ORG_ID`
-  (verified line-by-line by Security Auditor, not just trusted) — but its
-  review found **two routes with live, currently-real foreign-tenant data
-  exposure that this fix did not touch**: `/admin`'s own dashboard
-  homepage (blends Edinburgh Solutions' real prospect pipeline into
-  Hamish's own "Pipeline value"/"Hot leads" figures) and `/admin/knowledge`
-  (displays, and lets an admin one-click-delete, Edinburgh Solutions' real
-  knowledge-base entries). **Correction to this entry's own earlier
-  claim**: the prior "probably not exposed, no route found reading
-  `knowledge_base`" line above was checked and found factually wrong by
-  Security Auditor in under a minute of grepping — `/admin/knowledge`
-  (`src/app/admin/(authed)/knowledge/page.tsx`) is a real, sidebar-linked
-  route that reads it unfiltered. `monthly_reports` was not re-checked in
-  this pass. Five further zero-current-blast-radius-but-same-shape gaps
-  also found (`/admin/audit`, `/admin/ai-activity`,
-  `updateDraftResponse`/`regenerateAdminDraft`/`reviewAutoSend`,
-  `sendInvoiceReminderAction`) — correctly bundled into round 2 rather
-  than left as separate future tickets, per Security Auditor's own
-  recommendation, since they're the identical defect shape and cheap to
-  fix in the same pass. `checkOneLeadSend()`/`updateTaskStatus`'s
-  client-email read remain a legitimate fast-follow (zero live blast
-  radius, confirmed twice now). Full detail in `DECISIONS.md`'s two
-  matching 2026-09-07 entries. Live read-only check on the original 22
-  confirmed correct: `/admin/leads` returns 177 (was 196), `/admin/clients`
-  returns 4 (was 7).
+- **Status**: **Round 2 fixed (this commit, 2026-09-07) — every gap Security
+  Auditor's review found is now closed except the two items already
+  explicitly deferred; back to Security Auditor for its requested second
+  review pass, then QA.** Round 1 (`08662cc`) was confirmed correct and
+  left unchanged. Round 2 fixed, with live read-only re-verification for
+  every one:
+  - **`/admin`'s dashboard homepage** (`src/app/admin/(authed)/page.tsx`) —
+    `invoices`, `requests` (awaiting-info), both `prospects` queries
+    (contacted leads, pipeline-value/hot-leads), and `site_checks` all
+    gated `.eq("org_id", HAMISHAI_ORG_ID)`. Live-confirmed fixed: the
+    pipeline-value query went from 33 rows (18 Edinburgh Solutions') to 15
+    (0 theirs).
+  - **`/admin/knowledge`** — main `knowledge_base` read and the `clients`
+    scope dropdown both gated `.eq("org_id", HAMISHAI_ORG_ID)`;
+    `deleteKnowledgeEntry` (`admin/actions.ts`) gated with a preceding
+    ownership SELECT. Live-confirmed: `knowledge_base` read went from 4
+    rows (2 Edinburgh Solutions') to 2 (0 theirs).
+  - **`sendInvoiceReminderAction`** — ported the exact `clients!inner(org_id)`
+    join `studio/(authed)/clients/actions.ts`'s
+    `sendClientInvoiceReminderAction` already uses (`invoices.org_id` isn't
+    reliably set on every insert path, same documented gap that action's
+    own comment already flags).
+  - **`updateDraftResponse`/`regenerateAdminDraft`/`reviewAutoSend`** — each
+    gained a preceding ownership SELECT on `requests` (own `org_id`
+    column), since a Server Action is independently invokable regardless
+    of the already-correct page-level read gate on `requests/[id]/page.tsx`.
+  - **`/admin/audit`** — its `requests` read (joined to `clients`) gated
+    `.eq("org_id", HAMISHAI_ORG_ID)` directly (own column, no join needed).
+  - **`/admin/ai-activity` and the dashboard homepage's own AI-activity mini
+    feed** — a genuinely harder problem than the brief anticipated, found
+    and fixed properly rather than patched: `audit_log.org_id` turned out
+    to be not just *missing* but actively *wrong* for a real, live case —
+    `discover-leads.ts`'s `lead.discovered`/`lead.researched` calls have
+    never passed `logAuditEvent()`'s `orgId` parameter, so several of
+    Edinburgh Solutions' own real background-lead-discovery audit entries
+    carry `org_id = HamishAI's id` (a stale default from before that
+    parameter existed) while the prospect they actually point at is
+    genuinely Edinburgh Solutions' own. A naive `.eq("org_id", ...)` would
+    have both hidden Hamish's own legitimate un-tagged activity and let
+    exactly the rows this fix exists to exclude through. Fixed with a new
+    `filterAiActivityToOrg()` (`src/lib/ai-activity.ts`) that never trusts
+    `org_id` at all for this action list — resolves ownership via each
+    entry's real target instead (`client_id` → `clients.org_id`, or a
+    prospect-scoped entry's `target_id` → `prospects.org_id`); an entry
+    with neither (every Content Factory action — no tenant concept exists
+    for that table) is always kept. 5 new unit tests
+    (`src/lib/ai-activity.test.ts`) cover this directly, including the
+    exact "org_id says one thing, the real target says another" shape.
+    Live-confirmed on the real, full unfiltered `audit_log` table (256
+    matching-action rows): 41 correctly excluded, 0 leaked in either the
+    homepage's top-8 mini-feed or the full page's top-150 feed.
+  - **Housekeeping, per this round's own instruction**: `admin/actions.test.ts`
+    was genuinely re-observed timing out under full-suite parallel load
+    (passes clean every time run in isolation) — bumped `testTimeout` to
+    15000ms for that file. 11 new tests added across `admin/actions.test.ts`
+    (6) and the new `ai-activity.test.ts` (5) for this round's fixes.
+  - **Explicitly still deferred, unchanged from round 1's own reasoning**:
+    `checkOneLeadSend()` (`src/lib/check-lead-sends.ts`) and
+    `updateTaskStatus`'s client-email read — zero live blast radius,
+    genuinely out of this round's scope per the dispatch's own instruction.
+  - **One new, small, zero-additional-read-exposure gap found but not
+    fixed in this pass, flagged rather than silently left**: `/admin/knowledge`'s
+    `addKnowledgeEntry`/`importKnowledgeFromDocument` (both local `"use
+    server"` functions in `knowledge/page.tsx`) insert a `client_id` taken
+    directly from form data with no validation that it belongs to
+    `HAMISHAI_ORG_ID`. The dropdown itself is now correctly scoped (round
+    2's own fix above), closing the realistic UI path, but a hand-crafted
+    POST could still misattribute a new entry to a foreign `client_id` —
+    a write-integrity gap, not a read leak (RLS/the now-fixed read gate
+    still stop it from ever being *shown* to the wrong org). Same
+    "zero-current-blast-radius, same shape, cheap fast-follow" category as
+    the two items above, not folded into this pass to keep it disciplined
+    per the dispatch's own instruction.
+  - `npx tsc --noEmit -p .`, `npx eslint` on every touched file, and
+    `npx vitest run` (493/493, run twice clean) all green; `npm run build`
+    succeeded.
 
 ### `researchLead()`/`draftSalesKit()` hardcode `actor: "admin"` in their own audit log regardless of real caller
 

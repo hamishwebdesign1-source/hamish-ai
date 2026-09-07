@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { Sparkles, Search, X } from "lucide-react";
 import { getSupabaseAdmin } from "@/lib/supabase";
-import { AI_ACTIVITY_ACTIONS, AI_ACTIVITY_GROUPS, describeAiActivity, aiActivityHref } from "@/lib/ai-activity";
+import { HAMISHAI_ORG_ID } from "@/lib/org-membership";
+import { AI_ACTIVITY_ACTIONS, AI_ACTIVITY_GROUPS, describeAiActivity, aiActivityHref, filterAiActivityToOrg } from "@/lib/ai-activity";
 import { timeAgo } from "@/lib/time-ago";
 import { Card, CardContent } from "@/components/ui/card";
 import { FilterTabs } from "@/components/ui/filter-tabs";
@@ -24,14 +25,31 @@ export default async function AiActivityPage({ searchParams }: { searchParams: P
   const actions =
     groupFilter && AI_ACTIVITY_GROUPS[groupFilter] ? AI_ACTIVITY_GROUPS[groupFilter].actions : AI_ACTIVITY_ACTIONS;
 
-  const { data: entries } = supabase
-    ? await supabase
-        .from("audit_log")
-        .select("id, action, created_at, metadata, target_id, target_type, client_id, clients(business_name)")
-        .in("action", actions as unknown as string[])
-        .order("created_at", { ascending: false })
-        .limit(150)
-    : { data: [] };
+  // Ownership check — audit_log's own org_id column is never trusted here
+  // (see filterAiActivityToOrg's comment in ai-activity.ts for why it can
+  // be actively wrong, not just missing, for a prospect-scoped entry —
+  // live-confirmed: real Edinburgh Solutions lead.discovered/lead.researched
+  // rows carry org_id = HamishAI's id). Filtered in application code below
+  // via each entry's real client_id/prospect target ownership, same as the
+  // Command Centre's own mini feed on the homepage.
+  const [{ data: rawEntries }, { data: orgClients }, { data: orgProspects }] = supabase
+    ? await Promise.all([
+        supabase
+          .from("audit_log")
+          .select("id, action, created_at, metadata, target_id, target_type, client_id, clients(business_name)")
+          .in("action", actions as unknown as string[])
+          .order("created_at", { ascending: false })
+          .limit(400),
+        supabase.from("clients").select("id").eq("org_id", HAMISHAI_ORG_ID),
+        supabase.from("prospects").select("id").eq("org_id", HAMISHAI_ORG_ID),
+      ])
+    : [{ data: [] }, { data: [] }, { data: [] }];
+
+  const entries = filterAiActivityToOrg(
+    rawEntries ?? [],
+    new Set((orgClients ?? []).map((c) => c.id)),
+    new Set((orgProspects ?? []).map((p) => p.id))
+  ).slice(0, 150);
 
   // audit_log's target_id is a free-form uuid (it points at whichever
   // table target_type names), so unlike client_id there's no FK for
