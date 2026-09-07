@@ -1480,7 +1480,6 @@ _(none yet)_
   after building the two primitives but before any retrofit; the
   orchestrator completed the retrofit directly rather than re-dispatching.)
 - **Dependencies**: none.
-- **Status**: Not started.
 
 ### Consolidate the 4 duplicated assignee-select components into one shared control
 
