@@ -3316,12 +3316,82 @@ isolated to `/admin/leads`, and it is not read-only.
   it's considered closed.
 - **Dependencies**: Hamish's explicit decision + sign-off. Scoping itself
   is complete.
-- **Status**: **Round 3 fixed (this commit, 2026-09-07) — the 4 items
-  Security Auditor's second review scoped are closed; back to Security
-  Auditor for its requested focused re-check of exactly these 4, then QA,
-  then Hamish's final sign-off.** Round 1 (`08662cc`) and round 2
-  (`3024899`) both confirmed correct and left unchanged except where noted
-  below. Round 3 fixed, with live read-only re-verification for every one:
+- **Status**: **Round 4 fixed (this commit, 2026-09-07) — closes the one
+  item round 3's own focused re-check reopened as more significant than
+  originally reported (`/admin/activity-log`'s `client_id`-less rows).
+  Believed to now be the last item; back to Security Auditor for one final
+  focused check, then QA, then Hamish's final sign-off.** Rounds 1-3
+  (`08662cc`, `3024899`, `a9644ff`) all confirmed correct on independent
+  re-check and left unchanged except where noted below.
+  - **`/admin/activity-log`'s remaining `client_id`-less rows** — round 3's
+    own report characterised this residual gap as "149 of 150 rows have no
+    `client_id`," which was mechanically true but understated the real
+    exposure: Security Auditor's focused recheck resolved those rows via
+    their real `target_id` (the same technique `filterAiActivityToOrg()`
+    already uses for `/admin/ai-activity`) and found 58 of 90 resolvable
+    rows (~64%) genuinely belonged to Edinburgh Solutions. Fixed by adding
+    a new sibling function, `filterClientlessActivityLogEntriesToOrg()`
+    (`src/lib/ai-activity.ts`), reusing `filterAiActivityToOrg()`'s exact
+    resolve-via-real-target technique rather than inventing a different
+    one, extended to a `project` target (`project.*`/`deliverable.*`/
+    `task.*` — confirmed by reading every `logAuditEvent()` call site for
+    those three prefixes directly, `src/app/studio/(authed)/projects/actions.ts`:
+    all seven set `targetType: "project"`/`targetId: <a real projects.id>`,
+    and `projects.org_id` is a direct, non-nullable column — no further
+    join needed). Deliberately **not** the same function, for one reason:
+    `filterAiActivityToOrg()`'s "keep-if-unresolved" default is only
+    verified safe because `AI_ACTIVITY_ACTIONS` is a small, closed, fully-
+    audited list where the only thing that can fall through unresolved is
+    a Content Factory action. `/admin/activity-log` shows every
+    non-`organisation.*` action `audit_log` can contain — an open-ended,
+    non-audited set — so the new function's default is **excluded**, not
+    kept; `content.*` is the one named, confirmed-safe exception
+    (`content_ideas` has no `org_id`/tenant concept anywhere in this
+    codebase, confirmed twice independently). `activity-log/page.tsx` now
+    fetches `orgProspectIds`/`orgProjectIds` (two more scoped id-only
+    queries, same shape `/admin/ai-activity` already uses) and applies the
+    new function only to the `client_id`-less subset — the existing,
+    already-correct `client_id`-having resolution (via the joined
+    `clients.org_id`) is unchanged from round 3. 6 new unit tests
+    (`src/lib/ai-activity.test.ts`) cover both the prospect- and
+    project-target cases (owned/foreign) and the conservative-exclusion
+    default for an unresolvable, non-`content.*` action.
+  - **One real, narrower residual case found and left excluded, not
+    resolved further, per this round's own "treat conservatively" instruction**:
+    live-diagnosing exactly *why* certain rows still don't resolve found
+    two distinct, non-alarming shapes, not a design gap — (1) 2 real
+    `request.triaged` rows genuinely have `client_id: null` and a
+    `target_type: "request"` (not `prospect`/`project`), a target shape
+    this fix wasn't scoped to resolve (the normal `request.triaged` call
+    site also passes `clientId`; these 2 are an edge case where it didn't);
+    (2) a handful of `lead.researched`/`project.created`/`project.deleted`
+    rows point at a prospect/project that has since been genuinely deleted
+    (the target row no longer exists at all — confirmed directly, not a
+    resolution-logic bug). Both shapes are correctly, conservatively
+    excluded by the new function's default rather than guessed at — no
+    further fix attempted, flagged here rather than silently left unnoted.
+  - Live read-only re-verification against the real table (whole-table
+    pass, not just the page's 150-row window): 296 `client_id`-less,
+    non-`organisation.*` rows exist today; 112 resolve to a real org via
+    their target, of which **57 genuinely belong to a foreign org**
+    (consistent with, though not identical to, the auditor's own
+    "58 of 90" sample — the small difference is expected live-data drift
+    between the two checks, not a discrepancy in the fix itself). Applying
+    the new function: **0 foreign rows remain**, and 0 genuinely
+    HamishAI-owned rows were wrongly excluded (checked directly). Then
+    reproduced the actual page query end to end (150-row limit, real
+    join shape): 87 rows survive the full filter, **0 foreign**.
+  - `npx tsc --noEmit -p .`, `npx eslint` on every touched file green;
+    `npx vitest run` 499/499, run twice clean (one unrelated, pre-existing
+    flaky test — `prospecting-panel.test.tsx` — failed once under
+    full-suite parallel load and passed clean in isolation, the same known
+    flakiness class round 2 already documented and fixed for
+    `admin/actions.test.ts`; not touched here since it isn't this round's
+    file and isn't the file already carrying a `testTimeout` bump); `npm
+    run build` succeeded.
+
+- **Status (prior rounds)**: Round 3 fixed (`a9644ff`), with live read-only
+  re-verification for every one:
   - **`site_checks`' broken `org_id` at the source** — `site-monitor.ts`'s
     `runSiteCheck()` insert never set `org_id`; every one of the table's 63
     real rows carried the column's DB default (HamishAI's literal id)

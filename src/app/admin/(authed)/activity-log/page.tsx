@@ -7,12 +7,14 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { HAMISHAI_ORG_ID } from "@/lib/org-membership";
+import { filterClientlessActivityLogEntriesToOrg } from "@/lib/ai-activity";
 
-// Round 3 of the P0 /admin org-isolation fix — the only two action types
-// this page (or /admin/agencies) treats as genuinely cross-org platform-ops
-// data, not a specific tenant's own activity. Kept unscoped deliberately;
-// everything else audit_log can contain is some tenant's own activity and
-// must be gated to HAMISHAI_ORG_ID.
+// The only two action types this page (or /admin/agencies) treats as
+// genuinely cross-org platform-ops data, not a specific tenant's own
+// activity. Kept unscoped deliberately; everything else audit_log can
+// contain is some tenant's own activity and must be gated to
+// HAMISHAI_ORG_ID (round 3 gated the client_id-having rows; round 4 closed
+// the remaining client_id-less rows — see filterClientlessActivityLogEntriesToOrg).
 const ORGANISATION_LEVEL_ACTIONS = ["organisation.deletion_requested", "organisation.deletion_request_processed"] as const;
 
 const ACTION_LABEL: Record<string, string> = {
@@ -70,12 +72,11 @@ export default async function ActivityLogPage({ searchParams }: { searchParams: 
   // activity — getSupabaseAdmin() bypasses RLS, so gating this in
   // application code is the only real protection. A row with a client_id
   // is gated via the client's own org_id (clients(business_name, org_id));
-  // a row with no client_id (e.g. lead.*/content.*/project.* actions,
-  // which resolve ownership via a prospect/project target instead) is not
-  // resolvable via this page's existing client_id-only join and is left
-  // unscoped here, same as before this round — a known, narrower gap than
-  // this round's named scope, flagged in docs/ai-team/DECISIONS.md rather
-  // than silently expanded into.
+  // a row with no client_id (lead.*/project.*/deliverable.*/task.*/
+  // content.*) is now resolved via its own target_id/target_type, round 4
+  // — see filterClientlessActivityLogEntriesToOrg's own comment
+  // (src/lib/ai-activity.ts) for the exact resolution technique and why its
+  // unresolved-action default differs from filterAiActivityToOrg()'s.
   let orgLevelQuery = supabase
     ?.from("audit_log")
     // org_id/organisations(name) kept for the two organisation.* actions
@@ -84,7 +85,9 @@ export default async function ActivityLogPage({ searchParams }: { searchParams: 
     // established, if imperfect, convention client.data_deleted's own
     // actor: orgId already uses), with no way to see what org that even
     // is.
-    .select("id, created_at, actor, actor_type, action, client_id, org_id, metadata, clients(business_name, org_id), organisations(name)")
+    .select(
+      "id, created_at, actor, actor_type, action, client_id, org_id, target_type, target_id, metadata, clients(business_name, org_id), organisations(name)"
+    )
     .in("action", ORGANISATION_LEVEL_ACTIONS)
     .order("created_at", { ascending: false })
     .limit(100);
@@ -95,7 +98,9 @@ export default async function ActivityLogPage({ searchParams }: { searchParams: 
   // filterAiActivityToOrg's own fetch-limit bump in round 2.
   let tenantQuery = supabase
     ?.from("audit_log")
-    .select("id, created_at, actor, actor_type, action, client_id, org_id, metadata, clients(business_name, org_id), organisations(name)")
+    .select(
+      "id, created_at, actor, actor_type, action, client_id, org_id, target_type, target_id, metadata, clients(business_name, org_id), organisations(name)"
+    )
     .not("action", "in", `(${ORGANISATION_LEVEL_ACTIONS.join(",")})`)
     .order("created_at", { ascending: false })
     .limit(150);
@@ -105,16 +110,25 @@ export default async function ActivityLogPage({ searchParams }: { searchParams: 
     tenantQuery = tenantQuery?.eq("client_id", clientFilter);
   }
 
-  const [{ data: orgLevelEntries }, { data: rawTenantEntries }] = await Promise.all([
+  const [{ data: orgLevelEntries }, { data: rawTenantEntries }, { data: orgProspects }, { data: orgProjects }] = await Promise.all([
     orgLevelQuery ? orgLevelQuery : Promise.resolve({ data: null }),
     tenantQuery ? tenantQuery : Promise.resolve({ data: null }),
+    supabase ? supabase.from("prospects").select("id").eq("org_id", HAMISHAI_ORG_ID) : Promise.resolve({ data: null }),
+    supabase ? supabase.from("projects").select("id").eq("org_id", HAMISHAI_ORG_ID) : Promise.resolve({ data: null }),
   ]);
 
-  const scopedTenantEntries = (rawTenantEntries ?? []).filter((entry) => {
-    if (!entry.client_id) return true;
+  const orgProspectIds = new Set((orgProspects ?? []).map((p) => p.id as string));
+  const orgProjectIds = new Set((orgProjects ?? []).map((p) => p.id as string));
+
+  const clientScopedEntries = (rawTenantEntries ?? []).filter((entry) => {
+    if (!entry.client_id) return false;
     const client = entry.clients as unknown as { business_name: string; org_id?: string | null } | null;
     return client?.org_id === HAMISHAI_ORG_ID;
   });
+  const clientlessEntries = (rawTenantEntries ?? []).filter((entry) => !entry.client_id);
+  const scopedClientlessEntries = filterClientlessActivityLogEntriesToOrg(clientlessEntries, orgProspectIds, orgProjectIds);
+
+  const scopedTenantEntries = [...clientScopedEntries, ...scopedClientlessEntries];
 
   const allEntries = [...(orgLevelEntries ?? []), ...scopedTenantEntries]
     .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())

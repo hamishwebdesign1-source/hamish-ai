@@ -8,6 +8,129 @@ just at product-decision scope instead of line scope.
 
 ---
 
+## 2026-09-07 — `/admin` org-isolation fix, round 4 (believed final): closed `/admin/activity-log`'s remaining `client_id`-less rows by extending `filterAiActivityToOrg()`'s technique, not its own function
+
+**Context**: round 3's own report on `/admin/activity-log` described the
+residual gap as "149 of 150 rows have no `client_id`" — true, but Security
+Auditor's focused recheck went one step further, resolving those rows via
+their real `target_id` (the same technique `filterAiActivityToOrg()`
+already uses), and found 58 of 90 resolvable rows (~64%) genuinely belonged
+to Edinburgh Solutions — real business names, real AI sales-pitch
+reasoning, real project/task activity. This was contained only by an
+incidental gap in `describeEntry()`'s switch statement (no case for
+`lead.*`/`project.*`/`deliverable.*`/`task.*`, so those rows rendered as a
+bare action string), not a real access control — the next natural feature
+addition (a `describeEntry()` case for one of these) would have turned it
+into an active, rendered leak with zero additional review. Full detail:
+`BACKLOG.md`'s P0 entry, round 4 section.
+
+**The fix — a sibling function, not a direct reuse of `filterAiActivityToOrg()`,
+and not a third resolution technique either.** Confirmed the real target
+shape for every affected action type by reading the actual `logAuditEvent()`
+call sites rather than assuming: every `lead.*` call
+(`discover-leads.ts`/`research-lead.ts`/`deep-research-pipeline.ts`/
+`check-lead-sends.ts`/`draft-website-mockup.ts`) sets
+`targetType: "prospect"`, `targetId: <a real prospects.id>` — already
+exactly `filterAiActivityToOrg()`'s own resolved case. Every `project.*`/
+`deliverable.*`/`task.*` call — all seven, all in one file,
+`src/app/studio/(authed)/projects/actions.ts` — sets
+`targetType: "project"`, `targetId: <a real projects.id>`, and
+`projects.org_id` is a direct, non-nullable column (`schema-projects.sql`),
+so no further join is needed the way `client_members`' missing `org_id`
+column needed one elsewhere in this codebase. Added
+`filterClientlessActivityLogEntriesToOrg()` (`src/lib/ai-activity.ts`) using
+this exact "resolve via the entry's real target, never `audit_log.org_id`"
+technique, extended with a `project`-target branch — reusing the trusted,
+already-audited pattern rather than inventing a different one, per this
+round's own explicit instruction.
+
+**Why a sibling function and not literally `filterAiActivityToOrg()` itself
+with a new parameter**: that function's "keep if unresolved" default is
+only verified safe because `AI_ACTIVITY_ACTIONS` is a small, closed, fully-
+audited list where a Content Factory action is the *only* thing that can
+ever fall through unresolved — its own comment says this explicitly ("not
+a general claim that `org_id` should never be trusted anywhere else... just
+for this specific, audited list"). `/admin/activity-log` shows every
+non-`organisation.*` action `audit_log` can contain today *and in the
+future* — an open-ended, non-audited set — so trusting the same "keep"
+default here would silently leak the next new action type this app starts
+logging, not just the ones already known about. The new function's default
+is **excluded**, not kept; `content.*` is the one named, confirmed-safe
+exception (`content_ideas` has no `org_id`/tenant concept anywhere in this
+codebase — confirmed twice independently, now a third time via this
+round's own live diagnostic). This is the one deliberate design difference
+from `filterAiActivityToOrg()`, made explicit rather than inherited by
+accident — matching this round's own instruction to "treat conservatively
+(exclude rather than include) and flag it explicitly" for anything that
+doesn't fit a known-safe category.
+
+**`activity-log/page.tsx` changes**: added two more scoped id-only queries
+(`orgProspectIds`/`orgProjectIds`, same shape `/admin/ai-activity` already
+uses) alongside the existing two; the already-correct `client_id`-having
+resolution (via the joined `clients.org_id`, unchanged since round 3) now
+only handles rows that actually have a `client_id`, and the new function
+handles the rest. `describeEntry()` was deliberately **not** touched — this
+round is a data-access-layer fix only, not a display feature; adding
+rendering for `lead.*`/`project.*` here is real, separate future scope.
+
+**One real, narrower thing found and explicitly left alone rather than
+guessed at**: live-diagnosing exactly which rows still don't resolve found
+two distinct, non-alarming shapes — (1) 2 real `request.triaged` rows
+genuinely have `client_id: null` and `target_type: "request"` (not
+`prospect`/`project`) — an edge case of a call site that normally does pass
+`clientId`; this round wasn't scoped to add a `requests → clients.org_id`
+join for a 2-row case, and the conservative default already excludes them
+correctly; (2) a handful of `lead.researched`/`project.created`/
+`project.deleted` rows point at a prospect/project that has since been
+genuinely deleted — the target row doesn't exist at all (confirmed
+directly), not a bug in the resolution logic. Both are correctly excluded
+by the new function's conservative default. Flagged rather than silently
+left unnoted, per this task's own standard.
+
+**Live, read-only re-verification, real numbers, not "looks right"**: a
+whole-table pass (not just the page's 150-row window, to catch anything
+the page's own limit might mask) found 296 `client_id`-less,
+non-`organisation.*` rows exist today; 112 resolve to a real org via their
+target, of which **57 genuinely belong to a foreign org** — consistent
+with, though not numerically identical to, the auditor's own "58 of 90"
+(expected live-data drift between the two independent checks — new
+`lead.discovered`/`lead.researched` rows are written continuously by the
+weekly cron and on-demand searches; this is not a discrepancy in the fix's
+correctness). Applying `filterClientlessActivityLogEntriesToOrg()` directly
+against that same whole-table set: **0 foreign rows remain**, and a direct
+check confirmed 0 genuinely HamishAI-owned rows were wrongly excluded
+(no false negative). Then reproduced the actual page query end to end
+(150-row limit, real join shape, both new id-scoping queries): 87 rows
+survive the full filter into the page's final rendered set, **0 foreign**.
+Read-only throughout — no row belonging to Edinburgh Solutions
+(`org_id af543a0c-6ae2-418a-9816-8b87a7b7e844`) was ever written to,
+matching this round's own explicit safety constraint.
+
+**Verified**: `npx tsc --noEmit -p .` clean; `npx eslint` clean on both
+touched files; `npx vitest run` 499/499 green (6 new tests in
+`ai-activity.test.ts` covering the prospect-target, project-target, and
+conservative-exclusion-default cases), run twice — one unrelated,
+pre-existing flaky test (`prospecting-panel.test.tsx`, a rollback-UI-state
+assertion, nothing to do with this round's files) failed once under
+full-suite parallel load and passed clean in isolation immediately after,
+the same known flakiness class round 2 already documented for
+`admin/actions.test.ts`; not touched here since it isn't in scope and
+isn't the file already carrying a `testTimeout` bump. `npm run build`
+succeeded.
+
+**Is this genuinely the last item?** Believed yes, based on everything
+checked across all four rounds, but stated with the same honesty as every
+prior round rather than overclaimed: this round closes the one item round
+3's own recheck reopened, and the two narrower residual shapes found while
+verifying it (the 2 `request.triaged` rows, the handful of deleted-target
+rows) are both already safely excluded by this fix's own conservative
+default, not new open gaps. No new gap of a *different* shape was found
+during this round's verification. Status: fixed, back to Security Auditor
+for one final, focused check of exactly this item, then QA, then Hamish's
+sign-off.
+
+---
+
 ## 2026-09-07 — `/admin` org-isolation fix, round 3: closed the 4 items from Security Auditor's second review; deliberately did not backfill `site_checks`, closed the live leak a different way instead
 
 **Context**: round 2 (`3024899`) fixed everything Security Auditor's first

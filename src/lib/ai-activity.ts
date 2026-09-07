@@ -159,6 +159,39 @@ export function filterAiActivityToOrg<T extends Pick<AiActivityEntry, "client_id
   });
 }
 
+// Round 4 of the P0 /admin org-isolation fix — /admin/activity-log's own
+// sibling to filterAiActivityToOrg() above, reusing its exact resolve-via-
+// real-target technique (never audit_log.org_id) rather than inventing a
+// different one, but NOT the same function, for one deliberate reason:
+// filterAiActivityToOrg()'s "keep" default is only verified safe because
+// AI_ACTIVITY_ACTIONS is a small, closed, fully-audited list where the only
+// thing that can fall through unresolved is a Content Factory action.
+// /admin/activity-log shows every non-organisation.* action audit_log can
+// contain — an open-ended, non-audited set — so trusting the same "keep"
+// default here would silently leak the *next* new action type this app
+// starts logging, not just the ones already known about. This function's
+// default is EXCLUDED instead; content.* is the one named, confirmed-safe
+// exception (content_ideas has no org_id/tenant concept anywhere in this
+// codebase — confirmed twice independently).
+//
+// Applies to project.*/deliverable.*/task.* in addition to lead.* — every
+// logAuditEvent() call site for those three prefixes
+// (src/app/studio/(authed)/projects/actions.ts) sets
+// targetType: "project"/targetId: <a real projects.id>, confirmed by
+// reading every call site directly rather than assuming the shape.
+// Deliberately takes only the client_id-less subset of entries — a row
+// with a client_id is resolved by the page's own existing
+// clients(business_name, org_id) join, unchanged since round 3.
+export function filterClientlessActivityLogEntriesToOrg<
+  T extends Pick<AiActivityEntry, "action" | "target_type" | "target_id">
+>(entries: T[], orgProspectIds: Set<string>, orgProjectIds: Set<string>): T[] {
+  return entries.filter((entry) => {
+    if (entry.target_type === "prospect" && entry.target_id) return orgProspectIds.has(entry.target_id);
+    if (entry.target_type === "project" && entry.target_id) return orgProjectIds.has(entry.target_id);
+    return entry.action.startsWith("content.");
+  });
+}
+
 // Where each action's detail actually lives, so the feed can link through
 // to it instead of being a dead end.
 export function aiActivityHref(entry: Pick<AiActivityEntry, "target_type" | "target_id" | "client_id">): string | null {
