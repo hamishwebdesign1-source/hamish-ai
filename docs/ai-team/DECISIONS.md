@@ -2018,3 +2018,43 @@ more honest than asking Hamish to sign off on a security fix with a
 known, sizeable (64% of a real sample) gap left in it when closing that
 gap doesn't cost meaningfully more effort than documenting why it wasn't
 closed.
+
+## 2026-09-07 — `/admin` org-isolation P0: final security verdict — clean, proceeding to QA
+
+**Decision**: Security Auditor's final focused check independently
+re-verified round 4 (`47f4489`) against live data (296 client_id-less
+rows checked, 57 confirmed foreign, 0 remain after the fix, exact match
+to round 4's own claimed numbers) and ran one more full sweep across
+every `/admin` route touching an org-scoped table. Verdict: **no
+confirmed cross-tenant leak remains open on `/admin`**, across all 4
+build rounds and 3 security review passes. Recommended proceeding to QA
+then Hamish's sign-off.
+
+One new, low-severity, non-exploitable item found on the final sweep:
+`leads/page.tsx`'s `audit_log`/`lead_meetings` fetches are unscoped, but
+every read of their results is keyed by an already-org-scoped lead id
+(a UUID, so no cross-tenant collision is possible) — traced by hand, no
+actual leak exists today, but it's the same "safe only by an incidental
+property of current code, not an explicit check" shape as several
+already-known deferred items. Bundled with the three already-deferred
+residuals (`updateTaskStatus`, `checkOneLeadSend()`,
+`knowledge/page.tsx`'s insert-side `client_id` validation) as one
+low-priority fast-follow ticket, not a blocker.
+
+**Summary of the whole effort, for the record**: what started as a
+side-effect finding during an unrelated score-formula fix turned into a
+4-round remediation of a systemic gap — `/admin` (built single-tenant,
+before the Agency Platform's `organisations` layer existed) had no
+`org_id` check anywhere, exposing a real paying tenant's prospects,
+clients, knowledge-base entries, site-monitoring data, and activity
+history inside HamishAI's own internal tool, with real write/billing
+power (Stripe subscription start/cancel, invoicing, portal member
+invites) reachable by raw row id. Fixed in 4 rounds as review kept
+finding what the prior round missed — not because the work was careless,
+but because the codebase has several different org-scoping mechanisms
+(a correctly-set column, a column that can be silently wrong, no column
+at all) and each round checked a different subset until the review
+process's own broad-sweep discipline caught them all. Zero evidence of
+actual destructive/financial misuse was found at any point. Nothing has
+been pushed to `origin/main`; QA is next, then Hamish's final sign-off
+per this team's standing security-change approval boundary.
