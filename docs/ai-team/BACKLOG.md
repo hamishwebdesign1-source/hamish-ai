@@ -3244,3 +3244,40 @@ cookies" confirmation not obtainable via this session's browser tooling
 (`document.cookie` reads are sandboxed/blocked in this environment) —
 verified at the source level instead, which is the more reliable check
 for this specific claim anyway.
+
+### URGENT — `/admin/leads` has no `org_id` filter: HamishAI's internal tool appears to read (and possibly write) another real tenant's prospects
+
+- **Problem**: found by Lead Engineer (2026-09-07) as a side effect of the
+  score-canonicalization fix (`cd1095d`) — `/admin/leads`'s Supabase query
+  (`src/app/admin/(authed)/leads/page.tsx`) selects from `prospects` with
+  no `.eq("org_id", ...)` filter at all. Live-checked against the real
+  table: 177 rows belong to HamishAI's own internal org, but **19 real
+  rows belong to "Edinburgh Solutions"** (`org_id
+  af543a0c-6ae2-418a-9816-8b87a7b7e844`, a real, live, paying Studio
+  tenant, `is_internal: false`) — meaning HamishAI's own internal admin
+  tool currently displays another real customer's prospect data
+  alongside Hamish's own. **Not yet checked**: whether this page's own
+  write actions (add/edit/delete lead) have the same gap — the same
+  agent noted they use a raw `.eq("id", ...)` with no `org_id` check
+  either, which would mean this isn't just a read-side display bug but a
+  possible cross-tenant write/delete exposure. Not confirmed either way
+  yet.
+- **Objective**: full scope first (read AND write paths, and whether any
+  other `/admin` route has the same missing-org_id pattern — `/admin` was
+  built single-tenant, before Studio's multi-tenant layer existed, so this
+  may not be isolated to this one page), then a fix — most likely scoping
+  every `/admin` prospects query/action to HamishAI's own internal
+  `org_id` explicitly (the same `is_internal`-org constant already used
+  elsewhere in this codebase), following `docs/ARCHITECTURE.md`'s
+  documented rule that an explicit application-level ownership check is
+  the *only* real protection once the service-role client is in use.
+- **Priority**: **P0** — real, live, cross-tenant data exposure of a
+  paying customer's own business data, not a theoretical gap.
+- **Relevant agent**: Security Auditor (full scope: read + write, whole
+  `/admin` section) → Lead Engineer (fix, once scoped) → Hamish's explicit
+  sign-off before shipping, per `docs/ai-team/README.md`'s approval
+  boundary on security-sensitive/data-isolation changes.
+- **Dependencies**: none blocking the scoping work; the fix itself needs
+  Hamish's sign-off before shipping (security-sensitive).
+- **Status**: Not started — flagged urgently to Hamish directly, Security
+  Auditor being dispatched now to scope the full blast radius.
