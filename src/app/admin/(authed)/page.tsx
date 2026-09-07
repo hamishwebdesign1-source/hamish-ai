@@ -17,6 +17,7 @@ import { isInvoiceOverdue } from "@/lib/invoice-status";
 import { leadNeedsFollowUp } from "@/lib/lead-status";
 import { timeAgo } from "@/lib/time-ago";
 import { AI_ACTIVITY_ACTIONS, describeAiActivity, aiActivityHref } from "@/lib/ai-activity";
+import { normalizeValueBand } from "@/lib/value-band";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 
@@ -43,11 +44,16 @@ const CRITICAL_LEAD_FOLLOWUP_DAYS = 14;
 // in leads-automation-plan.md (never built until now): rough per-band
 // midpoints, deliberately not precise — this is for prioritisation, same
 // framing research-lead.ts already uses for these bands, never a quote.
+// Keyed by normalizeValueBand()'s output (see lib/value-band.ts) so both a
+// legacy £-prefixed band and the currency-neutral band research-lead.ts
+// stores now resolve the same midpoint — /admin is Hamish's own internal
+// pipeline only, always genuinely GBP, so no currency conversion needed
+// here even though the stored band itself is currency-neutral.
 const VALUE_BAND_MIDPOINT: Record<string, number> = {
-  "£500-£1,500": 1000,
-  "£1,500-£3,000": 2250,
-  "£3,000-£6,000": 4500,
-  "£6,000+": 6000,
+  "500-1,500": 1000,
+  "1,500-3,000": 2250,
+  "3,000-6,000": 4500,
+  "6,000+": 6000,
 };
 const CONVERSION_WEIGHT: Record<string, number> = { low: 0.2, medium: 0.5, high: 0.8 };
 
@@ -164,7 +170,7 @@ export default async function AdminOverviewPage() {
   for (const lead of leadsWithResearch) {
     const band = lead.research?.estimated_project_value_band as string | undefined;
     const probability = lead.research?.conversion_probability_band as string | undefined;
-    const midpoint = band ? (VALUE_BAND_MIDPOINT[band] ?? 0) : 0;
+    const midpoint = band ? (VALUE_BAND_MIDPOINT[normalizeValueBand(band)] ?? 0) : 0;
     pipelineValue += midpoint;
     expectedRevenue += midpoint * (probability ? (CONVERSION_WEIGHT[probability] ?? 0) : 0);
     if (probability === "high") hotLeadCount++;

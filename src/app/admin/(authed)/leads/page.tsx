@@ -7,6 +7,7 @@ import { checkMsConnection } from "@/lib/check-ms-connection";
 import { logAuditEvent } from "@/lib/audit-log";
 import { leadNeedsFollowUp as needsFollowUp, getLeadCadenceAction, EMAIL_TO_CALL_DAYS } from "@/lib/lead-status";
 import { STATUSES, statusMeta, isStaleLead, daysSince, websiteHref } from "@/lib/lead-meta";
+import { normalizeValueBand, formatValueBand } from "@/lib/value-band";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -141,7 +142,9 @@ const INSIGHT_LABELS: Record<string, string> = {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function isHighValue(l: any): boolean {
   const band = l.research?.estimated_project_value_band;
-  return band === "£6,000+" || band === "£3,000-£6,000";
+  if (!band) return false;
+  const normalized = normalizeValueBand(band);
+  return normalized === "6,000+" || normalized === "3,000-6,000";
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -777,7 +780,7 @@ export default async function LeadsPage({
                       </div>
                     )}
                     {lead.research?.estimated_project_value_band && (
-                      <span>Est. {lead.research.estimated_project_value_band}</span>
+                      <span>Est. {formatValueBand(lead.research.estimated_project_value_band, lead.research.currency)}</span>
                     )}
                     {lead.research?.conversion_probability_band && (
                       <span>Conversion: {lead.research.conversion_probability_band}</span>

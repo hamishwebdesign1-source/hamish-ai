@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { researchProspect } from "@/app/studio/(authed)/prospects/actions";
 import type { LeadResearch, ScoreBreakdown } from "@/lib/research-lead";
+import { formatValueBand } from "@/lib/value-band";
 import { StudioEmptyState } from "@/components/platform/studio-empty-state";
 
 export function ResearchTrigger({ prospectId }: { prospectId: string }) {
@@ -138,7 +139,7 @@ export function ResearchSummary({
       <p className="text-sm text-muted-foreground">{research.business_summary}</p>
 
       <div className="flex flex-wrap gap-2 text-xs">
-        <Badge variant="secondary">{research.estimated_project_value_band}</Badge>
+        <Badge variant="secondary">{formatValueBand(research.estimated_project_value_band, research.currency)}</Badge>
         <Badge variant="secondary" className="capitalize">
           {research.conversion_probability_band} conversion probability
         </Badge>

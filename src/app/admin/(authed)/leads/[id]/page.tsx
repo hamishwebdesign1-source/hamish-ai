@@ -31,6 +31,7 @@ import {
   markLeadReplied,
 } from "@/app/admin/actions";
 import { STATUSES, statusMeta, websiteHref, describeAuditEntry, COMMUNICATION_ACTIONS, type AuditEntry } from "@/lib/lead-meta";
+import { formatValueBand } from "@/lib/value-band";
 import { timeAgo } from "@/lib/time-ago";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -156,6 +157,7 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
     recommended_services?: string[];
     suggested_sales_angle?: string;
     estimated_project_value_band?: string;
+    currency?: string;
     conversion_probability_band?: string;
   } | null;
 
@@ -487,7 +489,7 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
               {research?.estimated_project_value_band && (
                 <div className="flex items-center justify-between">
                   <span className="text-muted-foreground">Est. value</span>
-                  <Badge variant="secondary">{research.estimated_project_value_band}</Badge>
+                  <Badge variant="secondary">{formatValueBand(research.estimated_project_value_band, research.currency)}</Badge>
                 </div>
               )}
               {research?.conversion_probability_band && (

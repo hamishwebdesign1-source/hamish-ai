@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { timeAgo } from "@/lib/time-ago";
 import type { LeadResearch } from "@/lib/research-lead";
+import { formatValueBand } from "@/lib/value-band";
 
 // Cached research (site-check + one Claude call — see research-lead.ts),
 // rendered here and regenerated only on an explicit click, never on page
@@ -62,7 +63,7 @@ export function ResearchLeadButton({
           <p className="italic">&ldquo;{research.pursue_because}&rdquo;</p>
 
           <div className="flex flex-wrap gap-1.5">
-            <Badge variant="secondary">Est. value: {research.estimated_project_value_band}</Badge>
+            <Badge variant="secondary">Est. value: {formatValueBand(research.estimated_project_value_band, research.currency)}</Badge>
             <Badge variant="secondary">Conversion: {research.conversion_probability_band}</Badge>
             <Badge variant="secondary">AI fit: {research.ai_opportunity_fit}</Badge>
           </div>

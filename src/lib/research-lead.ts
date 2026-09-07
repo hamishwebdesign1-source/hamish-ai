@@ -2,6 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { getSslInfo } from "@/lib/site-monitor";
 import { logAuditEvent } from "@/lib/audit-log";
+import { VALUE_BAND_SCORE, normalizeValueBand } from "@/lib/value-band";
 
 // High Impact #6/#7 from docs/leads-automation-plan.md — replaces the old
 // hand-typed signal/outreach_note process with one cached research pass:
@@ -80,6 +81,15 @@ export type LeadResearch = {
   recommended_services: string[];
   suggested_sales_angle: string;
   estimated_project_value_band: string;
+  // Added alongside estimated_project_value_band once a real tenant search
+  // ("New York") surfaced this business getting an estimate in £ despite
+  // being a US business — the band itself never carried a currency, this
+  // codebase's own framing just always assumed GBP. Missing on any research
+  // cached before this field existed; formatValueBand()/normalizeValueBand()
+  // below default to GBP for that legacy data, which is a correct
+  // assumption for it (this pipeline only ever ran for Hamish's own
+  // Edinburgh-based leads until Studio's per-org search shipped).
+  currency: "GBP" | "USD" | "EUR";
   conversion_probability_band: "low" | "medium" | "high";
   ai_opportunity_fit: "low" | "medium" | "high";
   pursue_because: string;
@@ -231,13 +241,6 @@ export type ScoreBreakdown = {
   overall: number; // 1-5 — plain average of the four, not a tuned weighting (same "transparent over opaque" reasoning as computeLeadScore)
 };
 
-const VALUE_BAND_SCORE: Record<string, number> = {
-  "£500-£1,500": 1,
-  "£1,500-£3,000": 2,
-  "£3,000-£6,000": 4,
-  "£6,000+": 5,
-};
-
 export function computeScoreBreakdown(siteCheck: SiteCheck | null, research: Omit<LeadResearch, "site_check" | "sales_strategy" | "concept_page_analysis">): ScoreBreakdown {
   const fit = research.ai_opportunity_fit === "high" ? 5 : research.ai_opportunity_fit === "medium" ? 3 : 1;
 
@@ -246,7 +249,7 @@ export function computeScoreBreakdown(siteCheck: SiteCheck | null, research: Omi
   const needSignals = research.weaknesses.length + research.missing_trust_signals.length + research.missing_conversion_opportunities.length;
   const need = Math.max(1, Math.min(5, Math.round(needSignals / 2)));
 
-  const value = VALUE_BAND_SCORE[research.estimated_project_value_band] ?? 3;
+  const value = VALUE_BAND_SCORE[normalizeValueBand(research.estimated_project_value_band)] ?? 3;
 
   // Deliberately the inverse of computeLeadScore's own "no website is the
   // strongest finding" logic: that's true for need (a business with
@@ -280,8 +283,15 @@ const RESEARCH_TOOL: Anthropic.Tool = {
       suggested_sales_angle: { type: "string", description: "The single strongest, most specific opening line for outreach." },
       estimated_project_value_band: {
         type: "string",
-        enum: ["£500-£1,500", "£1,500-£3,000", "£3,000-£6,000", "£6,000+"],
-        description: "Rough band only, for internal prioritisation - never to be stated to the prospect.",
+        enum: ["500-1,500", "1,500-3,000", "3,000-6,000", "6,000+"],
+        description:
+          "Rough band only, for internal prioritisation - never to be stated to the prospect. Currency-neutral (see the separate currency field) - just the size of the number.",
+      },
+      currency: {
+        type: "string",
+        enum: ["GBP", "USD", "EUR"],
+        description:
+          "The currency this business's own market actually prices in, based on where it real-world operates (e.g. USD for a US business, EUR for a eurozone one) - not always GBP just because the researching consultancy is UK-based.",
       },
       conversion_probability_band: { type: "string", enum: ["low", "medium", "high"] },
       ai_opportunity_fit: { type: "string", enum: ["low", "medium", "high"], description: "How well an AI-assistant pitch specifically fits this business." },
@@ -299,6 +309,7 @@ const RESEARCH_TOOL: Anthropic.Tool = {
       "recommended_services",
       "suggested_sales_angle",
       "estimated_project_value_band",
+      "currency",
       "conversion_probability_band",
       "ai_opportunity_fit",
       "pursue_because",
@@ -395,7 +406,7 @@ ${visibleText ? `Visible page text (truncated):\n${visibleText}` : "No page text
     : `This business has no website on file at all — there is nothing to site-check, and that absence is itself the strongest, most concrete finding here: a business with zero online presence is a business that cannot be found, booked, or verified by a prospective customer today. Treat "no website" as the primary weakness and the primary AI/web opportunity, not as missing data to work around. Base every other finding on the business name, category, neighbourhood, and any recorded signal/outreach note only — say so honestly rather than inventing specifics a real site might have shown.`
 }
 
-Never invent specific facts (prices, review counts, awards, years trading) beyond what's given above or literally present in the page text. Every estimate (project value, conversion probability, AI opportunity fit) is a rough band for Hamish's own prioritisation, not a claim about the business.`;
+Never invent specific facts (prices, review counts, awards, years trading) beyond what's given above or literally present in the page text. Every estimate (project value, conversion probability, AI opportunity fit) is a rough band for internal prioritisation, not a claim about the business. The project value band is currency-neutral - report the business's own real-world currency separately, based on where it actually operates (the neighbourhood/location above), not assumed GBP.`;
 }
 
 // Deep research pipeline Phase 1 — the second, focused call (see
