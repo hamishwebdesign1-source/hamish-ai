@@ -252,3 +252,35 @@ re-verified (`tsc`/`eslint`/full `vitest` suite 467/467/`npm run build`,
 confirmed `/help` builds as a static route) before committing —
 `1bbe8ac`, pushed. Live-deploy confirmation still pending as this entry
 is written.
+
+## 2026-09-07 — Edinburgh Solutions: unlocked lead generation (account-level data change, no code)
+
+Hamish asked directly for his own real Studio account ("Edinburgh
+solutions", `org_id af543a0c-6ae2-418a-9816-8b87a7b7e844`) to get
+unlimited lead generation. Investigated before touching anything:
+`usage-limits.ts`/`discover-leads.ts` already have a blanket
+`organisations.is_internal` flag that exempts an org from every usage
+cap — but it also skips the Stripe billing requirement entirely and
+rebrands all client-facing output (proposals, invoices, portal) from
+the org's own name to "Hamish AI" (confirmed via a full grep across
+25+ call sites, e.g. `proposal-tokens.ts`, `portal-org-branding.ts`,
+`monthly-report.ts`). That's much broader than "unlimited leads," so
+flagged the tradeoff to Hamish via AskUserQuestion rather than picking
+one unilaterally. He chose the targeted fix.
+
+Also found a real, separate bug while checking the account's actual
+row: `trial_ends_at` was `2026-08-31`, already a week in the past —
+`discoverLeads()`'s billing gate (`discover-leads.ts:448`) was
+blocking this org from running lead discovery *at all* right now,
+independent of any usage cap. Fixed both in one data update (existing
+columns, no migration): `purchased_prospect_credits` → 999999 (the
+real, existing top-up mechanism — `discover-leads.ts:472` scopes this
+to `prospect_researched` only, no other usage type affected) and
+`trial_ends_at` pushed to 2036 (kept `subscription_status: "trialing"`
+rather than faking `"active"` with no real Stripe subscription behind
+it — `stripe_customer_id` is still null for this org). Live-verified
+via Claude-in-Chrome, signed into the real account: `/studio/billing`
+now shows "Trial · 3403 days left", `/studio/prospects` loads with no
+billing-required blocker and "Find prospects now" enabled. No code
+changed, so no tsc/eslint/vitest/build ritual applies here — the only
+verification is the live DB row and the live authenticated page.
