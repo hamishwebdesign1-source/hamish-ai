@@ -2530,6 +2530,29 @@ treatment needed, since today they revert completely silently on error
 (the exact anti-pattern this backlog item's objective warns about, already
 shipped). Left as a follow-up, not claimed done here.
 
+**Follow-up closed 2026-09-07 (`e5e9387`)**: both candidates converted.
+`TaskRow.setTaskStatus` AND `setTaskProject` (same silent-revert bug,
+same file, fixed alongside the named one) in `requests-panel.tsx`, and
+`CampaignCard.toggleStatus` in `campaigns-panel.tsx` — same real
+`useOptimistic()` + rollback UI as candidate 1 (inline `text-destructive`
+line, transient `bg-destructive/10` highlight, ~1.5s). `ProjectCard.toggleDone`
+no longer exists — confirmed by reading the current codebase: the
+Projects Kanban Command Centre Phase A rewrite (shipped 2026-09-03,
+after this item's original scoping note) replaced the old flat list
+with a Kanban board that already has its own complete `useOptimistic` +
+`rollbackMap` at the board root (`projects-panel.tsx`) — nothing left to
+build there. `npx tsc --noEmit`, `npx eslint`, full `vitest` suite
+(467/467), and `npm run build` all green. Live-verified the campaign
+toggle on production (Edinburgh push: Active → Completed → reverted to
+Active, correct both ways). No live task instance existed to click-test
+`TaskRow`'s own conversion — declined to create test clutter on a real
+client's request just to exercise it; relied on the identical,
+already-live-verified pattern plus the full clean verification ritual
+instead. Known gap, noted honestly: neither file has an existing test
+file to extend with dedicated coverage (candidate 1 got 8 tests in
+`prospecting-panel.test.tsx`); covered by the full suite passing
+unchanged plus the live check above, not by new tests.
+
 **Separate, already-fixed adjacent bugs** (not `useOptimistic`, flagged by
 the same scoping note as a quick fix while in the area):
 `AssignedProspectRow.remove`/`AddProspectControl.add`
