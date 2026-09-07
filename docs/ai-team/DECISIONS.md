@@ -1854,3 +1854,44 @@ narrowly scoped to these 4 items (not another full sweep), followed by a
 *focused* re-verification of exactly those 4 (not a fourth full sweep) —
 adopted as-is, to bound this from continuing indefinitely while still
 closing every confirmed gap.
+
+## 2026-09-07 — Round 3 confirmed clean on 3 of 4 items; activity-log gap found more significant than reported, round 4 dispatched
+
+**Decision**: Security Auditor's focused recheck of round 3 (`a9644ff`)
+independently reproduced items 1-3 as genuinely fixed against live data
+(`site_checks` dashboard read: 46 rows, 0 foreign; `google-setup`/
+`ms-setup`: 0 foreign each; root-cause `orgId` params confirmed
+non-optional and correctly threaded, not yet live-testable since this
+branch is unpushed). The flagged, unrelated `tasks.priority` bug was
+confirmed real and confirmed non-security (fails to no data, not foreign
+data).
+
+**Item 4 (`/admin/activity-log`) reopened, not accepted as-is**: round
+3's own report characterized the residual gap as "149 of 150 [rows] have
+no client_id" — mechanically true, but this framing understated the real
+exposure. The auditor went one step further and resolved those
+`client_id`-less rows via their actual `target_id` (the same technique
+`filterAiActivityToOrg()` already uses for `/admin/ai-activity`) and
+found **58 of 90 resolvable rows (~64%) genuinely belong to Edinburgh
+Solutions** — real business names, real AI sales-pitch reasoning, real
+project/task activity. This is currently contained only by an incidental
+gap in `describeEntry()`'s switch statement (it has no case for
+`lead.*`/`project.*`/`deliverable.*`/`task.*`, so those rows render as a
+bare, contentless action string today) — not a real access control. The
+auditor's own point: the very next natural feature addition (a
+`describeEntry()` case for `lead.discovered`, mirroring the pattern
+already used for `client.status_changed`) would turn this into an
+active, rendered cross-tenant leak with no additional review, because
+nothing currently stops it at the data layer.
+
+**Why round 4 rather than presenting this to Hamish as "accept or fix"**:
+the auditor was explicit that this isn't a stop-the-line halt (nothing
+currently renders identifying foreign-tenant content), but is a real,
+live, confirmed gap — and the fix is not new engineering, it's reusing
+`filterAiActivityToOrg()`'s already-built, already-audited resolution
+pattern for two more target-type branches. Given the fix is this cheap
+and the pattern already exists and is already trusted, closing it now is
+more honest than asking Hamish to sign off on a security fix with a
+known, sizeable (64% of a real sample) gap left in it when closing that
+gap doesn't cost meaningfully more effort than documenting why it wasn't
+closed.
