@@ -7,6 +7,7 @@ import { AlertTriangle, ArrowLeft, CalendarCheck, ExternalLink, Globe, LineChart
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { triageRequest } from "@/lib/triage-request";
 import { createInvoice } from "@/lib/create-invoice";
+import { HAMISHAI_ORG_ID } from "@/lib/org-membership";
 import {
   updateTaskStatus,
   sendInvoiceReminderAction,
@@ -36,6 +37,20 @@ async function createInvoiceForClient(clientId: string, formData: FormData) {
   const amountPounds = parseFloat(String(formData.get("amount") || "0"));
   const description = String(formData.get("description") || "").trim();
   if (!amountPounds || amountPounds <= 0 || !description) return;
+
+  // Ownership check — this action is a bound Server Action (its clientId
+  // is closed over at render time from an already org-gated page load, see
+  // ClientDetailPage's own `.eq("org_id", HAMISHAI_ORG_ID)` below), but a
+  // Server Action is still its own independently-invokable endpoint, so it
+  // needs the same "preceding scoped SELECT" ownership check as every
+  // other write in admin/actions.ts rather than relying on the page gate
+  // alone. createInvoice() (lib/create-invoice.ts) itself has no org
+  // concept of its own — shared with /studio, whose own action does this
+  // same check first (studio/(authed)/clients/actions.ts).
+  const supabase = getSupabaseAdmin();
+  if (!supabase) return;
+  const { data: client } = await supabase.from("clients").select("id").eq("id", clientId).eq("org_id", HAMISHAI_ORG_ID).single();
+  if (!client) return;
 
   const result = await createInvoice({
     clientId,
@@ -120,7 +135,12 @@ export default async function ClientDetailPage({
   const supabase = getSupabaseAdmin();
   if (!supabase) notFound();
 
-  const { data: client } = await supabase.from("clients").select("*").eq("id", id).single();
+  // Ownership check — scoped to HAMISHAI_ORG_ID so a foreign-org clientId
+  // 404s the same way an unknown id already did (see HANDOFF: P0 /admin
+  // org-isolation fix). Every downstream query on this page is keyed off
+  // this client's own id/client_id, so gating this one read protects all
+  // of them as a side effect.
+  const { data: client } = await supabase.from("clients").select("*").eq("id", id).eq("org_id", HAMISHAI_ORG_ID).single();
   if (!client) notFound();
 
   // Same directory listing the lead detail page uses — concept pages are

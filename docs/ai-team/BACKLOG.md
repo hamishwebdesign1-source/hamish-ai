@@ -3316,13 +3316,24 @@ isolated to `/admin/leads`, and it is not read-only.
   it's considered closed.
 - **Dependencies**: Hamish's explicit decision + sign-off. Scoping itself
   is complete.
-- **Status**: **Researching → scoped, awaiting Hamish's decision.** Not
-  started on any fix. Two other `/admin` tables spot-checked and flagged
-  as *probably* not currently exposed through any `/admin` route (no route
-  found reading them) but not confirmed with the same rigor:
-  `knowledge_base` (2 of 4 rows belong to a non-internal org) and
-  `monthly_reports` (1 of 4) — worth a second look once the confirmed
-  exposure above is fixed.
+- **Status**: **Fixed (2026-09-07), pending Security Auditor review then
+  QA then Hamish's final confirmation — not yet closed.** Hamish answered
+  the open framing question directly: locked to HamishAI's own org
+  everywhere (`/admin/agencies` remains the one deliberate exception,
+  unchanged), not given a separate cross-org oversight capability. Every
+  read/write enumerated above is now scoped to `HAMISHAI_ORG_ID`, plus two
+  same-shape gaps found in the same files during the fix
+  (`updateClientConceptSlug`, the `?from_lead=` prospect read on
+  `clients/page.tsx`) — full writeup in `DECISIONS.md`'s 2026-09-07 entry,
+  including what was found but deliberately left unfixed as out of this
+  fix's exact scope (`checkOneLeadSend`, `updateTaskStatus`'s client-email
+  read, other requests/tasks/invoices writes) for a fast-follow. Live
+  read-only check confirms `/admin/leads` now returns 177 rows (was 196)
+  and `/admin/clients` returns 4 (was 7). Two other `/admin` tables
+  spot-checked and flagged as *probably* not currently exposed through any
+  `/admin` route (no route found reading them) but not confirmed with the
+  same rigor: `knowledge_base` (2 of 4 rows belong to a non-internal org)
+  and `monthly_reports` (1 of 4) — still worth a second look.
 
 ### `researchLead()`/`draftSalesKit()` hardcode `actor: "admin"` in their own audit log regardless of real caller
 

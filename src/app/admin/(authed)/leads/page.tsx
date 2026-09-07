@@ -5,6 +5,7 @@ import { getSupabaseAdmin } from "@/lib/supabase";
 import { checkGoogleConnection } from "@/lib/check-google-connection";
 import { checkMsConnection } from "@/lib/check-ms-connection";
 import { logAuditEvent } from "@/lib/audit-log";
+import { HAMISHAI_ORG_ID } from "@/lib/org-membership";
 import { leadNeedsFollowUp as needsFollowUp, getLeadCadenceAction, EMAIL_TO_CALL_DAYS } from "@/lib/lead-status";
 import { STATUSES, statusMeta, isStaleLead, daysSince, websiteHref } from "@/lib/lead-meta";
 import { normalizeValueBand, formatValueBand } from "@/lib/value-band";
@@ -230,8 +231,11 @@ export default async function LeadsPage({
   // breakdown row *ahead* of every real one — worse than today, and it
   // can't express the `?? score` fallback in a single ORDER BY anyway.
   const [{ data: fetchedLeads, error }, googleStatus, msStatus, { data: auditRows }, { data: meetingRows }] = await Promise.all([
+    // Scoped to HAMISHAI_ORG_ID — see docs/ai-team/DECISIONS.md's P0
+    // /admin org-isolation fix. Without this, this query returned every
+    // org's prospects, not just HamishAI's own.
     supabase
-      ? supabase.from("prospects").select("*").order("score", { ascending: false })
+      ? supabase.from("prospects").select("*").eq("org_id", HAMISHAI_ORG_ID).order("score", { ascending: false })
       : Promise.resolve({ data: [], error: null }),
     checkGoogleConnection(),
     checkMsConnection(),

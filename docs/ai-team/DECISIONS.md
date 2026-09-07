@@ -1484,3 +1484,80 @@ entry rather than folded into this one, since raising it is a real,
 ongoing Anthropic-cost decision that needs Hamish's sign-off
 (`docs/ai-team/README.md`'s approval boundary on new ongoing
 infrastructure cost), not something this team decides unilaterally.
+
+## 2026-09-07 — Fixed the P0 `/admin` cross-tenant isolation gap: scoped every read/write to `HAMISHAI_ORG_ID`
+
+**Decision**: per Security Auditor's full scoping (`BACKLOG.md`'s "URGENT
+— `/admin` has no `org_id` filter anywhere") and Hamish's explicit
+sign-off to proceed, `/admin` is now locked to HamishAI's own
+organisation everywhere — not given a separate, explicit cross-org
+oversight capability. `/admin/agencies` remains the one deliberate
+exception (org metadata only, unchanged). This resolves the open framing
+question the backlog entry raised in Hamish's favour of the simpler,
+safer default; revisit only if a real product need for cross-org
+oversight from `/admin` specifically (as opposed to `/admin/agencies`)
+ever comes up.
+
+**Root cause** (as scoped): `/admin` predates the `organisations`/
+`memberships` layer and was never retrofitted when `prospects`/`clients`/
+`requests` gained `org_id` — every read and write used `getSupabaseAdmin()`
+(service-role, bypasses RLS by design) with no application-level
+ownership check, the only thing that should have been protecting it.
+
+**Fix, exact pattern used** (matches the already-audited-clean `/studio`
+Server Action convention, e.g. `prospects/actions.ts`'s
+`researchProspect()`): every read is now `.eq("org_id", HAMISHAI_ORG_ID)`
+inline; every write does a preceding scoped SELECT —
+`.eq("id", theId).eq("org_id", HAMISHAI_ORG_ID).single()` — and bails
+(reusing each action's own existing "not found"/silent-return shape,
+never a new error path or a message that would tell an attacker a
+foreign-org row exists) before the mutation, plus the same `.eq("org_id",
+HAMISHAI_ORG_ID)` filter inlined on the mutation itself for defense in
+depth. `client_members` has no `org_id` column of its own, so
+`removeClientMember` joins through `clients!inner(org_id)` — same shape
+`studio/(authed)/clients/actions.ts`'s `removeClientMemberAction()`
+already uses. Files: `src/app/admin/actions.ts` (13 prospect actions, 9
+client actions — `updateClientConceptSlug` found and fixed alongside the
+8 originally scoped, see below), `src/app/admin/(authed)/clients/[id]/page.tsx`
+(`createInvoiceForClient`, defined locally there rather than in
+`actions.ts` as the backlog entry assumed, plus the page's own client
+read), and the five read-side page files (`leads/page.tsx`,
+`leads/[id]/page.tsx`, `clients/page.tsx`, `clients/[id]/page.tsx`,
+`requests/[id]/page.tsx`).
+
+**Found beyond the original enumerated scope, fixed consistently rather
+than left as a known gap in the same pass**: `updateClientConceptSlug`
+(same table, same shape as `updateClientStatus`, simply omitted from the
+write-side list) and the `?from_lead=<id>` prospect read on
+`clients/page.tsx` (pre-fills the "Convert to client" form from a raw
+prospect id with no org filter). Both are the identical class of bug to
+everything else in this fix, in the same files being touched, so fixing
+them here was judged safer than leaving a known identical hole
+half-patched pending a second pass.
+
+**Found and deliberately left unfixed, flagged for Security Auditor/
+Hamish**: `checkOneLeadSend()` (`lib/check-lead-sends.ts`, called from
+`admin/actions.ts`'s `checkLeadEmailSent`) reads/writes `prospects` by raw
+id with no org check, and isn't shared with `/studio` the way
+`researchLead()`/`draftSalesKit()` are — same shape as everything fixed
+here, but outside the enumerated list. `updateTaskStatus` reads `clients`
+(via `requests.client_id`) by raw id with no org check and, on a task
+reaching `done`, emails that client's real address — a genuine
+cross-tenant read *and* an external send, gated behind a `taskId` rather
+than a client/prospect id so it didn't fit this fix's `.eq("org_id", ...)`
+pattern directly (`tasks`/`requests` writes were out of this fix's
+explicit scope; `requests/[id]/page.tsx`'s read was in scope and is
+fixed, but `updateDraftResponse`/`regenerateAdminDraft`/`reviewAutoSend`/
+`sendInvoiceReminderAction`/`updateTaskStatus` — all requests/tasks/
+invoices writes — were not). None of these showed any evidence of actual
+cross-tenant misuse in the audit log during scoping, but all are real,
+same-class gaps worth a fast-follow.
+
+**Verified**: `npx tsc --noEmit -p .`, targeted `eslint`, full `npm run
+test` (482 passing, 5 new), and `npm run build` all clean. Live read-only
+check against real Supabase data confirmed `/admin/leads`'s query now
+returns 177 rows (was 196) and `/admin/clients`'s returns 4 (was 7), and
+that the exact ownership-check shape used throughout genuinely returns no
+row (`PGRST116`) for two of Edinburgh Solutions' real ids (one prospect,
+one client) — read-only, no mutation ever attempted against their data,
+per this task's explicit safety constraint.

@@ -21,6 +21,7 @@ import { checkOneLeadSend } from "@/lib/check-lead-sends";
 import { sendInvoiceReminder } from "@/lib/send-invoice-reminder";
 import { startSubscription, cancelSubscription } from "@/lib/subscription";
 import { logAuditEvent } from "@/lib/audit-log";
+import { HAMISHAI_ORG_ID } from "@/lib/org-membership";
 
 export async function updateTaskStatus(taskId: string, status: string, revalidate: string) {
   const supabase = getSupabaseAdmin();
@@ -123,7 +124,17 @@ export async function updateLeadStatus(leadId: string, status: string) {
   const supabase = getSupabaseAdmin();
   if (!supabase) return;
 
-  const { data: previous } = await supabase.from("prospects").select("status").eq("id", leadId).single();
+  // Ownership check — getSupabaseAdmin() bypasses RLS, so this scoped
+  // SELECT (mirroring the "preceding scoped SELECT" pattern every /studio
+  // Server Action uses, see prospects/actions.ts's researchProspect()) is
+  // the only thing stopping /admin acting on another org's prospect by id.
+  const { data: previous } = await supabase
+    .from("prospects")
+    .select("status")
+    .eq("id", leadId)
+    .eq("org_id", HAMISHAI_ORG_ID)
+    .single();
+  if (!previous) return;
 
   // contacted_at tracks the most recent contact touch — set every time
   // status moves to "contacted" (including re-clicking it after a
@@ -131,7 +142,7 @@ export async function updateLeadStatus(leadId: string, status: string) {
   const update: { status: string; contacted_at?: string } = { status };
   if (status === "contacted") update.contacted_at = new Date().toISOString();
 
-  const { error } = await supabase.from("prospects").update(update).eq("id", leadId);
+  const { error } = await supabase.from("prospects").update(update).eq("id", leadId).eq("org_id", HAMISHAI_ORG_ID);
   if (error) {
     console.error("Failed to update lead status:", error);
   } else {
@@ -155,10 +166,15 @@ export async function markLeadCalled(leadId: string) {
   const supabase = getSupabaseAdmin();
   if (!supabase) return;
 
+  // Ownership check — see updateLeadStatus's comment above.
+  const { data: lead } = await supabase.from("prospects").select("id").eq("id", leadId).eq("org_id", HAMISHAI_ORG_ID).single();
+  if (!lead) return;
+
   const { error } = await supabase
     .from("prospects")
     .update({ status: "contacted", contacted_at: new Date().toISOString(), last_contact_method: "call" })
-    .eq("id", leadId);
+    .eq("id", leadId)
+    .eq("org_id", HAMISHAI_ORG_ID);
   if (error) {
     console.error("Failed to mark lead called:", error);
   } else {
@@ -180,6 +196,10 @@ export async function markLeadEmailSent(leadId: string) {
   const supabase = getSupabaseAdmin();
   if (!supabase) return;
 
+  // Ownership check — see updateLeadStatus's comment above.
+  const { data: lead } = await supabase.from("prospects").select("id").eq("id", leadId).eq("org_id", HAMISHAI_ORG_ID).single();
+  if (!lead) return;
+
   const { error } = await supabase
     .from("prospects")
     .update({
@@ -188,7 +208,8 @@ export async function markLeadEmailSent(leadId: string) {
       last_contact_method: "email",
       pending_email_message_id: null,
     })
-    .eq("id", leadId);
+    .eq("id", leadId)
+    .eq("org_id", HAMISHAI_ORG_ID);
   if (error) {
     console.error("Failed to mark lead emailed:", error);
   } else {
@@ -206,10 +227,15 @@ export async function markLeadReplied(leadId: string) {
   const supabase = getSupabaseAdmin();
   if (!supabase) return;
 
+  // Ownership check — see updateLeadStatus's comment above.
+  const { data: lead } = await supabase.from("prospects").select("id").eq("id", leadId).eq("org_id", HAMISHAI_ORG_ID).single();
+  if (!lead) return;
+
   const { error } = await supabase
     .from("prospects")
     .update({ replied_at: new Date().toISOString() })
-    .eq("id", leadId);
+    .eq("id", leadId)
+    .eq("org_id", HAMISHAI_ORG_ID);
   if (error) {
     console.error("Failed to mark lead replied:", error);
   } else {
@@ -236,9 +262,16 @@ export async function deleteLead(leadId: string) {
   // Fetched before deleting, not after — nothing to log a name against
   // once the row is gone. audit_log's target_id has no FK to prospects,
   // so the entry stays valid and readable after the lead itself doesn't.
-  const { data: lead } = await supabase.from("prospects").select("business_name").eq("id", leadId).single();
+  // Also doubles as the ownership check — see updateLeadStatus's comment.
+  const { data: lead } = await supabase
+    .from("prospects")
+    .select("business_name")
+    .eq("id", leadId)
+    .eq("org_id", HAMISHAI_ORG_ID)
+    .single();
+  if (!lead) return;
 
-  const { error } = await supabase.from("prospects").delete().eq("id", leadId);
+  const { error } = await supabase.from("prospects").delete().eq("id", leadId).eq("org_id", HAMISHAI_ORG_ID);
   if (error) {
     console.error("Failed to delete lead:", error);
   } else {
@@ -258,11 +291,16 @@ export async function updateLeadEmail(leadId: string, formData: FormData) {
   const supabase = getSupabaseAdmin();
   if (!supabase) return;
 
+  // Ownership check — see updateLeadStatus's comment above.
+  const { data: lead } = await supabase.from("prospects").select("id").eq("id", leadId).eq("org_id", HAMISHAI_ORG_ID).single();
+  if (!lead) return;
+
   const email = String(formData.get("email") || "").trim();
   const { error } = await supabase
     .from("prospects")
     .update({ email: email || null })
-    .eq("id", leadId);
+    .eq("id", leadId)
+    .eq("org_id", HAMISHAI_ORG_ID);
   if (error) {
     console.error("Failed to update lead email:", error);
   } else {
@@ -276,11 +314,16 @@ export async function updateLeadPhone(leadId: string, formData: FormData) {
   const supabase = getSupabaseAdmin();
   if (!supabase) return;
 
+  // Ownership check — see updateLeadStatus's comment above.
+  const { data: lead } = await supabase.from("prospects").select("id").eq("id", leadId).eq("org_id", HAMISHAI_ORG_ID).single();
+  if (!lead) return;
+
   const phone = String(formData.get("phone") || "").trim();
   const { error } = await supabase
     .from("prospects")
     .update({ phone: phone || null })
-    .eq("id", leadId);
+    .eq("id", leadId)
+    .eq("org_id", HAMISHAI_ORG_ID);
   if (error) {
     console.error("Failed to update lead phone:", error);
   } else {
@@ -300,11 +343,16 @@ export async function updateLeadNotes(leadId: string, formData: FormData) {
   const supabase = getSupabaseAdmin();
   if (!supabase) return;
 
+  // Ownership check — see updateLeadStatus's comment above.
+  const { data: lead } = await supabase.from("prospects").select("id").eq("id", leadId).eq("org_id", HAMISHAI_ORG_ID).single();
+  if (!lead) return;
+
   const notes = String(formData.get("notes") || "").trim();
   const { error } = await supabase
     .from("prospects")
     .update({ notes: notes || null })
-    .eq("id", leadId);
+    .eq("id", leadId)
+    .eq("org_id", HAMISHAI_ORG_ID);
   if (error) {
     console.error("Failed to update lead notes:", error);
   } else if (notes) {
@@ -328,13 +376,21 @@ export async function updateLeadConceptSlug(leadId: string, formData: FormData) 
   // (per docs/deep-research-pipeline-plan.md's "going forward only"
   // decision — same convention research-lead.ts already follows for not
   // silently overwriting existing state).
-  const { data: existing } = await supabase.from("prospects").select("concept_slug").eq("id", leadId).single();
-  const previousSlug = existing?.concept_slug ?? null;
+  // Also the ownership check — see updateLeadStatus's comment above.
+  const { data: existing } = await supabase
+    .from("prospects")
+    .select("concept_slug")
+    .eq("id", leadId)
+    .eq("org_id", HAMISHAI_ORG_ID)
+    .single();
+  if (!existing) return;
+  const previousSlug = existing.concept_slug ?? null;
 
   const { error } = await supabase
     .from("prospects")
     .update({ concept_slug: conceptSlug || null })
-    .eq("id", leadId);
+    .eq("id", leadId)
+    .eq("org_id", HAMISHAI_ORG_ID);
   if (error) {
     console.error("Failed to update lead concept slug:", error);
   } else {
@@ -365,8 +421,19 @@ export async function updateClientStatus(clientId: string, status: string, reval
   const supabase = getSupabaseAdmin();
   if (!supabase) return;
 
-  const { data: previous } = await supabase.from("clients").select("status").eq("id", clientId).single();
-  const { error } = await supabase.from("clients").update({ status }).eq("id", clientId);
+  // Ownership check — getSupabaseAdmin() bypasses RLS, so this scoped
+  // SELECT (mirroring the "preceding scoped SELECT" pattern every /studio
+  // Server Action uses, see prospects/actions.ts's researchProspect()) is
+  // the only thing stopping /admin acting on another org's client by id.
+  const { data: previous } = await supabase
+    .from("clients")
+    .select("status")
+    .eq("id", clientId)
+    .eq("org_id", HAMISHAI_ORG_ID)
+    .single();
+  if (!previous) return;
+
+  const { error } = await supabase.from("clients").update({ status }).eq("id", clientId).eq("org_id", HAMISHAI_ORG_ID);
   if (error) {
     console.error("Failed to update client status:", error);
   } else {
@@ -394,8 +461,20 @@ export async function updateClientConceptSlug(clientId: string, revalidate: stri
   const supabase = getSupabaseAdmin();
   if (!supabase) return;
 
+  // Ownership check — see updateClientStatus's comment above. Not in the
+  // original P0 write-side list (which enumerated updateClientStatus but
+  // not this sibling action on the same table) — found while fixing the
+  // rest of this file's clients writes and fixed consistently with them;
+  // flagged in the handoff so it's reviewed alongside the rest.
+  const { data: client } = await supabase.from("clients").select("id").eq("id", clientId).eq("org_id", HAMISHAI_ORG_ID).single();
+  if (!client) return;
+
   const conceptSlug = String(formData.get("concept_slug") || "").trim();
-  const { error } = await supabase.from("clients").update({ concept_slug: conceptSlug || null }).eq("id", clientId);
+  const { error } = await supabase
+    .from("clients")
+    .update({ concept_slug: conceptSlug || null })
+    .eq("id", clientId)
+    .eq("org_id", HAMISHAI_ORG_ID);
   if (error) {
     console.error("Failed to update client concept slug:", error);
   } else {
@@ -416,13 +495,31 @@ export async function toggleAnalyticsEnabled(clientId: string, enabled: boolean,
   const supabase = getSupabaseAdmin();
   if (!supabase) return;
 
-  const { error } = await supabase.from("clients").update({ analytics_enabled: enabled }).eq("id", clientId);
+  // Ownership check — see updateClientStatus's comment above.
+  const { data: client } = await supabase.from("clients").select("id").eq("id", clientId).eq("org_id", HAMISHAI_ORG_ID).single();
+  if (!client) return;
+
+  const { error } = await supabase
+    .from("clients")
+    .update({ analytics_enabled: enabled })
+    .eq("id", clientId)
+    .eq("org_id", HAMISHAI_ORG_ID);
   if (error) console.error("Failed to toggle AI Business Analytics entitlement:", error);
 
   revalidatePath(revalidate);
 }
 
 export async function startSubscriptionAction(clientId: string, revalidate: string) {
+  // Ownership check — startSubscription() itself is shared with /studio
+  // (studio/(authed)/clients/actions.ts's startClientSubscription() does
+  // its own org check before calling it, same as researchLead()/
+  // draftSalesKit()), so this is the only thing stopping /admin from
+  // starting a real Stripe subscription against another org's client.
+  const supabase = getSupabaseAdmin();
+  if (!supabase) return;
+  const { data: client } = await supabase.from("clients").select("id").eq("id", clientId).eq("org_id", HAMISHAI_ORG_ID).single();
+  if (!client) return;
+
   const result = await startSubscription(clientId);
   if ("error" in result) {
     console.error("Failed to start subscription:", result.error);
@@ -440,6 +537,12 @@ export async function startSubscriptionAction(clientId: string, revalidate: stri
 }
 
 export async function cancelSubscriptionAction(clientId: string, revalidate: string) {
+  // Ownership check — see startSubscriptionAction's comment above.
+  const supabase = getSupabaseAdmin();
+  if (!supabase) return;
+  const { data: client } = await supabase.from("clients").select("id").eq("id", clientId).eq("org_id", HAMISHAI_ORG_ID).single();
+  if (!client) return;
+
   const result = await cancelSubscription(clientId);
   if ("error" in result) {
     console.error("Failed to cancel subscription:", result.error);
@@ -453,10 +556,18 @@ export async function updateMaintenanceRate(clientId: string, revalidate: string
   const supabase = getSupabaseAdmin();
   if (!supabase) return;
 
+  // Ownership check — see updateClientStatus's comment above.
+  const { data: client } = await supabase.from("clients").select("id").eq("id", clientId).eq("org_id", HAMISHAI_ORG_ID).single();
+  if (!client) return;
+
   const pounds = parseFloat(String(formData.get("maintenance_monthly") || ""));
   const pence = Number.isFinite(pounds) && pounds > 0 ? Math.round(pounds * 100) : null;
 
-  const { error } = await supabase.from("clients").update({ maintenance_monthly_pence: pence }).eq("id", clientId);
+  const { error } = await supabase
+    .from("clients")
+    .update({ maintenance_monthly_pence: pence })
+    .eq("id", clientId)
+    .eq("org_id", HAMISHAI_ORG_ID);
   if (error) {
     console.error("Failed to update maintenance rate:", error);
   } else {
@@ -503,6 +614,13 @@ export async function inviteClientMember(clientId: string, revalidate: string, f
   const supabase = getSupabaseAdmin();
   if (!supabase) return;
 
+  // Ownership check — see updateClientStatus's comment above. Checked
+  // before anything else in this function: this grants a real portal
+  // login, so a foreign-org clientId must never even reach the
+  // existingElsewhere lookup below.
+  const { data: client } = await supabase.from("clients").select("business_name").eq("id", clientId).eq("org_id", HAMISHAI_ORG_ID).single();
+  if (!client) return;
+
   const email = String(formData.get("email") || "").trim().toLowerCase();
   const role = String(formData.get("role") || "member") === "owner" ? "owner" : "member";
   if (!email) return;
@@ -533,8 +651,6 @@ export async function inviteClientMember(clientId: string, revalidate: string, f
     );
   }
 
-  const { data: client } = await supabase.from("clients").select("business_name").eq("id", clientId).single();
-
   const { error } = await supabase.from("client_members").insert({ client_id: clientId, email, role, invited_by: "admin" });
 
   if (error) {
@@ -557,7 +673,17 @@ export async function removeClientMember(memberId: string, revalidate: string) {
   const supabase = getSupabaseAdmin();
   if (!supabase) return;
 
-  const { data: member } = await supabase.from("client_members").select("client_id, email").eq("id", memberId).single();
+  // Ownership check — client_members has no org_id column of its own, only
+  // client_id, so this joins through clients (same clients!inner shape as
+  // studio/(authed)/clients/actions.ts's removeClientMemberAction()).
+  const { data: member } = await supabase
+    .from("client_members")
+    .select("client_id, email, clients!inner(org_id)")
+    .eq("id", memberId)
+    .eq("clients.org_id", HAMISHAI_ORG_ID)
+    .single();
+  if (!member) return;
+
   const { error } = await supabase.from("client_members").delete().eq("id", memberId);
   if (error) {
     console.error("Failed to remove client member:", error);
@@ -582,6 +708,17 @@ export async function generateLeadResearch(
   _prevState: ResearchState,
   _formData: FormData
 ): Promise<ResearchState> {
+  // Ownership check — researchLead() itself has no org concept at all (it's
+  // shared with /studio, whose own researchProspect() does its own org
+  // check before calling it — see prospects/actions.ts). This is what
+  // stops /admin from spending a real Anthropic call researching another
+  // org's prospect. See updateLeadStatus's comment above for why this
+  // scoped SELECT is the only protection here.
+  const supabase = getSupabaseAdmin();
+  if (!supabase) return { error: "Supabase is not configured." };
+  const { data: lead } = await supabase.from("prospects").select("id").eq("id", leadId).eq("org_id", HAMISHAI_ORG_ID).single();
+  if (!lead) return { error: "Lead not found." };
+
   const result = await researchLead(leadId);
   revalidatePath("/admin/leads");
   if ("error" in result) return { error: result.error };
@@ -600,6 +737,13 @@ export async function generateSalesKit(
   _prevState: SalesKitState,
   _formData: FormData
 ): Promise<SalesKitState> {
+  // Ownership check — see generateLeadResearch's comment above; draftSalesKit()
+  // is the same shared-with-/studio shape as researchLead().
+  const supabase = getSupabaseAdmin();
+  if (!supabase) return { error: "Supabase is not configured." };
+  const { data: lead } = await supabase.from("prospects").select("id").eq("id", leadId).eq("org_id", HAMISHAI_ORG_ID).single();
+  if (!lead) return { error: "Lead not found." };
+
   const result = await draftSalesKit(leadId);
   revalidatePath("/admin/leads");
   if ("error" in result) return { error: result.error };
@@ -623,10 +767,14 @@ export async function saveSalesKitEmailToGmail(
   const supabase = getSupabaseAdmin();
   if (!supabase) return { error: "Supabase is not configured." };
 
+  // Ownership check — reuses the existing "Lead not found" error rather
+  // than a distinct "wrong org" message, so a foreign-org id doesn't even
+  // confirm the row exists. See updateLeadStatus's comment above.
   const { data: lead, error: leadError } = await supabase
     .from("prospects")
     .select("email, sales_kit")
     .eq("id", leadId)
+    .eq("org_id", HAMISHAI_ORG_ID)
     .single();
   if (leadError || !lead) return { error: "Lead not found." };
 
@@ -657,7 +805,7 @@ export async function saveSalesKitEmailToGmail(
     return { email: lead.email, gmailError: created.error };
   }
 
-  await supabase.from("prospects").update({ pending_email_message_id: created.threadId }).eq("id", leadId);
+  await supabase.from("prospects").update({ pending_email_message_id: created.threadId }).eq("id", leadId).eq("org_id", HAMISHAI_ORG_ID);
   await logSaved(true);
   revalidatePath("/admin/leads");
   return { email: lead.email };
@@ -683,10 +831,14 @@ export async function scheduleLeadMeeting(
   const supabase = getSupabaseAdmin();
   if (!supabase) return { error: "Supabase is not configured." };
 
+  // Ownership check — see saveSalesKitEmailToGmail's comment above. This is
+  // the one that matters most here: without it, /admin could schedule a
+  // real Teams meeting with another org's real prospect.
   const { data: lead, error: leadError } = await supabase
     .from("prospects")
     .select("business_name, email")
     .eq("id", leadId)
+    .eq("org_id", HAMISHAI_ORG_ID)
     .single();
   if (leadError || !lead) return { error: "Lead not found." };
 

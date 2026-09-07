@@ -5,6 +5,7 @@ import { Users, Search, X } from "lucide-react";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { sendClientEmail } from "@/lib/send-client-email";
 import { logAuditEvent } from "@/lib/audit-log";
+import { HAMISHAI_ORG_ID } from "@/lib/org-membership";
 import { packages, analyticsPackage } from "@/lib/site-config";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -156,8 +157,11 @@ export default async function ClientsPage({
 }) {
   const { status: statusFilter, member_error: memberError, from_lead: fromLeadId, q: searchQuery } = await searchParams;
   const supabase = getSupabaseAdmin();
+  // Ownership check — scoped to HAMISHAI_ORG_ID, see docs/ai-team's P0
+  // /admin org-isolation fix. Without this, this query returned every
+  // org's clients, not just HamishAI's own.
   const { data: allClients, error: clientsError } = supabase
-    ? await supabase.from("clients").select("*").order("created_at", { ascending: false })
+    ? await supabase.from("clients").select("*").eq("org_id", HAMISHAI_ORG_ID).order("created_at", { ascending: false })
     : { data: [], error: null };
   if (clientsError) console.error("Failed to fetch clients:", clientsError);
 
@@ -165,12 +169,18 @@ export default async function ClientsPage({
   // instead of retyping it, per Phase 8 finding #2 in
   // docs/lily-golf-test-project.md. Still a real form the admin reviews
   // and submits, not a silent one-click conversion.
+  // Ownership check — also scoped to HAMISHAI_ORG_ID. Found while fixing
+  // this file's other clients read (not in the original P0 scoping list,
+  // which only named the clients list query above), but the same shape:
+  // without this, ?from_lead=<id> could pre-fill this form with another
+  // org's real prospect's business name/email/website/notes.
   const { data: fromLead } =
     fromLeadId && supabase
       ? await supabase
           .from("prospects")
           .select("business_name, email, website, concept_slug, notes")
           .eq("id", fromLeadId)
+          .eq("org_id", HAMISHAI_ORG_ID)
           .maybeSingle()
       : { data: null };
 

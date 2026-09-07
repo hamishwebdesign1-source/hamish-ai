@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, CalendarCheck, CircleHelp, Sparkles, Zap, RefreshCw } from "lucide-react";
 import { getSupabaseAdmin } from "@/lib/supabase";
+import { HAMISHAI_ORG_ID } from "@/lib/org-membership";
 import { updateTaskStatus, updateDraftResponse, regenerateAdminDraft } from "@/app/admin/actions";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
@@ -28,7 +29,12 @@ export default async function RequestDetailPage({ params }: { params: Promise<{ 
   const supabase = getSupabaseAdmin();
   if (!supabase) notFound();
 
-  const { data: req } = await supabase.from("requests").select("*").eq("id", id).single();
+  // Ownership check — scoped to HAMISHAI_ORG_ID, same treatment as
+  // leads/[id] and clients/[id], reusing the existing notFound() path.
+  // Live data shows 0 non-internal rows here today, but fixed for
+  // consistency/future-proofing rather than only patching what's currently
+  // populated (see docs/ai-team's P0 /admin org-isolation fix).
+  const { data: req } = await supabase.from("requests").select("*").eq("id", id).eq("org_id", HAMISHAI_ORG_ID).single();
   if (!req) notFound();
 
   const [{ data: client }, { data: tasks }] = await Promise.all([

@@ -21,6 +21,7 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { getSupabaseAdmin } from "@/lib/supabase";
+import { HAMISHAI_ORG_ID } from "@/lib/org-membership";
 import {
   updateLeadStatus,
   deleteLead,
@@ -98,7 +99,10 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
   if (!supabase) notFound();
 
   const [{ data: lead }, { data: auditRows }, { data: meetingRows }, { data: researchJobRows }] = await Promise.all([
-    supabase.from("prospects").select("*").eq("id", id).single(),
+    // Ownership check — scoped to HAMISHAI_ORG_ID so a foreign-org lead id
+    // 404s the same way an unknown id already did, reusing the existing
+    // `if (!lead) notFound()` below rather than a new error path.
+    supabase.from("prospects").select("*").eq("id", id).eq("org_id", HAMISHAI_ORG_ID).single(),
     supabase
       .from("audit_log")
       .select("id, action, created_at, metadata")
