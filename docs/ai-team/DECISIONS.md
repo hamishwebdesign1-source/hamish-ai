@@ -8,6 +8,90 @@ just at product-decision scope instead of line scope.
 
 ---
 
+## 2026-09-06 — Public documentation launch: one `/help` page, not a docs site; hosting in-app confirmed, no escalation needed
+
+**Context**: orchestrator dispatched a mission to scope all public,
+customer-facing documentation needed to launch the Agency Platform, with
+its own audit already done (terms/privacy solid and unchanged; 24-entry
+`STUDIO_FAQS` real and good but authenticated-only; zero public docs
+surface exists) and a leaning toward in-app hosting under `(site)/`. This
+Product Director's job was to sanity-check that audit and scope the actual
+page set, not rubber-stamp it.
+
+**Audit re-verified, confirmed correct.** Re-read `terms/page.tsx` and
+`privacy/page.tsx` directly — both real, accurate, already cover the
+Agency Platform + portal explicitly, no gap. Confirmed via a full
+directory listing of `src/app/(site)/*` that no `/docs` or `/help` route
+exists. Confirmed the homepage's own `platformFaqs` (`(site)/page.tsx`,
+`#faq` section) is a *different*, much smaller thing — 2 sales-objection-
+handling entries ("isn't this just ChatGPT," "is this live yet"), not
+overlapping with `STUDIO_FAQS`'s 24 how-to entries — so republishing
+`STUDIO_FAQS` publicly is additive, not duplicative.
+
+**Hosting decision — in-app under `(site)/`, confirmed, not escalated.**
+Checked this specifically against `docs/ai-team/README.md`'s approval-
+boundary list (the one place "genuinely early-stage, no docs-tooling
+budget or precedent anywhere in this codebase" could turn into a real
+escalation requirement): none of the seven triggers apply — no new data
+model, no billing change, no new tenancy boundary, no destructive
+migration, and critically no ongoing infrastructure cost, since hosting
+in the existing Next.js app on the existing Vercel pipeline is genuinely
+free (the alternative — Mintlify/GitBook/Docusaurus/a docs subdomain —
+*would* trip the "ongoing infrastructure cost" trigger and require
+Hamish's sign-off; that's a real reason to prefer in-app beyond just
+"less work," not only that). This is a "create/update documentation"-class
+safe autonomous action.
+
+**Scope decision — one `/help` page, not a docs site.** Rejected splitting
+into a getting-started page + a separate FAQ page + per-category pages:
+24 FAQ entries plus a short getting-started list plus two legal links is
+genuinely one page's worth of content, and `HelpFaqList` already ships
+built-in client-side search — the exact thing that would otherwise justify
+real docs-site search infrastructure. Studio's own in-app `/studio/help`
+already sets this precedent in this same codebase (tour restart + FAQ list
++ feedback form, all one page, not three routes) — matched, not
+reinvented. Naming: `/help`, not `/docs` — matches the existing in-app
+naming (`/studio/help`, `/portal/help`) rather than introducing a third
+term, and "docs" over-promises reference/API-documentation depth this
+product doesn't have (confirmed no public API/webhook surface exists
+beyond internal Stripe webhook consumption, per `docs/ARCHITECTURE.md`).
+
+**Explicitly rejected as premature for this launch** (not oversights —
+argued against): a public changelog (this product's real commit cadence
+includes plenty of same-day bug-fix-on-bug-fix churn; a customer-facing
+changelog at this stage would either need heavy editorial curation work
+with no clear owner, or would read as less stable than the product
+actually is), a status page (no uptime SLA exists to report against, and
+there's no incident history to disclose — publishing one now would be
+performing reliability infrastructure the product doesn't have a real
+process behind yet), a full docs platform with versioning/search
+(real recurring cost, second deploy pipeline, unjustified content volume),
+and a "Trust Center"/security page (already fully covered inside
+`/privacy`'s existing named-sub-processor and RLS disclosure — a second
+page repeating it would be duplication dressed as more documentation).
+
+**Content decision — republish `STUDIO_FAQS` verbatim, not reworded.**
+Considered whether entries referencing in-app navigation ("Settings >
+Prospecting," "use Send proposal from Prospects") need pre-signup-safe
+rewording. Concluded no: every entry is already written as instructional
+documentation ("do X in page Y"), which reads correctly to both a
+prospect evaluating the product (as "here's a real feature and where it
+lives") and a new signup (as literal how-to guidance) — rewording would
+add editorial risk (a second, drifting copy of already-good content) for
+no real clarity gain. One shared source (`STUDIO_FAQS`), rendered in two
+places (in-app, and now public), stays consistent with this codebase's own
+established "don't duplicate content that can drift" precedent (the exact
+reason `STUDIO_FAQS` was already extracted out of `help/page.tsx` into its
+own module for the AI assistant to share).
+
+**Outcome**: scoped as a single Ready `BACKLOG.md` entry ("Public `/help`
+page — pre-signup/new-signup documentation for the Agency Platform"),
+handed to Lead Engineer next. No outreach/solicitation concern — this is
+passive, inbound documentation, not active selling, consistent with
+`PRODUCT.md`'s no-outreach-before-2026-11-09 constraint.
+
+---
+
 ## 2026-09-03 — Phase C1 Deliverables: a new `/portal/projects/[id]` page, not an inline expansion; per-deliverable "states" are mostly not real yet
 
 **Context**: Phase C1's own backlog entry left two things open —
