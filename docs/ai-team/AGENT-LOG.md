@@ -284,3 +284,46 @@ now shows "Trial · 3403 days left", `/studio/prospects` loads with no
 billing-required blocker and "Find prospects now" enabled. No code
 changed, so no tsc/eslint/vitest/build ritual applies here — the only
 verification is the live DB row and the live authenticated page.
+
+## 2026-09-07 — Fixed research-lead.ts hardcoding £ (GBP) for every prospect regardless of location
+
+Hamish reported directly, with a screenshot: searching Prospects for
+"New York" returned one result, "Laundry Queen" (a real Brooklyn
+laundromat), priced at "£1,500-£3,000" — pounds for a US business.
+Investigated rather than assuming: `research-lead.ts`'s
+`estimated_project_value_band` enum had the £ symbol hardcoded into
+every value, no currency concept at all — this pipeline was originally
+built only for HamishAI's own Edinburgh-based leads and never updated
+for Studio's per-org, any-location search. Fixed by adding a `currency`
+field (GBP/USD/EUR) the model derives from the business's real location,
+making the band itself currency-neutral and combining the two at
+render time. Backward compatible with existing cached research (no
+migration) via a normalization helper that strips any baked-in symbol
+before every lookup.
+
+Caught a real regression while fixing it: putting the new formatting
+helper in research-lead.ts itself broke `npm run build` (Turbopack
+couldn't bundle its server-only `node:tls` dependency into a `"use
+client"` component that imported it) — moved the pure helpers into a
+new `src/lib/value-band.ts`. tsc and vitest were both clean and didn't
+catch this; only the build step did.
+
+Live-verified end to end: re-ran research on the actual "Laundry Queen"
+prospect in the real Edinburgh Solutions account after deploying —
+confirmed via direct DB read (`currency: "USD"`,
+`estimated_project_value_band: "1,500-3,000"`) and on the live Prospects
+page (`$1,500-$3,000`), with every other existing GBP prospect on the
+same page still rendering correctly with `£`. Committed `42d8f5f`,
+pushed. `npx tsc --noEmit`, `npx eslint`, full `vitest` suite
+(467/467), and `npm run build` all green.
+
+Logged a related but separately-scoped issue found along the way —
+research-lead.ts's system prompt still hardcodes "Hamish AI, Edinburgh-
+based" for every tenant, not just the currency band — as its own
+"Not started" `BACKLOG.md` item rather than folding it into this fix.
+Also gave an honest, evidence-based answer on the other half of what
+was reported (only 1 result for "New York"): the search brief
+deliberately only surfaces weak/no-web-presence businesses, so a low
+yield in a saturated market like NYC is plausibly by design, not a bug
+— flagged as worth watching across more searches rather than treated
+as confirmed either way on one data point.

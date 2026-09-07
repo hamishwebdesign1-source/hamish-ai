@@ -1435,6 +1435,40 @@ _(none yet)_
 
 ## Not started
 
+### research-lead.ts's system prompt hardcodes "Hamish AI, a small Edinburgh-based AI/web consultancy" for every tenant
+
+- **Problem**: found while fixing the £-currency bug (see "Complete" section
+  below) — `buildSystemPrompt()` in `research-lead.ts` opens with `"You are
+  researching a small business as a lead-qualification step for Hamish AI,
+  a small Edinburgh-based AI/web consultancy"`, a fixed string, not a
+  parameter. `searchCandidates()` in `discover-leads.ts` already takes and
+  uses a real `orgName` at the exact same kind of call site — this file
+  never got the same treatment. Every Studio tenant's own research (not
+  just HamishAI's internal pipeline) is framed as if it were HamishAI
+  doing the researching. The currency fix works around the most visible
+  symptom (an explicit `currency` field, correctly reasoned from
+  `lead.neighbourhood` regardless of this framing) but the framing itself
+  is still wrong for any non-internal org.
+- **Objective**: thread the calling org's own name (and drop "Edinburgh-
+  based") into `buildSystemPrompt()`, the same way `searchCandidates()`
+  already does — default to "Hamish AI, a small Edinburgh-based AI/web
+  consultancy" only for callers with no org context (`/admin`,
+  `deep-research-pipeline.ts`'s background jobs, `discover-leads.ts`'s own
+  `researchLead()` call inside `insertCandidates()` when running for the
+  internal org).
+- **Priority**: P2 — real, but lower visible severity than the currency
+  bug (doesn't produce an obviously-wrong number on screen the way £ for a
+  US business did); worth a deliberate pass rather than folding into
+  another fix.
+- **Scope note**: touches `research-lead.ts` (`researchLead()`'s
+  signature), `discover-leads.ts` (`insertCandidates()` already has
+  `org.name` in scope at both call sites), `prospects/actions.ts`'s
+  `researchProspect()` (currently only fetches `orgId` for the ownership
+  check, would need `org.name` too), and `deep-research-pipeline.ts`'s
+  background job. Not a one-file fix.
+- **Relevant agent**: Lead Engineer.
+- **Status**: Not started.
+
 ### Build `StudioEmptyState` and `ConfirmDeleteButton` shared primitives, retrofit existing sites
 
 - **Problem**: Studio Design Audit Phase 1 (Lead Engineer) found the
@@ -1689,6 +1723,68 @@ _(none yet)_
 - **Status**: Complete
 
 ## Complete
+
+### `estimated_project_value_band` hardcoded to GBP (£) for every prospect, regardless of location
+
+Closed 2026-09-07 (`42d8f5f`) — reported directly: Hamish searched
+Prospects for "New York" and the one result, "Laundry Queen" (a real
+Brooklyn laundromat), came back scored with an estimated project value of
+"£1,500-£3,000" — pounds sterling for a US business. Root cause:
+`research-lead.ts`'s `RESEARCH_TOOL` schema had the £ symbol baked
+directly into the `estimated_project_value_band` enum values, with no
+currency concept at all — an artifact of this pipeline originally only
+ever running for HamishAI's own Edinburgh-based leads, never updated when
+Studio's per-org/per-location search shipped. Fix: added a `currency`
+field (`GBP`/`USD`/`EUR`) the model picks based on the business's real
+location (already in the prompt via `lead.neighbourhood`);
+`estimated_project_value_band` is now currency-neutral, combined with
+`currency` at render time via a new `formatValueBand()` helper.
+
+Backward-compatible with existing cached research, no migration: legacy
+rows have the £ baked into the band string and no `currency` field at
+all — `normalizeValueBand()` strips any currency symbol before every
+lookup (`VALUE_BAND_SCORE`, admin's `VALUE_BAND_MIDPOINT`, `isHighValue()`),
+so old and new rows resolve identically, and `formatValueBand()` defaults
+to GBP when `currency` is absent, which is correct for that legacy data.
+
+Caught a second, real bug while fixing this: `formatValueBand()` was
+first added to `research-lead.ts` itself, which broke `npm run build`
+(Turbopack: "the chunking context does not support external modules
+(request: node:tls)") the moment a `"use client"` component
+(`research-lead-button.tsx`, `research-summary.tsx`) imported it —
+research-lead.ts is server-only (SSL checks via `node:tls`, the Anthropic
+SDK), and importing a *value* (not just the `LeadResearch` type) from it
+pulls that server-only code into the client bundle. Fixed by moving the
+pure formatting helpers into a new `src/lib/value-band.ts` with zero
+server-only imports. Caught by `npm run build` specifically — tsc and
+vitest were both clean first, neither actually bundles for the browser.
+
+Live-verified end to end, not just unit-level: re-ran research on the
+real "Laundry Queen" prospect in the real Edinburgh Solutions account
+after deploying — confirmed the DB row now stores
+`estimated_project_value_band: "1,500-3,000"` / `currency: "USD"`, and
+the Prospects page renders it as `$1,500-$3,000`, while every other
+existing (legacy, GBP) prospect on the same page still renders correctly
+with `£`. `npx tsc --noEmit`, `npx eslint` (all changed files), full
+`vitest` suite (467/467), and `npm run build` all green.
+
+Related, deliberately not folded into this fix: `research-lead.ts`'s
+system prompt still hardcodes "Hamish AI, a small Edinburgh-based AI/web
+consultancy" for every caller regardless of which org is actually
+running the research — logged as its own "Not started" item above, wider
+scope (touches 4 files, not 1).
+
+Separately, honest note on the *other* half of what was reported (only 1
+result for "New York"): checked `searchCandidates()`'s own brief — it
+deliberately only surfaces businesses with no website or a very weak one,
+and explicitly tells the model to submit fewer (including zero) rather
+than pad the list with businesses that already have a decent web
+presence. For a market as saturated as New York City, a low yield is
+very plausibly the tool doing exactly what it's designed to do, not a
+search-quality bug — genuinely underserved businesses are rarer there
+than in a small town. Not dismissed, just distinct from the currency bug
+and not enough evidence yet (one search) to conclude it needs a fix;
+worth watching across more real searches before treating it as one.
 
 ### One-click "Send payment reminder" on Command Centre's Engagement Risk card, for rows with a real overdue invoice
 
