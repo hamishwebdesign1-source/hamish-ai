@@ -242,6 +242,22 @@ export async function researchProspect(prospectId: string) {
     .single();
   if (prospectError || !prospect) return { error: "Prospect not found." };
 
+  // Same org lookup + sender-building pattern generateSalesKit() already
+  // uses below — researchLead() has no org concept of its own, so without
+  // this a tenant's re-research of their own prospect was silently framed
+  // as Hamish AI researching it, and RESEARCH_TOOL's recommended_services
+  // field description independently skewed toward Hamish's own service
+  // catalogue too (Prospect-generation pipeline audit, 2026-09-07).
+  const { data: org } = await admin.from("organisations").select("name, is_internal, prospecting_config").eq("id", orgId).single();
+  const sender =
+    org && !org.is_internal
+      ? {
+          name: org.name,
+          isInternal: false,
+          agencyType: findAgencyType((org.prospecting_config as { agencyType?: string } | null)?.agencyType),
+        }
+      : { name: "Hamish AI", isInternal: true };
+
   // Studio big-ticket ("Model Performance completeness") — timed around
   // the whole call rather than threaded deep into researchLead() itself
   // (shared with /admin, which has no org concept at all to log
@@ -249,7 +265,7 @@ export async function researchProspect(prospectId: string) {
   // below apply. "success" is the same shape check the caller already
   // uses to decide whether usage quota was actually spent.
   const startedAt = Date.now();
-  const result = await researchLead(prospectId);
+  const result = await researchLead(prospectId, sender);
   logAiCall(orgId, "prospect_research", { success: "research" in result, latencyMs: Date.now() - startedAt });
   revalidatePath("/studio/prospects");
   return result;

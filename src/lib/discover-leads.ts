@@ -5,6 +5,8 @@ import { researchLead } from "@/lib/research-lead";
 import { logAuditEvent } from "@/lib/audit-log";
 import { getUsageStatus, recordUsageEvent } from "@/lib/usage-limits";
 import type { PlatformPlanSlug } from "@/lib/platform-plans";
+import { findAgencyType } from "@/lib/agency-types";
+import type { SalesKitSender } from "@/lib/draft-sales-kit";
 
 // Larger Feature #10 from docs/leads-automation-plan.md — automates what
 // currently happens by hand in a weekly Claude chat session: targeted
@@ -283,10 +285,14 @@ Never invent a business, a website, or a phone number. If you can't confirm a de
 // monthly plan allowance before spending a purchased credit instead —
 // the caller computes this from its own running total, not from a
 // number this function tracks itself.
+// sender carries isInternal itself (Prospect-generation pipeline audit,
+// 2026-09-07) — a separate isInternal param alongside it would just be a
+// second, redundant way to express the same fact this function already
+// needs for researchLead()'s own tenant-aware framing.
 async function insertCandidates(
   supabase: SupabaseClient,
   orgId: string,
-  isInternal: boolean,
+  sender: SalesKitSender,
   candidates: Candidate[],
   category: string | null,
   area: string,
@@ -340,7 +346,7 @@ async function insertCandidates(
       continue;
     }
 
-    if (!isInternal) {
+    if (!sender.isInternal) {
       // inserted.length here is this batch's own count *before* this
       // candidate is pushed below — the caller already accounted for
       // any earlier batches in the monthlyRemainingFromHere it passed in.
@@ -365,7 +371,7 @@ async function insertCandidates(
     // own comment on why "no website at all" is the strongest possible
     // finding, not a skip condition).
     try {
-      await researchLead(lead.id);
+      await researchLead(lead.id, sender);
     } catch (error) {
       console.error(`Post-discovery research failed for lead ${lead.id}:`, error);
     }
@@ -423,6 +429,15 @@ export async function discoverLeads(orgId: string): Promise<DiscoverLeadsResult>
     return { error: "Organisation not found." as const };
   }
   const config = (org.prospecting_config ?? {}) as { categories?: string[]; areas?: string[] };
+
+  // Who researchLead()'s own AI calls are performed "on behalf of" — same
+  // isInternal/agencyType lookup generateSalesKit() (prospects/actions.ts)
+  // already uses, so a tenant's own discovered leads get research framed
+  // around their own agency and service catalogue rather than Hamish's
+  // (Prospect-generation pipeline audit, 2026-09-07).
+  const sender: SalesKitSender = org.is_internal
+    ? { name: "Hamish AI", isInternal: true }
+    : { name: org.name, isInternal: false, agencyType: findAgencyType((org.prospecting_config as { agencyType?: string } | null)?.agencyType) };
 
   // DEFAULT_CATEGORIES/DEFAULT_AREAS are HamishAI's own Central Belt
   // Scotland rotation, not a generic placeholder — falling back to them
@@ -527,7 +542,7 @@ export async function discoverLeads(orgId: string): Promise<DiscoverLeadsResult>
     const result = await insertCandidates(
       supabase,
       orgId,
-      org.is_internal,
+      sender,
       candidates,
       category,
       area,
@@ -576,13 +591,21 @@ export async function searchProspectsNow(orgId: string, location: string, catego
 
   const { data: org, error: orgError } = await supabase
     .from("organisations")
-    .select("name, is_internal, plan, subscription_status, trial_ends_at, purchased_prospect_credits")
+    .select("name, is_internal, plan, subscription_status, trial_ends_at, purchased_prospect_credits, prospecting_config")
     .eq("id", orgId)
     .single();
   if (orgError || !org) {
     console.error("Failed to load organisation for on-demand prospect search:", orgError);
     return { error: "Organisation not found." as const };
   }
+
+  // Same sender resolution as discoverLeads() — see that function's own
+  // comment. This function previously didn't select prospecting_config at
+  // all, so a tenant's on-demand search always got researchLead()'s
+  // internal default (Prospect-generation pipeline audit, 2026-09-07).
+  const sender: SalesKitSender = org.is_internal
+    ? { name: "Hamish AI", isInternal: true }
+    : { name: org.name, isInternal: false, agencyType: findAgencyType((org.prospecting_config as { agencyType?: string } | null)?.agencyType) };
 
   // Same billing/usage rules as discoverLeads() — see that function's
   // own comments for why each of these checks exists and in this order.
@@ -642,7 +665,7 @@ export async function searchProspectsNow(orgId: string, location: string, catego
   const result = await insertCandidates(
     supabase,
     orgId,
-    org.is_internal,
+    sender,
     candidates,
     trimmedCategory,
     trimmedLocation,

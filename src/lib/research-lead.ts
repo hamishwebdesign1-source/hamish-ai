@@ -3,6 +3,14 @@ import { getSupabaseAdmin } from "@/lib/supabase";
 import { getSslInfo } from "@/lib/site-monitor";
 import { logAuditEvent } from "@/lib/audit-log";
 import { VALUE_BAND_SCORE, normalizeValueBand } from "@/lib/value-band";
+// Reused rather than redefined — draft-sales-kit.ts's buildSystemPrompt()
+// already solves this exact internal/tenant/generic identity problem for
+// its own prompt (see its own comment on SalesKitSender); this file mirrors
+// that same 3-branch logic rather than inventing a second, parallel type.
+// Type-only import — erased at compile time, so this doesn't create a real
+// runtime circular dependency with draft-sales-kit.ts's own
+// `import type { LeadResearch } from "@/lib/research-lead"`.
+import type { SalesKitSender } from "@/lib/draft-sales-kit";
 
 // High Impact #6/#7 from docs/leads-automation-plan.md — replaces the old
 // hand-typed signal/outreach_note process with one cached research pass:
@@ -265,57 +273,86 @@ export function computeScoreBreakdown(siteCheck: SiteCheck | null, research: Omi
   return { fit, need, value, confidence, overall };
 }
 
-const RESEARCH_TOOL: Anthropic.Tool = {
-  name: "submit_lead_research",
-  description: "Submit the researched findings for this business.",
-  input_schema: {
-    type: "object",
-    properties: {
-      business_summary: { type: "string", description: "1-2 plain sentences on what the business does." },
-      services: { type: "array", items: { type: "string" }, description: "Services/products offered, from the page text." },
-      strengths: { type: "array", items: { type: "string" }, description: "What the current site/business does well." },
-      weaknesses: { type: "array", items: { type: "string" }, description: "Concrete, specific problems found." },
-      seo_observations: { type: "array", items: { type: "string" } },
-      missing_trust_signals: { type: "array", items: { type: "string" }, description: "e.g. no reviews shown, no address, no accreditation badges." },
-      missing_conversion_opportunities: { type: "array", items: { type: "string" }, description: "e.g. no booking form, no clear call-to-action." },
-      ai_opportunities: { type: "array", items: { type: "string" }, description: "Concrete ways an AI assistant/automation could help this specific business." },
-      recommended_services: { type: "array", items: { type: "string" }, description: "Which Hamish AI service(s) fit best (redesign, AI chat assistant, booking system, etc.)." },
-      suggested_sales_angle: { type: "string", description: "The single strongest, most specific opening line for outreach." },
-      estimated_project_value_band: {
-        type: "string",
-        enum: ["500-1,500", "1,500-3,000", "3,000-6,000", "6,000+"],
-        description:
-          "Rough band only, for internal prioritisation - never to be stated to the prospect. Currency-neutral (see the separate currency field) - just the size of the number.",
+// The one field in this schema whose *description* text — not just the
+// surrounding prompt — independently hardcoded "Hamish AI" (Prospect-
+// generation pipeline audit, 2026-09-07). Live testing confirmed this
+// field's own wording measurably skewed recommended_services toward
+// Hamish's own service catalogue even when buildSystemPrompt() correctly
+// named a different tenant. Same 3-branch shape as identityForResearch()
+// below, but describing *services offered*, not *who's researching*.
+// Exported for research-lead.test.ts — the exact wording of each branch is
+// the load-bearing behaviour this fix is about, worth testing directly
+// rather than only indirectly through a full researchLead() call.
+export function recommendedServicesDescription(sender: SalesKitSender): string {
+  if (sender.isInternal) {
+    // Verbatim, unchanged — this is the one branch that must never
+    // regress HamishAI's own, already-correct wording.
+    return "Which Hamish AI service(s) fit best (redesign, AI chat assistant, booking system, etc.).";
+  }
+  if (sender.agencyType) {
+    return `Which of ${sender.name}'s own typical services (${sender.agencyType.services.join(", ")}) fit best for this business — or another concrete service this agency could plausibly add.`;
+  }
+  return "Which service(s) this researching agency could plausibly offer this business to address what was found — don't assume any specific service catalogue.";
+}
+
+// Turned from a module-level const into a function so recommended_services'
+// description can be genuinely dynamic (see recommendedServicesDescription
+// above) — every other field/description and the `required` list below is
+// byte-identical to the old RESEARCH_TOOL constant.
+// Exported for research-lead.test.ts.
+export function buildResearchTool(sender: SalesKitSender): Anthropic.Tool {
+  return {
+    name: "submit_lead_research",
+    description: "Submit the researched findings for this business.",
+    input_schema: {
+      type: "object",
+      properties: {
+        business_summary: { type: "string", description: "1-2 plain sentences on what the business does." },
+        services: { type: "array", items: { type: "string" }, description: "Services/products offered, from the page text." },
+        strengths: { type: "array", items: { type: "string" }, description: "What the current site/business does well." },
+        weaknesses: { type: "array", items: { type: "string" }, description: "Concrete, specific problems found." },
+        seo_observations: { type: "array", items: { type: "string" } },
+        missing_trust_signals: { type: "array", items: { type: "string" }, description: "e.g. no reviews shown, no address, no accreditation badges." },
+        missing_conversion_opportunities: { type: "array", items: { type: "string" }, description: "e.g. no booking form, no clear call-to-action." },
+        ai_opportunities: { type: "array", items: { type: "string" }, description: "Concrete ways an AI assistant/automation could help this specific business." },
+        recommended_services: { type: "array", items: { type: "string" }, description: recommendedServicesDescription(sender) },
+        suggested_sales_angle: { type: "string", description: "The single strongest, most specific opening line for outreach." },
+        estimated_project_value_band: {
+          type: "string",
+          enum: ["500-1,500", "1,500-3,000", "3,000-6,000", "6,000+"],
+          description:
+            "Rough band only, for internal prioritisation - never to be stated to the prospect. Currency-neutral (see the separate currency field) - just the size of the number.",
+        },
+        currency: {
+          type: "string",
+          enum: ["GBP", "USD", "EUR"],
+          description:
+            "The currency this business's own market actually prices in, based on where it real-world operates (e.g. USD for a US business, EUR for a eurozone one) - not always GBP just because the researching consultancy is UK-based.",
+        },
+        conversion_probability_band: { type: "string", enum: ["low", "medium", "high"] },
+        ai_opportunity_fit: { type: "string", enum: ["low", "medium", "high"], description: "How well an AI-assistant pitch specifically fits this business." },
+        pursue_because: { type: "string", description: "One sentence: 'This business is likely worth pursuing because...'" },
       },
-      currency: {
-        type: "string",
-        enum: ["GBP", "USD", "EUR"],
-        description:
-          "The currency this business's own market actually prices in, based on where it real-world operates (e.g. USD for a US business, EUR for a eurozone one) - not always GBP just because the researching consultancy is UK-based.",
-      },
-      conversion_probability_band: { type: "string", enum: ["low", "medium", "high"] },
-      ai_opportunity_fit: { type: "string", enum: ["low", "medium", "high"], description: "How well an AI-assistant pitch specifically fits this business." },
-      pursue_because: { type: "string", description: "One sentence: 'This business is likely worth pursuing because...'" },
+      required: [
+        "business_summary",
+        "services",
+        "strengths",
+        "weaknesses",
+        "seo_observations",
+        "missing_trust_signals",
+        "missing_conversion_opportunities",
+        "ai_opportunities",
+        "recommended_services",
+        "suggested_sales_angle",
+        "estimated_project_value_band",
+        "currency",
+        "conversion_probability_band",
+        "ai_opportunity_fit",
+        "pursue_because",
+      ],
     },
-    required: [
-      "business_summary",
-      "services",
-      "strengths",
-      "weaknesses",
-      "seo_observations",
-      "missing_trust_signals",
-      "missing_conversion_opportunities",
-      "ai_opportunities",
-      "recommended_services",
-      "suggested_sales_angle",
-      "estimated_project_value_band",
-      "currency",
-      "conversion_probability_band",
-      "ai_opportunity_fit",
-      "pursue_because",
-    ],
-  },
-};
+  };
+}
 
 // Deep research pipeline Phase 1 — sales_strategy/concept_page_analysis
 // were originally one combined call (then one call with two nested
@@ -377,14 +414,31 @@ const CONCEPT_PAGE_ANALYSIS_TOOL: Anthropic.Tool = {
   },
 };
 
-function buildSystemPrompt(lead: {
+// Same 3-branch identity logic as draft-sales-kit.ts's own `identity` local
+// (isInternal / agencyType / generic fallback), reshaped to read as a noun
+// phrase ("for X") rather than a full "as Hamish, who runs..." clause,
+// since that's the grammatical role the sentence in both prompts below
+// needs it to play. The isInternal branch is verbatim the old hardcoded
+// string, so HamishAI's own prompts stay byte-identical to before this
+// change.
+// Exported for research-lead.test.ts.
+export function identityForResearch(sender: SalesKitSender): string {
+  if (sender.isInternal) return "Hamish AI, a small Edinburgh-based AI/web consultancy";
+  if (sender.agencyType) {
+    return `${sender.name}, a ${sender.agencyType.name} agency — ${sender.agencyType.description} Their typical services: ${sender.agencyType.services.join(", ")}`;
+  }
+  return `${sender.name}, an AI/web consultancy that fixes concrete website/automation problems for small businesses`;
+}
+
+// Exported for research-lead.test.ts.
+export function buildSystemPrompt(lead: {
   business_name: string;
   category: string | null;
   neighbourhood: string | null;
   signal: string | null;
   outreach_note: string | null;
-}, siteCheck: SiteCheck | null, visibleText: string) {
-  return `You are researching a small business as a lead-qualification step for Hamish AI, a small Edinburgh-based AI/web consultancy. Everything you produce is for INTERNAL prioritisation only — estimated figures must never be treated as fact or quoted to the business itself; only concrete, sourced observations belong in actual outreach copy.
+}, siteCheck: SiteCheck | null, visibleText: string, sender: SalesKitSender) {
+  return `You are researching a small business as a lead-qualification step for ${identityForResearch(sender)}. Everything you produce is for INTERNAL prioritisation only — estimated figures must never be treated as fact or quoted to the business itself; only concrete, sourced observations belong in actual outreach copy.
 
 Business: ${lead.business_name} (${lead.category || "unknown category"}, ${lead.neighbourhood || "unknown location"})
 ${lead.signal ? `Previously recorded signal: ${lead.signal}` : ""}
@@ -418,9 +472,10 @@ function buildConceptAnalysisPrompt(
   lead: { business_name: string; category: string | null; neighbourhood: string | null },
   baseFindings: Pick<LeadResearch, "weaknesses" | "ai_opportunities" | "suggested_sales_angle" | "pursue_because">,
   conceptPageText: string,
-  conceptSlug: string
+  conceptSlug: string,
+  sender: SalesKitSender
 ) {
-  return `You are building a meeting-ready sales strategy for Hamish AI, a small Edinburgh-based AI/web consultancy, for one specific lead. Everything you produce is for INTERNAL prioritisation only.
+  return `You are building a meeting-ready sales strategy for ${identityForResearch(sender)}, for one specific lead. Everything you produce is for INTERNAL prioritisation only.
 
 Business: ${lead.business_name} (${lead.category || "unknown category"}, ${lead.neighbourhood || "unknown location"})
 
@@ -504,9 +559,10 @@ async function analyzeConceptPageFit(
   lead: { business_name: string; category: string | null; neighbourhood: string | null },
   baseFindings: Pick<LeadResearch, "weaknesses" | "ai_opportunities" | "suggested_sales_angle" | "pursue_because">,
   conceptPageText: string,
-  conceptSlug: string
+  conceptSlug: string,
+  sender: SalesKitSender
 ): Promise<Pick<LeadResearch, "sales_strategy" | "concept_page_analysis">> {
-  const system = buildConceptAnalysisPrompt(lead, baseFindings, conceptPageText, conceptSlug);
+  const system = buildConceptAnalysisPrompt(lead, baseFindings, conceptPageText, conceptSlug, sender);
 
   const [salesStrategy, conceptPageAnalysis] = await Promise.all([
     callToolWithRetry<SalesStrategy>(
@@ -586,7 +642,12 @@ function sanitizeConceptPageAnalysis(raw: ConceptPageAnalysis | undefined): Conc
   return filledCount >= 3 ? sanitized : undefined;
 }
 
-export async function researchLead(leadId: string) {
+// sender defaults to HamishAI's own internal identity — the two remaining
+// genuinely internal-only callers (admin/actions.ts, deep-research-
+// pipeline.ts) rely on this default rather than passing one explicitly;
+// every other caller resolves a real sender from the org performing the
+// research (see discover-leads.ts / prospects/actions.ts).
+export async function researchLead(leadId: string, sender: SalesKitSender = { name: "Hamish AI", isInternal: true }) {
   const supabase = getSupabaseAdmin();
   if (!supabase) return { error: "Supabase is not configured." as const };
 
@@ -623,8 +684,8 @@ export async function researchLead(leadId: string) {
     const response = await anthropic.messages.create({
       model,
       max_tokens: 1200,
-      system: buildSystemPrompt(lead, siteCheck, visibleText),
-      tools: [RESEARCH_TOOL],
+      system: buildSystemPrompt(lead, siteCheck, visibleText, sender),
+      tools: [buildResearchTool(sender)],
       tool_choice: { type: "tool", name: "submit_lead_research" },
       messages: [{ role: "user", content: "Research this business and submit your findings." }],
     });
@@ -640,7 +701,7 @@ export async function researchLead(leadId: string) {
     // than folded into one bigger call. Best-effort: either or both
     // failing still leaves a complete, useful base research result saved.
     if (conceptPageText && lead.concept_slug) {
-      const conceptAnalysis = await analyzeConceptPageFit(anthropic, model, lead, findings, conceptPageText, lead.concept_slug);
+      const conceptAnalysis = await analyzeConceptPageFit(anthropic, model, lead, findings, conceptPageText, lead.concept_slug, sender);
       const salesStrategy = sanitizeSalesStrategy(conceptAnalysis.sales_strategy);
       const conceptPageAnalysis = sanitizeConceptPageAnalysis(conceptAnalysis.concept_page_analysis);
       research = {
