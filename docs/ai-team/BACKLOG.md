@@ -3316,24 +3316,37 @@ isolated to `/admin/leads`, and it is not read-only.
   it's considered closed.
 - **Dependencies**: Hamish's explicit decision + sign-off. Scoping itself
   is complete.
-- **Status**: **Fixed (2026-09-07), pending Security Auditor review then
-  QA then Hamish's final confirmation — not yet closed.** Hamish answered
-  the open framing question directly: locked to HamishAI's own org
-  everywhere (`/admin/agencies` remains the one deliberate exception,
-  unchanged), not given a separate cross-org oversight capability. Every
-  read/write enumerated above is now scoped to `HAMISHAI_ORG_ID`, plus two
-  same-shape gaps found in the same files during the fix
-  (`updateClientConceptSlug`, the `?from_lead=` prospect read on
-  `clients/page.tsx`) — full writeup in `DECISIONS.md`'s 2026-09-07 entry,
-  including what was found but deliberately left unfixed as out of this
-  fix's exact scope (`checkOneLeadSend`, `updateTaskStatus`'s client-email
-  read, other requests/tasks/invoices writes) for a fast-follow. Live
-  read-only check confirms `/admin/leads` now returns 177 rows (was 196)
-  and `/admin/clients` returns 4 (was 7). Two other `/admin` tables
-  spot-checked and flagged as *probably* not currently exposed through any
-  `/admin` route (no route found reading them) but not confirmed with the
-  same rigor: `knowledge_base` (2 of 4 rows belong to a non-internal org)
-  and `monthly_reports` (1 of 4) — still worth a second look.
+- **Status**: **Partially fixed (`08662cc`, 2026-09-07); Security Auditor
+  review found the sweep incomplete — round 2 in progress, NOT yet safe to
+  send to QA or Hamish for sign-off.** Hamish answered the open framing
+  question directly: locked to HamishAI's own org everywhere
+  (`/admin/agencies` remains the one deliberate exception, unchanged), not
+  given a separate cross-org oversight capability. The 22 originally-named
+  reads/writes are correctly and consistently scoped to `HAMISHAI_ORG_ID`
+  (verified line-by-line by Security Auditor, not just trusted) — but its
+  review found **two routes with live, currently-real foreign-tenant data
+  exposure that this fix did not touch**: `/admin`'s own dashboard
+  homepage (blends Edinburgh Solutions' real prospect pipeline into
+  Hamish's own "Pipeline value"/"Hot leads" figures) and `/admin/knowledge`
+  (displays, and lets an admin one-click-delete, Edinburgh Solutions' real
+  knowledge-base entries). **Correction to this entry's own earlier
+  claim**: the prior "probably not exposed, no route found reading
+  `knowledge_base`" line above was checked and found factually wrong by
+  Security Auditor in under a minute of grepping — `/admin/knowledge`
+  (`src/app/admin/(authed)/knowledge/page.tsx`) is a real, sidebar-linked
+  route that reads it unfiltered. `monthly_reports` was not re-checked in
+  this pass. Five further zero-current-blast-radius-but-same-shape gaps
+  also found (`/admin/audit`, `/admin/ai-activity`,
+  `updateDraftResponse`/`regenerateAdminDraft`/`reviewAutoSend`,
+  `sendInvoiceReminderAction`) — correctly bundled into round 2 rather
+  than left as separate future tickets, per Security Auditor's own
+  recommendation, since they're the identical defect shape and cheap to
+  fix in the same pass. `checkOneLeadSend()`/`updateTaskStatus`'s
+  client-email read remain a legitimate fast-follow (zero live blast
+  radius, confirmed twice now). Full detail in `DECISIONS.md`'s two
+  matching 2026-09-07 entries. Live read-only check on the original 22
+  confirmed correct: `/admin/leads` returns 177 (was 196), `/admin/clients`
+  returns 4 (was 7).
 
 ### `researchLead()`/`draftSalesKit()` hardcode `actor: "admin"` in their own audit log regardless of real caller
 
