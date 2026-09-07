@@ -1707,3 +1707,59 @@ structural fix once the immediate exposure is closed.
 Lead Engineer immediately given the live exposure, same fix pattern,
 same file conventions as `08662cc`. `BACKLOG.md`'s P0 entry corrected to
 remove the incorrect "knowledge_base probably not exposed" line.
+
+## 2026-09-07 — Second `/admin` isolation review: round 2 (3024899) also incomplete — one confirmed live leak, root cause still unfixed
+
+**Decision**: Security Auditor's second pass (specifically requested after
+round 2) confirmed round 2's *named* fixes are all real and correct
+(re-verified live, re-ran all tooling independently), but found:
+
+1. **A confirmed, currently-live leak round 2 explicitly claimed was
+   clean**: the dashboard homepage's `site_checks` query got an
+   `.eq("org_id", HAMISHAI_ORG_ID)` filter, but `site-monitor.ts`'s insert
+   into `site_checks` never sets `org_id` at all — 100% of the table's 63
+   real rows carry HamishAI's literal id regardless of which client they
+   actually belong to, making the new filter a complete no-op. Live-
+   confirmed: 17 of the 50 most-recent rows belong to Edinburgh Solutions'
+   real client. Nothing is currently rendering on screen only because none
+   of their leaked rows happen to trip the uptime/SSL/broken-link
+   condition right now — one bad uptime check away from rendering their
+   real client's name and site-health status on Hamish's dashboard.
+2. **The `audit_log.org_id`-can-be-wrong root cause round 2 diagnosed is
+   still not fixed at the source** — `discover-leads.ts`'s `lead.discovered`
+   and `research-lead.ts`'s `lead.researched` calls still don't pass
+   `orgId`, live-confirmed still happening on every new discovery/research
+   run today. Round 2's `filterAiActivityToOrg()` is a correct, verified
+   defensive read-side filter for the two paths it patched — not a fix to
+   the write, so any future consumer of this data inherits the same bug.
+3. Two more gaps of the identical, already-fixed-elsewhere shape, found by
+   the auditor's own broad sweep (not in either round's list):
+   `/admin/google-setup` (`processed_emails`/`tasks`, unfiltered) and
+   `/admin/ms-setup` (`lead_meetings`, the exact query already fixed on
+   the dashboard but missed on this sibling page). Zero live blast radius
+   for both today.
+4. `/admin/activity-log` needs an explicit design decision, not a silent
+   carry-forward: it has one genuinely intentional cross-org surface
+   (`organisation.*` GDPR-deletion actions, matching `/admin/agencies`'
+   precedent) sitting in the same unfiltered query as tenant-owned
+   `client.*`/`client_member.*`/`subscription.*` actions, which should be
+   gated. Zero live leak today (only 4 such rows exist, none foreign) but
+   no filter stops the next one.
+
+**Why this keeps happening, worth naming plainly**: three sweeps in a
+row have each found something the previous one missed — not because the
+work is careless, but because this codebase has multiple *different*
+org-scoping mechanisms (`org_id` set correctly at write time; `org_id`
+present but silently wrong/defaulted; no `org_id` column at all, ownership
+only derivable via a join) and each sweep has checked a different subset.
+Security Auditor's own standing recommendation (a lint rule or test
+asserting every `.from(<org-scoped-table>)` call site under `src/app/
+admin/**` carries a real ownership filter) is now worth taking seriously
+as a structural fix once this immediate remediation is done, rather than
+relying on a fourth manual sweep to catch whatever a third one missed.
+
+**Decision on process**: Security Auditor itself recommended round 3 be
+narrowly scoped to these 4 items (not another full sweep), followed by a
+*focused* re-verification of exactly those 4 (not a fourth full sweep) —
+adopted as-is, to bound this from continuing indefinitely while still
+closing every confirmed gap.
