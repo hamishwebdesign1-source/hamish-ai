@@ -8,6 +8,43 @@ just at product-decision scope instead of line scope.
 
 ---
 
+## 2026-09-07 — Background lead-discovery `maxSearchUses` raised from 5 to 10, accepting the real recurring Anthropic cost
+
+**Context**: the 2026-09-07 prospect-generation pipeline audit found
+`discoverLeads()`'s weekly background rotation (`discover-leads.ts`'s
+`searchCandidates()` default, used implicitly since `discoverLeads()`
+calls it with no `options` argument) budgeted only `maxSearchUses: 5` per
+category/area pair, versus `searchProspectsNow()`'s (the on-demand
+"Search now" path) `10`. Live testing at `maxSearchUses: 10` found 5 of 6
+real test searches consumed the *entire* budget, including an "easy"
+small-town control search — strong evidence the model was being
+budget-constrained rather than naturally concluding "nothing more to
+find" at a lower number. The background rotation's own `5` wasn't
+live-tested directly in the audit, but the same dynamic very likely
+applies.
+
+**Decision**: Hamish was asked directly and confirmed raising the
+background rotation's `maxSearchUses` to match the on-demand path's `10`,
+accepting the real, ongoing added Anthropic cost this implies — the
+weekly cron runs this for every paying + internal org, every week, so
+this is a genuine recurring cost increase, not a one-off. This was
+flagged per `docs/ai-team/README.md`'s "ongoing infrastructure cost"
+approval boundary rather than changed unilaterally.
+
+**Implementation**: `src/lib/discover-leads.ts`'s `searchCandidates()`
+default `options` parameter changed from
+`{ minResults: 2, maxResults: 4, maxSearchUses: 5 }` to
+`{ minResults: 2, maxResults: 4, maxSearchUses: 10 }`. `minResults`/
+`maxResults` deliberately untouched — this is a search-budget change
+only, not a change to how many candidates the background rotation asks
+for or inserts per run (`PAIRS_PER_RUN`/`MAX_NEW_LEADS_PER_RUN` also
+untouched). `searchProspectsNow()`'s own explicit `maxSearchUses: 10`
+call was already 10 and needed no change. See
+`docs/ai-team/BACKLOG.md`'s "Background lead-discovery `maxSearchUses: 5`"
+entry for the full original problem statement.
+
+---
+
 ## 2026-09-06 — Public documentation launch: one `/help` page, not a docs site; hosting in-app confirmed, no escalation needed
 
 **Context**: orchestrator dispatched a mission to scope all public,

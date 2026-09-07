@@ -161,9 +161,16 @@ export function isoWeekIndex(date: Date): number {
 // category is nullable — searchProspectsNow() (below) is the "search by
 // location only" path, where the model itself is asked to find and
 // report a category per business rather than being given one. options
-// defaults reproduce discoverLeads()'s original always-had behaviour
-// exactly (2-4 results, 5 searches) so its own call site below didn't
-// need to change; searchProspectsNow() passes its own, larger numbers —
+// defaults are what discoverLeads()'s call site below relies on
+// implicitly (it passes no options at all) — 2-4 results, 10 searches as
+// of the Prospect-generation pipeline audit (2026-09-07): live testing
+// found maxSearchUses: 5 was budget-constraining the model well short of
+// "nothing more to find" even on an easy control search, so the
+// background rotation's per-pair search budget was raised to match
+// searchProspectsNow()'s own (below) rather than left artificially
+// tighter. minResults/maxResults are unchanged — this was a search-
+// budget fix, not a change to how many candidates the weekly rotation
+// asks for. searchProspectsNow() still passes its own explicit numbers;
 // a single deliberate on-demand search can afford a real result count
 // in a way the weekly background rotation's per-pair budget can't.
 async function searchCandidates(
@@ -172,7 +179,7 @@ async function searchCandidates(
   orgName: string,
   category: string | null,
   area: string,
-  options: { minResults: number; maxResults: number; maxSearchUses: number } = { minResults: 2, maxResults: 4, maxSearchUses: 5 }
+  options: { minResults: number; maxResults: number; maxSearchUses: number } = { minResults: 2, maxResults: 4, maxSearchUses: 10 }
 ): Promise<Candidate[]> {
   // orgName and area both come from the caller, not hardcoded — this used
   // to say "for Hamish AI, an Edinburgh-based AI/web consultancy" and

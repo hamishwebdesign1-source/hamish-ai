@@ -1629,7 +1629,14 @@ and confirmed real downstream contamination, not just a framing nit.
   e.g. 5→8 or 5→10 calls/pair × `PAIRS_PER_RUN` × org count) → Hamish
   (sign-off) → Lead Engineer (bump the constant).
 - **Dependencies**: Hamish's explicit sign-off — a new ongoing cost.
-- **Status**: Not started.
+- **Status**: Done (2026-09-07). Hamish signed off directly (asked, not
+  inferred) on raising the background rotation's `maxSearchUses` to match
+  `searchProspectsNow()`'s existing `10`, accepting the real recurring
+  Anthropic cost increase. `discover-leads.ts`'s `searchCandidates()`
+  default changed from `{ minResults: 2, maxResults: 4, maxSearchUses: 5 }`
+  to `{ minResults: 2, maxResults: 4, maxSearchUses: 10 }` — `minResults`/
+  `maxResults` untouched (search-budget-only change). See
+  `docs/ai-team/DECISIONS.md`'s 2026-09-07 entry for the full reasoning.
 
 ### `computeScoreBreakdown`'s `value` dimension is currency-blind — low priority, but HamishAI's own org is now a live multi-currency case
 
