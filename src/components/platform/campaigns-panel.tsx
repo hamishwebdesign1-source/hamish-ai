@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useOptimistic, useState, useTransition } from "react";
 import Link from "next/link";
 import { Megaphone, Plus, Target, X, CircleAlert, Search } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
@@ -188,9 +188,22 @@ function AddProspectControl({ campaignId, unassigned }: { campaignId: string; un
 }
 
 function CampaignCard({ campaign, prospects, unassigned }: { campaign: Campaign; prospects: Prospect[]; unassigned: Prospect[] }) {
-  const [status, setStatus] = useState(campaign.status);
+  // BACKLOG.md "Investigate useOptimistic for Studio's Server Actions" —
+  // candidate 3. toggleStatus previously reverted completely silently on
+  // failure (setStatus(campaign.status) with no error shown) — converted
+  // to real useOptimistic() plus the same rollback UI candidate 1
+  // established (contact-tracking-control.tsx): an inline text-destructive
+  // line, a transient bg-destructive/10 highlight cleared after ~1.5s.
+  const [status, setStatus] = useOptimistic(campaign.status);
   const [pending, startTransition] = useTransition();
+  const [statusError, setStatusError] = useState<string | null>(null);
+  const [statusRolledBack, setStatusRolledBack] = useState(false);
   const [deleted, setDeleted] = useState(false);
+
+  function flagStatusRollback() {
+    setStatusRolledBack(true);
+    setTimeout(() => setStatusRolledBack(false), 1500);
+  }
 
   const converted = prospects.filter((p) => p.status === "converted").length;
   const conversionRate = prospects.length > 0 ? Math.round((converted / prospects.length) * 100) : null;
@@ -235,10 +248,14 @@ function CampaignCard({ campaign, prospects, unassigned }: { campaign: Campaign;
 
   function toggleStatus() {
     const next = status === "completed" ? "active" : "completed";
-    setStatus(next);
+    setStatusError(null);
     startTransition(async () => {
+      setStatus(next);
       const r = await updateCampaignStatus(campaign.id, next);
-      if (r && "error" in r) setStatus(campaign.status);
+      if (r && "error" in r) {
+        setStatusError(r.error ?? "Failed to update — try again.");
+        flagStatusRollback();
+      }
     });
   }
 
@@ -262,7 +279,7 @@ function CampaignCard({ campaign, prospects, unassigned }: { campaign: Campaign;
               </p>
             )}
           </div>
-          <div className="flex shrink-0 items-center gap-2">
+          <div className={`flex shrink-0 items-center gap-2 rounded-md p-1 transition-colors ${statusRolledBack ? "bg-destructive/10" : ""}`}>
             <Badge variant={status === "completed" ? "secondary" : "accent"}>{status === "completed" ? "Completed" : "Active"}</Badge>
             <Button size="xs" variant="ghost" disabled={pending} onClick={toggleStatus}>
               {status === "completed" ? "Reopen" : "Mark completed"}
@@ -277,6 +294,7 @@ function CampaignCard({ campaign, prospects, unassigned }: { campaign: Campaign;
             />
           </div>
         </div>
+        {statusError && <p className="mt-1.5 text-xs text-destructive">{statusError}</p>}
         <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 font-mono text-[11px] text-muted-foreground">
           <span>{prospects.length} prospect{prospects.length === 1 ? "" : "s"}</span>
           {contactRate !== null && <span>{contactedCount}/{prospects.length} contacted ({contactRate}%)</span>}

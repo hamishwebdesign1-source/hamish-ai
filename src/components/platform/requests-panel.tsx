@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useMemo, useOptimistic, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -110,34 +110,66 @@ function CopyButton({ text }: { text: string }) {
   );
 }
 
+// BACKLOG.md "Investigate useOptimistic for Studio's Server Actions" —
+// candidate 2 (its own scoping note named this exact control). Both
+// setTaskStatus and setTaskProject previously reverted completely
+// silently on failure (setStatus(task.status)/setProjectId(prev) with no
+// error shown at all) — the precise anti-pattern that item's objective
+// warned about. Converted to real useOptimistic() plus the same rollback
+// UI candidate 1 established (contact-tracking-control.tsx): an inline
+// text-destructive line, and a transient bg-destructive/10 highlight
+// cleared after ~1.5s via the same transient-boolean-plus-timeout
+// mechanism CopyButton above already uses for its own "copied" state.
 function TaskRow({ task, projects }: { task: Task; projects: Project[] }) {
+  const [optimisticStatus, setOptimisticStatus] = useOptimistic(task.status);
   const [pending, startTransition] = useTransition();
-  const [status, setStatus] = useState(task.status);
+  const [statusError, setStatusError] = useState<string | null>(null);
+  const [statusRolledBack, setStatusRolledBack] = useState(false);
+
+  const [optimisticProjectId, setOptimisticProjectId] = useOptimistic(task.project_id ?? "");
   const [projectPending, startProjectTransition] = useTransition();
-  const [projectId, setProjectId] = useState(task.project_id ?? "");
+  const [projectError, setProjectError] = useState<string | null>(null);
+  const [projectRolledBack, setProjectRolledBack] = useState(false);
+
+  function flagStatusRollback() {
+    setStatusRolledBack(true);
+    setTimeout(() => setStatusRolledBack(false), 1500);
+  }
+
+  function flagProjectRollback() {
+    setProjectRolledBack(true);
+    setTimeout(() => setProjectRolledBack(false), 1500);
+  }
 
   function setTaskStatus(next: "todo" | "in_progress" | "done") {
-    setStatus(next);
+    setStatusError(null);
     startTransition(async () => {
+      setOptimisticStatus(next);
       const r = await updateTaskStatus(task.id, next);
-      if (r && "error" in r) setStatus(task.status);
+      if (r && "error" in r) {
+        setStatusError(r.error ?? "Failed to update — try again.");
+        flagStatusRollback();
+      }
     });
   }
 
   function setTaskProject(next: string) {
-    const prev = projectId;
-    setProjectId(next);
+    setProjectError(null);
     startProjectTransition(async () => {
+      setOptimisticProjectId(next);
       const r = await assignTaskToProject(task.id, next || null);
-      if (r && "error" in r) setProjectId(prev);
+      if (r && "error" in r) {
+        setProjectError(r.error ?? "Failed to update — try again.");
+        flagProjectRollback();
+      }
     });
   }
 
   return (
-    <div className="rounded-lg border border-border p-3">
+    <div className={`rounded-lg border border-border p-3 transition-colors ${statusRolledBack ? "bg-destructive/10" : ""}`}>
       <div className="flex items-center justify-between gap-2">
         <p className="text-sm font-medium">{task.title}</p>
-        <TaskStatusBadge status={status} />
+        <TaskStatusBadge status={optimisticStatus} />
       </div>
       {task.description && <p className="mt-1 text-xs text-muted-foreground">{task.description}</p>}
       {task.acceptance_criteria && (
@@ -145,12 +177,12 @@ function TaskRow({ task, projects }: { task: Task; projects: Project[] }) {
           <span className="font-medium text-foreground">Done means:</span> {task.acceptance_criteria}
         </p>
       )}
-      <div className="mt-2 flex flex-wrap items-center gap-1.5">
+      <div className={`mt-2 flex flex-wrap items-center gap-1.5 rounded-md transition-colors ${projectRolledBack ? "bg-destructive/10" : ""}`}>
         {(["todo", "in_progress", "done"] as const).map((s) => (
           <Button
             key={s}
             size="xs"
-            variant={status === s ? "secondary" : "ghost"}
+            variant={optimisticStatus === s ? "secondary" : "ghost"}
             disabled={pending}
             onClick={() => setTaskStatus(s)}
           >
@@ -159,7 +191,7 @@ function TaskRow({ task, projects }: { task: Task; projects: Project[] }) {
         ))}
         {projects.length > 0 && (
           <select
-            value={projectId}
+            value={optimisticProjectId}
             onChange={(e) => setTaskProject(e.target.value)}
             disabled={projectPending}
             aria-label="Assign task to project"
@@ -174,6 +206,8 @@ function TaskRow({ task, projects }: { task: Task; projects: Project[] }) {
           </select>
         )}
       </div>
+      {statusError && <p className="mt-1.5 text-xs text-destructive">{statusError}</p>}
+      {projectError && <p className="mt-1.5 text-xs text-destructive">{projectError}</p>}
     </div>
   );
 }
