@@ -120,6 +120,11 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
 
   if (!lead) notFound();
 
+  // score_breakdown.overall is the canonical score everywhere now — score
+  // is only the fallback for legacy rows that predate score_breakdown
+  // existing (schema-score-breakdown.sql).
+  const displayScore = lead.score_breakdown?.overall ?? lead.score;
+
   // "Convert to client" (Phase 8 finding #2 in docs/lily-golf-test-project.md)
   // — real, queryable link via clients.source_lead_id, not just a one-time
   // copy. Checked here so this page can offer "already converted" instead
@@ -211,10 +216,10 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
             {statusMeta[lead.status as keyof typeof statusMeta]?.label ?? lead.status}
           </Badge>
           <ContactBadge lead={lead} />
-          {lead.score != null && (
-            <div className="flex items-center gap-0.5" title={`Score: ${lead.score}/5`}>
+          {displayScore != null && (
+            <div className="flex items-center gap-0.5" title={`Score: ${displayScore}/5`}>
               {[1, 2, 3, 4, 5].map((n) => (
-                <span key={n} className={`size-1.5 rounded-full ${n <= lead.score ? "bg-accent" : "bg-border"}`} />
+                <span key={n} className={`size-1.5 rounded-full ${n <= displayScore ? "bg-accent" : "bg-border"}`} />
               ))}
             </div>
           )}

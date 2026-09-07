@@ -112,7 +112,13 @@ function sortLeads(list: any[], sortKey: string): any[] {
   const copy = [...list];
   switch (sortKey) {
     case "score":
-      return copy.sort((a, b) => (b.score ?? -1) - (a.score ?? -1));
+      // score_breakdown.overall is the one canonical score now (matches
+      // Studio's prospecting-panel.tsx / studio-briefing.ts) — score stays
+      // as the fallback for legacy rows that predate score_breakdown
+      // (schema-score-breakdown.sql), not as the primary ranking value.
+      return copy.sort(
+        (a, b) => (b.score_breakdown?.overall ?? b.score ?? -1) - (a.score_breakdown?.overall ?? a.score ?? -1)
+      );
     case "recent":
       return copy.sort(
         (a, b) => new Date(b.found_at ?? b.created_at ?? 0).getTime() - new Date(a.found_at ?? a.created_at ?? 0).getTime()
@@ -210,6 +216,19 @@ export default async function LeadsPage({
   // doesn't depend on which lead IDs exist (fetched unconditionally,
   // bounded, grouped client-side below) specifically so it can run in the
   // same batch instead of waiting on the leads query first.
+  // Ordered by the legacy `score` column here purely as a cheap initial DB
+  // order — it is never the order actually rendered. This query has no
+  // `.range()`/`.limit()`, so every row is always fetched regardless of
+  // this order (verified live against the real table: 196 rows, well under
+  // any PostgREST page-size default); the full concept-first/score-desc
+  // pass below (`allLeads`) and, for the "score" sort, `sortLeads()` above
+  // always re-sort the complete fetched set by `score_breakdown.overall`
+  // (falling back to `score`) before anything is displayed. A DB-level
+  // `order("score_breakdown->overall")` was tried and rejected: Postgres
+  // puts NULLs first on a DESC order by default, and only 28/196 rows here
+  // have a `score_breakdown` at all, so it would put every unscored-
+  // breakdown row *ahead* of every real one — worse than today, and it
+  // can't express the `?? score` fallback in a single ORDER BY anyway.
   const [{ data: fetchedLeads, error }, googleStatus, msStatus, { data: auditRows }, { data: meetingRows }] = await Promise.all([
     supabase
       ? supabase.from("prospects").select("*").order("score", { ascending: false })
@@ -255,13 +274,15 @@ export default async function LeadsPage({
 
   // Leads with a real, built concept page (see /concepts/[slug]) are the
   // strongest thing to lead outreach with — always surface them first,
-  // regardless of score; score still breaks ties within each group.
+  // regardless of score; score_breakdown.overall (falling back to score
+  // for legacy rows with no breakdown) still breaks ties within each
+  // group. This is also the order pickNextActions() below reasons over.
   const allLeads = fetchedLeads
     ? [...fetchedLeads].sort((a, b) => {
         const aHasConcept = a.concept_slug ? 1 : 0;
         const bHasConcept = b.concept_slug ? 1 : 0;
         if (aHasConcept !== bHasConcept) return bHasConcept - aHasConcept;
-        return (b.score ?? -1) - (a.score ?? -1);
+        return (b.score_breakdown?.overall ?? b.score ?? -1) - (a.score_breakdown?.overall ?? a.score ?? -1);
       })
     : fetchedLeads;
 
@@ -660,6 +681,10 @@ export default async function LeadsPage({
           <ul className="space-y-3">
             {leads?.map((lead) => {
               const meeting = meetingByLead.get(lead.id);
+              // score_breakdown.overall is the canonical score everywhere
+              // now — score is only the fallback for legacy rows that
+              // predate score_breakdown existing.
+              const displayScore = lead.score_breakdown?.overall ?? lead.score;
               return (
                 <li
                   key={lead.id}
@@ -769,12 +794,12 @@ export default async function LeadsPage({
                   </div>
 
                   <div className="relative z-10 mt-3 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-                    {lead.score != null && (
-                      <div className="flex items-center gap-0.5" title={`Score: ${lead.score}/5`}>
+                    {displayScore != null && (
+                      <div className="flex items-center gap-0.5" title={`Score: ${displayScore}/5`}>
                         {[1, 2, 3, 4, 5].map((n) => (
                           <span
                             key={n}
-                            className={cn("size-1.5 rounded-full", n <= lead.score ? "bg-accent" : "bg-border")}
+                            className={cn("size-1.5 rounded-full", n <= displayScore ? "bg-accent" : "bg-border")}
                           />
                         ))}
                       </div>
