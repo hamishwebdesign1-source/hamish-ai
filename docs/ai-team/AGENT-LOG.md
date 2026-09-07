@@ -425,3 +425,32 @@ kit it feeds into. Logged as a small new backlog item rather than
 silently left unnoted.
 
 BACKLOG.md's matching entry marked Complete.
+
+## 2026-09-07 — Scoped a P0 cross-tenant data-isolation gap in `/admin` (found, not fixed)
+
+Found as a side effect of the prospect-pipeline audit's #2 fix
+(canonicalizing the score sort in `/admin/leads`, commit `cd1095d`):
+`/admin`'s Supabase queries have no `org_id` filter anywhere.
+Security Auditor's full scoping pass confirmed this is systemic across
+`admin/actions.ts` (1,210 lines, zero `org_id` references) and both
+`prospects` and `clients` — not isolated to the one page that surfaced
+it. Live counts: 19 of 196 `prospects` rows and 3 of 7 `clients` rows
+belong to a real, live, paying Studio tenant ("Edinburgh Solutions"),
+currently visible inside HamishAI's own internal admin tool. Confirmed
+write-side, not just read: real Stripe subscription start/cancel, real
+invoice creation, real client-portal member invites, real deletes, and
+real costed Anthropic calls are all triggerable against another
+tenant's data by raw id, no ownership check. Root cause: `/admin`
+predates the `organisations`/`memberships` layer and was never
+retrofitted. Zero evidence of actual destructive/financial misuse found
+in `audit_log` for the unambiguous action types — but the research/
+sales-kit audit trail can't distinguish a tenant's own legitimate usage
+from a possible `/admin`-side action against their data, since both
+hardcode `actor: "admin"` (logged as its own separate P2 gap).
+
+Flagged directly to Hamish as P0, with a clear ask: whether `/admin`
+should simply be locked to HamishAI's own org, or whether he wants a
+real, explicit, audited cross-org oversight capability instead of the
+current accidental default. Nothing fixed yet — investigation only, per
+this team's own security-change approval boundary. Full detail in
+`BACKLOG.md`'s matching entry.

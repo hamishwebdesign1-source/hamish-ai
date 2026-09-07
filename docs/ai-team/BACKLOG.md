@@ -3245,39 +3245,104 @@ cookies" confirmation not obtainable via this session's browser tooling
 verified at the source level instead, which is the more reliable check
 for this specific claim anyway.
 
-### URGENT — `/admin/leads` has no `org_id` filter: HamishAI's internal tool appears to read (and possibly write) another real tenant's prospects
+### URGENT — `/admin` has no `org_id` filter anywhere: systemic cross-tenant read AND write exposure, confirmed, not yet fixed
 
-- **Problem**: found by Lead Engineer (2026-09-07) as a side effect of the
-  score-canonicalization fix (`cd1095d`) — `/admin/leads`'s Supabase query
-  (`src/app/admin/(authed)/leads/page.tsx`) selects from `prospects` with
-  no `.eq("org_id", ...)` filter at all. Live-checked against the real
-  table: 177 rows belong to HamishAI's own internal org, but **19 real
-  rows belong to "Edinburgh Solutions"** (`org_id
-  af543a0c-6ae2-418a-9816-8b87a7b7e844`, a real, live, paying Studio
-  tenant, `is_internal: false`) — meaning HamishAI's own internal admin
-  tool currently displays another real customer's prospect data
-  alongside Hamish's own. **Not yet checked**: whether this page's own
-  write actions (add/edit/delete lead) have the same gap — the same
-  agent noted they use a raw `.eq("id", ...)` with no `org_id` check
-  either, which would mean this isn't just a read-side display bug but a
-  possible cross-tenant write/delete exposure. Not confirmed either way
-  yet.
-- **Objective**: full scope first (read AND write paths, and whether any
-  other `/admin` route has the same missing-org_id pattern — `/admin` was
-  built single-tenant, before Studio's multi-tenant layer existed, so this
-  may not be isolated to this one page), then a fix — most likely scoping
-  every `/admin` prospects query/action to HamishAI's own internal
-  `org_id` explicitly (the same `is_internal`-org constant already used
-  elsewhere in this codebase), following `docs/ARCHITECTURE.md`'s
-  documented rule that an explicit application-level ownership check is
-  the *only* real protection once the service-role client is in use.
-- **Priority**: **P0** — real, live, cross-tenant data exposure of a
-  paying customer's own business data, not a theoretical gap.
-- **Relevant agent**: Security Auditor (full scope: read + write, whole
-  `/admin` section) → Lead Engineer (fix, once scoped) → Hamish's explicit
-  sign-off before shipping, per `docs/ai-team/README.md`'s approval
-  boundary on security-sensitive/data-isolation changes.
-- **Dependencies**: none blocking the scoping work; the fix itself needs
-  Hamish's sign-off before shipping (security-sensitive).
-- **Status**: Not started — flagged urgently to Hamish directly, Security
-  Auditor being dispatched now to scope the full blast radius.
+Widened by Security Auditor's full scoping pass (2026-09-07) — this is not
+isolated to `/admin/leads`, and it is not read-only.
+
+- **Problem, fully scoped now**: `src/app/admin/actions.ts` (1,210 lines)
+  has **zero** occurrences of `org_id`/`orgId` anywhere in it. Every read
+  and write in `/admin` that touches `prospects` or `clients` does so by
+  raw `id` with no ownership check — confirmed in `leads/page.tsx`,
+  `leads/[id]/page.tsx`, `clients/page.tsx`, `clients/[id]/page.tsx`,
+  `requests/[id]/page.tsx`, and every Server Action in `admin/actions.ts`.
+  Live row counts: `prospects` 196 total, 19 belong to a real tenant
+  ("Edinburgh Solutions"); `clients` 7 total, **3 belong to that same real
+  tenant** — meaning HamishAI's own `/admin` currently displays a real
+  paying customer's client records too (contact email, website, Stripe
+  customer/subscription IDs, maintenance rate, invoices), not just
+  prospects.
+  **Write side confirmed, not just read**: from `/admin`, by raw id with
+  no org check, it is currently possible to delete/edit/re-status another
+  tenant's prospect; trigger real, costed Anthropic research/sales-kit
+  calls against it (`generateLeadResearch`/`generateSalesKit`); create a
+  real Gmail draft addressed to that prospect's real email
+  (`saveSalesKitEmailToGmail`); schedule a real Teams meeting; and, more
+  seriously, **start or cancel a real Stripe subscription, create a real
+  invoice, or grant a new email portal login to another tenant's actual
+  client** (`startSubscriptionAction`/`cancelSubscriptionAction`,
+  `createInvoiceForClient`, `inviteClientMember`/`removeClientMember`).
+  **Root cause, confirmed precisely**: every path uses `getSupabaseAdmin()`
+  (service-role, RLS bypassed by design per `docs/ARCHITECTURE.md`) — the
+  ownership check is simply absent, because `/admin` predates
+  `organisations`/`memberships` and was never retrofitted when
+  `clients`/`prospects` gained `org_id`.
+  **Exploitation check — genuinely inconclusive, stated plainly rather than
+  guessed**: zero `audit_log` hits against Edinburgh Solutions' rows for
+  any `/admin`-exclusive, unambiguous action (status changes, deletes,
+  subscription start/cancel, member invite/remove) — no evidence of
+  destructive/financial misuse having occurred. But `researchLead()`/
+  `draftSalesKit()` hardcode `actor: "admin"` in their own audit-log call
+  regardless of caller, so the 21 real `lead.researched`/
+  `lead.sales_kit_generated` hits against Edinburgh Solutions' rows cannot
+  be distinguished from that tenant's own legitimate Studio usage — this
+  ambiguity is itself a small, separate gap (see the new entry below).
+  One genuine, intentional cross-org surface exists already
+  (`/admin/agencies` — org metadata only, for platform oversight) — its
+  careful metadata-only scoping is evidence `/admin`'s prospects/clients
+  pages were never meant to be cross-tenant, not a precedent for them
+  being so.
+- **Objective**: not decided/built yet, per this team's own security-change
+  approval boundary. Recommended (Security Auditor's own read, not yet
+  approved): scope every `/admin` read of `prospects`/`clients`/`requests`
+  to `HAMISHAI_ORG_ID` (constant already exists, `src/lib/org-membership.ts`)
+  and add the same "scoped SELECT before the write" ownership check
+  already established and audited-clean on every `/studio` Server Action
+  to every write in `admin/actions.ts` listed above. `researchLead()`/
+  `draftSalesKit()` themselves stay org-agnostic by design (Studio's own
+  caller does the check before calling them) — the fix belongs at
+  `/admin`'s call sites, not in those shared libs.
+- **Priority**: **P0** — real, live, cross-tenant exposure spanning both
+  prospects and clients, both read and write, including real
+  billing/Stripe actions and real AI spend triggerable against another
+  tenant's data. Not shipped without Hamish's explicit sign-off (security-
+  sensitive, per `docs/ai-team/README.md`'s approval boundary) — and one
+  open product question needs his answer first: should `/admin` simply be
+  locked to HamishAI's own org everywhere, or does he want a real,
+  explicit, audited cross-org oversight capability instead of the current
+  accidental default?
+- **Relevant agent**: Lead Engineer (fix, once Hamish answers the framing
+  question above and signs off) → QA → Hamish's final confirmation before
+  it's considered closed.
+- **Dependencies**: Hamish's explicit decision + sign-off. Scoping itself
+  is complete.
+- **Status**: **Researching → scoped, awaiting Hamish's decision.** Not
+  started on any fix. Two other `/admin` tables spot-checked and flagged
+  as *probably* not currently exposed through any `/admin` route (no route
+  found reading them) but not confirmed with the same rigor:
+  `knowledge_base` (2 of 4 rows belong to a non-internal org) and
+  `monthly_reports` (1 of 4) — worth a second look once the confirmed
+  exposure above is fixed.
+
+### `researchLead()`/`draftSalesKit()` hardcode `actor: "admin"` in their own audit log regardless of real caller
+
+- **Problem**: found while investigating the `/admin` org-isolation gap
+  above — both functions log every research/sales-kit-generation event as
+  `actor: "admin"` even when called from a tenant's own legitimate Studio
+  session (`researchProspect()`/`generateSalesKit()` in
+  `prospects/actions.ts` call these same shared functions). This made it
+  impossible to distinguish a real tenant's own usage from a possible
+  `/admin`-side cross-tenant action during the investigation above — a
+  real, if minor, gap in this codebase's own audit trail, not just an
+  inconvenience for this one investigation.
+- **Objective**: have `researchLead()`/`draftSalesKit()` accept (or their
+  callers pass through) the real caller context — e.g. `actor: "system"` +
+  a real `org_id`/tenant identifier when called from Studio, `actor:
+  "admin"` only when genuinely called from `/admin` — so future audit-log
+  queries can actually tell these apart.
+- **Priority**: P2 — real, but not urgent; doesn't block fixing the P0
+  above, and no current investigation is blocked on it now that this
+  limitation is documented.
+- **Relevant agent**: Lead Engineer.
+- **Dependencies**: none.
+- **Status**: Not started.
