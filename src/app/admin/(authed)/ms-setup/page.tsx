@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { GRAPH_SCOPES } from "@/lib/ms-graph-auth";
 import { timeAgo } from "@/lib/time-ago";
+import { HAMISHAI_ORG_ID } from "@/lib/org-membership";
 
 export default async function MsSetupPage() {
   const clientId = process.env.MS_CLIENT_ID;
@@ -33,11 +34,17 @@ export default async function MsSetupPage() {
     }).toString()}`;
   }
 
+  // Scoped to HAMISHAI_ORG_ID — /admin is Hamish's own internal view only,
+  // locked to his org everywhere (see docs/ai-team's P0 /admin
+  // org-isolation fix). lead_meetings has no org_id column of its own —
+  // joined through prospects, same pattern already applied to this
+  // identical query on the dashboard homepage.
   const { data: upcomingMeetings } = supabase
     ? await supabase
         .from("lead_meetings")
-        .select("id, scheduled_start, join_url, prospects(business_name)")
+        .select("id, scheduled_start, join_url, prospects!inner(business_name, org_id)")
         .eq("status", "scheduled")
+        .eq("prospects.org_id", HAMISHAI_ORG_ID)
         .order("scheduled_start", { ascending: true })
         .limit(8)
     : { data: [] };

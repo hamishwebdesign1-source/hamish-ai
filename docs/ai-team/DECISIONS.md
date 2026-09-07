@@ -8,6 +8,97 @@ just at product-decision scope instead of line scope.
 
 ---
 
+## 2026-09-07 — `/admin` org-isolation fix, round 3: closed the 4 items from Security Auditor's second review; deliberately did not backfill `site_checks`, closed the live leak a different way instead
+
+**Context**: round 2 (`3024899`) fixed everything Security Auditor's first
+review found, but its own second review pass found round 2's `site_checks`
+fix was itself a no-op (the write side was never fixed, so the read-side
+filter had nothing correct to filter on), the `audit_log` root cause it
+diagnosed was still unfixed at the two actual call sites, and two more
+same-shape gaps (`/admin/google-setup`, `/admin/ms-setup`) plus one
+needing an explicit design decision (`/admin/activity-log`). Full detail
+in `BACKLOG.md`'s matching entry; this entry covers the two calls that
+needed real judgement, not just a mechanical port.
+
+**Decision 1 — fixed the write, but deliberately did not backfill
+`site_checks`' 63 historical rows; closed the live leak a different way
+instead of relying on that choice alone.** `site-monitor.ts`'s insert now
+sets `org_id: client.org_id ?? null` from the same client lookup the
+function already does — straightforward, same shape as
+`triage-request.ts`'s already-correct pattern. The harder call was what to
+do about the 63 rows already written with the column's wrong DB default
+(HamishAI's literal id) — live-confirmed at least one belongs to Edinburgh
+Solutions' real client. Chose not to backfill, for two independent
+reasons: it matches round 2's own precedent for the identical class of
+decision (`audit_log`'s historical rows), and — more binding — a backfill
+would itself be a mutating write touching Edinburgh Solutions' real rows,
+which this round's own explicit safety constraint ("read-only verification
+only... never invoke a mutating action against Edinburgh Solutions' real
+rows") rules out regardless of intent. But unlike `audit_log` (where
+round 2's `filterAiActivityToOrg()` read-side defense already existed and
+covered the historical-row gap), `site_checks` had **no equivalent
+protection** — the dashboard's own filter was the only thing standing
+between this data and Hamish's screen, and it was a no-op against exactly
+the historical rows this fix needed to close. Not backfilling and leaving
+the dashboard's filter unchanged would have meant genuinely reporting "the
+live leak Security Auditor confirmed is still live" — not an acceptable
+outcome for a "CONFIRMED LIVE LEAK" item. So the dashboard's own
+`site_checks` read was changed to never trust `site_checks.org_id` at
+all — resolved via the joined client's real `org_id` instead
+(`clients!inner(org_id)`), the exact "don't trust a column that can be
+actively wrong" precedent `filterAiActivityToOrg()` already established
+for `audit_log` in round 2, just applied here as a query-level inner join
+rather than an application-code filter (safe to do as a join here, unlike
+`audit_log`, because every `site_checks` row has a non-nullable
+`client_id` — no mixed-target-type case to handle). This closes the leak
+immediately for both historical and future rows, with zero data mutation
+— live-confirmed 0 foreign rows in the dashboard's exact new query, and
+Edinburgh Solutions' own 17 real rows completely untouched.
+
+**Decision 2 — `/admin/activity-log`'s split resolves ownership via
+`client_id` only, deliberately not via `target_id`/prospect the way
+`filterAiActivityToOrg()` does for the AI-activity feed.** Live-checking
+the real table found `audit_log` holds far more action types than this
+page's own `ACTION_LABEL` names (`lead.*`, `content.*`, `project.*`,
+`deliverable.*`, `task.*`, `prospect.*` — 149 of 150 sampled non-
+organisation rows had no `client_id` at all). The dispatch's own scope
+named exactly `client.*`/`client_member.*`/`subscription.*` "and any
+other action type this page currently shows that resolves to a specific
+client" — read literally and deliberately, this means gate what resolves
+via `client_id` (the join this page already has), not silently expand
+into resolving prospect-/project-scoped ownership the way the closed,
+audited `AI_ACTIVITY_ACTIONS` list already does elsewhere. Did the
+narrower thing on purpose, flagged explicitly rather than silently
+covering it: the 149 `client_id`-less rows (`lead.discovered` etc.) stay
+exactly as unscoped as they were before this round. This is a real,
+smaller residual gap than "activity-log fully closed" would imply — worth
+a future round if Security Auditor judges the live risk high enough to
+warrant it, but not folded into this one per its own explicit
+scope discipline instruction.
+
+**Found, flagged, explicitly not fixed**: `/admin/google-setup`'s
+`tasks` query selects a `priority` column that does not exist on the live
+`tasks` table at all (confirmed directly — a plain `select *` on `tasks`
+shows no such column) — a pre-existing, unrelated bug that has silently
+made this page's calendar-tasks card always render its zero-state in
+production, regardless of this round's org-isolation fix. The org-filter
+shape added to that same query was verified correct independently (a
+reproduction query with `priority` removed returns 0 foreign rows against
+real data), so this round's actual fix is correct even though the page's
+existing bug means it can't be observed live through the page itself
+until that unrelated bug is separately fixed.
+
+**Verified**: `npx tsc --noEmit -p .` clean; `npx eslint` clean on every
+touched file; `npx vitest run` 493/493 green, run twice; `npm run build`
+succeeded. Live read-only re-verification (real Supabase, `.env.local`,
+zero writes attempted against Edinburgh Solutions' real rows) confirmed
+all 4 items with before/after row counts, detailed in `BACKLOG.md`'s
+matching entry. Status: fixed, back to Security Auditor for its own
+requested focused re-check of exactly these 4 items, then QA, then
+Hamish's final sign-off.
+
+---
+
 ## 2026-09-07 — `/admin` org-isolation fix, round 2: closed Security Auditor's remaining gaps; `audit_log.org_id` found to be actively wrong, not just missing, for prospect-scoped entries
 
 **Context**: round 1 (`08662cc`) scoped and fixed the 22 originally-named

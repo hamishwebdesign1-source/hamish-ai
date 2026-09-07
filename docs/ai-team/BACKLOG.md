@@ -3316,12 +3316,93 @@ isolated to `/admin/leads`, and it is not read-only.
   it's considered closed.
 - **Dependencies**: Hamish's explicit decision + sign-off. Scoping itself
   is complete.
-- **Status**: **Round 2 fixed (this commit, 2026-09-07) — every gap Security
-  Auditor's review found is now closed except the two items already
-  explicitly deferred; back to Security Auditor for its requested second
-  review pass, then QA.** Round 1 (`08662cc`) was confirmed correct and
-  left unchanged. Round 2 fixed, with live read-only re-verification for
-  every one:
+- **Status**: **Round 3 fixed (this commit, 2026-09-07) — the 4 items
+  Security Auditor's second review scoped are closed; back to Security
+  Auditor for its requested focused re-check of exactly these 4, then QA,
+  then Hamish's final sign-off.** Round 1 (`08662cc`) and round 2
+  (`3024899`) both confirmed correct and left unchanged except where noted
+  below. Round 3 fixed, with live read-only re-verification for every one:
+  - **`site_checks`' broken `org_id` at the source** — `site-monitor.ts`'s
+    `runSiteCheck()` insert never set `org_id`; every one of the table's 63
+    real rows carried the column's DB default (HamishAI's literal id)
+    regardless of which client the check actually belonged to, making
+    round 2's own dashboard filter a no-op. Fixed the insert to select
+    `clients.org_id` alongside the existing client lookup and write
+    `org_id: client.org_id ?? null` on every new check, same shape as
+    `triage-request.ts`'s already-correct `org_id: client.org_id ?? null`.
+    **Historical rows deliberately not backfilled** — matches round 2's
+    own `audit_log` precedent, and a backfill would itself be a mutating
+    write touching Edinburgh Solutions' real rows, outside this round's
+    read-only-verification safety constraint. Since that leaves all 63
+    historical rows (including at least one real Edinburgh Solutions row,
+    live-confirmed) still carrying the wrong `org_id`, also fixed the
+    dashboard homepage's `site_checks` read to never trust
+    `site_checks.org_id` at all — resolved via the joined client's own
+    `org_id` instead (`clients!inner(business_name, org_id)` +
+    `.eq("clients.org_id", HAMISHAI_ORG_ID)`), the same "don't trust a
+    column that can be actively wrong" precedent `filterAiActivityToOrg()`
+    already established for `audit_log`. This closes the live leak
+    immediately for both historical and future rows, with zero data
+    mutation. Live-confirmed: the dashboard's exact new query returns 46
+    rows, 0 foreign; Edinburgh Solutions' own 17 real `site_checks` rows
+    remain completely untouched.
+  - **`audit_log` root cause, fixed at the source** —
+    `discover-leads.ts`'s `lead.discovered` and `research-lead.ts`'s
+    `lead.researched` `logAuditEvent()` calls now both pass `orgId`
+    (`discover-leads.ts`'s was already in scope from its own `prospects`
+    insert two lines above; `research-lead.ts`'s `researchLead()` didn't
+    previously select `org_id` on its `prospects` lookup at all — added it
+    to the select rather than threading a new parameter through every call
+    site, since the function already does its own `prospects` lookup by
+    `leadId`). Does not retroactively fix already-written bad rows — round
+    2's `filterAiActivityToOrg()` read-side defense already covers those
+    going forward regardless, same as round 2's own framing of this
+    exact distinction.
+  - **`/admin/google-setup`** — `processed_emails` (joined to
+    `clients!inner(business_name, org_id)`) and `tasks` (joined to
+    `requests!inner(clients!inner(business_name, org_id))`) both gated
+    `.eq("...org_id", HAMISHAI_ORG_ID)`. Live-confirmed zero blast radius
+    today for both (0 rows either way) — the `tasks` query's org-filter
+    shape itself was independently verified correct against real data
+    using a reproduction query. **Found, out of scope, not fixed**: the
+    page's own `tasks` select includes a `priority` column that does not
+    exist on the live `tasks` table at all (`column tasks.priority does
+    not exist`, confirmed directly) — this is a pre-existing, unrelated
+    bug (the calendar-tasks card has silently always rendered its
+    zero-state on production, before and after this fix) that this
+    round's scope explicitly does not cover; flagged as a real, separate,
+    small follow-up.
+  - **`/admin/ms-setup`** — `lead_meetings` (`status = "scheduled"`)
+    gated via `prospects!inner(business_name, org_id)` +
+    `.eq("prospects.org_id", HAMISHAI_ORG_ID)`, identical to the shape
+    already on the dashboard homepage. Live-confirmed zero blast radius
+    today (0 scheduled meetings exist at all right now).
+  - **`/admin/activity-log`** — split into two queries per Security
+    Auditor's own scoped read: `organisation.deletion_requested`/
+    `organisation.deletion_request_processed` stay genuinely unscoped
+    (real, intentional cross-org platform-ops data, matching
+    `/admin/agencies`' precedent); every other action is resolved as
+    tenant-owned when it carries a `client_id` (gated via the joined
+    `clients.org_id`) and left unscoped when it doesn't (prospect-/
+    project-/content-scoped actions like `lead.discovered`/
+    `project.created`/`content.idea_discovered` — these aren't resolvable
+    via this page's existing `client_id`-only join, a known, narrower,
+    explicitly-flagged gap this round didn't expand into). Results merged
+    and re-sorted for display; the tenant query's raw fetch limit raised
+    100→150 so post-filter exclusion can't silently shrink the page below
+    its intended 100-row feed, matching round 2's own precedent for the
+    same shape of fix. Live-confirmed against the real table: of 150 raw
+    non-organisation rows, 1 had a `client_id` and it belonged to a
+    foreign org (an `embed_chat.message` row tied to Edinburgh Solutions'
+    demo client) — correctly excluded, 0 foreign `client_id` rows leak
+    through the final merged 100-row list; 149 rows have no `client_id`
+    at all (the known, flagged, out-of-scope gap above) and are shown
+    unscoped exactly as before this round.
+  - `npx tsc --noEmit -p .`, `npx eslint` on every touched file, and
+    `npx vitest run` (493/493, run twice clean) all green; `npm run build`
+    succeeded.
+
+  Round 2 fixed, with live read-only re-verification for every one:
   - **`/admin`'s dashboard homepage** (`src/app/admin/(authed)/page.tsx`) —
     `invoices`, `requests` (awaiting-info), both `prospects` queries
     (contacted leads, pipeline-value/hot-leads), and `site_checks` all

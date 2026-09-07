@@ -6,6 +6,14 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { HAMISHAI_ORG_ID } from "@/lib/org-membership";
+
+// Round 3 of the P0 /admin org-isolation fix — the only two action types
+// this page (or /admin/agencies) treats as genuinely cross-org platform-ops
+// data, not a specific tenant's own activity. Kept unscoped deliberately;
+// everything else audit_log can contain is some tenant's own activity and
+// must be gated to HAMISHAI_ORG_ID.
+const ORGANISATION_LEVEL_ACTIONS = ["organisation.deletion_requested", "organisation.deletion_request_processed"] as const;
 
 const ACTION_LABEL: Record<string, string> = {
   "client.status_changed": "Client status changed",
@@ -55,21 +63,62 @@ export default async function ActivityLogPage({ searchParams }: { searchParams: 
   const { client: clientFilter, q: searchQuery } = await searchParams;
   const supabase = getSupabaseAdmin();
 
-  let query = supabase
+  // Split into two queries per the P0 /admin org-isolation fix, round 3:
+  // organisation.* rows are genuine, intentional cross-org platform-ops
+  // data (GDPR-deletion related, matching /admin/agencies' own precedent)
+  // and stay unscoped; every other action type is some tenant's own
+  // activity — getSupabaseAdmin() bypasses RLS, so gating this in
+  // application code is the only real protection. A row with a client_id
+  // is gated via the client's own org_id (clients(business_name, org_id));
+  // a row with no client_id (e.g. lead.*/content.*/project.* actions,
+  // which resolve ownership via a prospect/project target instead) is not
+  // resolvable via this page's existing client_id-only join and is left
+  // unscoped here, same as before this round — a known, narrower gap than
+  // this round's named scope, flagged in docs/ai-team/DECISIONS.md rather
+  // than silently expanded into.
+  let orgLevelQuery = supabase
     ?.from("audit_log")
-    // org_id/organisations(name) added for the two organisation.* actions
+    // org_id/organisations(name) kept for the two organisation.* actions
     // below — without it, entry.actor is just the raw org UUID
     // logAuditEvent({ actor: orgId, ... }) writes for those (same
     // established, if imperfect, convention client.data_deleted's own
     // actor: orgId already uses), with no way to see what org that even
     // is.
-    .select("id, created_at, actor, actor_type, action, client_id, org_id, metadata, clients(business_name), organisations(name)")
+    .select("id, created_at, actor, actor_type, action, client_id, org_id, metadata, clients(business_name, org_id), organisations(name)")
+    .in("action", ORGANISATION_LEVEL_ACTIONS)
     .order("created_at", { ascending: false })
     .limit(100);
 
-  if (clientFilter) query = query?.eq("client_id", clientFilter);
+  // Raised from the original single query's 100 to 150 — filtering out
+  // foreign-org rows in application code below can't silently shrink this
+  // page's feed below its intended size, same reasoning as
+  // filterAiActivityToOrg's own fetch-limit bump in round 2.
+  let tenantQuery = supabase
+    ?.from("audit_log")
+    .select("id, created_at, actor, actor_type, action, client_id, org_id, metadata, clients(business_name, org_id), organisations(name)")
+    .not("action", "in", `(${ORGANISATION_LEVEL_ACTIONS.join(",")})`)
+    .order("created_at", { ascending: false })
+    .limit(150);
 
-  const { data: allEntries } = query ? await query : { data: null };
+  if (clientFilter) {
+    orgLevelQuery = orgLevelQuery?.eq("client_id", clientFilter);
+    tenantQuery = tenantQuery?.eq("client_id", clientFilter);
+  }
+
+  const [{ data: orgLevelEntries }, { data: rawTenantEntries }] = await Promise.all([
+    orgLevelQuery ? orgLevelQuery : Promise.resolve({ data: null }),
+    tenantQuery ? tenantQuery : Promise.resolve({ data: null }),
+  ]);
+
+  const scopedTenantEntries = (rawTenantEntries ?? []).filter((entry) => {
+    if (!entry.client_id) return true;
+    const client = entry.clients as unknown as { business_name: string; org_id?: string | null } | null;
+    return client?.org_id === HAMISHAI_ORG_ID;
+  });
+
+  const allEntries = [...(orgLevelEntries ?? []), ...scopedTenantEntries]
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+    .slice(0, 100);
 
   // Studio improvement — same client-side-over-already-fetched-rows
   // search pattern as every other list page in the app. Searches the

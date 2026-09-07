@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { timeAgo } from "@/lib/time-ago";
 import { computeTaskDueDate } from "@/lib/calendar-sync";
+import { HAMISHAI_ORG_ID } from "@/lib/org-membership";
 
 // Standalone, not inline in the component body — react-hooks/purity flags
 // Date.now() called directly during a component's own render (even a
@@ -48,10 +49,16 @@ export default async function GoogleSetupPage() {
 
   const supabase = getSupabaseAdmin();
 
+  // Both reads below are scoped to HAMISHAI_ORG_ID — /admin is Hamish's own
+  // internal view only, locked to his org everywhere (see docs/ai-team's P0
+  // /admin org-isolation fix). getSupabaseAdmin() bypasses RLS, so this
+  // inline join filter is the only thing stopping a real tenant's rows
+  // (e.g. Edinburgh Solutions') from appearing on this setup page.
   const { data: processedEmails } = supabase
     ? await supabase
         .from("processed_emails")
-        .select("message_id, subject, processed_at, clients(business_name)")
+        .select("message_id, subject, processed_at, clients!inner(business_name, org_id)")
+        .eq("clients.org_id", HAMISHAI_ORG_ID)
         .order("processed_at", { ascending: false })
         .limit(8)
     : { data: [] };
@@ -63,8 +70,9 @@ export default async function GoogleSetupPage() {
   const { data: calendarTasksData } = supabase
     ? await supabase
         .from("tasks")
-        .select("id, title, created_at, priority, status, requests(clients(business_name))")
+        .select("id, title, created_at, priority, status, requests!inner(clients!inner(business_name, org_id))")
         .not("calendar_event_id", "is", null)
+        .eq("requests.clients.org_id", HAMISHAI_ORG_ID)
         .order("created_at", { ascending: false })
         .limit(20)
     : { data: [] };

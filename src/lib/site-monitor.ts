@@ -48,7 +48,7 @@ export async function runSiteCheck(clientId: string) {
 
   const { data: client, error: clientError } = await supabase
     .from("clients")
-    .select("id, business_name, website_url")
+    .select("id, business_name, website_url, org_id")
     .eq("id", clientId)
     .single();
 
@@ -123,6 +123,7 @@ export async function runSiteCheck(clientId: string) {
     .from("site_checks")
     .insert({
       client_id: clientId,
+      org_id: client.org_id ?? null,
       uptime_ok: uptimeOk,
       response_ms: responseMs,
       ssl_ok: ssl.ok,

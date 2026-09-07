@@ -370,6 +370,7 @@ async function insertCandidates(
       action: "lead.discovered",
       targetType: "prospect",
       targetId: lead.id,
+      orgId,
       metadata: { why_suggested: candidate.why_suggested, search_category: resolvedCategory, search_area: area },
     });
 

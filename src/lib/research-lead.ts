@@ -653,7 +653,7 @@ export async function researchLead(leadId: string, sender: SalesKitSender = { na
 
   const { data: lead, error: leadError } = await supabase
     .from("prospects")
-    .select("business_name, category, neighbourhood, website, signal, outreach_note, concept_slug")
+    .select("business_name, category, neighbourhood, website, signal, outreach_note, concept_slug, org_id")
     .eq("id", leadId)
     .single();
 
@@ -729,6 +729,7 @@ export async function researchLead(leadId: string, sender: SalesKitSender = { na
       action: "lead.researched",
       targetType: "prospect",
       targetId: leadId,
+      orgId: lead.org_id ?? undefined,
       metadata: { score, ai_opportunity_fit: findings.ai_opportunity_fit, pursue_because: findings.pursue_because },
     });
 

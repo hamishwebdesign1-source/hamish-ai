@@ -117,14 +117,28 @@ export default async function AdminOverviewPage() {
           .eq("status", "contacted")
           .eq("org_id", HAMISHAI_ORG_ID)
       : Promise.resolve({ data: [] }),
-    // site_checks currently has zero foreign-org rows live, but gated for
-    // consistency/future-proofing — same reasoning already applied to
-    // requests/[id]/page.tsx in the first pass of this fix.
+    // Round 3 of the P0 /admin org-isolation fix — site_monitor.ts's
+    // insert never set org_id before this round, so every one of the
+    // table's 63 real historical rows carries the column's DB default
+    // (HamishAI's literal id) regardless of which client they actually
+    // belong to; the previous .eq("org_id", HAMISHAI_ORG_ID) filter here
+    // was consequently a no-op (live-confirmed: at least one real
+    // Edinburgh Solutions client's row still passed it). The insert is now
+    // fixed to write the real client's org_id going forward (see
+    // site-monitor.ts), but historical rows were deliberately not
+    // backfilled (matches round 2's audit_log precedent, and backfilling
+    // would be a mutating write touching Edinburgh Solutions' real rows —
+    // out of bounds for this round's read-only-verification safety
+    // constraint). Never trusting site_checks.org_id here either way —
+    // resolved via the joined client's own org_id instead, same "don't
+    // trust a column that can be actively wrong" precedent as
+    // filterAiActivityToOrg — closes the historical leak immediately, with
+    // zero data mutation, rather than waiting for old rows to age out.
     supabase
       ? supabase
           .from("site_checks")
-          .select("client_id, uptime_ok, ssl_ok, broken_links, checked_at, clients(business_name)")
-          .eq("org_id", HAMISHAI_ORG_ID)
+          .select("client_id, uptime_ok, ssl_ok, broken_links, checked_at, clients!inner(business_name, org_id)")
+          .eq("clients.org_id", HAMISHAI_ORG_ID)
           .order("checked_at", { ascending: false })
           .limit(50)
       : Promise.resolve({ data: [] }),
