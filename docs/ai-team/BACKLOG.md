@@ -3245,7 +3245,7 @@ cookies" confirmation not obtainable via this session's browser tooling
 verified at the source level instead, which is the more reliable check
 for this specific claim anyway.
 
-### URGENT — `/admin` has no `org_id` filter anywhere: systemic cross-tenant read AND write exposure, confirmed, not yet fixed
+### `/admin` had no `org_id` filter anywhere: systemic cross-tenant read AND write exposure — fixed across 4 rounds, QA-confirmed, awaiting Hamish's final sign-off
 
 Widened by Security Auditor's full scoping pass (2026-09-07) — this is not
 isolated to `/admin/leads`, and it is not read-only.
@@ -3543,6 +3543,46 @@ isolated to `/admin/leads`, and it is not read-only.
   - `npx tsc --noEmit -p .`, `npx eslint` on every touched file, and
     `npx vitest run` (493/493, run twice clean) all green; `npm run build`
     succeeded.
+
+**Round 4 + final verdict (2026-09-07/08)**: one further gap reopened by
+Security Auditor's own focused recheck of round 3 — `/admin/activity-log`'s
+`client_id`-less rows (`lead.*`/`project.*`/`deliverable.*`/`task.*`) were
+resolvable via `target_id`, and 57 of 296 sampled rows genuinely belonged
+to Edinburgh Solutions (not rendering only by an incidental gap in the
+display code, not a real control). Fixed via a new
+`filterClientlessActivityLogEntriesToOrg()` (`src/lib/ai-activity.ts`,
+exclude-by-default, deliberately not sharing `filterAiActivityToOrg()`'s
+include-by-default posture) — commit `47f4489`. Security Auditor's final
+focused check independently re-verified this (296/112/57/0 — exact match)
+and did one last full `/admin` sweep: **no confirmed cross-tenant leak
+remains open**. One new, non-exploitable, low-priority consistency item
+found (`leads/page.tsx`'s `audit_log`/`lead_meetings` fetches are
+unscoped but safe today only because lookups key off already-org-scoped
+UUIDs) — bundled with the three already-known deferred residuals
+(`checkOneLeadSend()`, `updateTaskStatus`'s client-email read,
+`knowledge/page.tsx`'s insert-side `client_id` validation) as one
+low-priority fast-follow, not a blocker.
+
+**QA (2026-09-08)**: full live-browser pass, real authenticated `/admin`
+session — all 11 surfaces checked show only HamishAI's own real data (no
+Edinburgh Solutions or other foreign business name anywhere), no
+over-filtering (HamishAI's own ~180-lead pipeline, 4 real clients, etc.
+all fully intact), a real write (adding/clearing a note on a genuine
+HamishAI lead) confirmed still works normally, a nonexistent-lead id
+correctly 404s, mobile viewport re-checked. Confirmed `/admin/agencies`
+(the one deliberately cross-org page) still correctly shows Edinburgh
+Solutions — proof the fix's scope boundary was drawn in the right place,
+not just "hide everything." `tsc`/`eslint`/`vitest` (499/499, twice)/
+`npm run build` all green.
+
+- **Status**: **Fixed and QA-confirmed across 4 build rounds and 3
+  security review passes — awaiting Hamish's final sign-off before push.**
+  Zero evidence of actual destructive/financial misuse was found at any
+  point in this investigation. Four low-priority, zero-current-blast-radius
+  residuals remain, explicitly deferred and logged (not silently dropped):
+  `checkOneLeadSend()`, `updateTaskStatus`'s client-email read,
+  `knowledge/page.tsx`'s insert-side `client_id` validation, and
+  `leads/page.tsx`'s unscoped `audit_log`/`lead_meetings` fetches.
 
 ### `researchLead()`/`draftSalesKit()` hardcode `actor: "admin"` in their own audit log regardless of real caller
 

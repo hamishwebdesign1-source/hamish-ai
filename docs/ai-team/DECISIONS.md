@@ -2058,3 +2058,26 @@ process's own broad-sweep discipline caught them all. Zero evidence of
 actual destructive/financial misuse was found at any point. Nothing has
 been pushed to `origin/main`; QA is next, then Hamish's final sign-off
 per this team's standing security-change approval boundary.
+
+## 2026-09-08 — QA confirmed the `/admin` org-isolation fix live; awaiting Hamish's final sign-off
+
+**Decision**: QA Engineer ran a full live-browser pass against a real
+authenticated `/admin` session (dashboard, leads, clients, knowledge,
+activity-log, ai-activity, audit, google-setup, ms-setup — 9 surfaces,
+plus agencies for a boundary check) and confirmed: zero foreign-tenant
+data visible anywhere, HamishAI's own real data fully intact (no
+over-filtering false negative), a real write path (adding/clearing a
+note on a genuine HamishAI lead) still works correctly, a nonexistent-id
+lookup correctly 404s rather than leaking a partial page, and
+`/admin/agencies` — the one page deliberately exempt from this fix,
+since it's HamishAI's own platform-ops view of every Agency Platform
+tenant — still correctly shows Edinburgh Solutions, confirming the fix's
+scope boundary was drawn in the right place rather than blanket-hiding
+everything cross-org.
+
+This closes the build/review/QA chain: 4 fix rounds
+(`08662cc`/`3024899`/`a9644ff`/`47f4489`), 3 independent security review
+passes, 1 live QA pass, zero evidence of actual misuse found at any
+point. `docs/ai-team/README.md`'s approval boundary requires Hamish's
+explicit sign-off before this ships (security-sensitive, touches
+cross-tenant data isolation) — nothing pushed to `origin/main` yet.
