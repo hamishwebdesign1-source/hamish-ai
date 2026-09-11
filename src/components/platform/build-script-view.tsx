@@ -91,12 +91,31 @@ export function BuildScriptView({ projectId, tool, phases }: { projectId: string
 
             return (
               <AccordionItem key={phaseId} value={phaseId}>
-                <AccordionTrigger>
+                {/* UX/UI Director visual re-review (2026-09-11): the shared
+                    AccordionTrigger's default (text-sm font-medium) is sized
+                    for a compact UI control, not a 10-chapter reference
+                    document's own section headings — bumped here, on this
+                    route only, so scanning down the page reads as a table of
+                    contents rather than 10 identical-weight rows. */}
+                <AccordionTrigger className="font-heading text-base font-semibold">
                   Phase {index + 1} — {phase.name}
                 </AccordionTrigger>
                 <AccordionContent>
                   <div className="space-y-3">
-                    <pre className="rounded-lg border border-border bg-secondary/30 p-3 text-xs whitespace-pre-wrap text-foreground">{instructions}</pre>
+                    {/* UX/UI Director visual re-review (2026-09-11): this
+                        route's whole job is reading ~8,500 words at once —
+                        the main project page's per-card `<pre>` (text-xs,
+                        which inherits the browser/Tailwind-preflight
+                        monospace font on a bare `pre`) is right for a small,
+                        clamped preview inside a busy multi-card page, wrong
+                        here. `font-sans text-sm leading-relaxed` keeps the
+                        same honest "plain text, not a rendered page" framing
+                        (no markdown rendering added) but in a proportional,
+                        larger, more readable typeface — the actual point of
+                        this page. */}
+                    <pre className="rounded-lg border border-border bg-secondary/30 p-4 font-sans text-sm leading-relaxed whitespace-pre-wrap text-foreground">
+                      {instructions}
+                    </pre>
                     <CopyButton text={instructions} label="Copy" />
 
                     <div>

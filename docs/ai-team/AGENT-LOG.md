@@ -9,6 +9,42 @@ paragraph, not a full handoff report (those, if worth keeping, go in
 
 ---
 
+## 2026-09-11 — Website Builder mission: UX/UI Director visual re-review, the last skipped step in the team's own workflow
+
+Hit a real, honest tooling gap immediately: this agent's browser tools
+only reach an unauthenticated origin (confirmed by navigating to the real
+Press Coffee URL and to `/studio`, both redirected to the signed-out
+marketing homepage) — the same limitation QA's own pass hit earlier in
+this mission. Did not attempt to log in or fabricate a live check that
+didn't happen; did a full source-level re-review of every touched
+component instead (not the spec, the real shipped code) and made three
+small, real, verified fixes found doing it: the `/script` route's reading
+typography was a compact-preview treatment (`text-xs`, default monospace)
+on a page whose whole job is comfortable long-form reading — bumped to
+`font-sans text-sm leading-relaxed` plus a real heading weight on phase
+titles; the "Prefilled" chatbot-origin badge had no real `<Label>` to tag
+(a documented deviation from `DESIGN-SYSTEM.md`'s own field-provenance
+pattern) — added one, fixing both the visual ambiguity ("Prefilled" sat
+next to the words "turn it on") and a real missing-accessible-name gap;
+the origin-input row QA flagged as unverified at mobile width genuinely
+had no responsive handling (`flex items-center gap-2`, no wrap) — fixed
+with the same `flex-col`/`sm:flex-row` stacking idiom already used
+elsewhere in Studio. Two smaller copy/sizing fixes alongside: reworded the
+Stripe row's caveat to read as an explanation rather than a disclaimer,
+and bumped `PostLaunchChecklist`'s four deep-link buttons from `xs` to
+`sm` since each is its row's real primary action, not an incidental
+control. One real gap found and deliberately not built — a sticky
+phase-jump nav for the `/script` route's genuine ~8,500-word single
+scroll — written up as its own `BACKLOG.md` entry (P2, Not started)
+instead, per this team's own scope discipline. One finding investigated
+and resolved as "not a defect": a fully-complete build's phase list
+*should* render as a uniform wall of collapsed Done cards; two other real
+completion signals already sit above it. Full verification:
+`npx tsc --noEmit -p .` clean, `npx eslint` clean, full `npx vitest run`
+504/504 green, `npm run build` succeeded. Not pushed — held for Hamish's
+own review, same as the rest of this mission. Full reasoning in
+`DECISIONS.md`'s matching entry.
+
 ## 2026-09-11 — Website Builder build-phase flow: content visibility decoupled from checklist-gated progress, three-tier phase cards, `/script` route, per-phase prompt-library links
 
 Built the first `## Ready` `BACKLOG.md` entry (UX/UI Director design +

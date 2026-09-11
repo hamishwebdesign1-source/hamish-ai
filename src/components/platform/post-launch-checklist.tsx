@@ -73,7 +73,14 @@ export function PostLaunchChecklist({
       // organisations.stripe_connect_charges_enabled, so it shows "not
       // done" on every client's checklist until the org connects Stripe
       // once, not just clients who specifically need billing.
-      status: stripeConnected ? "Connected — you can invoice clients." : "Not connected yet — this is org-wide, not just this client.",
+      //
+      // UX/UI Director visual re-review (2026-09-11): the original copy
+      // ("this is org-wide, not just this client") read as a defensive
+      // caveat trailing the real status, easy to skim past or misread as
+      // an apology for something broken. Leads with the same plain "not
+      // done" fact, then frames the org-wide part as the reason it's a
+      // one-time thing rather than a disclaimer.
+      status: stripeConnected ? "Connected — you can invoice clients." : "Not connected yet — a one-time, org-wide setup, not specific to this client.",
       href: "/studio/settings",
       cta: "Connect",
     },
@@ -131,7 +138,16 @@ export function PostLaunchChecklist({
                     <p className="text-xs text-muted-foreground">{item.status}</p>
                   </div>
                 </div>
-                <Button size="xs" variant="outline" className="shrink-0" render={<Link href={item.href} />}>
+                {/* UX/UI Director visual re-review (2026-09-11): `size="xs"`
+                    (h-6) is DESIGN-SYSTEM.md's own "compact, dense-row"
+                    tier, not a page's primary action — but this card's
+                    entire job is being the one genuinely helpful guided
+                    moment after a real launch, and each of these 4 buttons
+                    *is* the primary action for its row, not an incidental
+                    inline control. `sm` reads as a real next step rather
+                    than a minor aside, at a small, real, self-contained
+                    cost (one size step, no layout change). */}
+                <Button size="sm" variant="outline" className="shrink-0" render={<Link href={item.href} />}>
                   {item.cta}
                 </Button>
               </li>

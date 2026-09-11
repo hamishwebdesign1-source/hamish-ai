@@ -8,6 +8,141 @@ just at product-decision scope instead of line scope.
 
 ---
 
+## 2026-09-11 — Website Builder build → launch → guided next steps: UX/UI Director visual re-review — real tooling gap, source-level re-review, three real fixes, one follow-up scoped and not built
+
+**Context**: the final, previously-skipped step of this team's own "UI
+redesign" workflow (UX Director → Product Director sanity-check → Lead
+Engineer → QA → **UX/UI Director visual re-review**) on the Website
+Builder build→launch→guided-next-steps mission — everything else (design,
+sanity-check, two Lead Engineer builds `35d4236`/`fccac8c`, QA's pass and
+bug fix `6fdeb69`, orchestrator's live verification `f2aa92e`/`01a2823`)
+was already done and live. Tasked with a real, live, authenticated visual
+critique of the shipped work, not another read of the diff.
+
+**A real tooling gap, hit and reported honestly rather than worked
+around**: this agent's own available browser tooling is the isolated
+Browser-pane MCP tools, not a separate authenticated "Claude-in-Chrome"
+tool. Navigating directly to the real Press Coffee project URL and to
+`/studio` both redirected to the signed-out marketing homepage — the exact
+same limitation QA's own pass hit and correctly refused to work around
+(logging in itself). Did not attempt to log in or fabricate a "live"
+verification that didn't happen. Did the next most rigorous thing
+available instead: read every touched component's real, current source in
+full (not the spec, not the diff) — `build-phase-panel.tsx`,
+`build-script-view.tsx`, `post-launch-checklist.tsx`, `launch-panel.tsx`,
+`project-stage-tracker.tsx`, `clients-panel.tsx`'s `EmbedChatbotControl`/
+`ClientCard`, `accordion.tsx`, `input.tsx`, `label.tsx`, `badge.tsx` — and
+reasoned about rendered layout/typography/contrast directly from the real
+Tailwind classes rather than trusting either the spec's description or the
+build's own closure notes at face value. **This is a real, named gap, not
+a substitute for an actual pixel-level check** — flagged below for whoever
+in this mission's chain does have real session access to close.
+
+**Three real, small, verified fixes made in this pass** (not proposed,
+actually built and verified — `npx tsc --noEmit -p .` clean, `npx eslint`
+clean on every touched file, full `npx vitest run` 504/504 green, `npm run
+build` succeeded with `/studio/website-builder/[id]/script` present):
+
+1. **The `/script` route's typography was a preview treatment on a reading
+   page.** `<pre className="... text-xs ...">` with no font override
+   renders in the browser/Tailwind-preflight default monospace stack at
+   12px — exactly right for the main project page's small, clamped
+   per-card preview (a busy multi-card page, text kept compact
+   deliberately), wrong for the one page whose entire job (per this
+   mission's own Decision 3, `DECISIONS.md` above) is reading ~8,500 words
+   comfortably in one sitting. Changed to `font-sans text-sm
+   leading-relaxed` on this route only — still plain preformatted text, no
+   markdown rendering added (the content itself is already
+   `stripMarkdownEmphasis()`-cleaned prose, not literal markdown syntax) —
+   and bumped `AccordionTrigger` from the shared component's default
+   (`text-sm font-medium`, sized for a compact UI control) to `font-heading
+   text-base font-semibold` so a 10-phase page's section headers actually
+   read as a table of contents while scrolling, not 10 identical-weight
+   rows.
+2. **The "Prefilled" badge had no `<Label>` to tag.**
+   `DESIGN-SYSTEM.md`'s own field-provenance pattern is explicit: tag the
+   badge at the `<Label>`, not the input. `EmbedChatbotControl`'s origin
+   field never had a real `<Label>` at all — only an instructional span
+   ("Enter their website and turn it on:") with the badge sitting in a
+   `justify-between` row right next to it, meaning "Prefilled" visually
+   collided with the word "turn it on" — a real, first-glance misread risk
+   (the mission dispatch's own question 3: could an agency misread
+   "Prefilled" as "already enabled"?). Added a real `<Label
+   htmlFor="embed-origin-…">` (identical text and visual weight, `text-xs
+   font-normal text-muted-foreground`, so no visual regression) so the
+   badge now unambiguously tags the field value — and the input gains a
+   real accessible name it didn't have before (a placeholder alone is not
+   a reliable one).
+3. **The origin-input row genuinely didn't handle 3 controls on mobile.**
+   QA's own report flagged this row (`Input` + `Enable`/`Disable` +
+   conditionally `Save`) as something it couldn't visually confirm at
+   mobile width. Reading the JSX confirmed the underlying risk directly:
+   `flex items-center gap-2`, no `flex-wrap`, no responsive stacking —
+   `Input`'s own `min-w-0` means it wouldn't overflow/break the layout,
+   but it would get uncomfortably narrow squeezed against up to two
+   buttons on a real ~375px viewport. Changed to `flex flex-col gap-2
+   sm:flex-row sm:items-center` (input full-width on its own line below
+   `sm`, the button(s) grouped together beneath it) — the same
+   flex-col/`sm:flex-row` stacking idiom already used in
+   `knowledge-panel.tsx`/`prospecting-panel.tsx`, reused rather than
+   invented.
+
+**Two more small things fixed, not just flagged, while in the same
+files**: the Stripe row's "this is org-wide, not just this client" copy
+read as a disclaimer trailing the real status rather than an explanation —
+reworded to "a one-time, org-wide setup, not specific to this client"
+(leads with the plain fact, then frames the org-wide part as the reason,
+not an apology). `PostLaunchChecklist`'s four deep-link buttons were
+`size="xs"` — `DESIGN-SYSTEM.md`'s own "compact, dense-row" tier, not a
+page's primary action — but this card is the one deliberately-designed
+guided "what's next" moment in the whole mission (Decision 4/5 above), and
+each button is its row's actual primary action, not an incidental inline
+control; bumped to `size="sm"`.
+
+**One real finding, deliberately not built — a new, separately-scoped
+`BACKLOG.md` entry instead**: the `/script` route has no sticky phase-jump
+navigation. For a fully-built project (10 generated phases, all expanded
+by default per this mission's own Decision 3 — "the point of this page is
+reading everything at once") that's a genuine ~8,500-word single scroll
+with no way to jump straight to Phase 7 without scrolling past everything
+before it. This is a real navigation feature (anchor targets, a sticky
+element, a mobile-appropriate collapsed form), not a small CSS fix — per
+this team's own "don't drift into a bigger rebuild" discipline, scoped and
+written up in `BACKLOG.md` rather than built in this pass.
+
+**One finding investigated and resolved as "not a defect"**: the
+dispatch's own question about whether "everything starts to look the same
+once most of 10 cards are the same Done green" was real to check, not
+rhetorical. Verdict: not a flaw. A fully-complete build *should* render as
+a uniform wall of collapsed Done cards — that's an honest reflection of
+the real state, not lost hierarchy. Two independent completion signals
+already sit above the list (`ProjectStageTracker`'s own stage row, and the
+full-script banner's "N of 10 phases written" line) — a third
+completion indicator directly on the phase list would be redundant, not a
+fix, and this team's own standing instinct ("never default to add more
+cards") applies here as much as it does to a missing surface.
+
+**A pre-existing, out-of-scope issue noticed but not touched**: `badge.tsx`'s
+`ai` variant and `button.tsx`'s `secondary` variant's hover state both use
+literal `color-mix()` inside an arbitrary Tailwind value
+(`bg-[color-mix(in_oklch,...)]`) — `CLAUDE.md`'s own standing warning is
+that Tailwind v4 + Lightning CSS silently drops any rule using
+`color-mix()`, no build error. Neither variant is touched by this mission
+(the "Prefilled"/"Done"/"Written — not started" badges here all use
+`secondary`/`success`, not `ai`), so out of this pass's scope to fix, but
+real and worth a dedicated check — noted here rather than silently
+ignored, not filed as its own backlog entry without first confirming
+whether it's actually broken in the real build output (a `color-mix()`
+rule silently vanishing is very different from a rule that resolves fine
+in this Lightning CSS version — that needs verifying before treating it as
+a confirmed bug, which this pass didn't have scope to do).
+
+**Not pushed.** Per this mission's own standing instruction, all three
+fixes are held locally for Hamish's own review before going out, same as
+every other build in this mission.
+
+---
+
 ## 2026-09-11 — Website Builder build → launch → guided next steps: Product Director sanity-check, verdict PASS with two flags for Hamish
 
 **Context**: final review step in this team's "UI redesign" workflow (UX

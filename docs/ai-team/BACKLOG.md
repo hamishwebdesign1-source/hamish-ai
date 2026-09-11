@@ -1436,6 +1436,70 @@ here moved to `## Ready` once UX/UI Director's design landed, 2026-09-11.)_
 
 ## Not started
 
+### `/script` route needs a sticky phase-jump nav — a real ~8,500-word single scroll with no way to jump to a specific phase
+
+- **Problem**: found during the UX/UI Director's visual re-review
+  (2026-09-11) of the Website Builder build-phase flow mission
+  (`DECISIONS.md`'s matching entry has the full context).
+  `/studio/website-builder/[id]/script` (`build-script-view.tsx`) is a
+  dedicated "read everything" page by design (`DECISIONS.md`'s 2026-09-11
+  Decision 3 — a real page, not a modal, specifically because ~8,500 words
+  doesn't fit one) — every generated phase's `AccordionItem` renders open
+  by default (`defaultValue = generatedIds`), which is correct for "read
+  the whole thing at once" but means a fully-built project (the real
+  Press Coffee project: 10 phases, confirmed live) is a genuine single
+  continuous scroll with no way to jump straight to, say, Phase 8 without
+  scrolling past everything before it. The accordion mechanism itself
+  (collapse/expand per section) doesn't help here either, since starting
+  fully open means a user has to manually collapse 7 other sections just
+  to get an overview — there's no "collapse all" affordance and no anchor
+  navigation at all today.
+- **Objective**: a lightweight way to jump directly to any of the 10
+  phases from anywhere on the page, without leaving the single-page
+  reading experience the route was deliberately built as (not a return to
+  a multi-card/multi-click structure).
+- **User**: same as the route itself — an agency member using this page as
+  a reference document while working through a real build, likely
+  returning to it mid-session to re-check one specific phase rather than
+  reading start to finish every time.
+- **Priority**: P2 — a real, found-in-review gap on a route that shipped
+  this same day, not urgent (the page still works, just requires
+  scrolling), but a genuine rough edge on a surface explicitly built to
+  answer "can we just provide them with the personalised prompts?" — the
+  literal reading experience matters for that promise to feel finished.
+- **Expected outcome, not fully designed here** (needs its own UX/UI
+  Director pass before building, per this team's own "don't drift into a
+  bigger rebuild inside a fix-it pass" discipline) — options worth
+  evaluating, not a prescribed answer: (a) a sticky, horizontally-scrollable
+  chip row at the top of the page (`Phase 1` … `Phase 10`, each a real
+  anchor `<a href="#phase-N">`, current-in-viewport chip visually marked —
+  needs a scroll-spy, real complexity, not just a CSS tweak) sticking
+  below the page's own header; (b) a simpler, cheaper first pass — real
+  anchor links only, no scroll-spy/sticky behaviour, e.g. a plain
+  in-page "Jump to:" row of text links at the very top (same shape as a
+  long-form article's own table of contents) — genuinely smaller to build
+  and ship first, with the sticky/scroll-spy version as a possible later
+  enhancement rather than the only acceptable version; (c) whether
+  "collapse all" is still worth adding alongside jump-links, or redundant
+  once anchor-jumping exists (anchor scrolling works regardless of a
+  section's open/closed state, so it may not be). Explicitly not
+  evaluated here: whether this page should gain a persistent left-rail
+  nav like a docs site — that's a much bigger structural change than this
+  finding's actual size warrants, flag only if a future pass finds real
+  evidence this specific fix isn't enough.
+- **Acceptance criteria**: not written in full — depends on which option
+  above a design pass picks. At minimum: a way to reach any phase's
+  content without manually scrolling past every phase before it; doesn't
+  regress the route's existing "everything open by default" reading
+  experience; `npx tsc --noEmit -p .`, `npx eslint`, full `vitest` suite
+  green.
+- **Relevant agent**: UX/UI Director (pick and spec one of the options
+  above, or a better one) → Lead Engineer (build) → QA.
+- **Dependencies**: none — `build-script-view.tsx` already has everything
+  needed (`BUILD_PHASE_ORDER`, `phases`, `generatedIds`); purely additive,
+  no schema/data change.
+- **Status**: Not started.
+
 ### Surface `recommended_services` in Studio's own research summary
 
 - **Problem**: found by QA while verifying the "Hamish AI" hardcode fix
@@ -2129,6 +2193,38 @@ re-review.**
   not-yet-reached generated phase to exercise that tier on, since it's
   100% complete; the advance flow itself is unmodified by this change per
   Lead Engineer's own confirmation).
+- **Visual re-review (UX/UI Director, 2026-09-11)**: the final step in this
+  mission's own "UI redesign" workflow. **Could not reach the real
+  authenticated session** — this environment's browser tooling only
+  reaches an unauthenticated local/production origin (confirmed directly:
+  navigating to the real Press Coffee URL and to `/studio` both redirect
+  to the signed-out marketing homepage), the exact same limitation QA hit
+  earlier in this mission. Did a full source-level re-review instead
+  (every touched component read in full against the real shipped code,
+  not the spec) and made three small, real, verified fixes found doing
+  it — full detail in `DECISIONS.md`'s matching entry, summary here:
+  (1) the script route's `<pre>` blocks and `AccordionTrigger` read as a
+  compact-UI preview, not a document meant to be read end to end —
+  bumped to `font-sans text-sm leading-relaxed` (was inheriting the
+  browser/Tailwind-preflight monospace font at `text-xs`, appropriate for
+  the main project page's clamped preview, wrong for a dedicated reading
+  page) and the trigger to `font-heading text-base font-semibold` so a
+  10-phase page scans as a table of contents; (2) flagged, not fixed — no
+  sticky phase-jump nav exists on the `/script` route, a real gap for an
+  ~8,500-word single-scroll page; new `BACKLOG.md` entry below rather
+  than built now (a real navigation feature, not a small CSS fix); (3)
+  the three-tier phase cards' "everything looks the same once most of 10
+  cards are Done" concern is real but not a defect — a fully-complete
+  build honestly *should* render as a wall of identical Done cards, and
+  `ProjectStageTracker` + the full-script banner's own "N of 10 phases
+  written" line already give two independent completion signals above
+  the list; adding a third would be redundant, not a fix. **Full
+  verification on the 3 changed files**: `npx tsc --noEmit -p .` clean,
+  `npx eslint` clean, full `npx vitest run` 504/504 green (no flake),
+  `npm run build` succeeded with `/studio/website-builder/[id]/script`
+  present in the route output. **Not pushed** — held for Hamish's own
+  review per this mission's standing instruction, same as every other
+  build in it.
 - **Status**: Complete.
 
 ### Website Builder launch handoff: wire `live_url` into the Clients page chatbot field, and a real "what's next" moment on launch
@@ -2394,6 +2490,43 @@ QA the two passes independently.
   distinguished from a no-op) or exercise the disable-on-save bug fix
   itself (didn't toggle the chatbot's enabled state to test the new save
   path) — both worth a follow-up check if either becomes suspect later.
+- **Visual re-review (UX/UI Director, 2026-09-11)**: could not reach the
+  real authenticated Clients page either (same tooling limitation as the
+  matching entry above — confirmed by navigating there directly, redirected
+  signed-out). Source-level re-review of `clients-panel.tsx` found and
+  fixed three real, small things, full detail in `DECISIONS.md`'s matching
+  entry: (1) the "Prefilled" badge had no real `<Label>` to tag —
+  `DESIGN-SYSTEM.md`'s own field-provenance pattern says the badge belongs
+  on the `<Label>`, but this field only had an instructional span ("Enter
+  their website and turn it on:"), so the badge sat directly next to the
+  words "turn it on" with nothing marking it as a value tag rather than a
+  step-status tag — added a real `<Label htmlFor>` (same text, same visual
+  weight, `text-xs font-normal text-muted-foreground`) so the badge now
+  visibly tags the field, not the instruction, and the input gains a real
+  accessible name it didn't have before (placeholder-only is not a
+  reliable accessible name); (2) the origin-input row QA flagged as
+  "up to 3 controls, couldn't confirm mobile width" — confirmed by reading
+  the JSX: `flex items-center gap-2` with no wrap, `Input` has `min-w-0` so
+  it wouldn't overflow, but it would get uncomfortably narrow squeezed
+  against Enable/Disable + a conditional Save button on a real mobile
+  viewport. Changed to `flex flex-col gap-2 sm:flex-row sm:items-center`
+  (input full-width on its own line below `sm`, the button(s) grouped
+  together beneath it) — the same stacking idiom already used in
+  `knowledge-panel.tsx`/`prospecting-panel.tsx`, not a new pattern; (3) the
+  Stripe row's caveat ("this is org-wide, not just this client") read as a
+  disclaimer trailing the real status rather than an explanation — reworded
+  to "a one-time, org-wide setup, not specific to this client," and bumped
+  all four `PostLaunchChecklist` deep-link buttons from `size="xs"`
+  (DESIGN-SYSTEM.md's own "dense inline row" tier) to `size="sm"` — this
+  card is the one genuinely guided "what's next" moment the mission set out
+  to build, and each button is the row's actual primary action, not an
+  incidental inline control. **Full verification on the 2 changed files**:
+  `npx tsc --noEmit -p .` clean, `npx eslint` clean, full `npx vitest run`
+  504/504 green (`clients-panel.test.tsx`'s 5 `EmbedChatbotControl` tests
+  specifically re-run and confirmed passing — they query by text content,
+  unaffected by the span→Label swap), `npm run build` succeeded. **Not
+  pushed** — held for Hamish's own review, same as the rest of this
+  mission.
 - **Status**: Complete.
 
 ### Wire the same outreach-kit action to Command Centre's Top Prospects list (fast-follow to the shipped topOpportunity action)

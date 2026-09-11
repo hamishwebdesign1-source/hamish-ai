@@ -254,6 +254,22 @@ review," for the full implementation note.
     action whenever it doesn't (covers edited-away values, a second later
     source of the same fact, a user's deliberate override) — one of the
     two renders at a time, driven by the same comparison, never both.
+  - **"Tag it at the `<Label>`" only works if a real `<Label>` exists —
+    verify that, don't assume it.** Found live during the UX/UI Director's
+    2026-09-11 visual re-review: the launch-handoff build above tagged the
+    "Prefilled" badge next to an instructional `<span>` ("Enter their
+    website and turn it on:"), not a real `<Label htmlFor>` — this field
+    never had one, only a placeholder. Two real consequences, not just a
+    style nit: the badge sat directly beside the words "turn it on,"
+    creating a genuine first-glance misread risk ("this step is done,"
+    not "this value came from somewhere"); and the input itself had no
+    reliable accessible name (a placeholder alone doesn't count — see the
+    Accessibility baseline below). Fixed by adding a real
+    `<Label htmlFor="embed-origin-…">` carrying the exact same text/visual
+    weight, then tagging the badge next to *that*. Before reusing this
+    pattern on a field, confirm a real `<Label>` element is actually
+    there — an instructional sentence or a placeholder is not a
+    substitute, even if it visually sits in the same spot.
 
 ## Kanban board pattern (Projects Kanban Command Centre, Phase 3 Design — first instance, likely to recur)
 
@@ -345,6 +361,25 @@ facts, not one standing in for the other.
   page length. One explanatory banner at the top framing it as a read-only
   companion (same shape as the field-provenance banner pattern below), not
   a second copy of the tracked list.
+- **A "read everything" page needs real reading typography, not the
+  same compact-preview styling as the busy multi-card page it's a
+  companion to.** Found live during the UX/UI Director's 2026-09-11
+  visual re-review of `/studio/website-builder/[id]/script`: a bare
+  `<pre>` with no font override renders in the browser/Tailwind-preflight
+  default monospace stack — correct for the main project page's small,
+  `max-h-64`-clamped per-card preview (a busy page, text kept
+  deliberately compact), wrong for a dedicated page whose entire job is
+  reading long-form content comfortably in one sitting. Fixed to
+  `font-sans text-sm leading-relaxed` on the dedicated route only (still
+  plain preformatted text — no markdown rendering added, the underlying
+  content is already `stripMarkdownEmphasis()`-cleaned prose, not literal
+  markdown syntax) — and bumped the section headers from the shared
+  `AccordionTrigger`'s compact-UI default (`text-sm font-medium`) to
+  `font-heading text-base font-semibold` so a many-section page's headers
+  read as a table of contents while scanning, not identical-weight rows.
+  Apply the same instinct — a page built specifically to be read, not
+  scanned inside a busy layout, earns its own larger/more legible type
+  treatment — to any future instance of this pattern.
 
 ## Deliverable submit-and-review pattern (Projects Kanban Command Centre, Phase C1 — first instance of "a child list whose visibility is entirely derived from its parent's own state")
 
