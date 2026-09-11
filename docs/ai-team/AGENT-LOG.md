@@ -637,3 +637,26 @@ back-button press — and confirmed live: the target card's
 just the URL matching. This is the one thing flagged as unverified in
 the mission's earlier closure entry (`f2aa92e`) that's now closed with
 real evidence rather than left open.
+
+## 2026-09-11 — Fixed "Start website build from prospect" showing for a client that already has one
+
+Also, unrelated tidy: moved the already-shipped "research-lead.ts
+hardcodes Hamish AI" BACKLOG.md entry from `## Not started` into
+`## Complete` — its own status line already said "Complete/shipped"
+(commit `84bd34c`), it was just sitting under the wrong header, a
+self-contradictory filing the same class of bug this project has
+caught and fixed before.
+
+Real bug, reported directly on Press Coffee's own client card: the
+"Start website build from prospect" action kept showing for a client
+whose site was already built and launched. The eligibility check only
+ever looked at whether the source prospect had a prefillable mockup —
+never at whether a website_projects row already existed for that
+client. Widened the query already added earlier today for the
+launch-handoff work (same file, same session) to cover every project
+stage, derived a new hasWebsiteProjectByClient alongside the existing
+launchedOriginByClient from that one query, and gated the action
+control on both signals together. Live-verified on both sides: gone
+for Press Coffee (has a launched project), still present for W Fitness
+(doesn't) — confirmed no false-positive regression. Committed and
+pushed as `caebda6`.

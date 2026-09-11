@@ -1436,110 +1436,6 @@ here moved to `## Ready` once UX/UI Director's design landed, 2026-09-11.)_
 
 ## Not started
 
-### research-lead.ts's system prompt (and its RESEARCH_TOOL schema) hardcodes "Hamish AI" for every tenant — now confirmed to leak into real tenant outreach content
-
-Escalated from P2 → P1 (2026-09-07, "Prospect-generation pipeline audit"
-mission, AI/Agent Architect) — the original problem statement below was
-correct but understated; live testing found a second, independent hardcode
-and confirmed real downstream contamination, not just a framing nit.
-
-- **Problem**: `buildSystemPrompt()` in `research-lead.ts` (line 380)
-  doesn't take an `orgName`/sender parameter **at all** — unlike
-  `discover-leads.ts`'s `searchCandidates()` and `draft-sales-kit.ts`
-  (which both already thread a real org identity through), every single
-  tenant's research pass is 100% "Hamish AI, a small Edinburgh-based
-  AI/web consultancy" framed, with zero tenant-awareness. **New finding,
-  not in the original problem statement**: `RESEARCH_TOOL`'s
-  `recommended_services` field description (`research-lead.ts:282`) is a
-  *second*, independent hardcode — "Which Hamish AI service(s) fit best
-  (redesign, AI chat assistant, booking system, etc.)" — sent to the model
-  as part of the tool schema itself, not just the system prompt.
-  **Live-confirmed impact** (`scratch/audit-recommended-services-skew.mjs`,
-  same real candidate, same production `RESEARCH_TOOL` schema, three
-  tenant identities): a correctly-identified bookkeeping firm's research
-  still came back recommending "Website redesign," "AI chat assistant,"
-  and "Booking system integration" — near-verbatim the same output as the
-  literal Hamish AI baseline, with only one contextually-appropriate item
-  ("Invoice and payment automation") added; a marketing agency's research
-  showed the same pattern. This field flows **unfiltered** into
-  `draft-sales-kit.ts:95` and `draft-website-mockup.ts:46` — real outreach
-  content a tenant sends to their own prospects — directly contradicting
-  `draft-sales-kit.ts`'s own already-correct `sender.isInternal`/
-  `sender.agencyType`-aware pitch framing (a marketing agency's sales kit
-  gets pitched around what *it* sells, but built on a recommended-services
-  list secretly generated as if the pitch were for HamishAI's own
-  services). `draft-website-mockup.ts`'s own header comment claims it's
-  "genuinely tenant-safe from the start" — not true for any tenant whose
-  cached research contains a `recommended_services` list, since that
-  upstream field isn't tenant-safe regardless of `orgName` being correctly
-  passed at the mockup-generation step itself.
-- **Objective**: thread a real sender/`orgName`/`agencyType` param through
-  `buildSystemPrompt()`, following the exact pattern already correct in
-  `draft-sales-kit.ts` (`sender.isInternal` gate + `agencyType`-aware
-  framing) — not just `searchCandidates()`'s simpler `orgName`-only
-  pattern, since `recommended_services` specifically needs to know what
-  *this* agency sells, not just its name. Rewrite the `recommended_services`
-  field description to ask generically for "services this researching
-  agency could plausibly offer this business" instead of naming Hamish
-  AI's own service list. Default to the current Hamish AI framing only for
-  callers with genuinely no org context (`/admin`, `deep-research-
-  pipeline.ts`'s background jobs, `discover-leads.ts`'s own internal-org
-  `researchLead()` call).
-- **Priority**: **P1** (raised from P2) — live-confirmed to produce wrong,
-  Hamish-branded service recommendations inside content a real
-  non-HamishAI tenant could actually send to their own prospect, not a
-  cosmetic framing issue.
-- **Scope note**: touches `research-lead.ts` (`buildSystemPrompt()` +
-  `RESEARCH_TOOL`'s `recommended_services` description), `discover-
-  leads.ts` (`insertCandidates()` already has `org.name`/`org` in scope at
-  both call sites — would need the org's `agencyType` too, same lookup
-  `draft-sales-kit.ts` already does), `prospects/actions.ts`'s
-  `researchProspect()` (currently only fetches `orgId`, would need
-  `org.name`/`agencyType`), and `deep-research-pipeline.ts`'s background
-  job. Not a one-file fix.
-- **Relevant agent**: AI/Agent Architect (schema/prompt rewrite, pattern
-  already scoped above) → Lead Engineer (thread the param through all 4
-  call sites) → QA (confirm a non-internal tenant's research no longer
-  mentions Hamish-specific services).
-- **Status**: **Complete/shipped** (commit `84bd34c`, 2026-09-07). Built
-  exactly as scoped: `identityForResearch()`/`recommendedServicesDescription()`
-  added to `research-lead.ts` mirroring `draft-sales-kit.ts`'s 3-branch
-  isInternal/agencyType/generic logic; `RESEARCH_TOOL` turned into
-  `buildResearchTool(sender)`; `sender` threaded through `researchLead()`,
-  `buildSystemPrompt()`, `buildConceptAnalysisPrompt()`. The two internal-only
-  call sites (`/admin`, the concept-page deep-research job) correctly left
-  on the default. `searchProspectsNow()`'s org query gained the
-  `prospecting_config` select it was missing (needed to resolve
-  `agencyType`). 10 new tests, 477/477 total passing.
-  **QA-verified live against real production data**, not just unit
-  tests: ran the actual `researchLead()` against the real "Edinburgh
-  Solutions" org (agencyType "AI Analytics") on a real, never-before-
-  researched prospect — `recommended_services` came back as that org's
-  own catalogue ("Custom KPI dashboards," "One-off data audit," "Monthly
-  performance reports"), not the old Hamish-specific default. Separately
-  confirmed HamishAI's own internal pipeline produces byte-identical
-  output to before the fix (no regression) and that the generic
-  no-`agencyType` fallback works correctly. `npx tsc --noEmit -p .`,
-  `npx eslint`, `npm run test` (477/477), and `npm run build` all green.
-  **Real gap found and fixed same-session, unrelated to the diff
-  itself**: the building agent's own leftover live-verification script
-  was breaking `npm run build`/`tsc` for the next person — traced to
-  `scratch/` never actually being in `.gitignore` despite several past
-  sessions' comments assuming it was. Fixed by deleting the stray file
-  and adding `scratch/` to `.gitignore` (`2e968b1`).
-  **Real, small gap found and logged separately, not fixed here**:
-  `recommended_services` (the exact field this fix touches) isn't
-  rendered anywhere in Studio's own `research-summary.tsx` today — a
-  tenant only sees this fix's effect indirectly, through the AI sales kit
-  it feeds into. See the new "Surface `recommended_services` in Studio's
-  own research summary" entry below.
-  Pre-existing, out-of-scope grammar nit noted by both Lead Engineer and
-  QA: `identityForResearch()`/`draft-sales-kit.ts`'s shared identity logic
-  produces "a AI Automation agency" instead of "an" for vowel-starting
-  agency-type names — confirmed to only ever appear inside an AI system
-  prompt, never rendered to a user, so left as a low-priority cosmetic
-  note rather than fixed.
-
 ### Surface `recommended_services` in Studio's own research summary
 
 - **Problem**: found by QA while verifying the "Hamish AI" hardcode fix
@@ -2577,6 +2473,142 @@ QA the two passes independently.
 - **Status**: Complete
 
 ## Complete
+
+### "Start website build from prospect" kept showing for a client whose build already exists
+
+Closed 2026-09-11 (`caebda6`) — reported directly, on the real "Press
+Coffee" client (a client with an already-built, already-launched
+website): "this shouldn't be 'Start website build'." Root cause:
+`prefillEligibleByClient` (`clients/page.tsx`) only ever asked "does
+this client's source prospect have a prefillable mockup/research on
+file" — it never asked "does this client already have a
+`website_projects` row," so the prefill wizard's entry point kept
+showing regardless of whether a build already existed, and clicking it
+would have spun up a redundant second project rather than pointing
+back to the real one.
+
+Fix: widened the existing launched-only `website_projects` query
+(already fetched for the launch-handoff `launchedOriginByClient` work
+earlier the same day) to select every stage, not just `launched` — an
+in-progress build is just as good a reason to hide this control as a
+finished one. Derived a new `hasWebsiteProjectByClient` from the same
+one query, no extra round trip. `StartWebsiteBuildFromProspectControl`
+now needs `prefillEligible && !hasWebsiteProject`; the "Mockup ready"
+badge stays governed by `prefillEligible` alone — a client can have a
+prefillable mockup on file whether or not they've since started a
+build, and that's still real, still worth showing on its own.
+
+`npx tsc --noEmit`, `npx eslint`, full `vitest` suite (504/504), and
+`npm run build` all green. Live-verified on both sides against the
+real account: Press Coffee (has a launched project) — button gone,
+"Mockup ready" badge and "Generate this month's report" both still
+present; W Fitness (no website_projects row) — button still shows,
+confirming no false-positive regression for clients this control
+genuinely still applies to.
+
+### research-lead.ts's system prompt (and its RESEARCH_TOOL schema) hardcodes "Hamish AI" for every tenant — now confirmed to leak into real tenant outreach content
+
+Escalated from P2 → P1 (2026-09-07, "Prospect-generation pipeline audit"
+mission, AI/Agent Architect) — the original problem statement below was
+correct but understated; live testing found a second, independent hardcode
+and confirmed real downstream contamination, not just a framing nit.
+
+- **Problem**: `buildSystemPrompt()` in `research-lead.ts` (line 380)
+  doesn't take an `orgName`/sender parameter **at all** — unlike
+  `discover-leads.ts`'s `searchCandidates()` and `draft-sales-kit.ts`
+  (which both already thread a real org identity through), every single
+  tenant's research pass is 100% "Hamish AI, a small Edinburgh-based
+  AI/web consultancy" framed, with zero tenant-awareness. **New finding,
+  not in the original problem statement**: `RESEARCH_TOOL`'s
+  `recommended_services` field description (`research-lead.ts:282`) is a
+  *second*, independent hardcode — "Which Hamish AI service(s) fit best
+  (redesign, AI chat assistant, booking system, etc.)" — sent to the model
+  as part of the tool schema itself, not just the system prompt.
+  **Live-confirmed impact** (`scratch/audit-recommended-services-skew.mjs`,
+  same real candidate, same production `RESEARCH_TOOL` schema, three
+  tenant identities): a correctly-identified bookkeeping firm's research
+  still came back recommending "Website redesign," "AI chat assistant,"
+  and "Booking system integration" — near-verbatim the same output as the
+  literal Hamish AI baseline, with only one contextually-appropriate item
+  ("Invoice and payment automation") added; a marketing agency's research
+  showed the same pattern. This field flows **unfiltered** into
+  `draft-sales-kit.ts:95` and `draft-website-mockup.ts:46` — real outreach
+  content a tenant sends to their own prospects — directly contradicting
+  `draft-sales-kit.ts`'s own already-correct `sender.isInternal`/
+  `sender.agencyType`-aware pitch framing (a marketing agency's sales kit
+  gets pitched around what *it* sells, but built on a recommended-services
+  list secretly generated as if the pitch were for HamishAI's own
+  services). `draft-website-mockup.ts`'s own header comment claims it's
+  "genuinely tenant-safe from the start" — not true for any tenant whose
+  cached research contains a `recommended_services` list, since that
+  upstream field isn't tenant-safe regardless of `orgName` being correctly
+  passed at the mockup-generation step itself.
+- **Objective**: thread a real sender/`orgName`/`agencyType` param through
+  `buildSystemPrompt()`, following the exact pattern already correct in
+  `draft-sales-kit.ts` (`sender.isInternal` gate + `agencyType`-aware
+  framing) — not just `searchCandidates()`'s simpler `orgName`-only
+  pattern, since `recommended_services` specifically needs to know what
+  *this* agency sells, not just its name. Rewrite the `recommended_services`
+  field description to ask generically for "services this researching
+  agency could plausibly offer this business" instead of naming Hamish
+  AI's own service list. Default to the current Hamish AI framing only for
+  callers with genuinely no org context (`/admin`, `deep-research-
+  pipeline.ts`'s background jobs, `discover-leads.ts`'s own internal-org
+  `researchLead()` call).
+- **Priority**: **P1** (raised from P2) — live-confirmed to produce wrong,
+  Hamish-branded service recommendations inside content a real
+  non-HamishAI tenant could actually send to their own prospect, not a
+  cosmetic framing issue.
+- **Scope note**: touches `research-lead.ts` (`buildSystemPrompt()` +
+  `RESEARCH_TOOL`'s `recommended_services` description), `discover-
+  leads.ts` (`insertCandidates()` already has `org.name`/`org` in scope at
+  both call sites — would need the org's `agencyType` too, same lookup
+  `draft-sales-kit.ts` already does), `prospects/actions.ts`'s
+  `researchProspect()` (currently only fetches `orgId`, would need
+  `org.name`/`agencyType`), and `deep-research-pipeline.ts`'s background
+  job. Not a one-file fix.
+- **Relevant agent**: AI/Agent Architect (schema/prompt rewrite, pattern
+  already scoped above) → Lead Engineer (thread the param through all 4
+  call sites) → QA (confirm a non-internal tenant's research no longer
+  mentions Hamish-specific services).
+- **Status**: **Complete/shipped** (commit `84bd34c`, 2026-09-07). Built
+  exactly as scoped: `identityForResearch()`/`recommendedServicesDescription()`
+  added to `research-lead.ts` mirroring `draft-sales-kit.ts`'s 3-branch
+  isInternal/agencyType/generic logic; `RESEARCH_TOOL` turned into
+  `buildResearchTool(sender)`; `sender` threaded through `researchLead()`,
+  `buildSystemPrompt()`, `buildConceptAnalysisPrompt()`. The two internal-only
+  call sites (`/admin`, the concept-page deep-research job) correctly left
+  on the default. `searchProspectsNow()`'s org query gained the
+  `prospecting_config` select it was missing (needed to resolve
+  `agencyType`). 10 new tests, 477/477 total passing.
+  **QA-verified live against real production data**, not just unit
+  tests: ran the actual `researchLead()` against the real "Edinburgh
+  Solutions" org (agencyType "AI Analytics") on a real, never-before-
+  researched prospect — `recommended_services` came back as that org's
+  own catalogue ("Custom KPI dashboards," "One-off data audit," "Monthly
+  performance reports"), not the old Hamish-specific default. Separately
+  confirmed HamishAI's own internal pipeline produces byte-identical
+  output to before the fix (no regression) and that the generic
+  no-`agencyType` fallback works correctly. `npx tsc --noEmit -p .`,
+  `npx eslint`, `npm run test` (477/477), and `npm run build` all green.
+  **Real gap found and fixed same-session, unrelated to the diff
+  itself**: the building agent's own leftover live-verification script
+  was breaking `npm run build`/`tsc` for the next person — traced to
+  `scratch/` never actually being in `.gitignore` despite several past
+  sessions' comments assuming it was. Fixed by deleting the stray file
+  and adding `scratch/` to `.gitignore` (`2e968b1`).
+  **Real, small gap found and logged separately, not fixed here**:
+  `recommended_services` (the exact field this fix touches) isn't
+  rendered anywhere in Studio's own `research-summary.tsx` today — a
+  tenant only sees this fix's effect indirectly, through the AI sales kit
+  it feeds into. See the new "Surface `recommended_services` in Studio's
+  own research summary" entry below.
+  Pre-existing, out-of-scope grammar nit noted by both Lead Engineer and
+  QA: `identityForResearch()`/`draft-sales-kit.ts`'s shared identity logic
+  produces "a AI Automation agency" instead of "an" for vowel-starting
+  agency-type names — confirmed to only ever appear inside an AI system
+  prompt, never rendered to a user, so left as a low-priority cosmetic
+  note rather than fixed.
 
 ### `estimated_project_value_band` hardcoded to GBP (£) for every prospect, regardless of location
 
