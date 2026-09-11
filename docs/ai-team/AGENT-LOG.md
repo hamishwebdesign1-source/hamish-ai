@@ -696,3 +696,33 @@ control on both signals together. Live-verified on both sides: gone
 for Press Coffee (has a launched project), still present for W Fitness
 (doesn't) — confirmed no false-positive regression. Committed and
 pushed as `caebda6`.
+
+## 2026-09-11 — BACKLOG.md hygiene sweep: 6 already-shipped entries misfiled under "## Ready"
+
+Continuing the standing audit loop. Checked docs/ai-team/BACKLOG.md's
+`## Ready` and `## Needs review` sections for the same self-
+contradictory filing bug already caught twice this session (the
+research-lead.ts hardcode fix, and the two Website Builder journey
+entries) — this time found it was more widespread than those isolated
+cases.
+
+Verified each "## Ready" entry against real git history rather than
+trusting its own text: `git log --oneline --all` for Kanban, prefill,
+and delete-task confirmed real commits exist for Phase A
+(`95afe38`/`37f3b43`), Phase C1 (`5abe704`), the delete-task control
+(`e080410`/`cc04505`), and the Prospects→Website Builder prefill
+(`78d3678`/`8ae7671`) — all already shipped, several with their own
+embedded "Status: Shipped/Complete" notes sitting under the wrong
+section header. The public `/help` page (shipped `1bbe8ac`,
+2026-09-06) had no closure note at all despite being live — added one,
+citing both the original build commit and this session's own earlier
+direct live verification, before moving it.
+
+Moved all five to `## Complete`. Deliberately left Kanban Phase B and
+Phase C2–C5 exactly where they are — no matching commits found for
+either, genuinely still pending, correctly filed as `## Ready` already.
+`## Needs review` is now genuinely empty (both Website Builder journey
+entries and the "Wire outreach-kit to Top Prospects" entry were the
+same bug, already caught and fixed earlier today).
+
+No application code touched — docs-only.

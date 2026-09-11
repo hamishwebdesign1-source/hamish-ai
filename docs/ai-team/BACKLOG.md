@@ -28,6 +28,658 @@ _(none yet)_
 
 ## Ready
 
+### Projects Kanban Command Centre — Phase B: Files-on-a-project, invoice linkage, and the `projects` ↔ `website_projects` cross-link decision
+
+- **Problem**: three real, valuable connections Hamish's spec names
+  ("what files are relevant," what's been billed, and how a generic
+  delivery project relates to an in-flight Website Builder build) aren't
+  answerable from Phase A alone, but each has a real, bounded, already-
+  proven pattern to extend rather than build from scratch.
+- **Objective**: (1) a `project_files` table cloning the already-built,
+  already-tested `website_project_files` storage pattern (private Supabase
+  Storage bucket, signed URLs, `kind` label) but scoped to `projects.id`
+  instead of `website_project_id`; (2) a nullable `invoices.project_id`
+  column so "what's been billed / what's outstanding" can surface on a
+  project's detail view — a tag, not a billing *logic* change, the invoice
+  creation/Stripe flow itself is untouched; (3) an explicit decision (not
+  an assumption) on whether/how a `projects` row should be able to point
+  at its own `website_projects` row when the same piece of client work is
+  both a tracked delivery project and an active website build — the
+  audit's own finding that these are today two entirely unrelated tables
+  for what's often conceptually the same piece of work.
+- **User**: same as Phase A — an agency owner running project delivery,
+  who currently can't see a project's files or billing status without
+  leaving Projects, and whose Website Builder work is invisible from the
+  Kanban board even when it's the actual work "AI Lead Generation System"
+  refers to.
+- **Priority**: P2 — real and valuable, but deliberately sequenced after
+  Phase A ships and gets used, not bundled into the same build. Building
+  three more schema touches into an already-substantial Phase A risks the
+  exact kind of premature scope this role exists to push back on.
+- **Expected outcome**: a project's detail workspace (built in Phase A)
+  can show its own files and billing status without inventing new
+  infrastructure; a clear, documented answer to "is a website build its
+  own project or part of one" that the team builds toward consistently
+  instead of guessing per-feature.
+- **Acceptance criteria**: to be written properly once Phase A has shipped
+  and Product Director scopes this as its own dispatch — not written in
+  full here, since committing to exact schema/UI shape before Phase A's
+  real detail-workspace layout exists risks designing against a page that
+  doesn't exist yet.
+- **Relevant agent**: Product Director (re-scope once Phase A ships) →
+  Lead Engineer (`project_files` clone, `invoices.project_id` addition) +
+  UX/UI Director (the cross-link decision's UI implication, if any).
+- **Dependencies**: Phase A shipped and live.
+- **Status**: Researching.
+
+### Projects Kanban Command Centre — Phase C2–C5: client approval, results feeding Analytics/the Client Report, an AI project assistant, and a completed-project → next-proposal link (supersedes the old "Phase C" entry)
+
+The rest of Hamish's chain past Phase C1, above. Each sub-item has a
+genuinely different real-world shape and a different approval-boundary
+status — the previous version of this entry bundled all of it into one
+undifferentiated P3 "someday" bucket, which obscured that some of this
+is real near-term work and some genuinely still needs Hamish's sign-off
+before it's even scoped further. This rewrite splits them out explicitly
+rather than quietly loosening any of the original discipline just because
+Hamish is now more enthusiastic about the destination.
+
+**C2 — "Client approves" (the literal missing link)**
+- What's missing: nothing lets a client actually approve or request
+  changes on a deliverable today — the portal is entirely read-only.
+  `proposal_tokens`' send→view→accept pattern (timestamped `viewed_at`/
+  `accepted_at`, idempotent accept, a notification fired only on the
+  interesting event) is real, working precedent for the *shape* of this
+  — but adapting it *literally* would be the wrong fit: `proposal_tokens`
+  uses a public, unauthenticated token specifically because a prospect
+  has no account to log into. A client reviewing a deliverable already
+  has a real authenticated portal session (`client_members`) with
+  existing RLS-scoped read access — bolting an unauthenticated token flow
+  onto data a client can already reach via a real login would be a
+  regression of the existing boundary, not a reuse of the pattern. The
+  right adaptation is the *pattern* (submit → notify → view → decide,
+  each a real timestamp, idempotent, notifies the agency on the
+  interesting event), implemented as an authenticated Server Action
+  reachable from `/portal`, gated by the client's existing session, not a
+  bare token.
+- Data model: extends C1's `deliverables` table — `alter table
+  deliverables add column status text not null default 'submitted' check
+  (status in ('submitted','approved','changes_requested')), add column
+  client_decision_at timestamptz, add column client_decision_by text, add
+  column client_comment text;`
+- **Why this needs Hamish's explicit sign-off before it's *built*** (the
+  scoping above is fine to exist now, same as it was for Phase A before
+  Phase 3 design): this is a new client-writable RLS policy — the
+  `client_members` session gains a real write it doesn't have today.
+  `docs/ai-team/README.md`'s approval boundaries require Hamish's
+  explicit approval for any RLS policy change regardless of size, and the
+  original Phase C entry already separately flagged this exact item for
+  Security Auditor review before shipping — this rewrite preserves that
+  bar, it does not loosen it. Concretely: Security Auditor reviews the
+  new policy + Server Action's ownership check; Hamish signs off on the
+  policy itself, same bar as any other RLS change in this codebase. This
+  is a narrower category than a full new *tenancy* boundary (it's one new
+  write action on data the client can already see, not new visibility) —
+  worth stating precisely rather than either over- or under-escalating it.
+- **Priority**: P2 — real and wanted, blocked on sign-off.
+- **Dependencies**: C1 shipped and in real use.
+- **Status**: Not started — needs Hamish's sign-off on the RLS write
+  policy before Lead Engineer starts; Security Auditor can review the
+  design in parallel with awaiting that sign-off.
+
+**C3 — Results feed Analytics + the Client Report ("Results feed
+Analytics" / "Results feed Client Report" / "Report demonstrates ROI")**
+- What's missing: `/studio/analytics` is org-wide only, never
+  project-scoped; `monthly_reports`' `computeSnapshot()`
+  (`src/lib/monthly-report.ts`) queries `requests` and derives `tasks`
+  from them — it has zero awareness that `projects`/`deliverables` exist,
+  confirmed by reading the function directly.
+- What this actually is once C2 produces real approved-deliverable rows:
+  extend `computeSnapshot()` and `monthly-report-pdf.tsx` with a small,
+  purely additive read — "N deliverables approved this period," their
+  titles/dates — plus an equivalent rollup card on `/studio/analytics`.
+  No new AI call, no new metered usage event, no schema change beyond
+  what C1/C2 already added — pure aggregation over data that already
+  exists by the time this is built.
+- **"Report demonstrates ROI," corrected rather than built as literally
+  stated**: this product has no access to a client's own revenue or
+  business outcomes, so a real £-value "ROI" figure cannot be honestly
+  computed here — inventing one would violate `PRODUCT.md`'s "real data
+  or nothing" the same way a fabricated stat would. What this product can
+  honestly show is evidence of delivered value — a dated list of what was
+  actually built and client-approved. That is the ROI story available
+  here; it must not be relabelled or dressed up as a numeric ROI
+  percentage when it's eventually built. Recorded explicitly now so a
+  future build doesn't quietly reintroduce a fabricated number under
+  this label.
+- **Priority**: P2 — no approval-boundary issue at all (pure additive
+  read, no AI cost, no new write, no RLS change), but sequenced after C2
+  specifically because there is no real approved-deliverable data to
+  aggregate until then — building this against zero real rows would be a
+  fancier zero-state, not real value, the same "build the next layer once
+  real data justifies it" reasoning that already sequenced Phase B after
+  Phase A.
+- **Dependencies**: C2 shipped and in real use.
+- **Status**: Not started.
+
+**C4 — AI project assistant (carried forward unchanged, not loosened)**
+- Real precedent: `src/lib/project-report.ts` — single-tenant `/admin`-
+  only (`getSupabaseAdmin()`), no org scoping, no usage metering, output
+  not persisted. Porting a narrated version of C3's numbers to
+  multi-tenant Studio means a new metered `UsageEventType`
+  (`usage-limits.ts`) and real ongoing per-generation Anthropic API cost.
+  Per `PRODUCT.md`'s "genuinely early-stage... no significant real usage
+  history yet," there's no evidence this gets used enough to justify
+  building it — the same reasoning that already deferred two adjacent
+  AI-agentic ideas in the 2026-08-27 "best in market" mission.
+- Still needs Hamish's explicit sign-off **before it's even scoped in
+  detail**, not just before building — unchanged from the original Phase
+  C entry. Explicitly preserved, not loosened, per this rewrite's own
+  brief.
+- **Priority**: P3 (someday). **Status**: Not started.
+
+**C5 — Completed project → next proposal ("Agency sends next proposal")**
+- What's missing: `sendProposal()`/`proposal_tokens` is real and working,
+  but `proposal_tokens.prospect_id` is `not null` — it only ever targets
+  a pre-conversion prospect. Nothing connects a completed `projects` row
+  (a converted client) back to `sendProposal()` at all today.
+- **On the standing no-outreach-before-2026-11-09 constraint — reasoned
+  explicitly, not assumed either way, per this dispatch's own
+  instruction**: that constraint is about *Hamish's own outbound sales
+  activity for HamishAI/the Agency Platform itself*, while he's still
+  employed elsewhere. It is not about a feature that lets a *tenant
+  agency* send *their own client* a proposal for *their own* follow-on
+  work. The Studio platform already ships real prospect-outreach
+  automation for tenants today (prospecting, sales-kit generation,
+  `sendProposal()` itself) and none of it has ever been gated by the
+  Nov-9 constraint, because it isn't Hamish's own outreach — it's the
+  product's job. **This link does not trip that constraint.** Stated
+  explicitly here so a future mission doesn't apply the Nov-9 rule to a
+  tenant-facing product feature by reflex.
+- **What does still need care, for a different reason**: any version of
+  this that auto-sends a real proposal to a real client the instant a
+  project's stage flips to `completed`, with no human in the loop, is an
+  unsupervised action with real relationship/business consequences for a
+  tenant's real client — the same class of risk `PRODUCT.md`'s "fail open
+  on soft checks, fail closed on money" already treats cautiously, and
+  nothing in this codebase today auto-sends a proposal without an
+  explicit staff click. The first real version of this link should be a
+  one-click *suggestion* on a newly-completed project — "Suggest a
+  follow-up proposal" — mirroring the Command Centre's existing
+  "Generate outreach kit" one-click precedent, never a silent auto-fire.
+  This framing doesn't need Hamish's sign-off before scoping (it's
+  human-triggered, and it's tenant-facing, not Hamish's own outreach) but
+  should still get a normal design/build review given it touches the
+  proposal-send path.
+- Real scope this requires: `proposal_tokens.prospect_id` becomes
+  nullable with a `client_id` alternative (small additive migration +
+  `check (prospect_id is not null or client_id is not null)`),
+  `sendProposal()` gains a client-target branch, `readProposalToken`'s
+  public unauthenticated view needs to work for a client-target row too
+  (still fine to stay a public token *here*, unlike C2 — a proposal is
+  explicitly meant to be viewable/forwardable outside a login, same as it
+  already is for prospects).
+- **Priority**: P3 (someday) — real, but explicitly sequenced last: it
+  depends on real completed projects with real approved deliverables to
+  point to (C1–C3), and is the smallest-value link in the chain until
+  then — a "send another proposal" button with nothing real to show for
+  the last project is just a generic upsell nag, not the differentiated
+  "look what we just delivered" moment Hamish's own framing describes.
+- **Dependencies**: C1–C3 shipped and in real use. **Status**: Not
+  started.
+
+- **Relevant agent**: Product Director (this entry) → UX/UI Director (C1
+  design pass first) → Lead Engineer (C1 build) → Security Auditor (C2
+  design review, in parallel with awaiting Hamish's sign-off) → Product
+  Director (re-scope C3 once C2 ships) → AI/Agent Architect (C4, only
+  once Hamish signs off on scoping it) → Product Director (C5, once
+  C1–C3 are real).
+- **Dependencies**: see each sub-item above.
+- **Status**: Not started as a whole — C1 (above) is the one piece of
+  this area that's genuinely Ready now.
+
+## Researching
+
+_(none currently — the Website Builder build-phase flow entry that was
+here moved to `## Ready` once UX/UI Director's design landed, 2026-09-11.)_
+
+## Not started
+
+### `/script` route needs a sticky phase-jump nav — a real ~8,500-word single scroll with no way to jump to a specific phase
+
+- **Problem**: found during the UX/UI Director's visual re-review
+  (2026-09-11) of the Website Builder build-phase flow mission
+  (`DECISIONS.md`'s matching entry has the full context).
+  `/studio/website-builder/[id]/script` (`build-script-view.tsx`) is a
+  dedicated "read everything" page by design (`DECISIONS.md`'s 2026-09-11
+  Decision 3 — a real page, not a modal, specifically because ~8,500 words
+  doesn't fit one) — every generated phase's `AccordionItem` renders open
+  by default (`defaultValue = generatedIds`), which is correct for "read
+  the whole thing at once" but means a fully-built project (the real
+  Press Coffee project: 10 phases, confirmed live) is a genuine single
+  continuous scroll with no way to jump straight to, say, Phase 8 without
+  scrolling past everything before it. The accordion mechanism itself
+  (collapse/expand per section) doesn't help here either, since starting
+  fully open means a user has to manually collapse 7 other sections just
+  to get an overview — there's no "collapse all" affordance and no anchor
+  navigation at all today.
+- **Objective**: a lightweight way to jump directly to any of the 10
+  phases from anywhere on the page, without leaving the single-page
+  reading experience the route was deliberately built as (not a return to
+  a multi-card/multi-click structure).
+- **User**: same as the route itself — an agency member using this page as
+  a reference document while working through a real build, likely
+  returning to it mid-session to re-check one specific phase rather than
+  reading start to finish every time.
+- **Priority**: P2 — a real, found-in-review gap on a route that shipped
+  this same day, not urgent (the page still works, just requires
+  scrolling), but a genuine rough edge on a surface explicitly built to
+  answer "can we just provide them with the personalised prompts?" — the
+  literal reading experience matters for that promise to feel finished.
+- **Expected outcome, not fully designed here** (needs its own UX/UI
+  Director pass before building, per this team's own "don't drift into a
+  bigger rebuild inside a fix-it pass" discipline) — options worth
+  evaluating, not a prescribed answer: (a) a sticky, horizontally-scrollable
+  chip row at the top of the page (`Phase 1` … `Phase 10`, each a real
+  anchor `<a href="#phase-N">`, current-in-viewport chip visually marked —
+  needs a scroll-spy, real complexity, not just a CSS tweak) sticking
+  below the page's own header; (b) a simpler, cheaper first pass — real
+  anchor links only, no scroll-spy/sticky behaviour, e.g. a plain
+  in-page "Jump to:" row of text links at the very top (same shape as a
+  long-form article's own table of contents) — genuinely smaller to build
+  and ship first, with the sticky/scroll-spy version as a possible later
+  enhancement rather than the only acceptable version; (c) whether
+  "collapse all" is still worth adding alongside jump-links, or redundant
+  once anchor-jumping exists (anchor scrolling works regardless of a
+  section's open/closed state, so it may not be). Explicitly not
+  evaluated here: whether this page should gain a persistent left-rail
+  nav like a docs site — that's a much bigger structural change than this
+  finding's actual size warrants, flag only if a future pass finds real
+  evidence this specific fix isn't enough.
+- **Acceptance criteria**: not written in full — depends on which option
+  above a design pass picks. At minimum: a way to reach any phase's
+  content without manually scrolling past every phase before it; doesn't
+  regress the route's existing "everything open by default" reading
+  experience; `npx tsc --noEmit -p .`, `npx eslint`, full `vitest` suite
+  green.
+- **Relevant agent**: UX/UI Director (pick and spec one of the options
+  above, or a better one) → Lead Engineer (build) → QA.
+- **Dependencies**: none — `build-script-view.tsx` already has everything
+  needed (`BUILD_PHASE_ORDER`, `phases`, `generatedIds`); purely additive,
+  no schema/data change.
+- **Status**: Not started.
+
+### Surface `recommended_services` in Studio's own research summary
+
+- **Problem**: found by QA while verifying the "Hamish AI" hardcode fix
+  above (commit `84bd34c`) — `research.recommended_services` is only ever
+  rendered in `/admin`'s pages (HamishAI's own internal tool). Studio's
+  own `research-summary.tsx` (what a real tenant actually sees on
+  `/studio/prospects`) shows `pursue_because`, `business_summary`, value
+  band, conversion probability, `ai_opportunity_fit`, `weaknesses`,
+  `strengths`, `ai_opportunities`, and `suggested_sales_angle` — but never
+  `recommended_services` directly, even though it's a real, already-
+  computed field a tenant would plausibly want to see ("what should I
+  actually pitch this business").
+- **Objective**: add a small "Recommended services" badge/line to
+  `research-summary.tsx`, same treatment as the existing badges, using
+  the tenant's own real `recommended_services` values (now correctly
+  agency-aware per the fix above).
+- **Priority**: P3 (someday) — real, small, cosmetic; not a defect
+  introduced by the fix above (the field was never surfaced there before
+  it either), just a gap the fix's own QA pass happened to notice.
+- **Relevant agent**: Lead Engineer.
+- **Dependencies**: none.
+- **Status**: Not started.
+
+### `computeLeadScore` vs `computeScoreBreakdown` can rank the same prospect differently across surfaces
+
+- **Problem**: found during the 2026-09-07 prospect-pipeline audit
+  (AI/Agent Architect). `/admin/leads` sorts/filters by `computeLeadScore`
+  (research-lead.ts:216); Studio's prospecting-panel.tsx defaults its
+  "Highest score" sort to `computeScoreBreakdown.overall`
+  (`b.score_breakdown?.overall ?? b.score`). Both are computed from the
+  same research and saved together, but they're genuinely different
+  formulas — and the pipeline's own search brief is built entirely around
+  "find businesses with no/weak web presence," meaning the modal real
+  prospect has `siteCheck === null`. For that case, `computeLeadScore`
+  collapses to just 2 or 3 out of 5 for the overwhelming majority of real
+  leads (it can't see value band or problem count once site_check is
+  null), while `computeScoreBreakdown.overall` still varies meaningfully
+  on those same inputs. Concrete illustration (both leads
+  `ai_opportunity_fit: "high"`, no website): a $6,000+ lead with 8
+  weakness/trust/conversion findings scores `computeLeadScore` = 3,
+  `computeScoreBreakdown.overall` = 4; a $500-1,500 lead with 2 findings
+  also scores `computeLeadScore` = 3 (tied with the first) but
+  `computeScoreBreakdown.overall` = 2. `/admin/leads` would rank these
+  tied; a Studio tenant's default sort would clearly separate them. This
+  is the modal case, not a contrived edge case.
+- **Objective**: not decided here — a genuine product judgment call
+  (which formula should be the one canonical score), not something to
+  resolve unilaterally. Two real options: (a) pick one formula as
+  canonical for sort/display on both surfaces, or (b) keep both but
+  surface them side-by-side wherever a score is shown, so the
+  discrepancy is visible rather than silently hidden behind two
+  differently-sorted lists.
+- **Priority**: P2 — real, live, and affects prioritisation on both
+  `/admin/leads` and every Studio tenant's default prospect ordering, but
+  not a broken/crashing feature.
+- **Relevant agent**: Product Director (pick the direction) → Lead
+  Engineer (align the two surfaces).
+- **Dependencies**: Hamish's/Product Director's call on which formula
+  wins, or whether both stay and are shown together.
+- **Status**: Not started.
+
+### Background lead-discovery `maxSearchUses: 5` is very likely under-budgeted relative to real usage — real cost tradeoff, needs sign-off
+
+- **Problem**: found during the 2026-09-07 prospect-pipeline audit.
+  `discoverLeads()`'s weekly background rotation calls `searchCandidates()`
+  with `maxSearchUses: 5` (`discover-leads.ts:173`'s default);
+  `searchProspectsNow()` (the on-demand "Search now"/"Find prospects now"
+  path) uses `10`. Live testing at `maxSearchUses: 10` found the model
+  consumed the **full** 10-call budget in 5 of 6 real test locations —
+  including a small-town control search that should have been "easy" —
+  strongly suggesting the model is being budget-constrained rather than
+  concluding "nothing more to find." The background rotation's budget of
+  5 was not itself live-tested in this audit (out of scope for the
+  dispatch), but given the on-demand evidence, it is very likely also
+  fully consumed rather than a natural stopping point, meaning the weekly
+  cron is plausibly leaving real, findable prospects on the table purely
+  due to search-budget ceiling, not model judgment.
+- **Objective**: not decided here — raising `maxSearchUses` for the
+  background rotation would plausibly increase weekly discovery yield,
+  but at a real, ongoing incremental Anthropic API cost across every
+  org's weekly cron run (13 cron jobs already exist; this is one of them,
+  running for every paying + internal org, every week). This is exactly
+  the kind of "ongoing infrastructure cost" `docs/ai-team/README.md`'s
+  approval boundary calls out — not something to change unilaterally.
+- **Priority**: P2 — real, evidenced (indirectly) cost/yield tradeoff,
+  but requires an explicit decision, not urgent to force.
+- **Relevant agent**: Growth & Analytics (model the real cost delta of
+  e.g. 5→8 or 5→10 calls/pair × `PAIRS_PER_RUN` × org count) → Hamish
+  (sign-off) → Lead Engineer (bump the constant).
+- **Dependencies**: Hamish's explicit sign-off — a new ongoing cost.
+- **Status**: Done (2026-09-07). Hamish signed off directly (asked, not
+  inferred) on raising the background rotation's `maxSearchUses` to match
+  `searchProspectsNow()`'s existing `10`, accepting the real recurring
+  Anthropic cost increase. `discover-leads.ts`'s `searchCandidates()`
+  default changed from `{ minResults: 2, maxResults: 4, maxSearchUses: 5 }`
+  to `{ minResults: 2, maxResults: 4, maxSearchUses: 10 }` — `minResults`/
+  `maxResults` untouched (search-budget-only change). See
+  `docs/ai-team/DECISIONS.md`'s 2026-09-07 entry for the full reasoning.
+
+### `computeScoreBreakdown`'s `value` dimension is currency-blind — low priority, but HamishAI's own org is now a live multi-currency case
+
+- **Problem**: `VALUE_BAND_SCORE` (`value-band.ts:16`) scores a value band
+  purely on its numeric string — a "$6,000+" US prospect and a "£6,000+"
+  UK prospect both score 5 on the `value` dimension despite being ~1.27x
+  apart in real money. Harmless within a single-currency org, but the
+  2026-09-07 pipeline audit's own live testing shows HamishAI's own
+  organisation already searching GBP/USD/EUR markets in the same run —
+  exactly the scenario where this would misrank prospects against each
+  other.
+- **Objective**: a small per-currency multiplier applied before bucketing
+  into `VALUE_BAND_SCORE`, so cross-currency prospects on the same org
+  rank fairly relative to each other.
+- **Priority**: P3 (someday) — real but low-severity; bands are already
+  coarse (4 buckets) and there's no live evidence yet of this causing an
+  actual bad prioritisation decision, only that the precondition for one
+  (a genuinely mixed-currency org) now demonstrably exists.
+- **Relevant agent**: Lead Engineer.
+- **Dependencies**: none.
+- **Status**: Not started.
+
+### "Search now" gives no explanation when a saturated-market search legitimately yields few/zero results
+
+- **Problem**: `DiscoveryResultMessage` (discovery-result-message.tsx:54)
+  renders a thin/zero result identically regardless of *why* it's thin —
+  "Found 1 new prospect" for a genuinely saturated market (e.g. New York)
+  looks exactly like "Found 1 new prospect" from a real search problem.
+  This ambiguity is what caused Hamish's own "New York" report to read as
+  a possible bug in the first place (see the £-currency bug's Complete
+  entry) when the low yield itself was plausibly correct behaviour. The
+  2026-09-07 pipeline audit's live testing reinforces this: `searchCandidates()`'s
+  brief by design surfaces only weak/no-web-presence businesses, so a low
+  number is an expected, not exceptional, outcome in a well-served city.
+- **Objective**: when a search returns fewer than its own `minResults`
+  (a real, checkable condition — the brief already asks for a specific
+  range), add one honest, generic sentence to the result message — e.g.
+  "In well-established markets, most businesses already have a website,
+  so fewer qualify here — that's expected, not a search failure." — not a
+  claim about that specific search's cause, just honest framing of what
+  the tool is designed to do.
+- **Priority**: P3 (someday) — cosmetic/copy-only, but directly addresses
+  a confusion that's already happened once for real.
+- **Relevant agent**: UX/UI Director (copy) + Lead Engineer (wire the
+  `< minResults` condition through `DiscoverLeadsResult`).
+- **Dependencies**: none.
+- **Status**: Not started.
+
+### Dedup across repeated searches only matches on normalised business name — no website/phone fallback
+
+- **Problem**: `insertCandidates()`'s dedup (`discover-leads.ts:309`) only
+  compares `normaliseName(candidate.business_name)` against previously
+  seen names. Two searches that find the same real business under
+  slightly different naming (the model reporting "Bob's Plumbing" one run
+  and "Bob's Plumbing Services" or "Bob's Plumbing Ltd" another) would
+  insert it twice — the `website`/`phone` fields the model already
+  captures (when present) are never used as a stronger secondary dedup
+  signal. Not evidenced as having actually happened yet (would need a
+  tenant re-searching overlapping areas over time to surface it) — a
+  plausible-but-unconfirmed gap, not a live bug.
+- **Objective**: when a candidate has a `website`, also check it against
+  existing prospects' normalised `website` (domain-only comparison) before
+  inserting — a strictly additive check, name-dedup stays the primary
+  path.
+- **Priority**: P3 (someday) — plausible, not confirmed; normal name-based
+  dedup already covers the common case.
+- **Relevant agent**: Lead Engineer.
+- **Dependencies**: none.
+- **Status**: Not started.
+
+### `discoverLeads()` and `searchProspectsNow()` duplicate ~40 lines of billing/usage-check logic
+
+- **Problem**: the two top-level functions in `discover-leads.ts` already
+  correctly share `searchCandidates()` and `insertCandidates()` (the
+  comment on `insertCandidates()` explains exactly why — so the two paths
+  "can't quietly drift"), but the billing check (`subscription_status`/
+  `trial_ends_at`) and the monthly-usage/purchased-credits ceiling
+  computation are each copy-pasted near-identically at the top of both
+  functions instead of sharing a helper. No live bug found from this
+  duplication today, but it's the exact shape of risk
+  `insertCandidates()`'s own comment already warns about one level down —
+  a future billing-rule change applied to one function and missed on the
+  other.
+- **Objective**: extract a shared `checkProspectingBillingAndUsage(org,
+  cap)` (or similar) helper used by both, returning the same
+  `billingRequired`/`limitReached`/ceiling shape both functions already
+  build by hand.
+- **Priority**: P3 (someday) — real duplication, no live bug, pure
+  maintainability.
+- **Relevant agent**: Lead Engineer.
+- **Dependencies**: none.
+- **Status**: Not started.
+
+### Build `StudioEmptyState` and `ConfirmDeleteButton` shared primitives, retrofit existing sites
+
+- **Problem**: Studio Design Audit Phase 1 (Lead Engineer) found the
+  dashed-border empty-state card duplicated 15 times across 9 files and
+  confirm-delete reimplemented independently 4+ times, each with slightly
+  different copy/behaviour. Phase 2 built and adopted `StudioPageHeader`
+  (the highest-priority duplication) but deliberately did not build these
+  two — correctly scoped as Medium priority given the mission's size, but
+  the Phase 3 post-build review (Lead Engineer) found the raw confirm-delete
+  count actually went *up* (4+ → ~10) since Phase 2's own new confirm-step
+  additions (cancel subscription, remove client/team member) each reused
+  the *shape* correctly but each is still its own bespoke implementation,
+  not a shared one.
+- **Objective**: one `StudioEmptyState` component (icon, heading, body,
+  optional CTA) and one `ConfirmDeleteButton`/`useConfirmDelete()` hook,
+  each adopted everywhere the pattern currently exists by hand.
+- **User**: no direct user-facing change intended — this is a
+  maintainability/consistency fix so a future visual or behavioural change
+  to either pattern lands in one place, not 10-15.
+- **Priority**: P2 (worth doing, not urgent — the user-facing cohesion win
+  already shipped via `StudioPageHeader`; this is the maintainability
+  half Phase 2 didn't have room for).
+- **Expected outcome**: a real reduction in duplicate markup/logic; no
+  visible change to end users beyond incidental copy consistency.
+- **Acceptance criteria**: both primitives built; every one of the ~15
+  empty-state sites and ~10 confirm-delete sites (per Lead Engineer's
+  Phase 1/Phase 3 file lists in `STUDIO_DESIGN_AUDIT.md`) adopts them;
+  `tsc`/`eslint`/full test suite green; no behaviour change to any
+  existing delete/empty-state flow.
+- **Relevant agent**: Lead Engineer.
+- **Status**: Complete/shipped (commit `4422038`). Built `studio-empty-state.tsx`,
+  `use-confirm-delete.ts`, and `confirm-delete-button.tsx`; retrofitted 7
+  delete-control sites and 11 empty-state sites. Deliberately left alone,
+  with reasons recorded in the commit message: `MaintenanceSubscriptionControl`/
+  `DeleteClientControl`/`team-panel.tsx`/`data-privacy-panel.tsx` (genuinely
+  different trigger shape or type-to-confirm weight) and `ClientMembersControl`
+  (single shared confirm-id across a list — the per-row primitive would let
+  multiple rows confirm at once, a real behaviour change); `project-kanban-board.tsx`'s
+  column placeholder (needs `text-xs`, the primitive's description is fixed
+  `text-sm`). `npx tsc --noEmit`, `npx eslint`, full `vitest` suite (467/467),
+  and `npm run build` all green — no behind-change to any existing flow.
+  (First dispatched to a backgrounded Lead Engineer agent, which stalled
+  after building the two primitives but before any retrofit; the
+  orchestrator completed the retrofit directly rather than re-dispatching.)
+- **Dependencies**: none.
+
+### Consolidate the 4 duplicated assignee-select components into one shared control
+
+- **Problem**: Studio Design Audit Phase 1 (QA Engineer) found the
+  Prospects, Requests, Projects, and Website Builder assignee `<select>`
+  controls independently reimplement the same optimistic-update-plus-
+  error-surfacing shape. Phase 2 fixed the actual bug (silent rollback
+  with no error message) in all 4, but did not consolidate them into one
+  component — correctly deferred as Low priority (QA's own original
+  scoping) since the bug fix, not the consolidation, was the real
+  user-facing problem.
+- **Objective**: one shared `AssigneeSelect` component so the same fix
+  doesn't need to be applied 4 separate times if this bug class recurs.
+- **User**: no direct user-facing change — maintainability only.
+- **Priority**: P3 (someday) — real, but genuinely lower value than the
+  empty-state/confirm-delete consolidation above since the bug itself is
+  already fixed everywhere it existed.
+- **Expected outcome**: one component, 4 fewer independent
+  implementations to keep in sync by hand.
+- **Relevant agent**: Lead Engineer.
+- **Dependencies**: none.
+- **Status**: Complete/shipped (commit `98516a8`). Built `assignee-select.tsx`
+  covering both real, deliberately-kept shapes (a labelled "Assigned to"
+  wrapper for the two dedicated-page controls; a bare select for the two
+  in-card controls, tight on space, aria-label only). `prospect-card.tsx`'s
+  own distinct `h-7`/`text-[11px]` sizing kept via the new `className`
+  override — a real difference, not a duplicate to normalise away. Error
+  text normalised to `text-xs` everywhere (was `text-[11px]` on the two
+  in-card sites — a 1px difference not worth a prop). Zero behaviour
+  change: same rollback-on-error, same "Unassigned" option, same
+  team-members->1 gate, same Server Actions called unchanged. `npx tsc
+  --noEmit`, `npx eslint`, full `vitest` suite (467/467), and `npm run
+  build` all green.
+
+### Standardise a "Generated {date} · Regenerate" provenance line across every cached AI artifact
+
+- **Problem**: Studio Design Audit Phase 1 (AI/Agent Architect) found
+  `website-brief-panel.tsx` shows a real "Generated {date}" line on its
+  cached AI output but the sales-kit and website-mockup preview components
+  (now in `src/components/platform/prospecting/`) don't have an equivalent
+  — inconsistent legibility of "this is cached AI output, not live" across
+  otherwise-similar surfaces.
+- **Objective**: one small shared component used everywhere a cached AI
+  artifact is shown.
+- **User**: an agency owner reviewing a generated kit/mockup/brief, so
+  they can tell at a glance whether they're looking at something fresh or
+  something generated a while ago.
+- **Priority**: P3 (someday) — real but cosmetic; correctly deferred, not
+  a build-blocking gap.
+- **Relevant agent**: AI/Agent Architect (spec) + Lead Engineer (build).
+- **Dependencies**: none.
+- **Status**: Complete/shipped (commit `d3473d1`). Real gap turned out
+  bigger than "cosmetic": `sales_kit_generated_at`/`website_mockup_generated_at`
+  already existed as real DB columns (written by `draft-sales-kit.ts`/
+  `draft-website-mockup.ts`, already used for AI ROI and admin's own lead
+  page) but Studio's own Prospects query never selected them, and
+  `research_generated_at` was selected but never rendered. Fixed all
+  three (`research-summary.tsx`, `sales-kit-section.tsx`,
+  `website-mockup-section.tsx`) with the same header row
+  `website-brief-panel.tsx` already uses. Also closed a real capability
+  gap alongside it: research and sales kits had no regenerate path at
+  all once first generated (only the empty-state's first-time trigger
+  existed) — confirmed each Server Action has no re-run guard before
+  wiring a Regenerate button to it. **Deviation from the letter of this
+  entry's own "one small shared component" objective**: built inline in
+  each of the three files, matching `website-brief-panel.tsx`'s own
+  pattern exactly rather than extracting a 4th shared component —
+  `website-brief-panel.tsx` itself was never converted either, the JSX
+  is ~8 trivial lines with a different regenerate action per site, and
+  the actual user-facing objective (consistent provenance everywhere)
+  is fully met without it. Revisit if a 5th site needs this pattern.
+  `npx tsc --noEmit`, `npx eslint`, full `vitest` suite (467/467), and
+  `npm run build` all green. Live deploy propagation slower than usual
+  this pass — visual confirmation still pending as of this note.
+
+### Reconcile the trial-status pill's count-up phrasing with the existing count-down phrasing elsewhere
+
+- **Problem**: Studio Design Audit Phase 2 added a "Trial · Day X of 7"
+  pill (count-up) for days 4-7 of a trial; the existing ≤3-day warning
+  banner and the Billing page both already use count-down phrasing
+  ("X days left"). Found by Growth & Analytics in the Phase 3 post-build
+  review — a new, minor inconsistency that didn't exist before this pill
+  was added.
+- **Objective**: pick one framing (count-down is likely more intuitive —
+  "3 days left" vs. "Day 4 of 7" both work, but having both live
+  simultaneously across 3 surfaces is the actual problem) and apply it
+  everywhere trial status is shown.
+- **Priority**: P3 (someday) — cosmetic, not confusing enough to block
+  anything, but a real, named inconsistency.
+- **Relevant agent**: UX/UI Director (pick the framing) + Lead Engineer
+  (apply it in `(authed)/layout.tsx` and `billing/page.tsx`).
+- **Dependencies**: none.
+- **Status**: Complete/shipped (commit `5dc5e93`). Picked count-down —
+  the pill (the only count-up surface) now reads "Trial · X days left",
+  matching the ≤3-day warning banner and Billing's own trial line
+  exactly. `billing/page.tsx` needed no change, already count-down.
+  Removed the now-unused `trialDayNumber` calculation. Not live-screenshot-
+  verified — the only account with a live session has 0 trial days left
+  (the banner's own range, not the pill's 4-7-day window) — but this is a
+  copy-only change with the visibility gate itself untouched, and
+  `tsc`/`eslint`/full `vitest` suite (467/467)/`npm run build` all green.
+
+### Dormancy signal for trialing/paying orgs with zero real activity
+
+- **Problem**: Studio Design Audit Phase 1 (Growth & Analytics) found the
+  only automated re-engagement mechanism today is trial-deadline-driven
+  (`trial-reminders.ts`) — there's no "you signed up and never came back"
+  signal, the most common real early-SaaS drop-off pattern. No
+  "last active" column or query exists anywhere in `/studio` today; this
+  would need new instrumentation against `usage_events`/`ai_call_log`,
+  not a guess.
+- **Objective**: instrumentation first (what does "inactive" actually
+  mean against real rows), a real email/digest addition second.
+- **Priority**: P2 (worth doing) for the instrumentation question itself;
+  the email/digest half is explicitly **not** approved to build without
+  Hamish's own sign-off first.
+- **Explicit constraint, not to be missed**: this sits close enough to
+  the standing pre-2026-11-09 no-outreach rule (`PRODUCT.md`) that Growth
+  & Analytics' own Phase 1 review flagged it as a borderline case —
+  arguably fine as inbound-account-lifecycle mail (same category as the
+  existing trial reminders), not solicitation of a new prospect, but that
+  judgment call is Hamish's to make explicitly before anything is built,
+  not assumed by whichever agent picks this up.
+- **Relevant agent**: Growth & Analytics (design the "what counts as
+  active" query) → Product Director (confirm the outreach-constraint
+  framing with Hamish before scoping further).
+- **Dependencies**: Hamish's explicit sign-off on the outreach-framing
+  question before any email/digest is built.
+- **Status**: Not started.
+
+## Needs review
+
+_(none yet)_
+
+## Complete
+
 ### Public `/help` page — pre-signup/new-signup documentation for the Agency Platform
 
 Scoped from a "public docs launch readiness" mission (2026-09-06). Full
@@ -129,7 +781,17 @@ single, real, well-organised page, not the start of a docs product.
   this" and "how do I start," not just "does the page render").
 - **Dependencies**: none blocking — `STUDIO_FAQS`, `HelpFaqList`, `FaqJsonLd`,
   `/terms`, `/privacy` all already exist and are already correct.
-- **Status**: Ready.
+- **Closure note (orchestrator, 2026-09-11)**: this entry's own "Status:
+  Ready" line was stale — built and shipped weeks ago (`1bbe8ac`, per
+  `AGENT-LOG.md`'s 2026-09-06 entry), and live-verified again directly
+  in this session (fetched the real page, confirmed the 7-step "Getting
+  started" flow, all 21 FAQ entries, and the legal links are actually
+  rendering on production). Found and fixed while doing a general
+  documentation-accuracy sweep of this section — several other entries
+  here had the same self-contradictory filing (a real "Status: Complete"
+  or "Status: Shipped" note sitting under the `## Ready` header instead
+  of `## Complete`).
+- **Status**: Complete.
 
 ### Projects Kanban Command Centre — Phase A: real Kanban board, drag-and-drop stage persistence, project detail workspace
 
@@ -720,50 +1382,6 @@ covers the whole row.
   ("No tasks yet.") — the real client data this gap had left stranded is
   cleaned up.
 
-### Projects Kanban Command Centre — Phase B: Files-on-a-project, invoice linkage, and the `projects` ↔ `website_projects` cross-link decision
-
-- **Problem**: three real, valuable connections Hamish's spec names
-  ("what files are relevant," what's been billed, and how a generic
-  delivery project relates to an in-flight Website Builder build) aren't
-  answerable from Phase A alone, but each has a real, bounded, already-
-  proven pattern to extend rather than build from scratch.
-- **Objective**: (1) a `project_files` table cloning the already-built,
-  already-tested `website_project_files` storage pattern (private Supabase
-  Storage bucket, signed URLs, `kind` label) but scoped to `projects.id`
-  instead of `website_project_id`; (2) a nullable `invoices.project_id`
-  column so "what's been billed / what's outstanding" can surface on a
-  project's detail view — a tag, not a billing *logic* change, the invoice
-  creation/Stripe flow itself is untouched; (3) an explicit decision (not
-  an assumption) on whether/how a `projects` row should be able to point
-  at its own `website_projects` row when the same piece of client work is
-  both a tracked delivery project and an active website build — the
-  audit's own finding that these are today two entirely unrelated tables
-  for what's often conceptually the same piece of work.
-- **User**: same as Phase A — an agency owner running project delivery,
-  who currently can't see a project's files or billing status without
-  leaving Projects, and whose Website Builder work is invisible from the
-  Kanban board even when it's the actual work "AI Lead Generation System"
-  refers to.
-- **Priority**: P2 — real and valuable, but deliberately sequenced after
-  Phase A ships and gets used, not bundled into the same build. Building
-  three more schema touches into an already-substantial Phase A risks the
-  exact kind of premature scope this role exists to push back on.
-- **Expected outcome**: a project's detail workspace (built in Phase A)
-  can show its own files and billing status without inventing new
-  infrastructure; a clear, documented answer to "is a website build its
-  own project or part of one" that the team builds toward consistently
-  instead of guessing per-feature.
-- **Acceptance criteria**: to be written properly once Phase A has shipped
-  and Product Director scopes this as its own dispatch — not written in
-  full here, since committing to exact schema/UI shape before Phase A's
-  real detail-workspace layout exists risks designing against a page that
-  doesn't exist yet.
-- **Relevant agent**: Product Director (re-scope once Phase A ships) →
-  Lead Engineer (`project_files` clone, `invoices.project_id` addition) +
-  UX/UI Director (the cross-link decision's UI implication, if any).
-- **Dependencies**: Phase A shipped and live.
-- **Status**: Researching.
-
 ### Projects Kanban Command Centre — Phase C1: a real Deliverable entity + client-visible review (the literal bottleneck in Hamish's own delivery chain)
 
 Supersedes part of the old, vaguer "Phase C" entry below (now split, not
@@ -1110,171 +1728,6 @@ location convention, same internal-component split):
     completes Deliverable" show up as a real timeline entry for free,
     not a new component.
 
-### Projects Kanban Command Centre — Phase C2–C5: client approval, results feeding Analytics/the Client Report, an AI project assistant, and a completed-project → next-proposal link (supersedes the old "Phase C" entry)
-
-The rest of Hamish's chain past Phase C1, above. Each sub-item has a
-genuinely different real-world shape and a different approval-boundary
-status — the previous version of this entry bundled all of it into one
-undifferentiated P3 "someday" bucket, which obscured that some of this
-is real near-term work and some genuinely still needs Hamish's sign-off
-before it's even scoped further. This rewrite splits them out explicitly
-rather than quietly loosening any of the original discipline just because
-Hamish is now more enthusiastic about the destination.
-
-**C2 — "Client approves" (the literal missing link)**
-- What's missing: nothing lets a client actually approve or request
-  changes on a deliverable today — the portal is entirely read-only.
-  `proposal_tokens`' send→view→accept pattern (timestamped `viewed_at`/
-  `accepted_at`, idempotent accept, a notification fired only on the
-  interesting event) is real, working precedent for the *shape* of this
-  — but adapting it *literally* would be the wrong fit: `proposal_tokens`
-  uses a public, unauthenticated token specifically because a prospect
-  has no account to log into. A client reviewing a deliverable already
-  has a real authenticated portal session (`client_members`) with
-  existing RLS-scoped read access — bolting an unauthenticated token flow
-  onto data a client can already reach via a real login would be a
-  regression of the existing boundary, not a reuse of the pattern. The
-  right adaptation is the *pattern* (submit → notify → view → decide,
-  each a real timestamp, idempotent, notifies the agency on the
-  interesting event), implemented as an authenticated Server Action
-  reachable from `/portal`, gated by the client's existing session, not a
-  bare token.
-- Data model: extends C1's `deliverables` table — `alter table
-  deliverables add column status text not null default 'submitted' check
-  (status in ('submitted','approved','changes_requested')), add column
-  client_decision_at timestamptz, add column client_decision_by text, add
-  column client_comment text;`
-- **Why this needs Hamish's explicit sign-off before it's *built*** (the
-  scoping above is fine to exist now, same as it was for Phase A before
-  Phase 3 design): this is a new client-writable RLS policy — the
-  `client_members` session gains a real write it doesn't have today.
-  `docs/ai-team/README.md`'s approval boundaries require Hamish's
-  explicit approval for any RLS policy change regardless of size, and the
-  original Phase C entry already separately flagged this exact item for
-  Security Auditor review before shipping — this rewrite preserves that
-  bar, it does not loosen it. Concretely: Security Auditor reviews the
-  new policy + Server Action's ownership check; Hamish signs off on the
-  policy itself, same bar as any other RLS change in this codebase. This
-  is a narrower category than a full new *tenancy* boundary (it's one new
-  write action on data the client can already see, not new visibility) —
-  worth stating precisely rather than either over- or under-escalating it.
-- **Priority**: P2 — real and wanted, blocked on sign-off.
-- **Dependencies**: C1 shipped and in real use.
-- **Status**: Not started — needs Hamish's sign-off on the RLS write
-  policy before Lead Engineer starts; Security Auditor can review the
-  design in parallel with awaiting that sign-off.
-
-**C3 — Results feed Analytics + the Client Report ("Results feed
-Analytics" / "Results feed Client Report" / "Report demonstrates ROI")**
-- What's missing: `/studio/analytics` is org-wide only, never
-  project-scoped; `monthly_reports`' `computeSnapshot()`
-  (`src/lib/monthly-report.ts`) queries `requests` and derives `tasks`
-  from them — it has zero awareness that `projects`/`deliverables` exist,
-  confirmed by reading the function directly.
-- What this actually is once C2 produces real approved-deliverable rows:
-  extend `computeSnapshot()` and `monthly-report-pdf.tsx` with a small,
-  purely additive read — "N deliverables approved this period," their
-  titles/dates — plus an equivalent rollup card on `/studio/analytics`.
-  No new AI call, no new metered usage event, no schema change beyond
-  what C1/C2 already added — pure aggregation over data that already
-  exists by the time this is built.
-- **"Report demonstrates ROI," corrected rather than built as literally
-  stated**: this product has no access to a client's own revenue or
-  business outcomes, so a real £-value "ROI" figure cannot be honestly
-  computed here — inventing one would violate `PRODUCT.md`'s "real data
-  or nothing" the same way a fabricated stat would. What this product can
-  honestly show is evidence of delivered value — a dated list of what was
-  actually built and client-approved. That is the ROI story available
-  here; it must not be relabelled or dressed up as a numeric ROI
-  percentage when it's eventually built. Recorded explicitly now so a
-  future build doesn't quietly reintroduce a fabricated number under
-  this label.
-- **Priority**: P2 — no approval-boundary issue at all (pure additive
-  read, no AI cost, no new write, no RLS change), but sequenced after C2
-  specifically because there is no real approved-deliverable data to
-  aggregate until then — building this against zero real rows would be a
-  fancier zero-state, not real value, the same "build the next layer once
-  real data justifies it" reasoning that already sequenced Phase B after
-  Phase A.
-- **Dependencies**: C2 shipped and in real use.
-- **Status**: Not started.
-
-**C4 — AI project assistant (carried forward unchanged, not loosened)**
-- Real precedent: `src/lib/project-report.ts` — single-tenant `/admin`-
-  only (`getSupabaseAdmin()`), no org scoping, no usage metering, output
-  not persisted. Porting a narrated version of C3's numbers to
-  multi-tenant Studio means a new metered `UsageEventType`
-  (`usage-limits.ts`) and real ongoing per-generation Anthropic API cost.
-  Per `PRODUCT.md`'s "genuinely early-stage... no significant real usage
-  history yet," there's no evidence this gets used enough to justify
-  building it — the same reasoning that already deferred two adjacent
-  AI-agentic ideas in the 2026-08-27 "best in market" mission.
-- Still needs Hamish's explicit sign-off **before it's even scoped in
-  detail**, not just before building — unchanged from the original Phase
-  C entry. Explicitly preserved, not loosened, per this rewrite's own
-  brief.
-- **Priority**: P3 (someday). **Status**: Not started.
-
-**C5 — Completed project → next proposal ("Agency sends next proposal")**
-- What's missing: `sendProposal()`/`proposal_tokens` is real and working,
-  but `proposal_tokens.prospect_id` is `not null` — it only ever targets
-  a pre-conversion prospect. Nothing connects a completed `projects` row
-  (a converted client) back to `sendProposal()` at all today.
-- **On the standing no-outreach-before-2026-11-09 constraint — reasoned
-  explicitly, not assumed either way, per this dispatch's own
-  instruction**: that constraint is about *Hamish's own outbound sales
-  activity for HamishAI/the Agency Platform itself*, while he's still
-  employed elsewhere. It is not about a feature that lets a *tenant
-  agency* send *their own client* a proposal for *their own* follow-on
-  work. The Studio platform already ships real prospect-outreach
-  automation for tenants today (prospecting, sales-kit generation,
-  `sendProposal()` itself) and none of it has ever been gated by the
-  Nov-9 constraint, because it isn't Hamish's own outreach — it's the
-  product's job. **This link does not trip that constraint.** Stated
-  explicitly here so a future mission doesn't apply the Nov-9 rule to a
-  tenant-facing product feature by reflex.
-- **What does still need care, for a different reason**: any version of
-  this that auto-sends a real proposal to a real client the instant a
-  project's stage flips to `completed`, with no human in the loop, is an
-  unsupervised action with real relationship/business consequences for a
-  tenant's real client — the same class of risk `PRODUCT.md`'s "fail open
-  on soft checks, fail closed on money" already treats cautiously, and
-  nothing in this codebase today auto-sends a proposal without an
-  explicit staff click. The first real version of this link should be a
-  one-click *suggestion* on a newly-completed project — "Suggest a
-  follow-up proposal" — mirroring the Command Centre's existing
-  "Generate outreach kit" one-click precedent, never a silent auto-fire.
-  This framing doesn't need Hamish's sign-off before scoping (it's
-  human-triggered, and it's tenant-facing, not Hamish's own outreach) but
-  should still get a normal design/build review given it touches the
-  proposal-send path.
-- Real scope this requires: `proposal_tokens.prospect_id` becomes
-  nullable with a `client_id` alternative (small additive migration +
-  `check (prospect_id is not null or client_id is not null)`),
-  `sendProposal()` gains a client-target branch, `readProposalToken`'s
-  public unauthenticated view needs to work for a client-target row too
-  (still fine to stay a public token *here*, unlike C2 — a proposal is
-  explicitly meant to be viewable/forwardable outside a login, same as it
-  already is for prospects).
-- **Priority**: P3 (someday) — real, but explicitly sequenced last: it
-  depends on real completed projects with real approved deliverables to
-  point to (C1–C3), and is the smallest-value link in the chain until
-  then — a "send another proposal" button with nothing real to show for
-  the last project is just a generic upsell nag, not the differentiated
-  "look what we just delivered" moment Hamish's own framing describes.
-- **Dependencies**: C1–C3 shipped and in real use. **Status**: Not
-  started.
-
-- **Relevant agent**: Product Director (this entry) → UX/UI Director (C1
-  design pass first) → Lead Engineer (C1 build) → Security Auditor (C2
-  design review, in parallel with awaiting Hamish's sign-off) → Product
-  Director (re-scope C3 once C2 ships) → AI/Agent Architect (C4, only
-  once Hamish signs off on scoping it) → Product Director (C5, once
-  C1–C3 are real).
-- **Dependencies**: see each sub-item above.
-- **Status**: Not started as a whole — C1 (above) is the one piece of
-  this area that's genuinely Ready now.
-
 ### Prefill the Website Builder discovery form from a converted prospect's mockup/research (close the Prospects → Website Builder gap)
 
 - **Problem**: a prospect's "Website mockup" (`draft-website-mockup.ts`,
@@ -1428,445 +1881,6 @@ Analytics" / "Results feed Client Report" / "Report demonstrates ROI")**
   and the objectives checklist render honestly blank with no fake tag,
   every prefilled field confirmed genuinely editable (typed into
   Business name, value updated normally), zero console errors.
-
-## Researching
-
-_(none currently — the Website Builder build-phase flow entry that was
-here moved to `## Ready` once UX/UI Director's design landed, 2026-09-11.)_
-
-## Not started
-
-### `/script` route needs a sticky phase-jump nav — a real ~8,500-word single scroll with no way to jump to a specific phase
-
-- **Problem**: found during the UX/UI Director's visual re-review
-  (2026-09-11) of the Website Builder build-phase flow mission
-  (`DECISIONS.md`'s matching entry has the full context).
-  `/studio/website-builder/[id]/script` (`build-script-view.tsx`) is a
-  dedicated "read everything" page by design (`DECISIONS.md`'s 2026-09-11
-  Decision 3 — a real page, not a modal, specifically because ~8,500 words
-  doesn't fit one) — every generated phase's `AccordionItem` renders open
-  by default (`defaultValue = generatedIds`), which is correct for "read
-  the whole thing at once" but means a fully-built project (the real
-  Press Coffee project: 10 phases, confirmed live) is a genuine single
-  continuous scroll with no way to jump straight to, say, Phase 8 without
-  scrolling past everything before it. The accordion mechanism itself
-  (collapse/expand per section) doesn't help here either, since starting
-  fully open means a user has to manually collapse 7 other sections just
-  to get an overview — there's no "collapse all" affordance and no anchor
-  navigation at all today.
-- **Objective**: a lightweight way to jump directly to any of the 10
-  phases from anywhere on the page, without leaving the single-page
-  reading experience the route was deliberately built as (not a return to
-  a multi-card/multi-click structure).
-- **User**: same as the route itself — an agency member using this page as
-  a reference document while working through a real build, likely
-  returning to it mid-session to re-check one specific phase rather than
-  reading start to finish every time.
-- **Priority**: P2 — a real, found-in-review gap on a route that shipped
-  this same day, not urgent (the page still works, just requires
-  scrolling), but a genuine rough edge on a surface explicitly built to
-  answer "can we just provide them with the personalised prompts?" — the
-  literal reading experience matters for that promise to feel finished.
-- **Expected outcome, not fully designed here** (needs its own UX/UI
-  Director pass before building, per this team's own "don't drift into a
-  bigger rebuild inside a fix-it pass" discipline) — options worth
-  evaluating, not a prescribed answer: (a) a sticky, horizontally-scrollable
-  chip row at the top of the page (`Phase 1` … `Phase 10`, each a real
-  anchor `<a href="#phase-N">`, current-in-viewport chip visually marked —
-  needs a scroll-spy, real complexity, not just a CSS tweak) sticking
-  below the page's own header; (b) a simpler, cheaper first pass — real
-  anchor links only, no scroll-spy/sticky behaviour, e.g. a plain
-  in-page "Jump to:" row of text links at the very top (same shape as a
-  long-form article's own table of contents) — genuinely smaller to build
-  and ship first, with the sticky/scroll-spy version as a possible later
-  enhancement rather than the only acceptable version; (c) whether
-  "collapse all" is still worth adding alongside jump-links, or redundant
-  once anchor-jumping exists (anchor scrolling works regardless of a
-  section's open/closed state, so it may not be). Explicitly not
-  evaluated here: whether this page should gain a persistent left-rail
-  nav like a docs site — that's a much bigger structural change than this
-  finding's actual size warrants, flag only if a future pass finds real
-  evidence this specific fix isn't enough.
-- **Acceptance criteria**: not written in full — depends on which option
-  above a design pass picks. At minimum: a way to reach any phase's
-  content without manually scrolling past every phase before it; doesn't
-  regress the route's existing "everything open by default" reading
-  experience; `npx tsc --noEmit -p .`, `npx eslint`, full `vitest` suite
-  green.
-- **Relevant agent**: UX/UI Director (pick and spec one of the options
-  above, or a better one) → Lead Engineer (build) → QA.
-- **Dependencies**: none — `build-script-view.tsx` already has everything
-  needed (`BUILD_PHASE_ORDER`, `phases`, `generatedIds`); purely additive,
-  no schema/data change.
-- **Status**: Not started.
-
-### Surface `recommended_services` in Studio's own research summary
-
-- **Problem**: found by QA while verifying the "Hamish AI" hardcode fix
-  above (commit `84bd34c`) — `research.recommended_services` is only ever
-  rendered in `/admin`'s pages (HamishAI's own internal tool). Studio's
-  own `research-summary.tsx` (what a real tenant actually sees on
-  `/studio/prospects`) shows `pursue_because`, `business_summary`, value
-  band, conversion probability, `ai_opportunity_fit`, `weaknesses`,
-  `strengths`, `ai_opportunities`, and `suggested_sales_angle` — but never
-  `recommended_services` directly, even though it's a real, already-
-  computed field a tenant would plausibly want to see ("what should I
-  actually pitch this business").
-- **Objective**: add a small "Recommended services" badge/line to
-  `research-summary.tsx`, same treatment as the existing badges, using
-  the tenant's own real `recommended_services` values (now correctly
-  agency-aware per the fix above).
-- **Priority**: P3 (someday) — real, small, cosmetic; not a defect
-  introduced by the fix above (the field was never surfaced there before
-  it either), just a gap the fix's own QA pass happened to notice.
-- **Relevant agent**: Lead Engineer.
-- **Dependencies**: none.
-- **Status**: Not started.
-
-### `computeLeadScore` vs `computeScoreBreakdown` can rank the same prospect differently across surfaces
-
-- **Problem**: found during the 2026-09-07 prospect-pipeline audit
-  (AI/Agent Architect). `/admin/leads` sorts/filters by `computeLeadScore`
-  (research-lead.ts:216); Studio's prospecting-panel.tsx defaults its
-  "Highest score" sort to `computeScoreBreakdown.overall`
-  (`b.score_breakdown?.overall ?? b.score`). Both are computed from the
-  same research and saved together, but they're genuinely different
-  formulas — and the pipeline's own search brief is built entirely around
-  "find businesses with no/weak web presence," meaning the modal real
-  prospect has `siteCheck === null`. For that case, `computeLeadScore`
-  collapses to just 2 or 3 out of 5 for the overwhelming majority of real
-  leads (it can't see value band or problem count once site_check is
-  null), while `computeScoreBreakdown.overall` still varies meaningfully
-  on those same inputs. Concrete illustration (both leads
-  `ai_opportunity_fit: "high"`, no website): a $6,000+ lead with 8
-  weakness/trust/conversion findings scores `computeLeadScore` = 3,
-  `computeScoreBreakdown.overall` = 4; a $500-1,500 lead with 2 findings
-  also scores `computeLeadScore` = 3 (tied with the first) but
-  `computeScoreBreakdown.overall` = 2. `/admin/leads` would rank these
-  tied; a Studio tenant's default sort would clearly separate them. This
-  is the modal case, not a contrived edge case.
-- **Objective**: not decided here — a genuine product judgment call
-  (which formula should be the one canonical score), not something to
-  resolve unilaterally. Two real options: (a) pick one formula as
-  canonical for sort/display on both surfaces, or (b) keep both but
-  surface them side-by-side wherever a score is shown, so the
-  discrepancy is visible rather than silently hidden behind two
-  differently-sorted lists.
-- **Priority**: P2 — real, live, and affects prioritisation on both
-  `/admin/leads` and every Studio tenant's default prospect ordering, but
-  not a broken/crashing feature.
-- **Relevant agent**: Product Director (pick the direction) → Lead
-  Engineer (align the two surfaces).
-- **Dependencies**: Hamish's/Product Director's call on which formula
-  wins, or whether both stay and are shown together.
-- **Status**: Not started.
-
-### Background lead-discovery `maxSearchUses: 5` is very likely under-budgeted relative to real usage — real cost tradeoff, needs sign-off
-
-- **Problem**: found during the 2026-09-07 prospect-pipeline audit.
-  `discoverLeads()`'s weekly background rotation calls `searchCandidates()`
-  with `maxSearchUses: 5` (`discover-leads.ts:173`'s default);
-  `searchProspectsNow()` (the on-demand "Search now"/"Find prospects now"
-  path) uses `10`. Live testing at `maxSearchUses: 10` found the model
-  consumed the **full** 10-call budget in 5 of 6 real test locations —
-  including a small-town control search that should have been "easy" —
-  strongly suggesting the model is being budget-constrained rather than
-  concluding "nothing more to find." The background rotation's budget of
-  5 was not itself live-tested in this audit (out of scope for the
-  dispatch), but given the on-demand evidence, it is very likely also
-  fully consumed rather than a natural stopping point, meaning the weekly
-  cron is plausibly leaving real, findable prospects on the table purely
-  due to search-budget ceiling, not model judgment.
-- **Objective**: not decided here — raising `maxSearchUses` for the
-  background rotation would plausibly increase weekly discovery yield,
-  but at a real, ongoing incremental Anthropic API cost across every
-  org's weekly cron run (13 cron jobs already exist; this is one of them,
-  running for every paying + internal org, every week). This is exactly
-  the kind of "ongoing infrastructure cost" `docs/ai-team/README.md`'s
-  approval boundary calls out — not something to change unilaterally.
-- **Priority**: P2 — real, evidenced (indirectly) cost/yield tradeoff,
-  but requires an explicit decision, not urgent to force.
-- **Relevant agent**: Growth & Analytics (model the real cost delta of
-  e.g. 5→8 or 5→10 calls/pair × `PAIRS_PER_RUN` × org count) → Hamish
-  (sign-off) → Lead Engineer (bump the constant).
-- **Dependencies**: Hamish's explicit sign-off — a new ongoing cost.
-- **Status**: Done (2026-09-07). Hamish signed off directly (asked, not
-  inferred) on raising the background rotation's `maxSearchUses` to match
-  `searchProspectsNow()`'s existing `10`, accepting the real recurring
-  Anthropic cost increase. `discover-leads.ts`'s `searchCandidates()`
-  default changed from `{ minResults: 2, maxResults: 4, maxSearchUses: 5 }`
-  to `{ minResults: 2, maxResults: 4, maxSearchUses: 10 }` — `minResults`/
-  `maxResults` untouched (search-budget-only change). See
-  `docs/ai-team/DECISIONS.md`'s 2026-09-07 entry for the full reasoning.
-
-### `computeScoreBreakdown`'s `value` dimension is currency-blind — low priority, but HamishAI's own org is now a live multi-currency case
-
-- **Problem**: `VALUE_BAND_SCORE` (`value-band.ts:16`) scores a value band
-  purely on its numeric string — a "$6,000+" US prospect and a "£6,000+"
-  UK prospect both score 5 on the `value` dimension despite being ~1.27x
-  apart in real money. Harmless within a single-currency org, but the
-  2026-09-07 pipeline audit's own live testing shows HamishAI's own
-  organisation already searching GBP/USD/EUR markets in the same run —
-  exactly the scenario where this would misrank prospects against each
-  other.
-- **Objective**: a small per-currency multiplier applied before bucketing
-  into `VALUE_BAND_SCORE`, so cross-currency prospects on the same org
-  rank fairly relative to each other.
-- **Priority**: P3 (someday) — real but low-severity; bands are already
-  coarse (4 buckets) and there's no live evidence yet of this causing an
-  actual bad prioritisation decision, only that the precondition for one
-  (a genuinely mixed-currency org) now demonstrably exists.
-- **Relevant agent**: Lead Engineer.
-- **Dependencies**: none.
-- **Status**: Not started.
-
-### "Search now" gives no explanation when a saturated-market search legitimately yields few/zero results
-
-- **Problem**: `DiscoveryResultMessage` (discovery-result-message.tsx:54)
-  renders a thin/zero result identically regardless of *why* it's thin —
-  "Found 1 new prospect" for a genuinely saturated market (e.g. New York)
-  looks exactly like "Found 1 new prospect" from a real search problem.
-  This ambiguity is what caused Hamish's own "New York" report to read as
-  a possible bug in the first place (see the £-currency bug's Complete
-  entry) when the low yield itself was plausibly correct behaviour. The
-  2026-09-07 pipeline audit's live testing reinforces this: `searchCandidates()`'s
-  brief by design surfaces only weak/no-web-presence businesses, so a low
-  number is an expected, not exceptional, outcome in a well-served city.
-- **Objective**: when a search returns fewer than its own `minResults`
-  (a real, checkable condition — the brief already asks for a specific
-  range), add one honest, generic sentence to the result message — e.g.
-  "In well-established markets, most businesses already have a website,
-  so fewer qualify here — that's expected, not a search failure." — not a
-  claim about that specific search's cause, just honest framing of what
-  the tool is designed to do.
-- **Priority**: P3 (someday) — cosmetic/copy-only, but directly addresses
-  a confusion that's already happened once for real.
-- **Relevant agent**: UX/UI Director (copy) + Lead Engineer (wire the
-  `< minResults` condition through `DiscoverLeadsResult`).
-- **Dependencies**: none.
-- **Status**: Not started.
-
-### Dedup across repeated searches only matches on normalised business name — no website/phone fallback
-
-- **Problem**: `insertCandidates()`'s dedup (`discover-leads.ts:309`) only
-  compares `normaliseName(candidate.business_name)` against previously
-  seen names. Two searches that find the same real business under
-  slightly different naming (the model reporting "Bob's Plumbing" one run
-  and "Bob's Plumbing Services" or "Bob's Plumbing Ltd" another) would
-  insert it twice — the `website`/`phone` fields the model already
-  captures (when present) are never used as a stronger secondary dedup
-  signal. Not evidenced as having actually happened yet (would need a
-  tenant re-searching overlapping areas over time to surface it) — a
-  plausible-but-unconfirmed gap, not a live bug.
-- **Objective**: when a candidate has a `website`, also check it against
-  existing prospects' normalised `website` (domain-only comparison) before
-  inserting — a strictly additive check, name-dedup stays the primary
-  path.
-- **Priority**: P3 (someday) — plausible, not confirmed; normal name-based
-  dedup already covers the common case.
-- **Relevant agent**: Lead Engineer.
-- **Dependencies**: none.
-- **Status**: Not started.
-
-### `discoverLeads()` and `searchProspectsNow()` duplicate ~40 lines of billing/usage-check logic
-
-- **Problem**: the two top-level functions in `discover-leads.ts` already
-  correctly share `searchCandidates()` and `insertCandidates()` (the
-  comment on `insertCandidates()` explains exactly why — so the two paths
-  "can't quietly drift"), but the billing check (`subscription_status`/
-  `trial_ends_at`) and the monthly-usage/purchased-credits ceiling
-  computation are each copy-pasted near-identically at the top of both
-  functions instead of sharing a helper. No live bug found from this
-  duplication today, but it's the exact shape of risk
-  `insertCandidates()`'s own comment already warns about one level down —
-  a future billing-rule change applied to one function and missed on the
-  other.
-- **Objective**: extract a shared `checkProspectingBillingAndUsage(org,
-  cap)` (or similar) helper used by both, returning the same
-  `billingRequired`/`limitReached`/ceiling shape both functions already
-  build by hand.
-- **Priority**: P3 (someday) — real duplication, no live bug, pure
-  maintainability.
-- **Relevant agent**: Lead Engineer.
-- **Dependencies**: none.
-- **Status**: Not started.
-
-### Build `StudioEmptyState` and `ConfirmDeleteButton` shared primitives, retrofit existing sites
-
-- **Problem**: Studio Design Audit Phase 1 (Lead Engineer) found the
-  dashed-border empty-state card duplicated 15 times across 9 files and
-  confirm-delete reimplemented independently 4+ times, each with slightly
-  different copy/behaviour. Phase 2 built and adopted `StudioPageHeader`
-  (the highest-priority duplication) but deliberately did not build these
-  two — correctly scoped as Medium priority given the mission's size, but
-  the Phase 3 post-build review (Lead Engineer) found the raw confirm-delete
-  count actually went *up* (4+ → ~10) since Phase 2's own new confirm-step
-  additions (cancel subscription, remove client/team member) each reused
-  the *shape* correctly but each is still its own bespoke implementation,
-  not a shared one.
-- **Objective**: one `StudioEmptyState` component (icon, heading, body,
-  optional CTA) and one `ConfirmDeleteButton`/`useConfirmDelete()` hook,
-  each adopted everywhere the pattern currently exists by hand.
-- **User**: no direct user-facing change intended — this is a
-  maintainability/consistency fix so a future visual or behavioural change
-  to either pattern lands in one place, not 10-15.
-- **Priority**: P2 (worth doing, not urgent — the user-facing cohesion win
-  already shipped via `StudioPageHeader`; this is the maintainability
-  half Phase 2 didn't have room for).
-- **Expected outcome**: a real reduction in duplicate markup/logic; no
-  visible change to end users beyond incidental copy consistency.
-- **Acceptance criteria**: both primitives built; every one of the ~15
-  empty-state sites and ~10 confirm-delete sites (per Lead Engineer's
-  Phase 1/Phase 3 file lists in `STUDIO_DESIGN_AUDIT.md`) adopts them;
-  `tsc`/`eslint`/full test suite green; no behaviour change to any
-  existing delete/empty-state flow.
-- **Relevant agent**: Lead Engineer.
-- **Status**: Complete/shipped (commit `4422038`). Built `studio-empty-state.tsx`,
-  `use-confirm-delete.ts`, and `confirm-delete-button.tsx`; retrofitted 7
-  delete-control sites and 11 empty-state sites. Deliberately left alone,
-  with reasons recorded in the commit message: `MaintenanceSubscriptionControl`/
-  `DeleteClientControl`/`team-panel.tsx`/`data-privacy-panel.tsx` (genuinely
-  different trigger shape or type-to-confirm weight) and `ClientMembersControl`
-  (single shared confirm-id across a list — the per-row primitive would let
-  multiple rows confirm at once, a real behaviour change); `project-kanban-board.tsx`'s
-  column placeholder (needs `text-xs`, the primitive's description is fixed
-  `text-sm`). `npx tsc --noEmit`, `npx eslint`, full `vitest` suite (467/467),
-  and `npm run build` all green — no behind-change to any existing flow.
-  (First dispatched to a backgrounded Lead Engineer agent, which stalled
-  after building the two primitives but before any retrofit; the
-  orchestrator completed the retrofit directly rather than re-dispatching.)
-- **Dependencies**: none.
-
-### Consolidate the 4 duplicated assignee-select components into one shared control
-
-- **Problem**: Studio Design Audit Phase 1 (QA Engineer) found the
-  Prospects, Requests, Projects, and Website Builder assignee `<select>`
-  controls independently reimplement the same optimistic-update-plus-
-  error-surfacing shape. Phase 2 fixed the actual bug (silent rollback
-  with no error message) in all 4, but did not consolidate them into one
-  component — correctly deferred as Low priority (QA's own original
-  scoping) since the bug fix, not the consolidation, was the real
-  user-facing problem.
-- **Objective**: one shared `AssigneeSelect` component so the same fix
-  doesn't need to be applied 4 separate times if this bug class recurs.
-- **User**: no direct user-facing change — maintainability only.
-- **Priority**: P3 (someday) — real, but genuinely lower value than the
-  empty-state/confirm-delete consolidation above since the bug itself is
-  already fixed everywhere it existed.
-- **Expected outcome**: one component, 4 fewer independent
-  implementations to keep in sync by hand.
-- **Relevant agent**: Lead Engineer.
-- **Dependencies**: none.
-- **Status**: Complete/shipped (commit `98516a8`). Built `assignee-select.tsx`
-  covering both real, deliberately-kept shapes (a labelled "Assigned to"
-  wrapper for the two dedicated-page controls; a bare select for the two
-  in-card controls, tight on space, aria-label only). `prospect-card.tsx`'s
-  own distinct `h-7`/`text-[11px]` sizing kept via the new `className`
-  override — a real difference, not a duplicate to normalise away. Error
-  text normalised to `text-xs` everywhere (was `text-[11px]` on the two
-  in-card sites — a 1px difference not worth a prop). Zero behaviour
-  change: same rollback-on-error, same "Unassigned" option, same
-  team-members->1 gate, same Server Actions called unchanged. `npx tsc
-  --noEmit`, `npx eslint`, full `vitest` suite (467/467), and `npm run
-  build` all green.
-
-### Standardise a "Generated {date} · Regenerate" provenance line across every cached AI artifact
-
-- **Problem**: Studio Design Audit Phase 1 (AI/Agent Architect) found
-  `website-brief-panel.tsx` shows a real "Generated {date}" line on its
-  cached AI output but the sales-kit and website-mockup preview components
-  (now in `src/components/platform/prospecting/`) don't have an equivalent
-  — inconsistent legibility of "this is cached AI output, not live" across
-  otherwise-similar surfaces.
-- **Objective**: one small shared component used everywhere a cached AI
-  artifact is shown.
-- **User**: an agency owner reviewing a generated kit/mockup/brief, so
-  they can tell at a glance whether they're looking at something fresh or
-  something generated a while ago.
-- **Priority**: P3 (someday) — real but cosmetic; correctly deferred, not
-  a build-blocking gap.
-- **Relevant agent**: AI/Agent Architect (spec) + Lead Engineer (build).
-- **Dependencies**: none.
-- **Status**: Complete/shipped (commit `d3473d1`). Real gap turned out
-  bigger than "cosmetic": `sales_kit_generated_at`/`website_mockup_generated_at`
-  already existed as real DB columns (written by `draft-sales-kit.ts`/
-  `draft-website-mockup.ts`, already used for AI ROI and admin's own lead
-  page) but Studio's own Prospects query never selected them, and
-  `research_generated_at` was selected but never rendered. Fixed all
-  three (`research-summary.tsx`, `sales-kit-section.tsx`,
-  `website-mockup-section.tsx`) with the same header row
-  `website-brief-panel.tsx` already uses. Also closed a real capability
-  gap alongside it: research and sales kits had no regenerate path at
-  all once first generated (only the empty-state's first-time trigger
-  existed) — confirmed each Server Action has no re-run guard before
-  wiring a Regenerate button to it. **Deviation from the letter of this
-  entry's own "one small shared component" objective**: built inline in
-  each of the three files, matching `website-brief-panel.tsx`'s own
-  pattern exactly rather than extracting a 4th shared component —
-  `website-brief-panel.tsx` itself was never converted either, the JSX
-  is ~8 trivial lines with a different regenerate action per site, and
-  the actual user-facing objective (consistent provenance everywhere)
-  is fully met without it. Revisit if a 5th site needs this pattern.
-  `npx tsc --noEmit`, `npx eslint`, full `vitest` suite (467/467), and
-  `npm run build` all green. Live deploy propagation slower than usual
-  this pass — visual confirmation still pending as of this note.
-
-### Reconcile the trial-status pill's count-up phrasing with the existing count-down phrasing elsewhere
-
-- **Problem**: Studio Design Audit Phase 2 added a "Trial · Day X of 7"
-  pill (count-up) for days 4-7 of a trial; the existing ≤3-day warning
-  banner and the Billing page both already use count-down phrasing
-  ("X days left"). Found by Growth & Analytics in the Phase 3 post-build
-  review — a new, minor inconsistency that didn't exist before this pill
-  was added.
-- **Objective**: pick one framing (count-down is likely more intuitive —
-  "3 days left" vs. "Day 4 of 7" both work, but having both live
-  simultaneously across 3 surfaces is the actual problem) and apply it
-  everywhere trial status is shown.
-- **Priority**: P3 (someday) — cosmetic, not confusing enough to block
-  anything, but a real, named inconsistency.
-- **Relevant agent**: UX/UI Director (pick the framing) + Lead Engineer
-  (apply it in `(authed)/layout.tsx` and `billing/page.tsx`).
-- **Dependencies**: none.
-- **Status**: Complete/shipped (commit `5dc5e93`). Picked count-down —
-  the pill (the only count-up surface) now reads "Trial · X days left",
-  matching the ≤3-day warning banner and Billing's own trial line
-  exactly. `billing/page.tsx` needed no change, already count-down.
-  Removed the now-unused `trialDayNumber` calculation. Not live-screenshot-
-  verified — the only account with a live session has 0 trial days left
-  (the banner's own range, not the pill's 4-7-day window) — but this is a
-  copy-only change with the visibility gate itself untouched, and
-  `tsc`/`eslint`/full `vitest` suite (467/467)/`npm run build` all green.
-
-### Dormancy signal for trialing/paying orgs with zero real activity
-
-- **Problem**: Studio Design Audit Phase 1 (Growth & Analytics) found the
-  only automated re-engagement mechanism today is trial-deadline-driven
-  (`trial-reminders.ts`) — there's no "you signed up and never came back"
-  signal, the most common real early-SaaS drop-off pattern. No
-  "last active" column or query exists anywhere in `/studio` today; this
-  would need new instrumentation against `usage_events`/`ai_call_log`,
-  not a guess.
-- **Objective**: instrumentation first (what does "inactive" actually
-  mean against real rows), a real email/digest addition second.
-- **Priority**: P2 (worth doing) for the instrumentation question itself;
-  the email/digest half is explicitly **not** approved to build without
-  Hamish's own sign-off first.
-- **Explicit constraint, not to be missed**: this sits close enough to
-  the standing pre-2026-11-09 no-outreach rule (`PRODUCT.md`) that Growth
-  & Analytics' own Phase 1 review flagged it as a borderline case —
-  arguably fine as inbound-account-lifecycle mail (same category as the
-  existing trial reminders), not solicitation of a new prospect, but that
-  judgment call is Hamish's to make explicitly before anything is built,
-  not assumed by whichever agent picks this up.
-- **Relevant agent**: Growth & Analytics (design the "what counts as
-  active" query) → Product Director (confirm the outreach-constraint
-  framing with Hamish before scoping further).
-- **Dependencies**: Hamish's explicit sign-off on the outreach-framing
-  question before any email/digest is built.
-- **Status**: Not started.
-
-## Needs review
 
 ### Website Builder build-phase flow: decouple personalised content visibility from checklist-gated progress
 
@@ -2604,8 +2618,6 @@ QA the two passes independently.
   reads as an intentionally dense "top 5" list, not clutter. No further
   design changes needed.
 - **Status**: Complete
-
-## Complete
 
 ### "Start website build from prospect" kept showing for a client whose build already exists
 
