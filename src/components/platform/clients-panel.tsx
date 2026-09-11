@@ -844,13 +844,21 @@ function ClientCard({
   autoExpand: boolean;
 }) {
   // Website Builder launch handoff (BACKLOG.md, 2026-09-11) — the
-  // landing behaviour every PostLaunchChecklist deep link needs: this one
-  // client's card starts expanded when the URL names it (lazy initial
-  // state, not a setState-in-effect — that expansion is a real initial
-  // render decision, not a reaction to an external system). Scrolling it
-  // into view is the one real side effect, since it needs the rendered
-  // DOM node to exist first.
-  const [open, setOpen] = useState(autoExpand);
+  // landing behaviour every PostLaunchChecklist deep link needs: this
+  // card starts (and stays) expanded whenever the URL names it, even
+  // across a same-route re-navigation that only changes the `client`
+  // search param and never unmounts this component (App Router only
+  // remounts client components on a route-segment change, not a
+  // query-only one — confirmed by QA: browser back/forward, or a second
+  // deep link clicked without leaving /studio/clients in between, left
+  // `useState(autoExpand)`'s lazy initial value stale, so the target
+  // card silently never opened). `manualOverride` starts `null` ("no
+  // explicit user choice yet on this mount") so `open` keeps tracking
+  // `autoExpand` on every render until the agency actually clicks the
+  // toggle themselves, at which point their own choice wins for the rest
+  // of this mount — derived during render, not a setState-in-effect.
+  const [manualOverride, setManualOverride] = useState<boolean | null>(null);
+  const open = manualOverride ?? autoExpand;
   const cardRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -861,7 +869,12 @@ function ClientCard({
   return (
     <Card ref={cardRef}>
       <CardContent className="py-3">
-        <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open} className="flex w-full items-center justify-between gap-3 text-left">
+        <button
+          type="button"
+          onClick={() => setManualOverride(!open)}
+          aria-expanded={open}
+          className="flex w-full items-center justify-between gap-3 text-left"
+        >
           <div className="flex min-w-0 items-center gap-3">
             <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-accent/10 font-heading text-sm font-semibold text-accent uppercase">
               {client.business_name.charAt(0)}
