@@ -454,3 +454,56 @@ real, explicit, audited cross-org oversight capability instead of the
 current accidental default. Nothing fixed yet — investigation only, per
 this team's own security-change approval boundary. Full detail in
 `BACKLOG.md`'s matching entry.
+
+## 2026-09-11 — Website Builder build-to-launch journey: scoped and designed, awaiting Hamish's go-ahead
+
+Mission triggered by two pieces of direct feedback from Hamish, given
+right after running his own real "Press Coffee" project through the
+whole flow: (1) "I feel there needs to be more integration between the
+steps on how to use the AI tools and the prompt library... can we just
+provide them with the personalised prompts?" and (2, mid-mission)
+"once the steps have been finished the url I entered should
+automatically be filled on here in the client page. I still feel there
+was a lack of understanding what to do next after completing the
+steps. Think customer journey please."
+
+Product Director scoped first: all 10 build phases' content is already
+fully AI-generated up front (confirmed on the real Press Coffee
+project — ~8,500 words, 74 checklist items) the moment generation
+finishes; the actual friction is that `BuildPhasePanel` hides every
+phase past the current one behind a lock regardless of whether it's
+already written. Recommended decoupling content *visibility* from
+progress *gating* rather than removing the gate (which has real
+downstream consumers: the troubleshooting-help generator, the stage
+tracker, and the generation prompt's own dependency-chain assumption).
+
+UX/UI Director designed both that and the newly-added post-launch half
+together as one journey — and independently found two real adjacent
+bugs while reading the actual components: a *completed* phase's
+content is currently unreachable too (not just a locked future one),
+and the Clients page's chatbot-website field has exactly one save
+trigger (Enable/Disable), so the new URL-prefill feature would have
+been actively dangerous without a fix — filling in a URL while the
+chatbot's already on and clicking the only visible button would
+silently disable a client's live chatbot as a side effect.
+
+Product Director then sanity-checked the finished design against
+Hamish's own two verbatim messages before this went any further —
+verdict PASS, re-verified independently against the real code rather
+than trusting the spec: the design answers what was actually asked
+(the new "full build script" page is close to a literal answer to
+"can we just provide them with the personalised prompts?"), scope is
+right-sized (each new surface — a route, a deep-link pattern, a
+component — earns its place), and the two adjacent bugs are correctly
+folded in rather than split out.
+
+Nothing built yet — design-only mission, per Hamish's own explicit
+"ideas/scoping first" instruction and this team's own UI-redesign
+workflow (UX → Product sanity-check → Lead Engineer → QA). Full spec
+in `BACKLOG.md`'s two `## Ready` entries; full reasoning trail in
+`DECISIONS.md`'s three 2026-09-11 entries. Two honest approximations
+flagged for Hamish before build starts (a multi-launch client uses
+project-creation date as a "which one" proxy, not an exact launch
+timestamp; the post-launch checklist's "Connect Stripe" row is
+org-wide, so it reads "not done" per-client until Stripe is connected
+once for the whole org) — neither a blocker, both worth knowing.

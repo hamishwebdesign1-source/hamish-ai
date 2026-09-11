@@ -99,12 +99,20 @@ review," for the full implementation note.
   md:text-3xl">` + `<p className="mt-1 text-sm text-muted-foreground">`)
   so adopting it changed no page's heading size, only its wrapper.
 - **Content wrapper: `mx-auto max-w-4xl`, on every page using
-  `StudioPageHeader`.** Prospects, Campaigns, Clients, Requests, Projects,
+  `StudioPageHeader`.** Prospects, Campaigns, Requests, Projects,
   Knowledge, Analytics, Billing, Settings, Website Builder, and Help &
   Feedback all standardized on this one width — no more page-specific
   `max-w-2xl/3xl/5xl` variant. Analytics was the one page evaluated for
   needing more room (a two-chart `lg:grid-cols-2` row) and `max-w-4xl`
-  held up fine there too.
+  held up fine there too. **Correction (UX/UI Director, 2026-09-11,
+  found while designing the Website Builder launch-handoff entry)**:
+  `clients-panel.tsx` actually wraps its content in `mx-auto max-w-5xl`,
+  not `max-w-4xl` — this doc previously listed Clients among the
+  `max-w-4xl` pages, which was stale/never true, not a later drift. No
+  `DECISIONS.md` entry documents this as a deliberate exception (unlike
+  Projects' own documented Kanban-board exception below), so treat it as
+  undocumented drift worth a real look next time Clients' layout is
+  touched, not a second sanctioned exception to silently match.
 - **Command Centre (`studio/(authed)/page.tsx`) is deliberately NOT built
   on `StudioPageHeader` or `max-w-4xl`** — it's a structurally different
   full-width hero page (its own `text-3xl`/`text-4xl` greeting, not the
@@ -231,6 +239,21 @@ review," for the full implementation note.
     blank, same as starting from scratch") belongs once at the top of the
     form, not repeated per field — the per-field tags only need to say
     "Prefilled"/"Needs review," not re-explain the source every time.
+  - **A live, already-saved value needs a different variant of this
+    pattern than a blank form field** — established 2026-09-11 for the
+    Website Builder launch → Clients-page chatbot-origin wiring
+    (`BACKLOG.md`'s "launch handoff" entry): the original pattern above
+    assumes a form being filled in once; this case is an *existing*
+    persisted value (`clients.chatbot_embed_allowed_origin`) that a newer
+    piece of real data (`website_projects.live_url`) might now want to
+    supply instead. Auto-fill (not just tag) is correct the first time the
+    field is genuinely empty — but once any value is on file, never
+    silently overwrite it; show the "Prefilled" badge only when the
+    current value *already equals* the newer real data (still true,
+    still honest), and show a separate, explicit one-click "Use \[X\]"
+    action whenever it doesn't (covers edited-away values, a second later
+    source of the same fact, a user's deliberate override) — one of the
+    two renders at a time, driven by the same comparison, never both.
 
 ## Kanban board pattern (Projects Kanban Command Centre, Phase 3 Design — first instance, likely to recur)
 
@@ -277,6 +300,51 @@ reuse for any future Kanban-style surface rather than reinventing it:
   `<select>` instead — the same mechanism a keyboard/quick-change control
   already needs on the record's own detail page, reused rather than
   inventing a second "change stage" affordance for one breakpoint.
+
+## Sequential-progress flow where content is precomputed ahead of the gate (Website Builder build phases — first instance, likely to recur anywhere a wizard/flow generates content faster than a user progresses through it)
+
+Designed 2026-09-11 (`BACKLOG.md`'s "Website Builder build-phase flow"
+entry, `DECISIONS.md`'s matching entry) after a real, verified bug: content
+generated ahead of a user's tracked progress (all 10 build phases written
+in one background action, but the UI showed only the phase currently
+"reached") rendered as `Lock`ed and inaccessible, and — a second bug found
+in the same pass — content *behind* tracked progress (an already-completed
+phase) was equally unreachable once advanced past. The general lesson,
+reusable for any future flow with the same shape (content generation
+decoupled from a user's pace through a checklist/wizard): **content
+visibility and progress gating are two different facts about a record and
+must never share one boolean.** A phase/step can be generated-or-not
+*independently* of whether it's been reached-or-not; render against both
+facts, not one standing in for the other.
+
+- **Three visual tiers, not two ("locked" / "current")**: current (the one
+  thing genuinely gated — interactive, expanded, the only place state
+  actually changes), done (collapsed by default, re-openable, read-only —
+  a completed step's content doesn't disappear once you move on), and
+  read-ahead (collapsed by default, a neutral `secondary` badge — not
+  `Lock` — since nothing is actually access-gated, it just hasn't been
+  reached yet). Never render "not yet reached" and "not yet generated" as
+  the same visual state — they're different facts (one is about the
+  user's pace, the other about whether an async job finished) and
+  conflating them (the original bug) makes already-real content look
+  fake-gated.
+- **Interactivity lives on exactly one tier, by construction.** Only the
+  current step's checklist/controls are ever interactive (real
+  `<button>`s); done and read-ahead render the identical data as static,
+  non-interactive markup (no click handler, not just a disabled
+  attribute). This makes "can advancement be influenced by something
+  other than the current step" structurally false rather than a rule to
+  remember — the safer of the two ways to decouple visibility from
+  gating without weakening the gate itself.
+- **A dedicated "read everything" view is a real, separate page for a
+  long-text case, not an expand-all toggle bolted onto the tracked-progress
+  UI.** Mixing "read the whole thing at once" with "here's where you
+  actually are" on the same page blurs exactly the distinction this
+  pattern exists to make, and nested scroll regions (`overflow-y-auto`
+  boxes inside a scrolling page) are a genuine mobile pain multiplied by
+  page length. One explanatory banner at the top framing it as a read-only
+  companion (same shape as the field-provenance banner pattern below), not
+  a second copy of the tracked list.
 
 ## Deliverable submit-and-review pattern (Projects Kanban Command Centre, Phase C1 — first instance of "a child list whose visibility is entirely derived from its parent's own state")
 

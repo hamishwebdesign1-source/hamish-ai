@@ -8,6 +8,332 @@ just at product-decision scope instead of line scope.
 
 ---
 
+## 2026-09-11 — Website Builder build → launch → guided next steps: Product Director sanity-check, verdict PASS with two flags for Hamish
+
+**Context**: final review step in this team's "UI redesign" workflow (UX
+Director → Product Director sanity-check → Lead Engineer → QA → UX
+Director visual re-review) before Lead Engineer builds. Checked UX/UI
+Director's design (entry directly below) against the two problem
+statements verbatim from Hamish, and re-verified the design's own factual
+claims directly against the real code rather than trusting the spec at
+face value.
+
+**Code re-verification, not just a read of the spec**: confirmed directly
+—
+- `build-phase-panel.tsx`'s `isDone` branch (`index < currentPhaseIndex`,
+  lines 238–250) really does render only `CheckCircle2` + a label, no
+  instructions/checklist/expand affordance. The `!isReached && !isDone`
+  branch really does use a `Lock` icon for phases that are simply
+  not-yet-reached, not actually access-gated.
+- `prompt-library-browser.tsx`'s `activeCategory` really is a local
+  `useState<PromptCategory | "all">("all")` with no prop today — the
+  `initialCategory` prop the spec calls for genuinely doesn't exist yet.
+- `clients-panel.tsx`'s `EmbedChatbotControl` really has exactly one save
+  trigger (`onClick={() => save(!enabled)}` on the Enable/Disable button,
+  line 648) — a grep of `clients/page.tsx` and `clients-panel.tsx` for
+  `live_url` returns zero matches, confirming the wiring gap as described.
+- `launch-panel.tsx` really renders nothing beyond the Live checkmark,
+  URL, one analytics line, and an "Edit launch details" link — confirms
+  Problem B's "nothing routes the agency anywhere next" claim.
+- `schema-website-projects.sql` confirms `client_id uuid not null
+  references clients(id)` — the "a website project can never exist
+  unlinked from a client" edge-case finding is real, not assumed.
+
+**Verdict on the four questions asked of this review**:
+
+1. **Does it solve what Hamish asked, or drift?** Solves it, doesn't
+   drift. The script route is close to a literal answer to "can we just
+   provide them with the personalised prompts?" (its own top-of-page
+   "Copy entire script" button is the single-click version of exactly
+   that ask). The per-phase tool-guide/prompt-library link mapping is a
+   literal answer to "more integration... with the prompt library." The
+   chatbot-origin prefill is a literal answer to "should automatically be
+   filled." `PostLaunchChecklist` is the one piece that goes beyond a
+   literal reading — but Hamish's own instruction ("think customer
+   journey please") explicitly invites that, and a flatter alternative
+   (a single generic "go to Clients" link with no per-item status) would
+   have under-solved his stated complaint that he didn't know *what*, not
+   just *where*, to do next.
+2. **Is scope right-sized?** Yes, on inspection of each of the three
+   flagged items: the script route earns its place because the content
+   volume (~8,500 words across 10 phases) genuinely doesn't fit a modal
+   or an expand-all-on-the-same-page without regressing the mobile nested-
+   scroll problem already solved elsewhere in this codebase (Projects
+   Kanban's own accordion precedent); it isn't redundant with the
+   three-tier per-card fix because the two solve different problems (per-
+   card fixes the existing locked/checkmark-only bug, the route answers
+   "give me everything in one shot") — building only one would leave the
+   other gap open. The `?client=` deep-link pattern earns its place
+   because without landing on an already-expanded, scrolled-to card, a
+   "here's what to do" link would just dump someone on a flat list,
+   defeating the point. `PostLaunchChecklist` earns its place per (1)
+   above, and is genuinely thin — real-data status checks routing to four
+   *already-built* Clients-page controls, explicitly not duplicated
+   inline (checked directly: no new chatbot-setup/portal-invite/Stripe-
+   connect/report-generation logic is being built, only reads + deep
+   links). No schema change anywhere in either entry except the one
+   explicitly deferred, flagged, additive `launched_at` column — correctly
+   NOT bundled into this build.
+3. **Are the two adjacent bugs real and correctly folded in?** Both real,
+   both correctly folded in, confirmed by direct code read (above) rather
+   than trusting the spec. The `isDone` bug is the same root cause as the
+   primary fix (visibility coupled to `currentPhaseIndex` position instead
+   of content existence) — splitting it out would mean building the
+   three-tier card system twice. The chatbot-save bug is more than
+   "cheap and in the same file" — it's load-bearing for the new prefill
+   feature's safety: without it, filling in a newly-launched URL while the
+   chatbot is already enabled and clicking the only visible button
+   ("Disable") would silently turn off a client's live chatbot as a side
+   effect. Shipping the prefill without this fix would make the feature
+   actively dangerous, not just incomplete. Correct to fold in, wrong to
+   split out.
+4. **Any real risk or bad idea?** Two honest approximations worth naming
+   to Hamish before build, not blockers: (a) the multi-launch edge case
+   (a client with more than one `website_projects` row) is approximated by
+   most-recent-`created_at` among launched rows rather than an exact
+   `launched_at` timestamp, since that column doesn't exist yet — flagged
+   in the spec itself, deferred correctly as its own future migration; (b)
+   `PostLaunchChecklist`'s "Connect Stripe billing" row reads an org-level
+   flag (`stripe_connect_charges_enabled`), so until an org connects
+   Stripe once, that row will show "not done" on every client's checklist,
+   not just clients who actually need platform billing — real, accurate,
+   and already flagged in the spec's own text, not a bug, but worth
+   Hamish knowing before it ships so it doesn't get mistaken for one
+   later. No security/tenancy risk found — every new read is scoped the
+   same way the rest of Studio already is, no new write path, no RLS
+   change. Process recommendation, not a blocker: build and QA the two
+   backlog entries as two sequential passes rather than one combined
+   change — the phase-visibility fix and the launch-handoff fix touch
+   different files and solve different problems, and sequencing them
+   separately makes each easier to review and roll back independently if
+   needed.
+
+**Recommendation**: PASS, with a plain go/no-go handed to Hamish (see the
+mission's actual handoff for the full plain-English version) covering the
+two flags above — not because either crosses a hard approval boundary, but
+because this is a genuine, multi-surface interaction-flow change (a new
+route, a new deep-link pattern, a new component) that this team's own
+workflow says is worth an explicit yes before Lead Engineer starts, not a
+silent proceed.
+
+---
+
+## 2026-09-11 — Website Builder build → launch → guided next steps: full interaction design, UX/UI Director
+
+**Context**: continuation of the same-day mission below (Product
+Director's scoping of the phase-visibility problem), plus a second, new
+part scoped directly by Hamish after finishing his own "Press Coffee"
+build end to end: a verified wiring gap between `launchWebsiteProject()`'s
+real `live_url` and the Clients page's disconnected
+`chatbot_embed_allowed_origin` field, and a broader "I didn't understand
+what to do next after completing the steps" complaint. Full acceptance
+criteria for both parts are in `BACKLOG.md`'s two linked `## Ready`
+entries — this entry is the reasoning behind the calls made, not a
+duplicate of the spec.
+
+**Decision 1 — the phase-card fix solves two bugs, not one.** While
+designing against the reported "already-generated future phases are
+hidden" problem, a second, real bug turned up in the same component: once
+a phase is marked `done` (`index < currentPhaseIndex`), `build-phase-
+panel.tsx`'s `isDone` branch renders only a checkmark and a label — no
+instructions, no checklist, no expand affordance. A completed phase's own
+content is currently *more* unreachable than a not-yet-reached one (which
+at least has a name visible). Both are the same root cause (content
+visibility hard-coupled to a position relative to `currentPhaseIndex`
+instead of to whether content actually exists), so one fix — three real
+tiers (current / done / read-ahead, all collapsible except current, only
+current ever has an interactive checklist) — closes both without treating
+them as separate tickets.
+
+**Decision 2 — checklist interactivity stays on exactly one card at a
+time, by construction, not by convention.** The open question of whether
+"reading ahead" should let someone tick a future phase's checklist was
+resolved by making it structurally impossible rather than a rule to
+remember: done and read-ahead phases render their checklist as a static,
+non-interactive list (no `<button>` wrapper at all), so there's no code
+path where advancing could be influenced by anything other than the
+*current* phase's own checklist. This also keeps `current_phase_index`
+genuinely meaningful for the real downstream consumers Product Director's
+scoping already identified (troubleshooting-help AI context, the stage
+tracker) — the decoupling is real, but advancement's own integrity isn't
+weakened to get it.
+
+**Decision 3 — a dedicated route, not a modal or an in-place "expand all,"
+for the "everything" view.** Considered and rejected: an expand-all toggle
+on the existing per-phase cards (keeps ~8,500 words and their nested
+`max-h-64 overflow-y-auto` scroll boxes on the same page as the tracked-
+progress UI — fighting nested scroll regions on mobile, and blurring
+exactly the "pre-written vs tracked-progress" distinction question 2
+asked about); a dialog/sheet (Base UI `Dialog`, this codebase's own
+size — genuinely too much text for a modal viewport, mobile or desktop).
+`/studio/website-builder/[id]/script` is a real page: full-width prose, no
+nested scroll clamp (appropriate for a busy multi-card page, wrong for a
+page whose only job is reading long text), a `border-accent/30 bg-accent/5`
+banner making explicit that it's a read-only companion to the tracked
+phase list, not a second copy of it — same "one explanatory banner, not
+per-item" shape `DESIGN-SYSTEM.md`'s field-provenance pattern already
+established, reused here for a different kind of derived context.
+
+**Decision 4 — `PostLaunchChecklist` is real-data-driven, not a static
+checklist of links.** The four next-step signals Hamish named (chatbot,
+portal invite, Stripe, first report) are all cheaply, honestly derivable
+from existing tables (`clients.chatbot_embed_enabled`, a `client_members`
+count, `organisations.stripe_connect_charges_enabled`, a `monthly_reports`
+existence check keyed to the current calendar month via its own unique
+`(client_id, period_start)` index) — so the checklist shows real done/
+not-done state, not a decorative "here's 4 things you could do" list that
+never updates. This is the same "real data or nothing" principle
+`PRODUCT.md` already holds the rest of Studio to; a fake-looking checklist
+on the exact page meant to feel premium at the moment of finishing a real
+deliverable would undercut the whole point of building it.
+
+**Decision 5 — route to the Clients page, don't reinvent it.** The
+mission's own framing was explicit about this ("ground this in what
+already exists... rather than inventing new surfaces where an existing
+one already does the job") — `PostLaunchChecklist` is deep links
+(`?client=<id>`, newly added auto-expand+scroll support on `/studio/
+clients`) into the real chatbot/portal-invite/report controls that already
+work, not a second, parallel set of controls on the Website Builder page.
+Considered and rejected: duplicating a mini chatbot-setup form directly
+into `PostLaunchChecklist` — real risk of drifting out of sync with the
+Clients page's own copy of the same control the moment either one is
+touched again, for a feature this codebase's own "don't duplicate
+functionality" rule (`HANDOFF-FORMAT.md`'s own rule 4) already warns
+against.
+
+**Decision 6 — auto-fill only when empty, never silently overwrite.** The
+literal ask ("should automatically be filled") is honoured for the real
+common case (empty field, project just launched — `useState(client
+.chatbot_embed_allowed_origin ?? launchedOrigin ?? "")` genuinely
+autofills it). But once a value exists on file — however it got there —
+the fix never overwrites it silently; a one-click "Use launched site's
+URL" action covers every later case (a second launched project, an edited-
+away value) explicitly instead. This is the same instinct behind the
+existing field-provenance "Prefilled" tag pattern (hard, verified 1:1 data
+gets a badge, never a silent overwrite) applied to a live value instead of
+a blank form field, and matches `PRODUCT.md`'s "sever the link, don't
+cascade" spirit of never destructively clobbering something a user already
+set.
+
+**A real, adjacent bug found and folded in, not filed separately**:
+`EmbedChatbotControl`'s only save action is the Enable/Disable toggle —
+editing the origin while already enabled has no way to save without also
+disabling the chatbot as a side effect. Cheap enough to fix in the same
+touch of this exact file (one new conditional "Save" button) that filing
+it as a separate backlog entry would just add process for no real benefit
+— same reasoning Security Auditor used for folding a cheap, already-
+pattern-matched fix into an in-progress round rather than deferring it.
+
+**Two real gaps confirmed genuinely don't exist, not left unverified**:
+Hamish's mission named two edge cases to check — "a website project not
+linked to a client yet" and "launch before the client relationship
+exists." `website_projects.client_id` is `not null` with no code path that
+creates a project without one (`createWebsiteProject` requires `clientId`
+as a parameter) — neither state is reachable in the current schema. Named
+explicitly here so a future reader doesn't re-ask the same question
+without checking.
+
+**Not verified live in-browser**: this was a design-only pass (per the
+mission's own instruction and this team's UI-redesign workflow — UX
+Director → Product Director sanity-check → Lead Engineer → QA → UX
+Director visual re-review) against code that doesn't exist yet for the
+new parts (the script route, `PostLaunchChecklist`, the deep-link auto-
+expand) — nothing to load in a browser. The existing `BuildPhasePanel`/
+`LaunchPanel`/`EmbedChatbotControl` were read in full (exact JSX/Tailwind
+classes), not screenshotted against a live authenticated session (no
+seeded test org/session was readily available in this environment) — flag
+this for a live visual check once Lead Engineer builds, same as the
+already-flagged "Toned Ink" background sign-off still outstanding above.
+
+**Needs Hamish's own plain confirmation before Lead Engineer builds**:
+per `README.md`'s approval boundaries, nothing here crosses a hard
+boundary (no auth/billing/migration/tenancy change — the recommended
+`launched_at` column is explicitly deferred to its own follow-up entry,
+not bundled in). But this is a real, multi-surface interaction-flow change
+(new route, a new cross-page deep-link pattern, a new component) — per
+this team's own "UI redesign" workflow and the general instinct that a
+flow this size is worth a plain go-ahead rather than defaulting straight
+to build, Product Director's sanity-check (next step) should carry an
+explicit recommendation to get a quick yes/no from Hamish before Lead
+Engineer starts, not just proceed on the strength of this design pass
+alone.
+
+---
+
+## 2026-09-11 — Website Builder build-phase flow: scoped as "decouple content visibility from progress-gating," not a redesign or a checklist-gating removal
+
+**Context**: Hamish ran his own real "Press Coffee" project through Website
+Builder's 10-phase build flow start to finish and reported it directly:
+"I feel there needs to be more integration between the steps on how to use
+the AI tools and the prompt library. I feel it's a whole load of work
+walking through all the steps, can we just provide them with the
+personalised prompts?" Scoping only, per his own explicit instruction —
+nothing built yet. Full reasoning in the matching mission handoff; this
+entry is the durable record of the calls made.
+
+**The real, verified finding that reframes the ask**: `generate()`
+(`build-phase-panel.tsx`), the function behind the single "Generate build
+instructions" button, loops through all 10 phases sequentially in one
+client action — by the time that one action finishes, all 10 phases'
+full personalised instructions and checklists already sit in
+`website_projects.build_phases`. Confirmed against the one real project in
+production, Press Coffee (`8cdba9d4-a7ae-440c-90a6-0fcd9870b78c`): all 10
+phases generated, ~8,500 words of grounded, brief-specific instructions
+(real business name, real sitemap pages, real design direction — not
+generic filler), 74 checklist items total. Despite that, the UI shows a
+`Lock`ed placeholder card with zero content for every phase past
+`current_phase_index`, regardless of whether it's already generated —
+reading Phase 10 requires manually re-opening, copying, and hand-ticking
+7-8 checklist items for each of the 9 phases before it, one server
+round-trip per checkbox. That is the actual mechanism behind "a whole load
+of work walking through all the steps" — not that the generated content is
+bad (it isn't), but that content *visibility* is needlessly coupled to the
+same gate as progress *advancement*.
+
+**Decision: keep checklist-gated advancement, decouple it from
+visibility.** `current_phase_index`/`stage` aren't pure UI decoration —
+`requests/actions.ts`'s troubleshooting-help generator reads
+`build_phases[current_phase_index]` as real AI context, the project stage
+tracker and the Website Builder landing page's stage grouping both read
+`stage`, and the phase-generation system prompt itself
+(`website-build-phases.ts`) tells the model "the agent will already have
+completed every earlier phase by the time it sees these" — i.e. later
+phases' instructions assume the dependency chain actually happened. Ripping
+out sequential gating risks a real regression: someone reading/pasting
+Phase 6 into their coding agent before the design system phase is actually
+done. So the recommended fix keeps "Continue to next phase" checklist-gated
+exactly as today, but stops hiding already-generated phases' content behind
+it — every phase's instructions/checklist become visible and copyable as
+soon as they exist, with a prominent "get the whole build script" view
+answering Hamish's literal ask, while the per-phase checklist stays as the
+separate tracked-progress mechanism underneath.
+
+**Explicitly rejected**: (1) rebuilding the prompt library into
+project-personalised/AI-generated content — it's deliberately static,
+curated data for a real reason stated in its own file header (instant,
+free, reviewable before shipping, not a "regenerate and hope"); conflating
+it with the personalised build script blurs two genuinely different kinds
+of content, so the fix is better contextual linking, not a rewrite. (2)
+Merging all 10 phases into one AI prompt/call — already explicitly rejected
+when this feature was originally built (`website-build-phases.ts`'s own
+"Deliberately NOT one giant prompt" note, plus the real Vercel Hobby 60s
+serverless cap that forced per-phase generation in the first place); this
+mission doesn't reopen that. (3) Removing checklist-gated advancement
+outright — see above, real downstream consumers and a real dependency-
+ordering risk.
+
+**Handed to UX/UI Director**, not resolved here: the exact shape of an
+"everything, now" view (one scrollable document vs. expand-all-cards vs. a
+dedicated export/print view), how to make "pre-written, all available" read
+as clearly distinct from "your tracked progress" rather than two redundant
+features, where exactly to surface prompt-library/tool-guide pointers
+contextually inside the phase flow instead of via today's separate pages/
+de-emphasized text link, and the mobile/narrow-viewport shape for a
+long-text "everything" view (a different content shape from the Projects
+Kanban accordion precedent, which was card-based).
+
+---
+
 ## 2026-09-07 — `/admin` org-isolation fix, round 4 (believed final): closed `/admin/activity-log`'s remaining `client_id`-less rows by extending `filterAiActivityToOrg()`'s technique, not its own function
 
 **Context**: round 3's own report on `/admin/activity-log` described the
