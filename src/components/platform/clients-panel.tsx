@@ -678,7 +678,17 @@ export function EmbedChatbotControl({
           </span>
           <div className="flex-1 space-y-2 text-muted-foreground">
             <div className="flex flex-wrap items-center justify-between gap-1.5">
-              <span>Enter their website and turn it on:</span>
+              {/* UX/UI Director visual re-review (2026-09-11) — DESIGN-SYSTEM.md's
+                  field-provenance pattern says "tag it at the <Label>, not the
+                  input," but this field had no real <Label> at all (an
+                  instructional span only), so the "Prefilled" badge had
+                  nothing but a "…turn it on:" sentence to sit next to — a real
+                  first-glance misread risk ("this step is done") this fixes by
+                  giving the field a real, accessible label to tag, same as the
+                  established pattern everywhere else. */}
+              <Label htmlFor={`embed-origin-${client.id}`} className="text-xs font-normal text-muted-foreground">
+                Enter their website and turn it on:
+              </Label>
               {originMatchesLaunched && (
                 <Badge variant="secondary" className="gap-1 text-[10px] font-normal">
                   <Link2 className="size-2.5" /> Prefilled
@@ -697,7 +707,15 @@ export function EmbedChatbotControl({
                 Use launched site&apos;s URL ({displayHostname(launchedOrigin ?? "")})
               </button>
             )}
-            <div className="flex items-center gap-2">
+            {/* UX/UI Director visual re-review (2026-09-11) — QA flagged this
+                row as holding up to 3 controls (Input + Enable/Disable +
+                conditionally Save) and couldn't confirm mobile width live.
+                Stacks below `sm` (input full-width on its own row, the
+                button(s) grouped together beneath it) rather than squeezing
+                all three into one unwrapped row — same flex-col/sm:flex-row
+                stacking idiom already used in knowledge-panel.tsx/
+                prospecting-panel.tsx, not a new pattern. */}
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
               <Input
                 id={`embed-origin-${client.id}`}
                 value={origin}
@@ -708,20 +726,22 @@ export function EmbedChatbotControl({
                 placeholder="https://theirsite.com"
                 className="h-8 text-sm"
               />
-              <Button size="sm" variant={enabled ? "outline" : "default"} disabled={pending} onClick={() => save(!enabled)}>
-                {pending ? "Saving…" : enabled ? "Disable" : "Enable"}
-              </Button>
-              {/* Real adjacent bug (BACKLOG.md, 2026-09-11) — the toggle
-                  above was the only save trigger; editing the origin while
-                  already enabled had no way to persist it without also
-                  disabling the chatbot as a side effect. This calls
-                  save(enabled) — same origin write, enabled state
-                  untouched. */}
-              {enabled && originDirty && (
-                <Button size="sm" variant="outline" disabled={pending} onClick={() => save(enabled)}>
-                  {pending ? "Saving…" : "Save"}
+              <div className="flex items-center gap-2">
+                <Button size="sm" variant={enabled ? "outline" : "default"} disabled={pending} onClick={() => save(!enabled)}>
+                  {pending ? "Saving…" : enabled ? "Disable" : "Enable"}
                 </Button>
-              )}
+                {/* Real adjacent bug (BACKLOG.md, 2026-09-11) — the toggle
+                    above was the only save trigger; editing the origin while
+                    already enabled had no way to persist it without also
+                    disabling the chatbot as a side effect. This calls
+                    save(enabled) — same origin write, enabled state
+                    untouched. */}
+                {enabled && originDirty && (
+                  <Button size="sm" variant="outline" disabled={pending} onClick={() => save(enabled)}>
+                    {pending ? "Saving…" : "Save"}
+                  </Button>
+                )}
+              </div>
             </div>
             {saved && <span className="block text-accent">Saved.</span>}
             {error && <span className="block text-destructive">{error}</span>}
@@ -819,6 +839,7 @@ function ClientCard({
   stripeReady,
   competitorIntel,
   prefillEligible,
+  hasWebsiteProject,
   launchedOrigin,
   autoExpand,
 }: {
@@ -834,8 +855,20 @@ function ClientCard({
   // Prospects → Website Builder prefill (BACKLOG.md, 2026-09-03) — true
   // only when clients/page.tsx's own scoped lookup confirmed this
   // client's source prospect has website_mockup and/or research on file;
-  // gates both the collapsed-row badge and the expanded-card control.
+  // gates the collapsed-row "Mockup ready" badge on its own (a client can
+  // have a prefillable mockup on file whether or not they've since
+  // started a build — that's still real, worth showing). The expanded-
+  // card action control needs prefillEligible AND !hasWebsiteProject
+  // together (see below) — real bug report, 2026-09-11: this alone used
+  // to gate the action too, so "Start website build from prospect" kept
+  // showing for a client whose build was already in progress or launched.
   prefillEligible: boolean;
+  // Real bug report, 2026-09-11 — true when this client already has a
+  // website_projects row, any stage. Combined with prefillEligible to
+  // gate StartWebsiteBuildFromProspectControl: a client with an existing
+  // build shouldn't be offered a fresh prefill wizard that would spin up
+  // a redundant second project.
+  hasWebsiteProject: boolean;
   // Website Builder launch handoff (BACKLOG.md, 2026-09-11) — this
   // client's most-recently-launched project's own origin, or null.
   launchedOrigin: string | null;
@@ -990,7 +1023,7 @@ function ClientCard({
 
             <GenerateReportControl clientId={client.id} />
 
-            {prefillEligible && <StartWebsiteBuildFromProspectControl clientId={client.id} />}
+            {prefillEligible && !hasWebsiteProject && <StartWebsiteBuildFromProspectControl clientId={client.id} />}
 
             <ClientMembersControl client={client} members={members} />
 
@@ -1071,6 +1104,7 @@ export function ClientsPanel({
   membersByClient,
   competitorIntelByClient,
   prefillEligibleByClient,
+  hasWebsiteProjectByClient,
   launchedOriginByClient,
   stripeReady,
   hasLoadError,
@@ -1089,6 +1123,12 @@ export function ClientsPanel({
   // on file; absence (not a false entry) is the default for every other
   // client, same sparse-map convention as the other *ByClient records.
   prefillEligibleByClient: Record<string, boolean>;
+  // Real bug report, 2026-09-11 — gates StartWebsiteBuildFromProspectControl
+  // off once a website_projects row already exists (any stage), so the
+  // "start a build" entry point stops showing for a client whose build is
+  // already in progress or done. Same sparse-map convention: a client id
+  // only appears here when true.
+  hasWebsiteProjectByClient: Record<string, boolean>;
   // Website Builder launch handoff (BACKLOG.md, 2026-09-11) — this
   // client's most-recently-launched project's own origin; absent for a
   // client with no launched project on file, same sparse-map convention.
@@ -1189,6 +1229,7 @@ export function ClientsPanel({
                   members={membersByClient[c.id] ?? []}
                   competitorIntel={competitorIntelByClient[c.id] ?? []}
                   prefillEligible={prefillEligibleByClient[c.id] ?? false}
+                  hasWebsiteProject={hasWebsiteProjectByClient[c.id] ?? false}
                   launchedOrigin={launchedOriginByClient[c.id] ?? null}
                   autoExpand={c.id === focusClientId}
                   stripeReady={stripeReady}

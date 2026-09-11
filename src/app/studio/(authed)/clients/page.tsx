@@ -43,7 +43,12 @@ type ClientMemberRow = { id: string; client_id: string; email: string; role: "ow
 // Website Builder launch handoff (BACKLOG.md, 2026-09-11) — just enough
 // to derive each client's most-recently-launched site's origin; the full
 // website_projects row lives on the Website Builder pages, not here.
-type LaunchedWebsiteProjectRow = { client_id: string; live_url: string | null; created_at: string };
+// `stage` added (2026-09-11, real bug report) so this same query can also
+// answer "does this client have a website_projects row at all" for
+// StartWebsiteBuildFromProspectControl's gate — see hasWebsiteProjectByClient
+// below. Kept as one query rather than two: both signals need every one of
+// this client list's website_projects rows regardless of stage anyway.
+type WebsiteProjectRow = { client_id: string; live_url: string | null; created_at: string; stage: string };
 
 // Pulled out of the component body — react-hooks/purity flags Date.now()
 // (or any current-time read) called directly during a component's own
@@ -121,7 +126,7 @@ export default async function StudioClientsPage() {
     { data: embedChatEvents },
     { data: embedLeads },
     { data: clientMembers },
-    { data: launchedWebsiteProjects },
+    { data: websiteProjects },
   ] = clientIds.length
     ? await Promise.all([
         // reminder_sent_at added alongside the Command Centre's own
@@ -165,14 +170,15 @@ export default async function StudioClientsPage() {
         // Website Builder launch handoff (BACKLOG.md, 2026-09-11) —
         // website_projects_select_own_org RLS (schema-rls-website-projects.sql)
         // enforces the org boundary the same way every other read here
-        // does; scoped further to just the launched rows this page
-        // actually needs, not the full project record Website Builder's
-        // own pages fetch.
+        // does. Every stage, not just launched (widened 2026-09-11, real
+        // bug report) — hasWebsiteProjectByClient below needs to know
+        // about an in-progress build too, not just a launched one; still
+        // only the 4 columns this page actually needs, not the full
+        // project record Website Builder's own pages fetch.
         supabase
           .from("website_projects")
-          .select("client_id, live_url, created_at")
+          .select("client_id, live_url, created_at, stage")
           .in("client_id", clientIds)
-          .eq("stage", "launched")
           .order("created_at", { ascending: false }),
       ])
     : [
@@ -182,7 +188,7 @@ export default async function StudioClientsPage() {
         { data: [] as AuditLogRow[] },
         { data: [] as EmbedLeadRow[] },
         { data: [] as ClientMemberRow[] },
-        { data: [] as LaunchedWebsiteProjectRow[] },
+        { data: [] as WebsiteProjectRow[] },
       ];
 
   const requestIds = (requests ?? []).map((r) => r.id);
@@ -247,8 +253,8 @@ export default async function StudioClientsPage() {
   // never breaks updateChatbotEmbedConfig()'s "just the domain"
   // validation downstream.
   const launchedOriginByClient: Record<string, string> = {};
-  for (const wp of launchedWebsiteProjects ?? []) {
-    if (!wp.live_url || launchedOriginByClient[wp.client_id]) continue;
+  for (const wp of websiteProjects ?? []) {
+    if (wp.stage !== "launched" || !wp.live_url || launchedOriginByClient[wp.client_id]) continue;
     try {
       launchedOriginByClient[wp.client_id] = new URL(wp.live_url).origin;
     } catch {
@@ -256,6 +262,21 @@ export default async function StudioClientsPage() {
       // write time, so this should be unreachable — skip defensively
       // rather than let a malformed URL crash the whole page.
     }
+  }
+
+  // Real bug report, 2026-09-11 ("this shouldn't be 'Start website build'"
+  // on a client whose site is already built and launched): prefillEligible
+  // only ever asked "does this client's source prospect have a
+  // prefillable mockup/research on file" — it never asked "does this
+  // client already have a website_projects row," so the prefill wizard's
+  // entry point kept showing (and would have spun up a redundant *second*
+  // project) for a client whose build was already done. Any stage counts,
+  // not just launched — an in-progress build is just as good a reason to
+  // send the agency to their existing Website Builder project instead of
+  // a fresh prefill wizard.
+  const hasWebsiteProjectByClient: Record<string, boolean> = {};
+  for (const wp of websiteProjects ?? []) {
+    hasWebsiteProjectByClient[wp.client_id] = true;
   }
 
   // Engagement risk (reused from the Command Centre, studio-engagement.ts)
@@ -331,6 +352,7 @@ export default async function StudioClientsPage() {
         riskByClient={riskByClient}
         competitorIntelByClient={competitorIntelByClient}
         prefillEligibleByClient={prefillEligibleByClient}
+        hasWebsiteProjectByClient={hasWebsiteProjectByClient}
         launchedOriginByClient={launchedOriginByClient}
         stripeReady={stripeReady}
         hasLoadError={Boolean(clientsError)}
