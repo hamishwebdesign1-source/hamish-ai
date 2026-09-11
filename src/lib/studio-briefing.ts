@@ -25,6 +25,16 @@ export type FollowUpDue = { id: string; businessName: string; nextAction: "call"
 
 export type StudioBriefing = {
   newThisWeek: number;
+  // Real bug report, 2026-09-11 — the Command Centre's "TODAY" strip was
+  // using newThisWeek (a rolling 7-day count) under a stat literally
+  // labelled "New prospects" inside a section literally titled "TODAY",
+  // the one stat in that row that wasn't a live/current snapshot like its
+  // siblings (open requests, pipeline value, open actions) — a tenant
+  // who found 8 prospects on Monday and genuinely searched for none today
+  // still saw "8 New prospects" under "Today." newThisWeek itself stays
+  // exactly as it was — command-centre-section-cards.tsx already labels
+  // it correctly ("N new this week"), nothing wrong with it there.
+  newToday: number;
   needsResearch: number;
   readyToContact: number; // researched, has a sales kit, not yet converted
   followUpsDue: number; // contacted, no reply, past the cadence threshold (lead-status.ts)
@@ -48,6 +58,7 @@ const MAX_FOLLOW_UPS_DUE = 5;
 
 export async function getStudioBriefing(supabase: SupabaseClient, orgId: string): Promise<StudioBriefing> {
   const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+  const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
 
   const { data: prospects } = await supabase
     .from("prospects")
@@ -58,6 +69,12 @@ export async function getStudioBriefing(supabase: SupabaseClient, orgId: string)
   const active = rows.filter((p) => p.status !== "converted");
 
   const newThisWeek = rows.filter((p) => p.created_at >= sevenDaysAgo).length;
+  // Same rolling-window convention as newThisWeek/sevenDaysAgo above (a
+  // trailing 24 hours, not calendar-midnight-aligned) — no per-org
+  // timezone concept exists anywhere else in this codebase to align a
+  // "midnight" boundary to, and a rolling window is what every other stat
+  // in this file already uses.
+  const newToday = rows.filter((p) => p.created_at >= twentyFourHoursAgo).length;
   const needsResearch = active.filter((p) => !p.research).length;
   const readyToContact = active.filter((p) => p.research && p.sales_kit).length;
 
@@ -82,5 +99,5 @@ export async function getStudioBriefing(supabase: SupabaseClient, orgId: string)
   }));
   const topOpportunity = topOpportunities[0] ?? null;
 
-  return { newThisWeek, needsResearch, readyToContact, followUpsDue, topOpportunity, topOpportunities, followUpsDueList };
+  return { newThisWeek, newToday, needsResearch, readyToContact, followUpsDue, topOpportunity, topOpportunities, followUpsDueList };
 }

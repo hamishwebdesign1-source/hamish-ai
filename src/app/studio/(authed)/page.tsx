@@ -370,7 +370,12 @@ export default async function StudioHomePage() {
   // back to the original 4 in their original order for every org that's
   // never customised this.
   const todayStatPool: Record<TodayStatId, TodayStat> = {
-    new_prospects: { id: "new_prospects", value: briefing.newThisWeek, label: TODAY_STAT_LABELS.new_prospects, icon: Sparkles },
+    // Real bug report, 2026-09-11 — this used to read briefing.newThisWeek
+    // (a rolling 7-day count) under a stat labelled "New prospects" in a
+    // section titled "TODAY," the one stat in this row that wasn't a live
+    // snapshot like its siblings. newToday actually matches what the
+    // section header and label both claim.
+    new_prospects: { id: "new_prospects", value: briefing.newToday, label: TODAY_STAT_LABELS.new_prospects, icon: Sparkles },
     needs_reply: {
       id: "needs_reply",
       value: openRequestCount,

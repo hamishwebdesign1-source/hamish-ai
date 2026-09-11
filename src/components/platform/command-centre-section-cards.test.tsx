@@ -62,6 +62,7 @@ vi.mock("@/app/studio/(authed)/projects/actions", () => ({
 function emptyBriefing(): StudioBriefing {
   return {
     newThisWeek: 0,
+    newToday: 0,
     needsResearch: 0,
     readyToContact: 0,
     followUpsDue: 0,
