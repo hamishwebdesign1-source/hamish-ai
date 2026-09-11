@@ -285,19 +285,33 @@ export function BuildPhasePanel({
 
                   <div>
                     <p className="text-xs font-semibold text-muted-foreground">Completion checklist</p>
-                    <ul className="mt-1.5 space-y-1.5">
+                    {/* Real user report ("still really hard to click the
+                        checkboxes"): the button had zero padding, so the
+                        clickable area was exactly the icon+text's own
+                        bounding box — a thin, tightly-packed strip with no
+                        margin for error, especially on a two-line item.
+                        Full-width button, real padding, and a rounded
+                        hover background (same affordance convention as
+                        studio-nav-link.tsx/today-strip-panel.tsx elsewhere
+                        in Studio) turns each row into one generous target
+                        instead of just its text. items-start (not
+                        items-center) + a small top margin on the icon so a
+                        wrapped two-line item still aligns its checkmark to
+                        the first line, not the vertical center of the
+                        whole block. */}
+                    <ul className="mt-1.5 space-y-0.5">
                       {phase.checklist.map((item, itemIndex) => (
                         <li key={itemIndex}>
                           <button
                             type="button"
                             disabled={checklistPending}
                             onClick={() => toggle(phase.id, itemIndex)}
-                            className="flex items-center gap-2 text-left text-sm hover:text-accent"
+                            className="flex w-full items-start gap-2 rounded-md px-1.5 py-1.5 text-left text-sm hover:bg-secondary/60 hover:text-accent"
                           >
                             {item.done ? (
-                              <CheckCircle2 className="size-4 shrink-0 text-accent" />
+                              <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-accent" />
                             ) : (
-                              <Circle className="size-4 shrink-0 text-muted-foreground" />
+                              <Circle className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
                             )}
                             <span className={item.done ? "text-muted-foreground line-through" : ""}>{item.item}</span>
                           </button>
