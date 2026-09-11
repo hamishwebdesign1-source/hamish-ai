@@ -607,3 +607,33 @@ detail. This closes out the mission that started from Hamish's two
 messages: "can we just provide them with the personalised prompts?"
 and "the url I entered should automatically be filled... think
 customer journey please."
+
+## 2026-09-11 — Website Builder journey: one real bug found post-ship, fixed same day
+
+QA's own pass on the launch-handoff work (started before the mission's
+earlier closure entry, finished after) hit the same authenticated-
+session limitation as before, but its automated/component-level work
+still ran — and found a real, narrow bug neither the mission's design
+pass nor the orchestrator's own live check had exercised: `ClientCard`'s
+`useState(autoExpand)` was a lazy *initial* value only. On a same-route
+re-navigation (browser back/forward between two different
+`?client=<id>` deep links, or a second checklist link clicked without
+leaving `/studio/clients` first) Next.js App Router doesn't remount the
+component — only the search param changes — so that stale initial
+value never updated. Worse than doing nothing: the `scrollIntoView`
+effect still fired, scrolling to a card that then stayed visibly
+collapsed. QA wrote and verified the fix (`manualOverride` state,
+`open` derived from `autoExpand` every render until the agency
+explicitly toggles it themselves) via scratch component tests
+(reproduced the bug pre-fix, confirmed it post-fix), but could not
+commit it themselves or confirm it in a real browser.
+
+Orchestrator independently re-verified (`tsc`/`eslint`/full `vitest`
+504/504/`npm run build`), committed and pushed (`6fdeb69`), then
+reproduced the exact real-browser scenario QA described — two full
+navigations to different `?client=` states, then a genuine browser
+back-button press — and confirmed live: the target card's
+`aria-expanded` is `true` and its content is genuinely visible, not
+just the URL matching. This is the one thing flagged as unverified in
+the mission's earlier closure entry (`f2aa92e`) that's now closed with
+real evidence rather than left open.
