@@ -572,3 +572,38 @@ project-creation date as a "which one" proxy, not an exact launch
 timestamp; the post-launch checklist's "Connect Stripe" row is
 org-wide, so it reads "not done" per-client until Stripe is connected
 once for the whole org) — neither a blocker, both worth knowing.
+
+## 2026-09-11 — Website Builder build-to-launch journey: shipped
+
+Hamish said "go" on the design from the earlier entry today. Two Lead
+Engineer passes ran in parallel on non-overlapping files (content-
+visibility work: `35d4236`; launch-handoff work: `fccac8c`), both
+fully green on `tsc`/`eslint`/`vitest`/`build`. QA Engineer's live
+pass hit a real limitation — its browser tools only reach an
+unauthenticated local dev server, not the authenticated live session
+this feature actually needs — and correctly refused to try logging in
+itself rather than working around it. Its static/code-level review
+(both implementations structurally sound, no interactive `<button>`
+anywhere in the read-only checklist paths, org-scoped queries) still
+stands; the live half was finished by the orchestrator directly, using
+the same authenticated session already in use throughout this session.
+
+Pushed both commits and verified live against the real, launched
+"Press Coffee" project: the `/script` route serves real per-phase
+content with a working "Copy entire script"; a Done phase's checklist
+is confirmed non-interactive at the DOM level (no `<button>` wrapper,
+not just visually disabled); the per-phase prompt-library link
+correctly pre-selects its category; the launch URL genuinely prefills
+the Clients page's chatbot field (confirmed the real value,
+`https://www.presscoffee.com`, and the "Prefilled" badge); the
+post-launch checklist shows real, accurate per-client state, not
+placeholders. Two things not live-verified, flagged rather than
+assumed: `scrollIntoView` on the client deep-link (Press Coffee's card
+was already on-screen, so scrolling couldn't be distinguished from a
+no-op) and the disable-on-save chatbot bug fix itself.
+
+Both `BACKLOG.md` entries closed to Complete with the verification
+detail. This closes out the mission that started from Hamish's two
+messages: "can we just provide them with the personalised prompts?"
+and "the url I entered should automatically be filled... think
+customer journey please."

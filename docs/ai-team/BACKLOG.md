@@ -2212,7 +2212,28 @@ re-review.**
     `?category=`). `clients-panel.tsx`/`launch-panel.tsx` untouched, per
     the brief's explicit instruction to stay out of the parallel Lead
     Engineer pass.
-- **Status**: Needs review.
+- **Live verification (orchestrator, 2026-09-11)**: QA's own live pass hit a
+  real tooling limitation (its browser tools only reach an unauthenticated
+  local dev server, not the authenticated live session) and could not
+  complete the authenticated checks — automated checks and static code
+  review only. Pushed to production (`35d4236`) and verified directly
+  against the real, authenticated Edinburgh Solutions account on the real
+  "Press Coffee" project (fully built, all 10 phases done): `/script` route
+  loads real, personalised, phase-specific content for all 10 phases with a
+  working "Copy entire script" button; a Done phase card (Phase 1) expands
+  to show its real instructions, and its checklist renders as a plain `<li>`
+  with no `<button>` wrapper at all — confirmed via the actual DOM, not just
+  the source — so it is structurally, not just visually, non-interactive;
+  the per-phase prompt-library link correctly deep-links to
+  `/studio/website-builder/prompts?project=<id>&category=design` with
+  "Design & visual polish" genuinely pre-selected (`bg-accent`
+  `text-accent-foreground` vs. every other category's inactive
+  `bg-secondary`). Did not test the Read-ahead tier or the ordinary
+  in-progress generate/check/advance flow live (Press Coffee has no
+  not-yet-reached generated phase to exercise that tier on, since it's
+  100% complete; the advance flow itself is unmodified by this change per
+  Lead Engineer's own confirmation).
+- **Status**: Complete.
 
 ### Website Builder launch handoff: wire `live_url` into the Clients page chatbot field, and a real "what's next" moment on launch
 
@@ -2455,7 +2476,29 @@ QA the two passes independently.
   the Browser pane — this is an authenticated `/studio` route behind real
   org membership, consistent with the mission's own note that full live
   verification may need to wait for QA's own pass.
-- **Status**: Needs review.
+- **Live verification (orchestrator, 2026-09-11)**: QA's own live pass hit a
+  real tooling limitation (its browser tools only reach an unauthenticated
+  local dev server, not the authenticated live session) and could not
+  complete the authenticated checks — automated checks and static code
+  review only. Pushed to production (`fccac8c`) and verified directly
+  against the real, authenticated Edinburgh Solutions account: the "What's
+  next" checklist on the launched "Press Coffee" project shows real,
+  accurate per-item state (chatbot "Not set up yet," portal "1 team member
+  invited," Stripe flagged as org-wide, report "Not sent yet this month"),
+  not placeholder text; its chatbot-setup link correctly deep-links to
+  `/studio/clients?client=<id>` and the matching client card renders
+  auto-expanded (confirmed the client's card content — Portal access,
+  Chatbot for their website — is genuinely present in the DOM, not
+  collapsed); the chatbot-origin `<input>` on that card holds
+  `https://www.presscoffee.com` (the project's real `live_url`) with the
+  "Prefilled" badge showing, confirming the autofill-when-empty logic
+  actually ran against real data. Did not verify `scrollIntoView` firing
+  (Press Coffee's card was already within the viewport on this account's
+  short client list, so scroll behaviour genuinely couldn't be
+  distinguished from a no-op) or exercise the disable-on-save bug fix
+  itself (didn't toggle the chatbot's enabled state to test the new save
+  path) — both worth a follow-up check if either becomes suspect later.
+- **Status**: Complete.
 
 ### Wire the same outreach-kit action to Command Centre's Top Prospects list (fast-follow to the shipped topOpportunity action)
 
