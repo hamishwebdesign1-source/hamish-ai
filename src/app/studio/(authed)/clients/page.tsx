@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { createServerSupabaseClient } from "@/lib/supabase-server-auth";
 import { getOrgMembership } from "@/lib/org-membership";
@@ -39,6 +40,10 @@ type AuditLogRow = { client_id: string | null };
 type EmbedLeadRow = { id: string; client_id: string; email: string; message: string | null; created_at: string };
 // Studio big-ticket ("client portal self-serve team management").
 type ClientMemberRow = { id: string; client_id: string; email: string; role: "owner" | "member"; accepted_at: string | null };
+// Website Builder launch handoff (BACKLOG.md, 2026-09-11) — just enough
+// to derive each client's most-recently-launched site's origin; the full
+// website_projects row lives on the Website Builder pages, not here.
+type LaunchedWebsiteProjectRow = { client_id: string; live_url: string | null; created_at: string };
 
 // Pulled out of the component body — react-hooks/purity flags Date.now()
 // (or any current-time read) called directly during a component's own
@@ -109,7 +114,15 @@ export default async function StudioClientsPage() {
 
   const thirtyDaysAgo = thirtyDaysAgoIso();
   const clientIds = (clients ?? []).map((c) => c.id);
-  const [{ data: invoices }, { data: requests }, { data: siteChecks }, { data: embedChatEvents }, { data: embedLeads }, { data: clientMembers }] = clientIds.length
+  const [
+    { data: invoices },
+    { data: requests },
+    { data: siteChecks },
+    { data: embedChatEvents },
+    { data: embedLeads },
+    { data: clientMembers },
+    { data: launchedWebsiteProjects },
+  ] = clientIds.length
     ? await Promise.all([
         // reminder_sent_at added alongside the Command Centre's own
         // invoices query (Engagement Risk's "Send payment reminder" —
@@ -149,6 +162,18 @@ export default async function StudioClientsPage() {
           .from("client_members")
           .select("id, client_id, email, role, accepted_at")
           .in("client_id", clientIds),
+        // Website Builder launch handoff (BACKLOG.md, 2026-09-11) —
+        // website_projects_select_own_org RLS (schema-rls-website-projects.sql)
+        // enforces the org boundary the same way every other read here
+        // does; scoped further to just the launched rows this page
+        // actually needs, not the full project record Website Builder's
+        // own pages fetch.
+        supabase
+          .from("website_projects")
+          .select("client_id, live_url, created_at")
+          .in("client_id", clientIds)
+          .eq("stage", "launched")
+          .order("created_at", { ascending: false }),
       ])
     : [
         { data: [] as InvoiceRow[] },
@@ -157,6 +182,7 @@ export default async function StudioClientsPage() {
         { data: [] as AuditLogRow[] },
         { data: [] as EmbedLeadRow[] },
         { data: [] as ClientMemberRow[] },
+        { data: [] as LaunchedWebsiteProjectRow[] },
       ];
 
   const requestIds = (requests ?? []).map((r) => r.id);
@@ -205,6 +231,31 @@ export default async function StudioClientsPage() {
   const membersByClient: Record<string, ClientMemberRow[]> = {};
   for (const member of clientMembers ?? []) {
     (membersByClient[member.client_id] ??= []).push(member);
+  }
+
+  // Website Builder launch handoff (BACKLOG.md, 2026-09-11) — a client
+  // can have more than one launched website_projects row (a rebuild/
+  // relaunch); no launched_at column exists yet, only created_at (when
+  // the project *started*, not when it went live), so "most recently
+  // launched" is approximated by most-recent-created_at among this
+  // client's own launched rows — a documented approximation, not hidden
+  // (see BACKLOG.md's matching entry for the deferred launched_at
+  // fast-follow). The query above is already ordered created_at desc, so
+  // the first row seen per client is the one that wins. Origin only
+  // (not the full live_url, which may carry a path/query) — derived
+  // here, server-side, so a launch URL saved with a stray path/query
+  // never breaks updateChatbotEmbedConfig()'s "just the domain"
+  // validation downstream.
+  const launchedOriginByClient: Record<string, string> = {};
+  for (const wp of launchedWebsiteProjects ?? []) {
+    if (!wp.live_url || launchedOriginByClient[wp.client_id]) continue;
+    try {
+      launchedOriginByClient[wp.client_id] = new URL(wp.live_url).origin;
+    } catch {
+      // launchWebsiteProject() already validates a real https:// URL at
+      // write time, so this should be unreachable — skip defensively
+      // rather than let a malformed URL crash the whole page.
+    }
   }
 
   // Engagement risk (reused from the Command Centre, studio-engagement.ts)
@@ -264,18 +315,26 @@ export default async function StudioClientsPage() {
   }
 
   return (
-    <ClientsPanel
-      clients={clients ?? []}
-      invoicesByClient={invoicesByClient}
-      embedUsageByClient={embedUsageByClient}
-      embedLeadsByClient={embedLeadsByClient}
-      membersByClient={membersByClient}
-      healthByClient={healthByClient}
-      riskByClient={riskByClient}
-      competitorIntelByClient={competitorIntelByClient}
-      prefillEligibleByClient={prefillEligibleByClient}
-      stripeReady={stripeReady}
-      hasLoadError={Boolean(clientsError)}
-    />
+    // Website Builder launch handoff (BACKLOG.md, 2026-09-11) — ClientsPanel
+    // reads ?client=<id> (useSearchParams) to auto-expand + scroll to a
+    // client landed on from PostLaunchChecklist's deep links; that hook
+    // needs a Suspense boundary around whatever reads it, same as
+    // signup-form.tsx's own ?plan= relay.
+    <Suspense>
+      <ClientsPanel
+        clients={clients ?? []}
+        invoicesByClient={invoicesByClient}
+        embedUsageByClient={embedUsageByClient}
+        embedLeadsByClient={embedLeadsByClient}
+        membersByClient={membersByClient}
+        healthByClient={healthByClient}
+        riskByClient={riskByClient}
+        competitorIntelByClient={competitorIntelByClient}
+        prefillEligibleByClient={prefillEligibleByClient}
+        launchedOriginByClient={launchedOriginByClient}
+        stripeReady={stripeReady}
+        hasLoadError={Boolean(clientsError)}
+      />
+    </Suspense>
   );
 }

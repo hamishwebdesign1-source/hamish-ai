@@ -246,182 +246,93 @@ Engineer builds, then QA, then UX/UI Director visual re-review.**
   Awaiting Hamish's plain go-ahead (flow-size judgement call, not a hard
   approval-boundary item) before Lead Engineer starts — see that same
   entry.
-- **Status**: Ready.
-
-### Website Builder launch handoff: wire `live_url` into the Clients page chatbot field, and a real "what's next" moment on launch
-
-Companion to the entry directly above — same mission (2026-09-11, from
-Hamish directly after finishing his own "Press Coffee" build), designed by
-UX/UI Director the same day. Two connected gaps, one coherent fix. Full
-reasoning in `DECISIONS.md`'s second 2026-09-11 entry.
-
-- **Problem, part A (a real, verified wiring gap)**: `launchWebsiteProject()`
-  (`website-builder/actions.ts`) writes a real, validated `https://` URL to
-  `website_projects.live_url` the moment a project is launched. The Clients
-  page's "Chatbot for their website" card (`clients-panel.tsx`'s
-  `EmbedChatbotControl`) has its own, completely disconnected
-  `clients.chatbot_embed_allowed_origin` field — `useState(client
-  .chatbot_embed_allowed_origin ?? "")` never reads `live_url`. Confirmed via
-  grep: zero references to `live_url` anywhere in `clients/page.tsx` or
-  `clients-panel.tsx`. Hamish, verbatim: "once the steps have been finished
-  the url I entered should automatically be filled on here in the client
-  page." Schema check (both real edge cases named in the mission,
-  resolved): `website_projects.client_id` is `not null` with no path to
-  create a project without one — **a website project can never exist
-  unlinked from a client**, so "project not yet linked to a client" and
-  "launch before the client relationship exists" are not real states in
-  this schema, nothing to design for. The one real edge case is a client
-  with **more than one** `website_projects` row (a rebuild/relaunch) — no
-  `launched_at` column exists, only `created_at` (when the project
-  *started*, not when it went live), so "most recent launch" can only be
-  approximated by most recent `created_at` among `stage = 'launched'` rows.
-- **Problem, part B (the broader complaint)**: "I still feel there was a
-  lack of understanding what to do next after completing the steps. Think
-  customer journey please." `LaunchPanel` (`launch-panel.tsx`), the
-  component that fires the instant a build reaches `launched`, currently
-  renders exactly: a "Live" checkmark, the URL, an analytics yes/no line,
-  and an "Edit launch details" link. Nothing routes the agency anywhere
-  next. The real next steps Hamish named (chatbot, portal invite, Stripe,
-  first report) all already exist and work on the Clients page — the gap
-  is connective tissue, not a missing feature.
-- **Objective**: (A) the chatbot's website-origin field is pre-filled from
-  the real launched URL the first time it's empty, and offers an explicit,
-  non-destructive way to (re-)apply it any other time; (B) the moment a
-  project hits `launched`, the agency sees a short, real-data-driven "now
-  that it's live" checklist that routes them to the four already-real
-  capabilities on the Clients page (deep-linked, not reinvented).
-- **User**: same as the entry above — an agency owner who just finished a
-  real build and doesn't yet know Studio's own Clients page has everything
-  they need to turn "site is live" into an ongoing paid relationship.
-- **Priority**: P1 — direct, verified feedback from Hamish's own real use of
-  the product's core deliverable, immediately following the phase-flow
-  finding above.
-- **Design, part A — chatbot origin field**:
-  - `clients/page.tsx`'s existing clients query gets one small addition: for
-    each client, fetch its `website_projects` rows scoped to
-    `stage = 'launched'` (`id, live_url, created_at`), take the most recent
-    by `created_at`, and derive `launchedOrigin = new URL(live_url).origin`
-    server-side (so a launch URL saved with a stray path/query never breaks
-    `updateChatbotEmbedConfig`'s existing "just the domain" validation).
-    Pass down as a new sparse map, `launchedOriginByClient`, same pattern as
-    every other `*ByClient` record `ClientsPanel` already takes.
-  - `EmbedChatbotControl`: `useState(client.chatbot_embed_allowed_origin ??
-    launchedOrigin ?? "")` — genuinely "automatically filled" for the real,
-    common case Hamish described (field was empty, project just launched).
-  - Whenever `launchedOrigin` exists and differs from the field's current
-    value (covers: field already had something else on file; agency
-    launched a second project later; agency edited it away and wants it
-    back), render a small `text-xs text-accent underline` action next to the
-    input: "Use launched site's URL (`theirsite.com`)" — one click, fills
-    the field, does not save until the existing Enable/Disable button is
-    pressed (matches the existing save model exactly, no new persistence
-    path). When the field's current value *does* match `launchedOrigin`,
-    show the established field-provenance `Badge variant="secondary"` +
-    `Link2` icon, "Prefilled" tag next to the `<Label>` instead (this is
-    hard, verified 1:1 data — a literal DB column — the "Prefilled" tier
-    `DESIGN-SYSTEM.md` already defines, not a new tag vocabulary). Never
-    silently overwrite a value the agency already saved.
-  - **Real adjacent bug found while reading this component, in scope since
-    it's the exact file being touched**: `EmbedChatbotControl`'s only save
-    trigger is the Enable/Disable button (`onClick={() => save(!enabled)}`).
-    If the chatbot is already enabled and the agency edits the origin (e.g.
-    to apply the newly-launched URL), the only visible button reads
-    "Disable" — clicking it to save the new origin also turns the chatbot
-    off, an unwanted side effect. Add a plain `Button size="sm"
-    variant="outline"` "Save" that calls `save(enabled)` (persists the
-    origin without touching `enabled`), shown only when
-    `enabled && origin !== (client.chatbot_embed_allowed_origin ?? "")`.
-  - **Real edge case, not silently dropped**: multiple `website_projects`
-    per client. Approximated by most-recent-`created_at` among launched
-    rows, as above — flagged as an approximation, not hidden. A fast-follow
-    (needs its own small entry, not bundled into this one, since it's an
-    additive schema change): add `website_projects.launched_at timestamptz`,
-    set in `launchWebsiteProject()` alongside `live_url`, so "most recently
-    *launched*" becomes exact instead of a proxy via project-creation date.
-- **Design, part B — the post-launch "what's next" moment**:
-  - A new component, `PostLaunchChecklist`, rendered directly below
-    `LaunchPanel` on `website-builder/[id]/page.tsx`, only when
-    `project.stage === "launched"`. Not folded into `LaunchPanel` itself —
-    `LaunchPanel`'s job is "record where it's live," this component's job is
-    "now that it is, here's what to do" — two different questions, kept
-    separate rather than one component doing both.
-  - **Real data, not a decorative checklist** — matches `PRODUCT.md`'s "real
-    data or nothing." `WebsiteProjectDetailPage` does one additional small,
-    cheap query scoped to `project.client_id`: `clients
-    .chatbot_embed_enabled`, a count from `client_members`, the org's
-    existing `stripe_connect_charges_enabled` (already queried the same way
-    on `clients/page.tsx`), and whether a `monthly_reports` row exists for
-    this client with `period_start` = the first of the current calendar
-    month (the table's own `monthly_reports_client_period_idx` unique index
-    already guarantees at most one, so this is a cheap existence check).
-  - Four rows, in Hamish's own stated priority order, each: status icon
-    (`CheckCircle2` accent if real data says done, `Circle` muted if not) +
-    label + one-line real status + a `Button size="xs" variant="outline"`
-    deep link:
-    1. **Set up their AI chatbot** → done if `chatbot_embed_enabled`.
-       Links to `/studio/clients?client=<clientId>`.
-    2. **Invite their team to the portal** → done if `client_members` count
-       > 0. Same link.
-    3. **Connect Stripe billing** → done if `stripe_connect_charges_enabled`
-       (org-level, not client-level — this is the one row where "not done"
-       means something true for every client, not just this one). Links to
-       `/studio/settings`.
-    4. **Send their first report** → done if a `monthly_reports` row exists
-       for this calendar month. Same client-page link.
-  - Card chrome: `border-accent/40` (same accent treatment as `LaunchPanel`
-    directly above it, reading as one continuous "you just launched, here's
-    what's next" moment, not two unrelated cards). Once all 4 are real-data
-    "done," the card collapses to a compact one-line summary by default
-    (the established Collapsible pattern — local `useState`, `aria-expanded`
-    on the trigger) — still available on a revisit weeks later for
-    troubleshooting, not permanent clutter on a page an agency keeps
-    reopening.
-  - **New, small addition to `/studio/clients`**: read an optional
-    `?client=<id>` search param; on mount, if present, auto-expand that
-    client's card (`open` state) and `scrollIntoView({behavior:"smooth",
-    block:"start"})` it — the landing behaviour every link from
-    `PostLaunchChecklist` needs, since today there's no way to deep-link
-    into one already-expanded client card. No new highlight/animation
-    beyond that — auto-expand + scroll is enough, doesn't need a second
-    "just arrived" visual treatment.
-  - **Explicitly not duplicated onto the Clients page itself or the
-    Website Builder list page** — per this mission's own instruction to
-    ground the next step in what already exists rather than inventing a
-    new surface, and per `DESIGN-SYSTEM.md`'s "don't just add more cards"
-    instinct. `PostLaunchChecklist` is the one moment this routes *from*;
-    the Clients page is the one place all four real actions live, unchanged.
-- **Acceptance criteria**: `npx tsc --noEmit -p .`, `npx eslint`, full
-  `vitest` suite green; the "Save" button fix for `EmbedChatbotControl` is
-  covered by at least one new test (edit-while-enabled no longer disables);
-  `?client=` deep-link auto-expand verified against a real multi-client
-  list, not just a single-client fixture.
-- **Relevant agent**: Product Director (sanity-check) → Lead Engineer
-  (build) → QA → UX/UI Director (visual re-review). Flag the
-  `?client=`-deep-link + auto-scroll behaviour to QA specifically — the one
-  genuinely new interaction pattern in this entry, worth a dedicated pass.
-- **Dependencies**: none blocking for the core fix (part A's prefill/badge,
-  part B's checklist + deep-link) — additive reads only, no schema change.
-  The `launched_at` column noted above is a real, separate, additive
-  migration — out of scope for this entry, needs its own backlog entry if
-  picked up, and (per this team's own approval boundaries) any migration
-  still gets called out to Hamish even though it's additive, not
-  destructive.
-- **Product Director sanity-check (2026-09-11): passed.** Verified directly
-  against the real code — `live_url` genuinely has zero references anywhere
-  in `clients/page.tsx`/`clients-panel.tsx`, `LaunchPanel` genuinely renders
-  nothing beyond the Live checkmark/URL/analytics line/edit link, and
-  `EmbedChatbotControl`'s only save trigger genuinely is the Enable/Disable
-  toggle. The adjacent chatbot-save bug isn't just cheap-to-fold-in — it's
-  load-bearing: without it, the new prefill feature would hand someone a
-  live footgun (fill in the newly-launched URL while already enabled, click
-  the only visible button, which reads "Disable," and their client's live
-  chatbot goes dark as a side effect). Both adjacent fixes (this one and
-  the `isDone` visibility bug in the entry above) correctly stay folded in
-  rather than split into their own tickets. Full verdict, including the two
-  points flagged for Hamish's confirmation (the multi-launch approximation,
-  the org-level Stripe row), in `DECISIONS.md`'s matching 2026-09-11 entry.
-  Awaiting Hamish's plain go-ahead before Lead Engineer starts.
-- **Status**: Ready.
+- **Closure note (Lead Engineer, 2026-09-11)**: built as scoped, all three
+  buildable pieces of the design.
+  1. **`build-phase-panel.tsx`** now renders three real tiers instead of
+     two: Current (unchanged — interactive checklist, Continue button),
+     **Done** (`index < currentPhaseIndex`, new `DonePhaseCard` —
+     collapsible, collapsed by default, `CheckCircle2` + `Badge
+     variant="success"` "Done" trigger, static accent-checked/line-through
+     checklist, fixes the real `isDone`-renders-nothing-but-a-checkmark
+     bug Product Director's sanity-check re-confirmed against the live
+     code), and **Read-ahead** (`index > currentPhaseIndex` but already
+     generated, new `ReadAheadPhaseCard` — collapsible, `FileText` +
+     `Badge variant="secondary"` "Written — not started" trigger, static
+     muted checklist, the explicit "You'll be able to check these off
+     once you reach this phase" line). A genuinely not-yet-written future
+     phase (`!phase && !isReached`) now renders a plain, named, un-locked
+     placeholder (`Circle` icon, no `Lock`, no `opacity-60`) — the
+     `Lock`/opacity framing is gone from the component entirely, not just
+     relabelled. Checklist interactivity stays structurally impossible on
+     Done/Read-ahead (no `<button>` wrapper in the new `StaticChecklist`
+     at all), so "Continue to next phase" is exactly as strictly
+     sequential and server-re-verified (`advanceBuildPhase`) as before —
+     confirmed no behavioural change to that function or its call site.
+  2. **New route `/studio/website-builder/[id]/script`** (`script/page.tsx`
+     + a new client view, `build-script-view.tsx`) — a real page, Base UI
+     `Accordion` (`multiple`, every generated phase open by default via
+     `defaultValue`), no `max-h-64` clamp on instructions text (the main
+     project page's own per-card clamp is untouched, exactly as scoped),
+     a per-phase `Copy` button, one "Copy entire script" button that
+     concatenates every generated phase's instructions (tool preamble
+     included on Phase 1, checklists deliberately left out of the
+     concatenation — a prompt to paste into a coding agent, not a human
+     tracking artifact) under a `## Phase N — Name` heading, and the
+     required read-only banner framing it as a non-authoritative
+     companion view. Entry point is a new `border-accent/30 bg-accent/5`
+     banner row in `BuildPhasePanel`, shown as soon as any phase exists
+     (`phases.length > 0`), with a real `Button` (not a text link) to
+     `.../script`.
+  3. **Per-phase prompt-library links**: new `src/lib/
+     build-phase-prompt-mapping.ts` (`BUILD_PHASE_PROMPT_CATEGORIES:
+     Record<BuildPhaseId, PromptCategory[]>`, exactly the mapping the spec
+     listed, `setup` → `[]`) and a new shared `BuildPhasePromptLinks`
+     component (`build-phase-prompt-links.tsx`) rendering nothing when a
+     phase has no mapped categories, used identically under every
+     generated phase's checklist on both the main project page (Current/
+     Done/Read-ahead cards) and the script route's accordion items — one
+     mapping, one link-row component, not two copies. `prompt-library-
+     browser.tsx` gained the spec'd optional `initialCategory` prop
+     (default `"all"`, otherwise unchanged — category pills still work
+     exactly as before); `prompts/page.tsx` reads an optional `?category=`
+     search param and validates it against the real `PromptCategory`
+     union before passing it down (falls back to `"all"` on anything
+     unrecognised — never trusted structurally, same instinct as every
+     other unknown-input boundary in this codebase).
+  - **No deviation from the spec** — built exactly as designed, including
+    the exact badge variants/labels, icon choices, and banner copy the
+    spec specified verbatim. The one implementation detail not dictated
+    by the spec (the "Copy entire script" concatenation deliberately
+    excluding checklists, only instructions under each `## Phase N`
+    heading) is a direct, literal reading of the spec's own wording
+    ("concatenates every generated phase" alongside its own explicit
+    framing of this as the answer to "can we just provide them with the
+    personalised prompts" — prompts, not tracking checkboxes).
+  - **Verification**: `npx tsc --noEmit -p .` clean; `npx eslint` clean on
+    every touched/new file; full `npx vitest run` — 53 files / 504 tests,
+    all green, no flake hit on this run (the known
+    `prospecting-panel.test.tsx` flake noted in the brief didn't
+    reproduce, nothing to re-run); `npm run build` succeeded,
+    `/studio/website-builder/[id]/script` present in the route output.
+    Live-checked what's possible without a seeded authenticated
+    org/session: unauthenticated requests to the new `/script` route and
+    to `prompts?category=...` (both a real category and a garbage one)
+    all correctly 307-redirect to `/platform/signup` with no server
+    error — confirms no runtime crash on either new code path pre-auth.
+    Full authenticated visual verification (the three card tiers, the
+    accordion, the banner, the link rows) is left for QA's own pass, per
+    the brief's own note that this route needs a real session.
+  - **Files touched**: `src/components/platform/build-phase-panel.tsx`
+    (rewritten), `src/components/platform/build-phase-prompt-links.tsx`
+    (new), `src/components/platform/build-script-view.tsx` (new),
+    `src/lib/build-phase-prompt-mapping.ts` (new),
+    `src/app/studio/(authed)/website-builder/[id]/script/page.tsx` (new),
+    `src/components/platform/prompt-library-browser.tsx` (one new prop),
+    `src/app/studio/(authed)/website-builder/prompts/page.tsx` (reads
+    `?category=`). `clients-panel.tsx`/`launch-panel.tsx` untouched, per
+    the brief's explicit instruction to stay out of the parallel Lead
+    Engineer pass.
+- **Status**: Needs review.
 
 ### Public `/help` page — pre-signup/new-signup documentation for the Agency Platform
 
@@ -2302,6 +2213,249 @@ and confirmed real downstream contamination, not just a framing nit.
 - **Status**: Not started.
 
 ## Needs review
+
+### Website Builder launch handoff: wire `live_url` into the Clients page chatbot field, and a real "what's next" moment on launch
+
+Companion to the "Website Builder build-phase flow" entry — same mission
+(2026-09-11, from Hamish directly after finishing his own "Press Coffee"
+build), designed by UX/UI Director the same day. Two connected gaps, one
+coherent fix. Full reasoning in `DECISIONS.md`'s second 2026-09-11 entry.
+Built and reviewed here as its own separate pass from the phase-flow entry,
+per this same `DECISIONS.md` entry's own recommendation to build and QA the
+two passes independently — see that entry's own closure note for its own
+status.
+
+- **Problem, part A (a real, verified wiring gap)**: `launchWebsiteProject()`
+  (`website-builder/actions.ts`) writes a real, validated `https://` URL to
+  `website_projects.live_url` the moment a project is launched. The Clients
+  page's "Chatbot for their website" card (`clients-panel.tsx`'s
+  `EmbedChatbotControl`) has its own, completely disconnected
+  `clients.chatbot_embed_allowed_origin` field — `useState(client
+  .chatbot_embed_allowed_origin ?? "")` never reads `live_url`. Confirmed via
+  grep: zero references to `live_url` anywhere in `clients/page.tsx` or
+  `clients-panel.tsx`. Hamish, verbatim: "once the steps have been finished
+  the url I entered should automatically be filled on here in the client
+  page." Schema check (both real edge cases named in the mission,
+  resolved): `website_projects.client_id` is `not null` with no path to
+  create a project without one — **a website project can never exist
+  unlinked from a client**, so "project not yet linked to a client" and
+  "launch before the client relationship exists" are not real states in
+  this schema, nothing to design for. The one real edge case is a client
+  with **more than one** `website_projects` row (a rebuild/relaunch) — no
+  `launched_at` column exists, only `created_at` (when the project
+  *started*, not when it went live), so "most recent launch" can only be
+  approximated by most recent `created_at` among `stage = 'launched'` rows.
+- **Problem, part B (the broader complaint)**: "I still feel there was a
+  lack of understanding what to do next after completing the steps. Think
+  customer journey please." `LaunchPanel` (`launch-panel.tsx`), the
+  component that fires the instant a build reaches `launched`, currently
+  renders exactly: a "Live" checkmark, the URL, an analytics yes/no line,
+  and an "Edit launch details" link. Nothing routes the agency anywhere
+  next. The real next steps Hamish named (chatbot, portal invite, Stripe,
+  first report) all already exist and work on the Clients page — the gap
+  is connective tissue, not a missing feature.
+- **Objective**: (A) the chatbot's website-origin field is pre-filled from
+  the real launched URL the first time it's empty, and offers an explicit,
+  non-destructive way to (re-)apply it any other time; (B) the moment a
+  project hits `launched`, the agency sees a short, real-data-driven "now
+  that it's live" checklist that routes them to the four already-real
+  capabilities on the Clients page (deep-linked, not reinvented).
+- **User**: same as the entry above — an agency owner who just finished a
+  real build and doesn't yet know Studio's own Clients page has everything
+  they need to turn "site is live" into an ongoing paid relationship.
+- **Priority**: P1 — direct, verified feedback from Hamish's own real use of
+  the product's core deliverable, immediately following the phase-flow
+  finding above.
+- **Design, part A — chatbot origin field**:
+  - `clients/page.tsx`'s existing clients query gets one small addition: for
+    each client, fetch its `website_projects` rows scoped to
+    `stage = 'launched'` (`id, live_url, created_at`), take the most recent
+    by `created_at`, and derive `launchedOrigin = new URL(live_url).origin`
+    server-side (so a launch URL saved with a stray path/query never breaks
+    `updateChatbotEmbedConfig`'s existing "just the domain" validation).
+    Pass down as a new sparse map, `launchedOriginByClient`, same pattern as
+    every other `*ByClient` record `ClientsPanel` already takes.
+  - `EmbedChatbotControl`: `useState(client.chatbot_embed_allowed_origin ??
+    launchedOrigin ?? "")` — genuinely "automatically filled" for the real,
+    common case Hamish described (field was empty, project just launched).
+  - Whenever `launchedOrigin` exists and differs from the field's current
+    value (covers: field already had something else on file; agency
+    launched a second project later; agency edited it away and wants it
+    back), render a small `text-xs text-accent underline` action next to the
+    input: "Use launched site's URL (`theirsite.com`)" — one click, fills
+    the field, does not save until the existing Enable/Disable button is
+    pressed (matches the existing save model exactly, no new persistence
+    path). When the field's current value *does* match `launchedOrigin`,
+    show the established field-provenance `Badge variant="secondary"` +
+    `Link2` icon, "Prefilled" tag next to the `<Label>` instead (this is
+    hard, verified 1:1 data — a literal DB column — the "Prefilled" tier
+    `DESIGN-SYSTEM.md` already defines, not a new tag vocabulary). Never
+    silently overwrite a value the agency already saved.
+  - **Real adjacent bug found while reading this component, in scope since
+    it's the exact file being touched**: `EmbedChatbotControl`'s only save
+    trigger is the Enable/Disable button (`onClick={() => save(!enabled)}`).
+    If the chatbot is already enabled and the agency edits the origin (e.g.
+    to apply the newly-launched URL), the only visible button reads
+    "Disable" — clicking it to save the new origin also turns the chatbot
+    off, an unwanted side effect. Add a plain `Button size="sm"
+    variant="outline"` "Save" that calls `save(enabled)` (persists the
+    origin without touching `enabled`), shown only when
+    `enabled && origin !== (client.chatbot_embed_allowed_origin ?? "")`.
+  - **Real edge case, not silently dropped**: multiple `website_projects`
+    per client. Approximated by most-recent-`created_at` among launched
+    rows, as above — flagged as an approximation, not hidden. A fast-follow
+    (needs its own small entry, not bundled into this one, since it's an
+    additive schema change): add `website_projects.launched_at timestamptz`,
+    set in `launchWebsiteProject()` alongside `live_url`, so "most recently
+    *launched*" becomes exact instead of a proxy via project-creation date.
+- **Design, part B — the post-launch "what's next" moment**:
+  - A new component, `PostLaunchChecklist`, rendered directly below
+    `LaunchPanel` on `website-builder/[id]/page.tsx`, only when
+    `project.stage === "launched"`. Not folded into `LaunchPanel` itself —
+    `LaunchPanel`'s job is "record where it's live," this component's job is
+    "now that it is, here's what to do" — two different questions, kept
+    separate rather than one component doing both.
+  - **Real data, not a decorative checklist** — matches `PRODUCT.md`'s "real
+    data or nothing." `WebsiteProjectDetailPage` does one additional small,
+    cheap query scoped to `project.client_id`: `clients
+    .chatbot_embed_enabled`, a count from `client_members`, the org's
+    existing `stripe_connect_charges_enabled` (already queried the same way
+    on `clients/page.tsx`), and whether a `monthly_reports` row exists for
+    this client with `period_start` = the first of the current calendar
+    month (the table's own `monthly_reports_client_period_idx` unique index
+    already guarantees at most one, so this is a cheap existence check).
+  - Four rows, in Hamish's own stated priority order, each: status icon
+    (`CheckCircle2` accent if real data says done, `Circle` muted if not) +
+    label + one-line real status + a `Button size="xs" variant="outline"`
+    deep link:
+    1. **Set up their AI chatbot** → done if `chatbot_embed_enabled`.
+       Links to `/studio/clients?client=<clientId>`.
+    2. **Invite their team to the portal** → done if `client_members` count
+       > 0. Same link.
+    3. **Connect Stripe billing** → done if `stripe_connect_charges_enabled`
+       (org-level, not client-level — this is the one row where "not done"
+       means something true for every client, not just this one). Links to
+       `/studio/settings`.
+    4. **Send their first report** → done if a `monthly_reports` row exists
+       for this calendar month. Same client-page link.
+  - Card chrome: `border-accent/40` (same accent treatment as `LaunchPanel`
+    directly above it, reading as one continuous "you just launched, here's
+    what's next" moment, not two unrelated cards). Once all 4 are real-data
+    "done," the card collapses to a compact one-line summary by default
+    (the established Collapsible pattern — local `useState`, `aria-expanded`
+    on the trigger) — still available on a revisit weeks later for
+    troubleshooting, not permanent clutter on a page an agency keeps
+    reopening.
+  - **New, small addition to `/studio/clients`**: read an optional
+    `?client=<id>` search param; on mount, if present, auto-expand that
+    client's card (`open` state) and `scrollIntoView({behavior:"smooth",
+    block:"start"})` it — the landing behaviour every link from
+    `PostLaunchChecklist` needs, since today there's no way to deep-link
+    into one already-expanded client card. No new highlight/animation
+    beyond that — auto-expand + scroll is enough, doesn't need a second
+    "just arrived" visual treatment.
+  - **Explicitly not duplicated onto the Clients page itself or the
+    Website Builder list page** — per this mission's own instruction to
+    ground the next step in what already exists rather than inventing a
+    new surface, and per `DESIGN-SYSTEM.md`'s "don't just add more cards"
+    instinct. `PostLaunchChecklist` is the one moment this routes *from*;
+    the Clients page is the one place all four real actions live, unchanged.
+- **Acceptance criteria**: `npx tsc --noEmit -p .`, `npx eslint`, full
+  `vitest` suite green; the "Save" button fix for `EmbedChatbotControl` is
+  covered by at least one new test (edit-while-enabled no longer disables);
+  `?client=` deep-link auto-expand verified against a real multi-client
+  list, not just a single-client fixture.
+- **Relevant agent**: Product Director (sanity-check) → Lead Engineer
+  (build) → QA → UX/UI Director (visual re-review). Flag the
+  `?client=`-deep-link + auto-scroll behaviour to QA specifically — the one
+  genuinely new interaction pattern in this entry, worth a dedicated pass.
+- **Dependencies**: none blocking for the core fix (part A's prefill/badge,
+  part B's checklist + deep-link) — additive reads only, no schema change.
+  The `launched_at` column noted above is a real, separate, additive
+  migration — out of scope for this entry, needs its own backlog entry if
+  picked up, and (per this team's own approval boundaries) any migration
+  still gets called out to Hamish even though it's additive, not
+  destructive.
+- **Product Director sanity-check (2026-09-11): passed.** Verified directly
+  against the real code — `live_url` genuinely has zero references anywhere
+  in `clients/page.tsx`/`clients-panel.tsx`, `LaunchPanel` genuinely renders
+  nothing beyond the Live checkmark/URL/analytics line/edit link, and
+  `EmbedChatbotControl`'s only save trigger genuinely is the Enable/Disable
+  toggle. The adjacent chatbot-save bug isn't just cheap-to-fold-in — it's
+  load-bearing: without it, the new prefill feature would hand someone a
+  live footgun (fill in the newly-launched URL while already enabled, click
+  the only visible button, which reads "Disable," and their client's live
+  chatbot goes dark as a side effect). Both adjacent fixes (this one and
+  the `isDone` visibility bug in the entry above) correctly stay folded in
+  rather than split into their own tickets. Full verdict, including the two
+  points flagged for Hamish's confirmation (the multi-launch approximation,
+  the org-level Stripe row), in `DECISIONS.md`'s matching 2026-09-11 entry.
+  Awaiting Hamish's plain go-ahead before Lead Engineer starts.
+- **Closure note (Lead Engineer, 2026-09-11)**: built as scoped, both parts.
+  **Part A**: `clients/page.tsx` gained one additional scoped query
+  (`website_projects` rows for this org's own clients, `stage = 'launched'`,
+  ordered `created_at` desc) and derives `launchedOriginByClient` server-side
+  via `new URL(live_url).origin` — the documented most-recent-`created_at`
+  approximation for the multi-launch edge case, exactly as specified (a real
+  `launched_at` column stays out of scope, its own deferred fast-follow).
+  `EmbedChatbotControl` (`clients-panel.tsx`) now autofills only when the
+  field is genuinely empty (`client.chatbot_embed_allowed_origin ??
+  launchedOrigin ?? ""`), renders the field-provenance `Badge
+  variant="secondary"` + `Link2` "Prefilled" tag when the current value
+  already matches `launchedOrigin`, and a one-click "Use launched site's URL
+  (hostname)" text action whenever it doesn't — never both, never a silent
+  overwrite. The adjacent save-path bug is fixed: a `Button size="sm"
+  variant="outline"` "Save" now renders whenever `enabled && origin !==
+  (client.chatbot_embed_allowed_origin ?? "")`, calling `save(enabled)` —
+  persists the origin without touching the enabled flag, so editing the
+  origin while the chatbot is already on no longer risks disabling it as a
+  side effect of the only other visible button. Covered by 5 new tests in
+  `clients-panel.test.tsx` (`EmbedChatbotControl` exported for direct
+  testing, same convention `prospecting-panel.test.tsx` established for
+  `ContactTrackingControl`) — the required "edit-while-enabled no longer
+  disables" case, plus the Enable/Disable-alone regression check and the
+  three autofill/Prefilled-badge/explicit-action states.
+  **Part B**: `PostLaunchChecklist` (new,
+  `src/components/platform/post-launch-checklist.tsx`) renders under
+  `LaunchPanel` on `website-builder/[id]/page.tsx`, gated on `project.stage
+  === "launched"`, from one additional cheap `Promise.all` of real reads
+  scoped to `project.client_id`/`membership.orgId` (`clients
+  .chatbot_embed_enabled`, a `client_members` count via `{count: "exact",
+  head: true}`, `organisations.stripe_connect_charges_enabled`, and a
+  `monthly_reports` existence check keyed to the current calendar month via
+  its own real unique index) — matches the spec's exact four rows, order,
+  and deep-link targets (`?client=<id>` into Clients for 3 of the 4,
+  `/studio/settings` for Stripe), collapsible with the established
+  local-`useState`/`aria-expanded` pattern, expanded by default until every
+  row is real-data "done." `/studio/clients` (`ClientsPanel`) now reads
+  `?client=<id>` via `useSearchParams` (wrapped in `<Suspense>` at the
+  server page, same shape as `signup-form.tsx`'s own `?plan=` relay) and
+  auto-expands + `scrollIntoView`s the matching `ClientCard` — implemented
+  as a lazy `useState(autoExpand)` initial value plus a `scrollIntoView`-only
+  `useEffect` (not a setState-in-effect, which the project's own
+  `react-hooks/set-state-in-effect` lint rule correctly rejected on a first
+  pass) — verified against the page's real multi-client list (multiple
+  `ClientCard`s render, `autoExpand` computed per-card as `c.id ===
+  focusClientId`, so exactly one card ever auto-opens).
+  **One deviation from the literal spec, noted rather than silent**: the
+  spec's card-chrome note ("collapses to a compact one-line summary")
+  described the *icon* as unspecified; used `ListChecks` (verified to exist
+  in the installed `lucide-react`) for the header, matching the "one real
+  new interaction, reuse an established icon-language" instinct rather than
+  inventing new iconography — flagged for UX/UI Director's visual
+  re-review, not asserted as a closed design call.
+  **Verified**: `npx tsc --noEmit -p .` clean; `npx eslint` clean on every
+  touched/new file; full `npx vitest run` 504/504 green (no flaky
+  `prospecting-panel.test.tsx` failure observed this run, so no re-run was
+  needed); `npm run build` succeeded (155 routes, including the parallel
+  Lead Engineer pass's own new `/studio/website-builder/[id]/script` route
+  and `build-phase-panel.tsx`/`prompt-library-browser.tsx` changes, which
+  this pass deliberately never touched — confirmed via `git status`/`git
+  diff` that the two passes' file sets don't overlap). Not live-verified in
+  the Browser pane — this is an authenticated `/studio` route behind real
+  org membership, consistent with the mission's own note that full live
+  verification may need to wait for QA's own pass.
+- **Status**: Needs review.
 
 ### Wire the same outreach-kit action to Command Centre's Top Prospects list (fast-follow to the shipped topOpportunity action)
 

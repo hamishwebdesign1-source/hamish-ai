@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import {
   Users,
   ExternalLink,
@@ -23,6 +24,7 @@ import {
   Mail,
   X,
   Sparkles,
+  Link2,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -573,9 +575,41 @@ function ClientMembersControl({ client, members }: { client: Client; members: Cl
   );
 }
 
-function EmbedChatbotControl({ client, usageCount, leads }: { client: Client; usageCount: number; leads: EmbedLead[] }) {
+// Website Builder launch handoff (BACKLOG.md, 2026-09-11) — plain hostname
+// for the "Use launched site's URL (theirsite.com)" action's own label;
+// falls back to the raw origin string if it somehow isn't a valid URL
+// (shouldn't happen — launchedOrigin is always derived via `new
+// URL(live_url).origin` server-side — but a display helper degrading to
+// the raw string beats throwing).
+function displayHostname(origin: string): string {
+  try {
+    return new URL(origin).hostname;
+  } catch {
+    return origin;
+  }
+}
+
+// Exported (unlike this file's other sub-components) so
+// clients-panel.test.tsx can render and assert against it directly —
+// same "test the real sub-component, not the whole panel" convention
+// prospecting-panel.test.tsx already established for ContactTrackingControl.
+export function EmbedChatbotControl({
+  client,
+  usageCount,
+  leads,
+  launchedOrigin,
+}: {
+  client: Client;
+  usageCount: number;
+  leads: EmbedLead[];
+  // Website Builder launch handoff (BACKLOG.md, 2026-09-11) — the most
+  // recently launched website_projects row's own origin for this client
+  // (clients/page.tsx's launchedOriginByClient), null when this client
+  // has no launched project on file yet.
+  launchedOrigin: string | null;
+}) {
   const [enabled, setEnabled] = useState(client.chatbot_embed_enabled);
-  const [origin, setOrigin] = useState(client.chatbot_embed_allowed_origin ?? "");
+  const [origin, setOrigin] = useState(client.chatbot_embed_allowed_origin ?? launchedOrigin ?? "");
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
@@ -583,6 +617,16 @@ function EmbedChatbotControl({ client, usageCount, leads }: { client: Client; us
 
   const appOrigin = typeof window !== "undefined" ? window.location.origin : "";
   const snippet = `<script src="${appOrigin}/api/embed/widget" data-client="${client.id}" async></script>`;
+
+  // DESIGN-SYSTEM.md's "a live, already-saved value needs a different
+  // variant of the field-provenance pattern" — auto-fill only when the
+  // field was genuinely empty (above); from here on, never silently
+  // overwrite — one of the two renders below, driven by this same
+  // comparison, never both.
+  const normalizedOrigin = origin.trim().replace(/\/$/, "");
+  const originMatchesLaunched = Boolean(launchedOrigin && normalizedOrigin === launchedOrigin);
+  const canApplyLaunchedOrigin = Boolean(launchedOrigin && !originMatchesLaunched);
+  const originDirty = origin !== (client.chatbot_embed_allowed_origin ?? "");
 
   function save(nextEnabled: boolean) {
     setError(null);
@@ -633,7 +677,26 @@ function EmbedChatbotControl({ client, usageCount, leads }: { client: Client; us
             2
           </span>
           <div className="flex-1 space-y-2 text-muted-foreground">
-            <span>Enter their website and turn it on:</span>
+            <div className="flex flex-wrap items-center justify-between gap-1.5">
+              <span>Enter their website and turn it on:</span>
+              {originMatchesLaunched && (
+                <Badge variant="secondary" className="gap-1 text-[10px] font-normal">
+                  <Link2 className="size-2.5" /> Prefilled
+                </Badge>
+              )}
+            </div>
+            {canApplyLaunchedOrigin && (
+              <button
+                type="button"
+                onClick={() => {
+                  setOrigin(launchedOrigin ?? "");
+                  setSaved(false);
+                }}
+                className="block text-xs text-accent underline underline-offset-2"
+              >
+                Use launched site&apos;s URL ({displayHostname(launchedOrigin ?? "")})
+              </button>
+            )}
             <div className="flex items-center gap-2">
               <Input
                 id={`embed-origin-${client.id}`}
@@ -648,6 +711,17 @@ function EmbedChatbotControl({ client, usageCount, leads }: { client: Client; us
               <Button size="sm" variant={enabled ? "outline" : "default"} disabled={pending} onClick={() => save(!enabled)}>
                 {pending ? "Saving…" : enabled ? "Disable" : "Enable"}
               </Button>
+              {/* Real adjacent bug (BACKLOG.md, 2026-09-11) — the toggle
+                  above was the only save trigger; editing the origin while
+                  already enabled had no way to persist it without also
+                  disabling the chatbot as a side effect. This calls
+                  save(enabled) — same origin write, enabled state
+                  untouched. */}
+              {enabled && originDirty && (
+                <Button size="sm" variant="outline" disabled={pending} onClick={() => save(enabled)}>
+                  {pending ? "Saving…" : "Save"}
+                </Button>
+              )}
             </div>
             {saved && <span className="block text-accent">Saved.</span>}
             {error && <span className="block text-destructive">{error}</span>}
@@ -745,6 +819,8 @@ function ClientCard({
   stripeReady,
   competitorIntel,
   prefillEligible,
+  launchedOrigin,
+  autoExpand,
 }: {
   client: Client;
   invoices: Invoice[];
@@ -760,11 +836,30 @@ function ClientCard({
   // client's source prospect has website_mockup and/or research on file;
   // gates both the collapsed-row badge and the expanded-card control.
   prefillEligible: boolean;
+  // Website Builder launch handoff (BACKLOG.md, 2026-09-11) — this
+  // client's most-recently-launched project's own origin, or null.
+  launchedOrigin: string | null;
+  // Same entry's ?client=<id> deep-link auto-expand+scroll — true only
+  // for the one card the URL points at, if any.
+  autoExpand: boolean;
 }) {
-  const [open, setOpen] = useState(false);
+  // Website Builder launch handoff (BACKLOG.md, 2026-09-11) — the
+  // landing behaviour every PostLaunchChecklist deep link needs: this one
+  // client's card starts expanded when the URL names it (lazy initial
+  // state, not a setState-in-effect — that expansion is a real initial
+  // render decision, not a reaction to an external system). Scrolling it
+  // into view is the one real side effect, since it needs the rendered
+  // DOM node to exist first.
+  const [open, setOpen] = useState(autoExpand);
+  const cardRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!autoExpand) return;
+    cardRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [autoExpand]);
 
   return (
-    <Card>
+    <Card ref={cardRef}>
       <CardContent className="py-3">
         <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open} className="flex w-full items-center justify-between gap-3 text-left">
           <div className="flex min-w-0 items-center gap-3">
@@ -886,7 +981,7 @@ function ClientCard({
 
             <ClientMembersControl client={client} members={members} />
 
-            <EmbedChatbotControl client={client} usageCount={embedUsage} leads={embedLeads} />
+            <EmbedChatbotControl client={client} usageCount={embedUsage} leads={embedLeads} launchedOrigin={launchedOrigin} />
 
             <p className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
               <Receipt className="size-3.5 shrink-0" /> Invoices
@@ -963,6 +1058,7 @@ export function ClientsPanel({
   membersByClient,
   competitorIntelByClient,
   prefillEligibleByClient,
+  launchedOriginByClient,
   stripeReady,
   hasLoadError,
 }: {
@@ -980,6 +1076,10 @@ export function ClientsPanel({
   // on file; absence (not a false entry) is the default for every other
   // client, same sparse-map convention as the other *ByClient records.
   prefillEligibleByClient: Record<string, boolean>;
+  // Website Builder launch handoff (BACKLOG.md, 2026-09-11) — this
+  // client's most-recently-launched project's own origin; absent for a
+  // client with no launched project on file, same sparse-map convention.
+  launchedOriginByClient: Record<string, string>;
   stripeReady: boolean;
   // Tier 3 item #11 — page.tsx's own clients query error, additive to its
   // existing console.error (not a replacement): distinguishes a real
@@ -987,6 +1087,12 @@ export function ClientsPanel({
   // previously rendered identically.
   hasLoadError: boolean;
 }) {
+  // Website Builder launch handoff (BACKLOG.md, 2026-09-11) — the
+  // ?client=<id> deep link PostLaunchChecklist's four links all use to
+  // land on an already-expanded, scrolled-to card.
+  const searchParams = useSearchParams();
+  const focusClientId = searchParams.get("client");
+
   const riskCount = Object.keys(riskByClient).length;
   const sortedClients = [...clients].sort(
     (a, b) => (RISK_TIER_WEIGHT[riskByClient[b.id]?.tier ?? ""] ?? 0) - (RISK_TIER_WEIGHT[riskByClient[a.id]?.tier ?? ""] ?? 0)
@@ -1070,6 +1176,8 @@ export function ClientsPanel({
                   members={membersByClient[c.id] ?? []}
                   competitorIntel={competitorIntelByClient[c.id] ?? []}
                   prefillEligible={prefillEligibleByClient[c.id] ?? false}
+                  launchedOrigin={launchedOriginByClient[c.id] ?? null}
+                  autoExpand={c.id === focusClientId}
                   stripeReady={stripeReady}
                 />
               ))}

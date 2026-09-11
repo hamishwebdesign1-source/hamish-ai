@@ -9,6 +9,32 @@ paragraph, not a full handoff report (those, if worth keeping, go in
 
 ---
 
+## 2026-09-11 — Website Builder launch handoff: `live_url` wired into the Clients page chatbot field, `PostLaunchChecklist` shipped
+
+Built the second `## Ready` `BACKLOG.md` entry (UX/UI Director design +
+Product Director sanity-check, both 2026-09-11): `clients/page.tsx` now
+derives `launchedOriginByClient` from each client's most-recently-launched
+`website_projects` row (most-recent-`created_at` approximation, documented
+as such); `EmbedChatbotControl` autofills the origin only when empty, shows
+a "Prefilled" badge or a one-click "Use launched site's URL" action
+depending on whether the field already matches, and gained the real adjacent
+fix — a dedicated "Save" button so editing the origin while the chatbot is
+already enabled no longer risks disabling it as a side effect of the only
+other visible button. New `PostLaunchChecklist` component renders under
+`LaunchPanel` once `project.stage === "launched"`, four real-data rows
+(chatbot, portal invite, org-level Stripe, this-month's report) deep-linking
+into `/studio/clients?client=<id>` (new `?client=` auto-expand + scroll on
+`ClientsPanel`, via `useSearchParams` + `<Suspense>`) and `/studio/settings`
+— no duplicated controls. Ran entirely in parallel with a separate Lead
+Engineer pass on `build-phase-panel.tsx`/the new `/script` route (per the
+dispatch's own instruction); confirmed via `git status`/`git diff` the two
+file sets never overlapped. 5 new tests in `clients-panel.test.tsx`
+(`EmbedChatbotControl` exported for direct testing). `npx tsc --noEmit -p .`
+clean, `npx eslint` clean, full `npx vitest run` 504/504 green, `npm run
+build` succeeded (155 routes). Moved to `BACKLOG.md`'s `## Needs review`
+with a full closure note; handed to QA next, per this team's own workflow
+for a multi-surface interaction-flow change.
+
 ## 2026-09-03 — Studio Design Audit: full review → build → post-build-review loop, 18 items shipped
 
 Hamish's mission: make `/studio` feel like one cohesive, premium, world-class

@@ -8,6 +8,7 @@ import { WebsiteBriefPanel } from "@/components/platform/website-brief-panel";
 import { ToolRecommendationPanel } from "@/components/platform/tool-recommendation-panel";
 import { BuildPhasePanel } from "@/components/platform/build-phase-panel";
 import { LaunchPanel } from "@/components/platform/launch-panel";
+import { PostLaunchChecklist } from "@/components/platform/post-launch-checklist";
 import { ProjectStageTracker } from "@/components/platform/project-stage-tracker";
 import { TroubleshootingComposer } from "@/components/platform/troubleshooting-composer";
 import { WebsiteProjectFilesPanel, type ProjectFile } from "@/components/platform/website-project-files-panel";
@@ -106,6 +107,43 @@ export default async function WebsiteProjectDetailPage({ params }: { params: Pro
   const buildPhases = project.build_phases as BuildPhase[] | null;
   const allPhasesComplete = Boolean(buildPhases && project.current_phase_index >= buildPhases.length);
 
+  // Website Builder launch handoff, part B (BACKLOG.md, 2026-09-11) —
+  // PostLaunchChecklist's real-data status checks, one cheap additional
+  // query only once a build is actually launched. Each read uses the
+  // same session-scoped client + explicit org/client scoping as every
+  // other query on this page; RLS (clients_select_own_org,
+  // client_members_select_own_org, monthly_reports_select_own_org) is
+  // the real independent protection underneath, same convention as
+  // everywhere else in this file.
+  let postLaunchStatus: {
+    chatbotEnabled: boolean;
+    portalMemberCount: number;
+    stripeConnected: boolean;
+    reportSentThisMonth: boolean;
+  } | null = null;
+  if (project.stage === "launched") {
+    const now = new Date();
+    const periodStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
+
+    const [{ data: clientRow }, { count: memberCount }, { data: orgRow }, { data: reportRow }] = await Promise.all([
+      supabase.from("clients").select("chatbot_embed_enabled").eq("id", project.client_id).eq("org_id", membership.orgId).maybeSingle(),
+      supabase.from("client_members").select("id", { count: "exact", head: true }).eq("client_id", project.client_id),
+      supabase.from("organisations").select("stripe_connect_charges_enabled").eq("id", membership.orgId).maybeSingle(),
+      // monthly_reports_client_period_idx (client_id, period_start) is a
+      // real unique index (schema-monthly-reports.sql), so this is a
+      // cheap existence check, not a scan — at most one row can ever
+      // match.
+      supabase.from("monthly_reports").select("id").eq("client_id", project.client_id).eq("period_start", periodStart).maybeSingle(),
+    ]);
+
+    postLaunchStatus = {
+      chatbotEnabled: Boolean(clientRow?.chatbot_embed_enabled),
+      portalMemberCount: memberCount ?? 0,
+      stripeConnected: Boolean(orgRow?.stripe_connect_charges_enabled),
+      reportSentThisMonth: Boolean(reportRow),
+    };
+  }
+
   // website_project_files_select_own_org RLS (schema-rls-website-project-files.sql)
   // enforces the org boundary on this read the same way every other
   // table here does — signed URLs themselves are generated via the
@@ -194,6 +232,18 @@ export default async function WebsiteProjectDetailPage({ params }: { params: Pro
             liveUrl={project.live_url}
             analyticsConnected={project.analytics_connected}
             allPhasesComplete={allPhasesComplete}
+          />
+        </div>
+      )}
+
+      {project.stage === "launched" && postLaunchStatus && (
+        <div className="mt-8">
+          <PostLaunchChecklist
+            clientId={project.client_id}
+            chatbotEnabled={postLaunchStatus.chatbotEnabled}
+            portalMemberCount={postLaunchStatus.portalMemberCount}
+            stripeConnected={postLaunchStatus.stripeConnected}
+            reportSentThisMonth={postLaunchStatus.reportSentThisMonth}
           />
         </div>
       )}
