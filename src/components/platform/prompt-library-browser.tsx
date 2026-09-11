@@ -122,8 +122,16 @@ function PromptCard({ prompt, prefill }: { prompt: PromptTemplate; prefill: Prom
 // in client-side from the project's own real discovery/brief data when
 // opened from a project, or left blank for the agency to fill in
 // themselves when browsed standalone.
-export function PromptLibraryBrowser({ prefill }: { prefill: PromptLibraryPrefill }) {
-  const [activeCategory, setActiveCategory] = useState<PromptCategory | "all">("all");
+//
+// Website Builder build-phase flow (BACKLOG.md, 2026-09-11) — added
+// `initialCategory`, read by prompts/page.tsx from an optional
+// `?category=` search param so a per-phase "Need to refine this later?"
+// link (build-phase-prompt-links.tsx) can land directly on the relevant
+// category instead of always opening on "All". Still just the initial
+// value for local state — once here, the category pills work exactly as
+// before.
+export function PromptLibraryBrowser({ prefill, initialCategory = "all" }: { prefill: PromptLibraryPrefill; initialCategory?: PromptCategory | "all" }) {
+  const [activeCategory, setActiveCategory] = useState<PromptCategory | "all">(initialCategory);
 
   const categories = Object.keys(PROMPT_CATEGORY_LABELS) as PromptCategory[];
   const visible = activeCategory === "all" ? PROMPT_LIBRARY : PROMPT_LIBRARY.filter((p) => p.category === activeCategory);

@@ -9,6 +9,45 @@ paragraph, not a full handoff report (those, if worth keeping, go in
 
 ---
 
+## 2026-09-11 — Website Builder build-phase flow: content visibility decoupled from checklist-gated progress, three-tier phase cards, `/script` route, per-phase prompt-library links
+
+Built the first `## Ready` `BACKLOG.md` entry (UX/UI Director design +
+Product Director sanity-check, both 2026-09-11). `build-phase-panel.tsx`
+now renders three real tiers per phase instead of two: Current (unchanged),
+**Done** (new `DonePhaseCard` — collapsible, static accent-checked
+checklist; fixes a real second bug found during design, where an advanced-
+past phase rendered only a checkmark with no way back to its own content),
+and **Read-ahead** (new `ReadAheadPhaseCard` — collapsible, `FileText` +
+"Written — not started" badge, static muted checklist; the actual bug this
+entry was filed for — already-generated future phases were shown as a
+locked, contentless placeholder despite the content already sitting in
+`build_phases`). A genuinely not-yet-written phase drops the old
+`Lock`/`opacity-60` framing entirely (misleading — nothing is access-gated).
+Checklist interactivity stays structurally impossible outside the current
+phase's own card (no `<button>` wrapper in the new read-only
+`StaticChecklist`), so `advanceBuildPhase`'s server-re-verified sequential
+gate is unchanged. New dedicated route `/studio/website-builder/[id]/script`
+(`build-script-view.tsx`) answers Hamish's literal "just provide them with
+the personalised prompts" ask — a real page, Base UI `Accordion` with every
+generated phase open by default, no scroll clamp, per-phase and "copy
+entire script" buttons, entered via a new banner row in `BuildPhasePanel`.
+New `build-phase-prompt-mapping.ts` (`BuildPhaseId → PromptCategory[]`) and
+a shared `BuildPhasePromptLinks` component surface relevant prompt-library
+links under every generated phase's checklist on both the project page and
+the script route; `prompt-library-browser.tsx` gained an `initialCategory`
+prop and `prompts/page.tsx` reads a validated `?category=` param. Ran
+entirely in parallel with a separate Lead Engineer pass on the launch-
+handoff entry (`clients-panel.tsx`/`launch-panel.tsx`); confirmed via `git
+status` the two file sets never overlapped. `npx tsc --noEmit -p .` clean,
+`npx eslint` clean on every touched file, full `npx vitest run` 504/504
+green (no flake hit), `npm run build` succeeded with the new `/script` route
+present in the output. Live-checked what's possible pre-auth (no seeded
+Studio session available in this environment): unauthenticated requests to
+the new route and to `prompts?category=...` both correctly 307-redirect
+with no server error. Moved to `BACKLOG.md`'s `## Needs review` with a full
+closure note; handed to QA next for the authenticated visual pass, per this
+team's own workflow.
+
 ## 2026-09-11 — Website Builder launch handoff: `live_url` wired into the Clients page chatbot field, `PostLaunchChecklist` shipped
 
 Built the second `## Ready` `BACKLOG.md` entry (UX/UI Director design +

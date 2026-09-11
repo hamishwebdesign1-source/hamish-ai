@@ -6,11 +6,14 @@ import { createServerSupabaseClient, getUserWithRetry } from "@/lib/supabase-ser
 import { getOrgMembership } from "@/lib/org-membership";
 import { Eyebrow } from "@/components/eyebrow";
 import { PromptLibraryBrowser, type PromptLibraryPrefill } from "@/components/platform/prompt-library-browser";
+import { PROMPT_CATEGORY_LABELS, type PromptCategory } from "@/lib/website-prompt-library";
 import type { WebsiteBrief, WebsiteDiscovery } from "@/lib/website-brief";
 
 // SEO/metadata audit (2 Sep 2026) — see studio/(authed)/page.tsx for the
 // full reasoning (every real page under here gets its own real title).
 export const metadata: Metadata = { title: "Prompt library | Studio" };
+
+const PROMPT_CATEGORIES = Object.keys(PROMPT_CATEGORY_LABELS) as PromptCategory[];
 
 // AI Website Creation Guide, WB6 — the "make it better" prompt library
 // (plan doc §14). Browseable standalone (no AI call, no project needed)
@@ -20,8 +23,17 @@ export const metadata: Metadata = { title: "Prompt library | Studio" };
 // blank. Session-scoped client throughout, same as every other Studio
 // page this session, so RLS enforces the org boundary independently of
 // the .eq() below getting it right.
-export default async function PromptLibraryPage({ searchParams }: { searchParams: Promise<{ project?: string }> }) {
-  const { project: projectId } = await searchParams;
+//
+// Website Builder build-phase flow (BACKLOG.md, 2026-09-11) — also reads
+// an optional `?category=` search param, from a per-phase "Need to
+// refine this later?" link (build-phase-prompt-links.tsx). Never trusted
+// structurally: validated against the real PromptCategory union before
+// being passed down, same defensive-coercion instinct as every other
+// unknown-input boundary in this codebase — an unrecognised value falls
+// back to "all" rather than being passed through as-is.
+export default async function PromptLibraryPage({ searchParams }: { searchParams: Promise<{ project?: string; category?: string }> }) {
+  const { project: projectId, category } = await searchParams;
+  const initialCategory: PromptCategory | "all" = category && PROMPT_CATEGORIES.includes(category as PromptCategory) ? (category as PromptCategory) : "all";
 
   const supabase = await createServerSupabaseClient();
   const {
@@ -68,7 +80,7 @@ export default async function PromptLibraryPage({ searchParams }: { searchParams
       </p>
 
       <div className="mt-8">
-        <PromptLibraryBrowser prefill={prefill} />
+        <PromptLibraryBrowser prefill={prefill} initialCategory={initialCategory} />
       </div>
     </div>
   );

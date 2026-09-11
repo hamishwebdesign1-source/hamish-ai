@@ -28,312 +28,6 @@ _(none yet)_
 
 ## Ready
 
-### Website Builder build-phase flow: decouple personalised content visibility from checklist-gated progress
-
-Scoped from Hamish's direct feedback after running his own real "Press
-Coffee" project through the whole Website Builder flow (2026-09-11,
-scoping-only mission — see `DECISIONS.md`'s matching 2026-09-11 entry for
-the full reasoning, including what was explicitly rejected). Interaction
-design completed by UX/UI Director the same day (see `DECISIONS.md`'s
-second 2026-09-11 entry) — moved out of `## Researching`. **Next: Product
-Director sanity-check (this team's own UI-redesign workflow), then Lead
-Engineer builds, then QA, then UX/UI Director visual re-review.**
-
-- **Problem**: `generate()` (`build-phase-panel.tsx`) already writes all 10
-  phases' full personalised build instructions and checklists to
-  `website_projects.build_phases` in one action (confirmed on the real
-  "Press Coffee" project, `8cdba9d4-a7ae-440c-90a6-0fcd9870b78c`: ~8,500
-  words across 10 phases, 74 checklist items, all genuinely grounded in
-  that project's real brief). Despite the content already existing, the UI
-  shows a locked, contentless placeholder for every phase past
-  `current_phase_index` — reading/copying Phase 10 requires manually
-  re-opening, copying, and hand-ticking 7-8 checklist items (one server
-  round-trip each) for every one of the 9 phases before it. This is the
-  concrete mechanism behind Hamish's own report: "I feel it's a whole load
-  of work walking through all the steps, can we just provide them with the
-  personalised prompts?" A secondary, smaller real friction: the AI coding
-  tool guide (`ai-coding-tool-guides.ts`, durable "how to actually work
-  with this tool" content) and the prompt library (`website-prompt-library.ts`,
-  generic "make it better" refinement templates, already lightly
-  pre-fillable from a project via `?project=<id>`) both live on separate
-  routes, reachable only via a top-of-panel "Guide" link and a small
-  de-emphasised "Browse the prompt library for this project" text link —
-  not surfaced inline with the phase someone's actually working through.
-- **Objective**: make all already-generated phases' instructions/checklists
-  visible and copyable immediately (not gated behind advancing through
-  prior phases), with a prominent "get the whole build script" view/action
-  that answers the literal ask — while keeping checklist-gated "Continue to
-  next phase" advancement exactly as it works today, since that's a
-  separate, real, still-needed concept (see below). Surface the tool guide
-  and relevant prompt-library entries contextually within the phase flow
-  rather than requiring a separate page visit.
-- **User**: an agency owner or team member actually running a real website
-  build end to end (the persona Hamish tested as himself) — someone doing
-  real, often multi-day/multi-session external coding-agent work, who wants
-  the personalised instructions available on demand rather than paced out
-  one card at a time by a UI gate that no longer reflects whether the
-  content actually exists yet.
-- **Priority**: P1 — real, direct feedback from Hamish's own hands-on test
-  of the product's own most substantial AI-generated deliverable, not a
-  hunch.
-- **Expected outcome**: an agency running a build can get every phase's
-  personalised instructions in one place without manually unlocking each
-  one; the tracked-progress checklist remains real and meaningful (still
-  drives `current_phase_index`/`stage`, still read by
-  `requests/actions.ts`'s troubleshooting-help AI context and the stage
-  tracker) but is no longer the only way to *see* content that already
-  exists.
-- **Explicitly rejected, with reasoning** (see `DECISIONS.md` for the full
-  writeup): rebuilding the prompt library as AI-generated/personalised
-  content (it's deliberately static, curated, instantly reviewable data —
-  conflating it with the build script blurs two genuinely different
-  content types); merging all 10 phases into a single AI prompt/call
-  (already explicitly rejected when this feature was first built, for real
-  technical reasons — Vercel Hobby's 60s serverless cap, and per-phase
-  generation producing better-grounded content — not reopened here);
-  removing checklist-gated advancement outright (real downstream
-  consumers depend on a meaningful "current phase," and the phase-
-  generation system prompt itself assumes each phase's coding agent has
-  already completed every earlier phase — ungating advancement risks
-  someone pasting a later phase's instructions into a build that hasn't
-  reached that dependency point yet).
-- **Acceptance criteria**: not written in full here — depends on the UX/UI
-  Director's interaction-design pass (see open questions below). At
-  minimum: no phase's instructions/checklist stay contentless once
-  generated regardless of `current_phase_index`; "Continue to next phase"
-  keeps its existing server-re-verified checklist gate
-  (`advanceBuildPhase`); a real, discoverable "everything" surface exists;
-  `npx tsc --noEmit -p .`, `npx eslint`, full `vitest` suite green.
-- **UX/UI Director design (2026-09-11) — resolves the 5 open questions
-  below.** Full reasoning in `DECISIONS.md`; this is the buildable
-  summary.
-  1. **A real second bug found while designing this, not just the
-     originally-reported one**: `build-phase-panel.tsx`'s `isDone` branch
-     (`index < currentPhaseIndex`) renders *only* a checkmark + label —
-     no instructions, no checklist, no expand affordance. A completed
-     phase's content is currently unreachable once you've advanced past
-     it, not just a not-yet-reached phase's. The fix below solves both in
-     one pass.
-  2. **Three visual/interaction tiers per phase card, replacing today's
-     two (locked / current)**, each a `Card` in the existing `<ul>` list
-     on `website-builder/[id]/page.tsx` (no new page structure needed for
-     this part):
-     - **Current** (`index === currentPhaseIndex`, generated): unchanged
-       from today — `border-accent/40`, always expanded, full
-       instructions + `Copy instructions`, the *only* card with an
-       interactive checklist (clickable checkboxes), `Continue to next
-       phase` button.
-     - **Done** (`index < currentPhaseIndex`): now a **collapsible**
-       card (the established local-`useState` + `aria-expanded` pattern
-       from `DESIGN-SYSTEM.md`'s "Collapsible panel," not Base UI
-       Accordion — this is a plain card list, matching `ProspectCard`/
-       `ClientCard`), collapsed by default. Trigger row:
-       `CheckCircle2` (accent) + "Phase N — Name" +
-       `Badge variant="success"` "Done" + chevron. Expanded: instructions
-       + `Copy instructions` + the checklist rendered as a **static**
-       list (accent check icons, `line-through`, not a `<button>` — it's
-       provably already complete, not editable history).
-     - **Read-ahead** (`index > currentPhaseIndex` but `phases[index]`
-       already exists — the actual bug this backlog entry was filed
-       for): also collapsible, collapsed by default. Trigger row: a
-       neutral icon (`FileText`, not `Lock` — it is not access-gated,
-       just not started) + "Phase N — Name" +
-       `Badge variant="secondary"` "Written — not started" + chevron.
-       Expanded: instructions + `Copy instructions` + the checklist
-       rendered as a **static, non-interactive** list (muted circles, no
-       strikethrough, no click handler) + one `text-xs
-       text-muted-foreground` line: "You'll be able to check these off
-       once you reach this phase." No `Continue` button on this card —
-       advancement is unaffected, it only ever reads/writes
-       `currentPhaseIndex`'s own phase.
-     - **Not yet generated** (`!phases[index]`, whether mid-run or a
-       stalled run): keep today's spinner-if-currently-writing /
-       existing "Continue generating the rest" banner — but drop the
-       `Lock` icon + `opacity-60` "locked" framing for the plain
-       not-yet-written case (misleading; nothing is actually gated).
-     This directly answers question (2): "tracked progress" (current +
-     done, accent/success) and "pre-written, available" (secondary,
-     explicitly labelled "Written — not started" so it can't be mistaken
-     for "Done") are two visually distinct tiers using colour + label,
-     not two competing features.
-  3. **A dedicated "Full build script" view** (`/studio/website-builder/
-     [id]/script`, new route) answers Hamish's literal ask — one
-     continuous, printable/copyable document, not just per-card access.
-     Entry point: a new banner-style row inside `BuildPhasePanel`,
-     directly under the existing "Building with X / Guide" header row,
-     reusing the established field-provenance banner chrome
-     (`border-accent/30 bg-accent/5`, one line of copy, one action) —
-     "Full build script — N of 10 phases written. Read, copy, or print
-     the whole thing in one place." + a real `Button` (not a text link,
-     this is the headline ask) `render={<Link href=".../script" />}`.
-     Shown as soon as `hasStarted` (phase 1 exists), not gated on
-     completion. On the script page itself: a one-line
-     `border-accent/30 bg-accent/5` banner explicitly framing it as
-     read-only reference ("Everything you've generated so far, in one
-     place — this doesn't affect your tracked progress on the project
-     page") so it reads as a companion, not a duplicate, of the phase
-     list. Content is a Base UI `Accordion` (`multiple`, all *generated*
-     phases open by default — the point of this page is reading
-     everything at once, not a second collapse-by-default UI) with one
-     `AccordionItem` per generated phase (ungenerated phases render as a
-     plain muted "not written yet" row, not an accordion item); each
-     item shows the phase's full instructions as plain, full-width text
-     (no `max-h-64 overflow-y-auto` clamp — that clamp is right for a
-     busy multi-card page, wrong for a page whose only job is reading
-     long text; per-item `Copy` button too, plus one `Copy entire script`
-     button at the top that concatenates every generated phase under a
-     `## Phase N — Name` heading. Checklists render read-only here (same
-     static-list treatment as the Done/Read-ahead cards above) — checklist
-     *state* only ever changes in one place (the current phase's card on
-     the main project page), never in two.
-  4. **Mobile**: the dedicated script route *is* the mobile answer to
-     question (4) — a real page (not a modal/dialog, which would cramp
-     ~8,500 words on a small viewport), single-column, `Accordion`
-     sections instead of nested scroll boxes so the whole page scrolls
-     naturally instead of fighting an inner `overflow-y-auto` region
-     (the same reason Projects Kanban's mobile view uses `Accordion`
-     instead of horizontal scroll — different content shape, same
-     "don't nest a scroll region inside a scroll region on touch"
-     reasoning). The main project page's per-card `pre` clamp is
-     untouched — still appropriate there since that page mixes many
-     components, not a change in scope.
-  5. **"Continue to next phase" stays strictly sequential** (Product
-     Director's own recommendation, adopted as-is) — it only ever reads/
-     writes `currentPhaseIndex`. Reading ahead (tier 3 above) is real and
-     unblocked; *advancing* is not. Because only the current phase's
-     checklist is ever interactive, there's no path to "tick a future
-     phase's boxes and skip ahead" — the read-ahead and done checklists
-     are display-only by construction, not just by convention.
-  6. **Tool-guide/prompt-library surfaced inline (question 3)**: a
-     per-phase link, not a persistent panel (a second nav zone on every
-     card would compete with the checklist for attention). New mapping
-     (add to `website-build-phases.ts` or a small new
-     `build-phase-prompt-mapping.ts`) from `BuildPhaseId` →
-     `PromptCategory[]`: `design_system→[design]`,
-     `homepage→[copy,content]`, `remaining_pages→[copy,content]`,
-     `responsive→[responsive]`, `seo→[seo]`, `accessibility→[accessibility]`,
-     `qa→[qa,security]`, `polish→[performance,conversion]`,
-     `deployment→[launch,analytics]` (covers all 12 `PromptCategory`
-     values; `setup` has none — it already gets the tool's own
-     `setupPreamble` inline). Render as a small
-     `text-xs text-muted-foreground hover:text-accent` link row (same
-     style as the existing "Browse the prompt library for this project"
-     link) under each generated phase's checklist: "Need to refine this
-     later? [Design prompts] [Content prompts]" →
-     `/studio/website-builder/prompts?project=<id>&category=<cat>`.
-     Requires one small addition to `prompts/page.tsx` — read an optional
-     `category` search param and pass it as `PromptLibraryBrowser`'s new
-     `initialCategory` prop (currently `activeCategory` only initialises
-     to `"all"` via local `useState`, no prop exists yet). Same link row
-     also appears in the script view's per-phase `AccordionItem`.
-- **Relevant agent**: Product Director (sanity-check this design against
-  the original problem statement) → Lead Engineer (build) → QA →
-  UX/UI Director (visual re-review).
-- **Dependencies**: none blocking — `build_phases` already contains
-  everything needed; no schema change. `prompt-library-browser.tsx` needs
-  one new optional prop (`initialCategory`); `prompts/page.tsx` needs one
-  new optional search param read. No other file needs a breaking change.
-- **Product Director sanity-check (2026-09-11): passed.** Verified directly
-  against the real code (not just this spec's own description) — the
-  `isDone` branch really does render only a checkmark with no expand
-  affordance, the `Lock` framing really is misleading for already-written
-  phases, and `prompt-library-browser.tsx`'s `activeCategory` really is
-  local-only with no prop today. Design solves the literal ask (the script
-  route directly answers "can we just provide them with the personalised
-  prompts?"; the per-phase prompt-library links directly answer "more
-  integration... with the prompt library") without drifting into a bigger
-  rebuild. Full verdict in `DECISIONS.md`'s matching 2026-09-11 entry.
-  Awaiting Hamish's plain go-ahead (flow-size judgement call, not a hard
-  approval-boundary item) before Lead Engineer starts — see that same
-  entry.
-- **Closure note (Lead Engineer, 2026-09-11)**: built as scoped, all three
-  buildable pieces of the design.
-  1. **`build-phase-panel.tsx`** now renders three real tiers instead of
-     two: Current (unchanged — interactive checklist, Continue button),
-     **Done** (`index < currentPhaseIndex`, new `DonePhaseCard` —
-     collapsible, collapsed by default, `CheckCircle2` + `Badge
-     variant="success"` "Done" trigger, static accent-checked/line-through
-     checklist, fixes the real `isDone`-renders-nothing-but-a-checkmark
-     bug Product Director's sanity-check re-confirmed against the live
-     code), and **Read-ahead** (`index > currentPhaseIndex` but already
-     generated, new `ReadAheadPhaseCard` — collapsible, `FileText` +
-     `Badge variant="secondary"` "Written — not started" trigger, static
-     muted checklist, the explicit "You'll be able to check these off
-     once you reach this phase" line). A genuinely not-yet-written future
-     phase (`!phase && !isReached`) now renders a plain, named, un-locked
-     placeholder (`Circle` icon, no `Lock`, no `opacity-60`) — the
-     `Lock`/opacity framing is gone from the component entirely, not just
-     relabelled. Checklist interactivity stays structurally impossible on
-     Done/Read-ahead (no `<button>` wrapper in the new `StaticChecklist`
-     at all), so "Continue to next phase" is exactly as strictly
-     sequential and server-re-verified (`advanceBuildPhase`) as before —
-     confirmed no behavioural change to that function or its call site.
-  2. **New route `/studio/website-builder/[id]/script`** (`script/page.tsx`
-     + a new client view, `build-script-view.tsx`) — a real page, Base UI
-     `Accordion` (`multiple`, every generated phase open by default via
-     `defaultValue`), no `max-h-64` clamp on instructions text (the main
-     project page's own per-card clamp is untouched, exactly as scoped),
-     a per-phase `Copy` button, one "Copy entire script" button that
-     concatenates every generated phase's instructions (tool preamble
-     included on Phase 1, checklists deliberately left out of the
-     concatenation — a prompt to paste into a coding agent, not a human
-     tracking artifact) under a `## Phase N — Name` heading, and the
-     required read-only banner framing it as a non-authoritative
-     companion view. Entry point is a new `border-accent/30 bg-accent/5`
-     banner row in `BuildPhasePanel`, shown as soon as any phase exists
-     (`phases.length > 0`), with a real `Button` (not a text link) to
-     `.../script`.
-  3. **Per-phase prompt-library links**: new `src/lib/
-     build-phase-prompt-mapping.ts` (`BUILD_PHASE_PROMPT_CATEGORIES:
-     Record<BuildPhaseId, PromptCategory[]>`, exactly the mapping the spec
-     listed, `setup` → `[]`) and a new shared `BuildPhasePromptLinks`
-     component (`build-phase-prompt-links.tsx`) rendering nothing when a
-     phase has no mapped categories, used identically under every
-     generated phase's checklist on both the main project page (Current/
-     Done/Read-ahead cards) and the script route's accordion items — one
-     mapping, one link-row component, not two copies. `prompt-library-
-     browser.tsx` gained the spec'd optional `initialCategory` prop
-     (default `"all"`, otherwise unchanged — category pills still work
-     exactly as before); `prompts/page.tsx` reads an optional `?category=`
-     search param and validates it against the real `PromptCategory`
-     union before passing it down (falls back to `"all"` on anything
-     unrecognised — never trusted structurally, same instinct as every
-     other unknown-input boundary in this codebase).
-  - **No deviation from the spec** — built exactly as designed, including
-    the exact badge variants/labels, icon choices, and banner copy the
-    spec specified verbatim. The one implementation detail not dictated
-    by the spec (the "Copy entire script" concatenation deliberately
-    excluding checklists, only instructions under each `## Phase N`
-    heading) is a direct, literal reading of the spec's own wording
-    ("concatenates every generated phase" alongside its own explicit
-    framing of this as the answer to "can we just provide them with the
-    personalised prompts" — prompts, not tracking checkboxes).
-  - **Verification**: `npx tsc --noEmit -p .` clean; `npx eslint` clean on
-    every touched/new file; full `npx vitest run` — 53 files / 504 tests,
-    all green, no flake hit on this run (the known
-    `prospecting-panel.test.tsx` flake noted in the brief didn't
-    reproduce, nothing to re-run); `npm run build` succeeded,
-    `/studio/website-builder/[id]/script` present in the route output.
-    Live-checked what's possible without a seeded authenticated
-    org/session: unauthenticated requests to the new `/script` route and
-    to `prompts?category=...` (both a real category and a garbage one)
-    all correctly 307-redirect to `/platform/signup` with no server
-    error — confirms no runtime crash on either new code path pre-auth.
-    Full authenticated visual verification (the three card tiers, the
-    accordion, the banner, the link rows) is left for QA's own pass, per
-    the brief's own note that this route needs a real session.
-  - **Files touched**: `src/components/platform/build-phase-panel.tsx`
-    (rewritten), `src/components/platform/build-phase-prompt-links.tsx`
-    (new), `src/components/platform/build-script-view.tsx` (new),
-    `src/lib/build-phase-prompt-mapping.ts` (new),
-    `src/app/studio/(authed)/website-builder/[id]/script/page.tsx` (new),
-    `src/components/platform/prompt-library-browser.tsx` (one new prop),
-    `src/app/studio/(authed)/website-builder/prompts/page.tsx` (reads
-    `?category=`). `clients-panel.tsx`/`launch-panel.tsx` untouched, per
-    the brief's explicit instruction to stay out of the parallel Lead
-    Engineer pass.
-- **Status**: Needs review.
-
 ### Public `/help` page — pre-signup/new-signup documentation for the Agency Platform
 
 Scoped from a "public docs launch readiness" mission (2026-09-06). Full
@@ -2214,16 +1908,322 @@ and confirmed real downstream contamination, not just a framing nit.
 
 ## Needs review
 
+### Website Builder build-phase flow: decouple personalised content visibility from checklist-gated progress
+
+Scoped from Hamish's direct feedback after running his own real "Press
+Coffee" project through the whole Website Builder flow (2026-09-11,
+scoping-only mission — see `DECISIONS.md`'s matching 2026-09-11 entry for
+the full reasoning, including what was explicitly rejected). Interaction
+design completed by UX/UI Director the same day (see `DECISIONS.md`'s
+second 2026-09-11 entry) — moved out of `## Researching`, then built by
+Lead Engineer (2026-09-11). **Next: QA, then UX/UI Director visual
+re-review.**
+
+- **Problem**: `generate()` (`build-phase-panel.tsx`) already writes all 10
+  phases' full personalised build instructions and checklists to
+  `website_projects.build_phases` in one action (confirmed on the real
+  "Press Coffee" project, `8cdba9d4-a7ae-440c-90a6-0fcd9870b78c`: ~8,500
+  words across 10 phases, 74 checklist items, all genuinely grounded in
+  that project's real brief). Despite the content already existing, the UI
+  shows a locked, contentless placeholder for every phase past
+  `current_phase_index` — reading/copying Phase 10 requires manually
+  re-opening, copying, and hand-ticking 7-8 checklist items (one server
+  round-trip each) for every one of the 9 phases before it. This is the
+  concrete mechanism behind Hamish's own report: "I feel it's a whole load
+  of work walking through all the steps, can we just provide them with the
+  personalised prompts?" A secondary, smaller real friction: the AI coding
+  tool guide (`ai-coding-tool-guides.ts`, durable "how to actually work
+  with this tool" content) and the prompt library (`website-prompt-library.ts`,
+  generic "make it better" refinement templates, already lightly
+  pre-fillable from a project via `?project=<id>`) both live on separate
+  routes, reachable only via a top-of-panel "Guide" link and a small
+  de-emphasised "Browse the prompt library for this project" text link —
+  not surfaced inline with the phase someone's actually working through.
+- **Objective**: make all already-generated phases' instructions/checklists
+  visible and copyable immediately (not gated behind advancing through
+  prior phases), with a prominent "get the whole build script" view/action
+  that answers the literal ask — while keeping checklist-gated "Continue to
+  next phase" advancement exactly as it works today, since that's a
+  separate, real, still-needed concept (see below). Surface the tool guide
+  and relevant prompt-library entries contextually within the phase flow
+  rather than requiring a separate page visit.
+- **User**: an agency owner or team member actually running a real website
+  build end to end (the persona Hamish tested as himself) — someone doing
+  real, often multi-day/multi-session external coding-agent work, who wants
+  the personalised instructions available on demand rather than paced out
+  one card at a time by a UI gate that no longer reflects whether the
+  content actually exists yet.
+- **Priority**: P1 — real, direct feedback from Hamish's own hands-on test
+  of the product's own most substantial AI-generated deliverable, not a
+  hunch.
+- **Expected outcome**: an agency running a build can get every phase's
+  personalised instructions in one place without manually unlocking each
+  one; the tracked-progress checklist remains real and meaningful (still
+  drives `current_phase_index`/`stage`, still read by
+  `requests/actions.ts`'s troubleshooting-help AI context and the stage
+  tracker) but is no longer the only way to *see* content that already
+  exists.
+- **Explicitly rejected, with reasoning** (see `DECISIONS.md` for the full
+  writeup): rebuilding the prompt library as AI-generated/personalised
+  content (it's deliberately static, curated, instantly reviewable data —
+  conflating it with the build script blurs two genuinely different
+  content types); merging all 10 phases into a single AI prompt/call
+  (already explicitly rejected when this feature was first built, for real
+  technical reasons — Vercel Hobby's 60s serverless cap, and per-phase
+  generation producing better-grounded content — not reopened here);
+  removing checklist-gated advancement outright (real downstream
+  consumers depend on a meaningful "current phase," and the phase-
+  generation system prompt itself assumes each phase's coding agent has
+  already completed every earlier phase — ungating advancement risks
+  someone pasting a later phase's instructions into a build that hasn't
+  reached that dependency point yet).
+- **Acceptance criteria**: not written in full here — depends on the UX/UI
+  Director's interaction-design pass (see open questions below). At
+  minimum: no phase's instructions/checklist stay contentless once
+  generated regardless of `current_phase_index`; "Continue to next phase"
+  keeps its existing server-re-verified checklist gate
+  (`advanceBuildPhase`); a real, discoverable "everything" surface exists;
+  `npx tsc --noEmit -p .`, `npx eslint`, full `vitest` suite green.
+- **UX/UI Director design (2026-09-11) — resolves the 5 open questions
+  below.** Full reasoning in `DECISIONS.md`; this is the buildable
+  summary.
+  1. **A real second bug found while designing this, not just the
+     originally-reported one**: `build-phase-panel.tsx`'s `isDone` branch
+     (`index < currentPhaseIndex`) renders *only* a checkmark + label —
+     no instructions, no checklist, no expand affordance. A completed
+     phase's content is currently unreachable once you've advanced past
+     it, not just a not-yet-reached phase's. The fix below solves both in
+     one pass.
+  2. **Three visual/interaction tiers per phase card, replacing today's
+     two (locked / current)**, each a `Card` in the existing `<ul>` list
+     on `website-builder/[id]/page.tsx` (no new page structure needed for
+     this part):
+     - **Current** (`index === currentPhaseIndex`, generated): unchanged
+       from today — `border-accent/40`, always expanded, full
+       instructions + `Copy instructions`, the *only* card with an
+       interactive checklist (clickable checkboxes), `Continue to next
+       phase` button.
+     - **Done** (`index < currentPhaseIndex`): now a **collapsible**
+       card (the established local-`useState` + `aria-expanded` pattern
+       from `DESIGN-SYSTEM.md`'s "Collapsible panel," not Base UI
+       Accordion — this is a plain card list, matching `ProspectCard`/
+       `ClientCard`), collapsed by default. Trigger row:
+       `CheckCircle2` (accent) + "Phase N — Name" +
+       `Badge variant="success"` "Done" + chevron. Expanded: instructions
+       + `Copy instructions` + the checklist rendered as a **static**
+       list (accent check icons, `line-through`, not a `<button>` — it's
+       provably already complete, not editable history).
+     - **Read-ahead** (`index > currentPhaseIndex` but `phases[index]`
+       already exists — the actual bug this backlog entry was filed
+       for): also collapsible, collapsed by default. Trigger row: a
+       neutral icon (`FileText`, not `Lock` — it is not access-gated,
+       just not started) + "Phase N — Name" +
+       `Badge variant="secondary"` "Written — not started" + chevron.
+       Expanded: instructions + `Copy instructions` + the checklist
+       rendered as a **static, non-interactive** list (muted circles, no
+       strikethrough, no click handler) + one `text-xs
+       text-muted-foreground` line: "You'll be able to check these off
+       once you reach this phase." No `Continue` button on this card —
+       advancement is unaffected, it only ever reads/writes
+       `currentPhaseIndex`'s own phase.
+     - **Not yet generated** (`!phases[index]`, whether mid-run or a
+       stalled run): keep today's spinner-if-currently-writing /
+       existing "Continue generating the rest" banner — but drop the
+       `Lock` icon + `opacity-60` "locked" framing for the plain
+       not-yet-written case (misleading; nothing is actually gated).
+     This directly answers question (2): "tracked progress" (current +
+     done, accent/success) and "pre-written, available" (secondary,
+     explicitly labelled "Written — not started" so it can't be mistaken
+     for "Done") are two visually distinct tiers using colour + label,
+     not two competing features.
+  3. **A dedicated "Full build script" view** (`/studio/website-builder/
+     [id]/script`, new route) answers Hamish's literal ask — one
+     continuous, printable/copyable document, not just per-card access.
+     Entry point: a new banner-style row inside `BuildPhasePanel`,
+     directly under the existing "Building with X / Guide" header row,
+     reusing the established field-provenance banner chrome
+     (`border-accent/30 bg-accent/5`, one line of copy, one action) —
+     "Full build script — N of 10 phases written. Read, copy, or print
+     the whole thing in one place." + a real `Button` (not a text link,
+     this is the headline ask) `render={<Link href=".../script" />}`.
+     Shown as soon as `hasStarted` (phase 1 exists), not gated on
+     completion. On the script page itself: a one-line
+     `border-accent/30 bg-accent/5` banner explicitly framing it as
+     read-only reference ("Everything you've generated so far, in one
+     place — this doesn't affect your tracked progress on the project
+     page") so it reads as a companion, not a duplicate, of the phase
+     list. Content is a Base UI `Accordion` (`multiple`, all *generated*
+     phases open by default — the point of this page is reading
+     everything at once, not a second collapse-by-default UI) with one
+     `AccordionItem` per generated phase (ungenerated phases render as a
+     plain muted "not written yet" row, not an accordion item); each
+     item shows the phase's full instructions as plain, full-width text
+     (no `max-h-64 overflow-y-auto` clamp — that clamp is right for a
+     busy multi-card page, wrong for a page whose only job is reading
+     long text; per-item `Copy` button too, plus one `Copy entire script`
+     button at the top that concatenates every generated phase under a
+     `## Phase N — Name` heading. Checklists render read-only here (same
+     static-list treatment as the Done/Read-ahead cards above) — checklist
+     *state* only ever changes in one place (the current phase's card on
+     the main project page), never in two.
+  4. **Mobile**: the dedicated script route *is* the mobile answer to
+     question (4) — a real page (not a modal/dialog, which would cramp
+     ~8,500 words on a small viewport), single-column, `Accordion`
+     sections instead of nested scroll boxes so the whole page scrolls
+     naturally instead of fighting an inner `overflow-y-auto` region
+     (the same reason Projects Kanban's mobile view uses `Accordion`
+     instead of horizontal scroll — different content shape, same
+     "don't nest a scroll region inside a scroll region on touch"
+     reasoning). The main project page's per-card `pre` clamp is
+     untouched — still appropriate there since that page mixes many
+     components, not a change in scope.
+  5. **"Continue to next phase" stays strictly sequential** (Product
+     Director's own recommendation, adopted as-is) — it only ever reads/
+     writes `currentPhaseIndex`. Reading ahead (tier 3 above) is real and
+     unblocked; *advancing* is not. Because only the current phase's
+     checklist is ever interactive, there's no path to "tick a future
+     phase's boxes and skip ahead" — the read-ahead and done checklists
+     are display-only by construction, not just by convention.
+  6. **Tool-guide/prompt-library surfaced inline (question 3)**: a
+     per-phase link, not a persistent panel (a second nav zone on every
+     card would compete with the checklist for attention). New mapping
+     (add to `website-build-phases.ts` or a small new
+     `build-phase-prompt-mapping.ts`) from `BuildPhaseId` →
+     `PromptCategory[]`: `design_system→[design]`,
+     `homepage→[copy,content]`, `remaining_pages→[copy,content]`,
+     `responsive→[responsive]`, `seo→[seo]`, `accessibility→[accessibility]`,
+     `qa→[qa,security]`, `polish→[performance,conversion]`,
+     `deployment→[launch,analytics]` (covers all 12 `PromptCategory`
+     values; `setup` has none — it already gets the tool's own
+     `setupPreamble` inline). Render as a small
+     `text-xs text-muted-foreground hover:text-accent` link row (same
+     style as the existing "Browse the prompt library for this project"
+     link) under each generated phase's checklist: "Need to refine this
+     later? [Design prompts] [Content prompts]" →
+     `/studio/website-builder/prompts?project=<id>&category=<cat>`.
+     Requires one small addition to `prompts/page.tsx` — read an optional
+     `category` search param and pass it as `PromptLibraryBrowser`'s new
+     `initialCategory` prop (currently `activeCategory` only initialises
+     to `"all"` via local `useState`, no prop exists yet). Same link row
+     also appears in the script view's per-phase `AccordionItem`.
+- **Relevant agent**: Product Director (sanity-check this design against
+  the original problem statement) → Lead Engineer (build) → QA →
+  UX/UI Director (visual re-review).
+- **Dependencies**: none blocking — `build_phases` already contains
+  everything needed; no schema change. `prompt-library-browser.tsx` needs
+  one new optional prop (`initialCategory`); `prompts/page.tsx` needs one
+  new optional search param read. No other file needs a breaking change.
+- **Product Director sanity-check (2026-09-11): passed.** Verified directly
+  against the real code (not just this spec's own description) — the
+  `isDone` branch really does render only a checkmark with no expand
+  affordance, the `Lock` framing really is misleading for already-written
+  phases, and `prompt-library-browser.tsx`'s `activeCategory` really is
+  local-only with no prop today. Design solves the literal ask (the script
+  route directly answers "can we just provide them with the personalised
+  prompts?"; the per-phase prompt-library links directly answer "more
+  integration... with the prompt library") without drifting into a bigger
+  rebuild. Full verdict in `DECISIONS.md`'s matching 2026-09-11 entry.
+  Awaiting Hamish's plain go-ahead (flow-size judgement call, not a hard
+  approval-boundary item) before Lead Engineer starts — see that same
+  entry.
+- **Closure note (Lead Engineer, 2026-09-11)**: built as scoped, all three
+  buildable pieces of the design.
+  1. **`build-phase-panel.tsx`** now renders three real tiers instead of
+     two: Current (unchanged — interactive checklist, Continue button),
+     **Done** (`index < currentPhaseIndex`, new `DonePhaseCard` —
+     collapsible, collapsed by default, `CheckCircle2` + `Badge
+     variant="success"` "Done" trigger, static accent-checked/line-through
+     checklist, fixes the real `isDone`-renders-nothing-but-a-checkmark
+     bug Product Director's sanity-check re-confirmed against the live
+     code), and **Read-ahead** (`index > currentPhaseIndex` but already
+     generated, new `ReadAheadPhaseCard` — collapsible, `FileText` +
+     `Badge variant="secondary"` "Written — not started" trigger, static
+     muted checklist, the explicit "You'll be able to check these off
+     once you reach this phase" line). A genuinely not-yet-written future
+     phase (`!phase && !isReached`) now renders a plain, named, un-locked
+     placeholder (`Circle` icon, no `Lock`, no `opacity-60`) — the
+     `Lock`/opacity framing is gone from the component entirely, not just
+     relabelled. Checklist interactivity stays structurally impossible on
+     Done/Read-ahead (no `<button>` wrapper in the new `StaticChecklist`
+     at all), so "Continue to next phase" is exactly as strictly
+     sequential and server-re-verified (`advanceBuildPhase`) as before —
+     confirmed no behavioural change to that function or its call site.
+  2. **New route `/studio/website-builder/[id]/script`** (`script/page.tsx`
+     + a new client view, `build-script-view.tsx`) — a real page, Base UI
+     `Accordion` (`multiple`, every generated phase open by default via
+     `defaultValue`), no `max-h-64` clamp on instructions text (the main
+     project page's own per-card clamp is untouched, exactly as scoped),
+     a per-phase `Copy` button, one "Copy entire script" button that
+     concatenates every generated phase's instructions (tool preamble
+     included on Phase 1, checklists deliberately left out of the
+     concatenation — a prompt to paste into a coding agent, not a human
+     tracking artifact) under a `## Phase N — Name` heading, and the
+     required read-only banner framing it as a non-authoritative
+     companion view. Entry point is a new `border-accent/30 bg-accent/5`
+     banner row in `BuildPhasePanel`, shown as soon as any phase exists
+     (`phases.length > 0`), with a real `Button` (not a text link) to
+     `.../script`.
+  3. **Per-phase prompt-library links**: new `src/lib/
+     build-phase-prompt-mapping.ts` (`BUILD_PHASE_PROMPT_CATEGORIES:
+     Record<BuildPhaseId, PromptCategory[]>`, exactly the mapping the spec
+     listed, `setup` → `[]`) and a new shared `BuildPhasePromptLinks`
+     component (`build-phase-prompt-links.tsx`) rendering nothing when a
+     phase has no mapped categories, used identically under every
+     generated phase's checklist on both the main project page (Current/
+     Done/Read-ahead cards) and the script route's accordion items — one
+     mapping, one link-row component, not two copies. `prompt-library-
+     browser.tsx` gained the spec'd optional `initialCategory` prop
+     (default `"all"`, otherwise unchanged — category pills still work
+     exactly as before); `prompts/page.tsx` reads an optional `?category=`
+     search param and validates it against the real `PromptCategory`
+     union before passing it down (falls back to `"all"` on anything
+     unrecognised — never trusted structurally, same instinct as every
+     other unknown-input boundary in this codebase).
+  - **No deviation from the spec** — built exactly as designed, including
+    the exact badge variants/labels, icon choices, and banner copy the
+    spec specified verbatim. The one implementation detail not dictated
+    by the spec (the "Copy entire script" concatenation deliberately
+    excluding checklists, only instructions under each `## Phase N`
+    heading) is a direct, literal reading of the spec's own wording
+    ("concatenates every generated phase" alongside its own explicit
+    framing of this as the answer to "can we just provide them with the
+    personalised prompts" — prompts, not tracking checkboxes).
+  - **Verification**: `npx tsc --noEmit -p .` clean; `npx eslint` clean on
+    every touched/new file; full `npx vitest run` — 53 files / 504 tests,
+    all green, no flake hit on this run (the known
+    `prospecting-panel.test.tsx` flake noted in the brief didn't
+    reproduce, nothing to re-run); `npm run build` succeeded,
+    `/studio/website-builder/[id]/script` present in the route output.
+    Live-checked what's possible without a seeded authenticated
+    org/session: unauthenticated requests to the new `/script` route and
+    to `prompts?category=...` (both a real category and a garbage one)
+    all correctly 307-redirect to `/platform/signup` with no server
+    error — confirms no runtime crash on either new code path pre-auth.
+    Full authenticated visual verification (the three card tiers, the
+    accordion, the banner, the link rows) is left for QA's own pass, per
+    the brief's own note that this route needs a real session.
+  - **Files touched**: `src/components/platform/build-phase-panel.tsx`
+    (rewritten), `src/components/platform/build-phase-prompt-links.tsx`
+    (new), `src/components/platform/build-script-view.tsx` (new),
+    `src/lib/build-phase-prompt-mapping.ts` (new),
+    `src/app/studio/(authed)/website-builder/[id]/script/page.tsx` (new),
+    `src/components/platform/prompt-library-browser.tsx` (one new prop),
+    `src/app/studio/(authed)/website-builder/prompts/page.tsx` (reads
+    `?category=`). `clients-panel.tsx`/`launch-panel.tsx` untouched, per
+    the brief's explicit instruction to stay out of the parallel Lead
+    Engineer pass.
+- **Status**: Needs review.
+
 ### Website Builder launch handoff: wire `live_url` into the Clients page chatbot field, and a real "what's next" moment on launch
 
-Companion to the "Website Builder build-phase flow" entry — same mission
-(2026-09-11, from Hamish directly after finishing his own "Press Coffee"
-build), designed by UX/UI Director the same day. Two connected gaps, one
-coherent fix. Full reasoning in `DECISIONS.md`'s second 2026-09-11 entry.
-Built and reviewed here as its own separate pass from the phase-flow entry,
-per this same `DECISIONS.md` entry's own recommendation to build and QA the
-two passes independently — see that entry's own closure note for its own
-status.
+Companion to the "Website Builder build-phase flow" entry in `## Ready`
+above — same mission (2026-09-11, from Hamish directly after finishing his
+own "Press Coffee" build), designed by UX/UI Director the same day. Two
+connected gaps, one coherent fix. Full reasoning in `DECISIONS.md`'s second
+2026-09-11 entry. Moved to `## Needs review` once this entry's own build
+was complete — the phase-flow entry stays in `## Ready` as its own separate
+build, per this same `DECISIONS.md` entry's own recommendation to build and
+QA the two passes independently.
 
 - **Problem, part A (a real, verified wiring gap)**: `launchWebsiteProject()`
   (`website-builder/actions.ts`) writes a real, validated `https://` URL to
